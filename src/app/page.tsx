@@ -91,14 +91,14 @@ export default function CraftFlow() {
       const img = new Image()
       const url = URL.createObjectURL(file)
       img.onload = () => {
-        URL.revokeObjectURL(url)
-        const maxW = 800
+        const maxW = 1024
         let w = img.width, h = img.height
         if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
         const canvas = document.createElement('canvas')
         canvas.width = w; canvas.height = h
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-        resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1])
+        resolve(canvas.toDataURL('image/jpeg', 0.6).split(',')[1])
+        URL.revokeObjectURL(url)
       }
       img.onerror = reject
       img.src = url
