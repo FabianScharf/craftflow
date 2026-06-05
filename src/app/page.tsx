@@ -228,7 +228,6 @@ export default function CraftFlow() {
               ref={startFileRef}
               type="file"
               accept="image/*"
-              capture="environment"
               onChange={e => { const f = e.target.files?.[0]; if (f) loadBild(f) }}
               style={{ display: 'none' }}
             />
