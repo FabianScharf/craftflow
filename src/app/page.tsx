@@ -47,17 +47,11 @@ const TxtInput = ({ value, onChange, placeholder }: { value: string; onChange: (
 
 /* ── Haupt-Komponente ─────────────────────────────── */
 export default function CraftFlow() {
-  // Navigation
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf'>('start')
-
-  // Kunden
   const [kunden, setKunden] = useState<KundeDB[]>(ladeKunden)
   const [kunde, setKunde] = useState<Kunde>({ name: '', zusatz: '', strasse: '', ort: '', projekt: '' })
-  const [kundeTyp, setKundeTyp] = useState<'neu' | 'bestand'>('neu')
-  const [kundeQuery, setKundeQuery] = useState('')
 
-  // App State
-  const [tab, setTab] = useState('diktieren')
+  const [tab, setTab] = useState('kunde')
   const [pos, setPos] = useState<Position[]>([
     { id: 1, kat: 'Schrank', titel: 'Einbauschrank', bez: 'Maße und Material nach Absprache.', kalkTyp: 'qm', menge: 4, einheit: 'm²', ep: 380, std: 0, mat: 0, aufschlag: 0.3 },
     { id: 2, kat: 'Montage', titel: 'Lieferung & Montage', bez: 'Fachgerechte Montage inkl. An-/Abfahrt.', kalkTyp: 'stunden', menge: 8, einheit: 'Std', ep: 65, std: 1, mat: 0, aufschlag: 0 },
@@ -69,26 +63,15 @@ export default function CraftFlow() {
   const [widerruf, setWiderruf] = useState(true)
   const [pdfHTML, setPdfHTML] = useState('')
 
-  // Start / Diktat
+  // Start Screen State
   const [startText, setStartText] = useState('')
   const [startBild, setStartBild] = useState<string | null>(null)
   const [startBildB64, setStartBildB64] = useState<string | null>(null)
-  const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [startMsg, setStartMsg] = useState('')
 
-  const [diktatText, setDiktatText] = useState('')
-  const [diktatStufe, setDiktatStufe] = useState('komplett')
-  const [diktatBild, setDiktatBild] = useState<string | null>(null)
-  const [diktatBildB64, setDiktatBildB64] = useState<string | null>(null)
-  const [diktatStatus, setDiktatStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const [diktatMsg, setDiktatMsg] = useState('')
-
   const startFileRef = useRef<HTMLInputElement>(null)
-  const diktatFileRef = useRef<HTMLInputElement>(null)
-  const startTextRef = useRef<HTMLTextAreaElement>(null)
-  const diktatTextRef = useRef<HTMLTextAreaElement>(null)
 
-  // ── Helpers ────────────────────────────────────────
   const updK = (f: keyof Kunde, v: string) => setKunde(prev => ({ ...prev, [f]: v }))
   const updPos = (id: number, f: keyof Position, v: unknown) =>
     setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } : p))
@@ -102,28 +85,43 @@ export default function CraftFlow() {
   const vat = totals.net * 0.19
   const gross = totals.net + vat
 
-  const gefilterteKunden = kunden.filter(k =>
-    k.name.toLowerCase().includes(kundeQuery.toLowerCase()) ||
-    k.ort.toLowerCase().includes(kundeQuery.toLowerCase())
-  )
-
-  // ── Bild laden ─────────────────────────────────────
-  const loadBild = useCallback((file: File, setter: (url: string | null) => void, setterB64: (b64: string | null) => void) => {
-    setter(URL.createObjectURL(file))
-    const reader = new FileReader()
-    reader.onload = ev => {
-      const result = ev.target?.result as string
-      setterB64(result.split(',')[1])
-    }
-    reader.readAsDataURL(file)
+  // ── Bild komprimieren (Canvas, max 800px, JPEG 70%) ──
+  const compressImage = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const maxW = 800
+        let w = img.width, h = img.height
+        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1])
+      }
+      img.onerror = reject
+      img.src = url
+    })
   }, [])
 
-  // ── KI Analyse (über eigene API Route) ────────────
-  const callAI = useCallback(async (text: string, imageB64: string | null, mode: string) => {
+  const loadBild = useCallback(async (file: File) => {
+    setStartBild(URL.createObjectURL(file))
+    try {
+      setStartBildB64(await compressImage(file))
+    } catch {
+      const reader = new FileReader()
+      reader.onload = ev => setStartBildB64((ev.target?.result as string).split(',')[1])
+      reader.readAsDataURL(file)
+    }
+  }, [compressImage])
+
+  // ── KI Analyse ─────────────────────────────────────
+  const callAI = useCallback(async (text: string, imageB64: string | null) => {
     const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, imageBase64: imageB64, mode }),
+      body: JSON.stringify({ text, imageBase64: imageB64, mode: 'analyse' }),
     })
     if (!res.ok) throw new Error(`API Fehler: ${res.status}`)
     const json = await res.json()
@@ -131,15 +129,12 @@ export default function CraftFlow() {
     return json.data
   }, [])
 
-  // ── Start: Analyse + Positionen erstellen ─────────
   const startAnalyse = useCallback(async () => {
-    if (!startText.trim()) return
+    if (!startText.trim() && !startBildB64) return
     setStartStatus('loading')
-    setStartMsg('KI analysiert...')
+    setStartMsg('')
     try {
-      const data = await callAI(startText, startBildB64, 'analyse')
-
-      // Kundendaten übernehmen
+      const data = await callAI(startText, startBildB64)
       if (data.kunde) {
         setKunde({
           name: data.kunde.name || '',
@@ -149,10 +144,8 @@ export default function CraftFlow() {
           projekt: data.kunde.projekt || '',
         })
       }
-
-      // Positionen übernehmen
       if (data.positionen?.length > 0) {
-        const newPos: Position[] = data.positionen.map((p: Partial<Position>, i: number) => ({
+        setPos(data.positionen.map((p: Partial<Position>, i: number) => ({
           id: Date.now() + i,
           kat: p.kat || 'Sonstiges',
           titel: p.titel || 'Position',
@@ -162,55 +155,17 @@ export default function CraftFlow() {
           einheit: p.einheit || 'Stk',
           ep: p.ep || 0,
           std: 0, mat: 0, aufschlag: 0.3,
-        }))
-        setPos(newPos)
+        })))
       }
-
       if (data.anschreiben) setAnschr(data.anschreiben)
-
-      setStartStatus('done')
-      setStartMsg(`✓ ${data.positionen?.length || 0} Positionen erkannt. Bitte auf "Weiter" tippen und in der Kalkulation prüfen.`)
+      setStartStatus('idle')
+      setScreen('app')
+      setTab('kunde')
     } catch (e: unknown) {
       setStartStatus('error')
       setStartMsg(`Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
     }
   }, [startText, startBildB64, callAI])
-
-  // ── Diktat Analyse ─────────────────────────────────
-  const runDiktat = useCallback(async () => {
-    if (!diktatText.trim()) { setDiktatMsg('Bitte Text eingeben.'); return }
-    setDiktatStatus('loading')
-    setDiktatMsg('KI analysiert...')
-    try {
-      if (diktatStufe === 'text') {
-        setDiktatText(diktatText.replace(/\s+/g, ' ').trim())
-        setDiktatStatus('done')
-        setDiktatMsg('✓ Text bereinigt.')
-        return
-      }
-      const data = await callAI(diktatText, diktatBildB64, 'analyse')
-      if (data.positionen?.length > 0) {
-        const newPos: Position[] = data.positionen.map((p: Partial<Position>, i: number) => ({
-          id: Date.now() + i,
-          kat: p.kat || 'Sonstiges',
-          titel: p.titel || 'Position',
-          bez: p.bez || '',
-          kalkTyp: p.kalkTyp || 'pauschale',
-          menge: p.menge || 1,
-          einheit: p.einheit || 'Stk',
-          ep: p.ep || 0,
-          std: 0, mat: 0, aufschlag: 0.3,
-        }))
-        setPos(newPos)
-        if (diktatStufe === 'komplett' && data.anschreiben) setAnschr(data.anschreiben)
-      }
-      setDiktatStatus('done')
-      setDiktatMsg(`✓ ${data.positionen?.length || 0} Positionen → Kalkulation prüfen!`)
-    } catch (e: unknown) {
-      setDiktatStatus('error')
-      setDiktatMsg(`Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
-    }
-  }, [diktatText, diktatBildB64, diktatStufe, callAI])
 
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
@@ -224,7 +179,7 @@ export default function CraftFlow() {
         </div>
         <div style={{ padding: 14, maxWidth: 760, margin: '0 auto' }}>
           <div style={{ background: '#1a2a1a', border: '1px solid #3a6a3a', borderRadius: 4, padding: '12px 16px', marginBottom: 14, fontSize: 13, color: '#90EE90' }}>
-            💡 PDF speichern: Teilen-Symbol → "Als PDF sichern"
+            💡 PDF speichern: Teilen-Symbol → &quot;Als PDF sichern&quot;
           </div>
           <div style={{ background: '#fff', borderRadius: 4, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,.5)' }}
             dangerouslySetInnerHTML={{ __html: pdfHTML.replace(/<script[\s\S]*?<\/script>/gi, '') }} />
@@ -234,159 +189,125 @@ export default function CraftFlow() {
   }
 
   /* ══════════════════════════════════════════════════
-     SCREEN: START
+     SCREEN: START – Assistent
   ══════════════════════════════════════════════════ */
   if (screen === 'start') {
+    const canGenerate = !!(startText.trim() || startBildB64)
+    const loading = startStatus === 'loading'
     return (
       <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+
         {/* Header */}
-        <div style={{ background: C.darkbg, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `2px solid ${C.copper}` }}>
-          <LogoMark size={38} />
-          <div>
-            <div style={{ color: C.copper, fontSize: 17, fontWeight: 800, letterSpacing: 3 }}>CRAFTFLOW</div>
-            <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 2 }}>KI-ANGEBOTSSYSTEM · FS CRAFTED</div>
+        <div style={{ background: C.darkbg, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${C.copper}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <LogoMark size={38} />
+            <div>
+              <div style={{ color: C.copper, fontSize: 17, fontWeight: 800, letterSpacing: 3 }}>CRAFTFLOW</div>
+              <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 2 }}>FS CRAFTED</div>
+            </div>
           </div>
+          <div style={{ color: C.textMid, fontSize: 12 }}>{today()}</div>
         </div>
 
-        <div style={{ padding: '16px 14px', maxWidth: 760, margin: '0 auto', boxSizing: 'border-box' }}>
+        <div style={{ padding: '0 16px 32px', maxWidth: 500, margin: '0 auto', boxSizing: 'border-box' }}>
 
-          {/* Hero */}
-          <div style={{ background: `linear-gradient(135deg,${C.gray1} 0%,#1a1208 100%)`, borderRadius: 8, padding: '20px 16px', marginBottom: 14, border: `1px solid ${C.copper}33`, textAlign: 'center' }}>
-            <div style={{ fontSize: 34, marginBottom: 8 }}>🎤 📷 ➜ 📄</div>
-            <div style={{ color: C.copper, fontSize: 18, fontWeight: 800, marginBottom: 6 }}>Sprechen. Fotografieren. Fertig.</div>
-            <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.7, marginBottom: 14 }}>
-              Beschreibe Kunde und Projekt in 30 Sekunden –{'\n'}CraftFlow erstellt das Angebot automatisch.
+          {/* Mic / Begrüßung */}
+          <div style={{ textAlign: 'center', padding: '40px 0 28px' }}>
+            <div style={{ fontSize: 72, lineHeight: 1, marginBottom: 18 }}>🎤</div>
+            <div style={{ color: C.white, fontSize: 22, fontWeight: 800, letterSpacing: 0.5 }}>
+              Womit kann ich dir helfen?
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-              {[{ icon: '🎤', l: 'Diktieren' }, { a: true }, { icon: '📷', l: 'Foto' }, { a: true }, { icon: '🔢', l: 'Kalkulation' }, { a: true }, { icon: '📄', l: 'Angebot' }]
-                .map((s, i) => s.a
-                  ? <div key={i} style={{ color: C.copper, fontSize: 14 }}>›</div>
-                  : <div key={i} style={{ background: C.gray2, borderRadius: 4, padding: '6px 10px', textAlign: 'center', border: `1px solid ${C.border}` }}>
-                    <div style={{ fontSize: 16 }}>{(s as {icon:string;l:string}).icon}</div>
-                    <div style={{ fontSize: 9, color: C.textMid, marginTop: 2 }}>{(s as {icon:string;l:string}).l}</div>
-                  </div>
-                )}
+            <div style={{ color: C.textMid, fontSize: 13, marginTop: 10, lineHeight: 1.6 }}>
+              Beschreibe Kunde und Projekt –<br />ich erstelle das Angebot automatisch.
             </div>
           </div>
 
-          {/* Schritt 1: Kunde */}
-          <Card accent={C.copper}>
-            <div style={{ padding: '14px 16px' }}>
-              <Lbl>Schritt 1 – Kunde</Lbl>
-              <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden', marginBottom: 12 }}>
-                {[{ id: 'neu', l: '+ Neukunde' }, { id: 'bestand', l: '👤 Bestandskunde' }].map(t => (
-                  <button key={t.id} onClick={() => setKundeTyp(t.id as 'neu' | 'bestand')} style={{ flex: 1, padding: '9px 4px', fontSize: 12, background: kundeTyp === t.id ? C.copper : C.gray2, color: kundeTyp === t.id ? C.black : C.textMid, border: 'none', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: kundeTyp === t.id ? 700 : 400 }}>
-                    {t.l}
-                  </button>
-                ))}
+          {/* Kamera-Button */}
+          <div style={{ marginBottom: 14 }}>
+            <input
+              ref={startFileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={e => { const f = e.target.files?.[0]; if (f) loadBild(f) }}
+              style={{ display: 'none' }}
+            />
+            <button
+              onClick={() => startFileRef.current?.click()}
+              style={{
+                width: '100%', padding: '20px 16px',
+                background: startBild ? `${C.copper}18` : C.gray1,
+                border: `2px dashed ${startBild ? C.copper : C.border}`,
+                borderRadius: 10, cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 42 }}>{startBild ? '✓' : '📷'}</span>
+              <span style={{ color: startBild ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                {startBild ? 'Foto vorhanden – neues aufnehmen' : 'Situationsfoto aufnehmen oder auswählen'}
+              </span>
+            </button>
+            {startBild && (
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <img src={startBild} alt="" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: `2px solid ${C.copper}` }} />
+                <button
+                  onClick={() => { setStartBild(null); setStartBildB64(null) }}
+                  style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}
+                >
+                  × Entfernen
+                </button>
               </div>
+            )}
+          </div>
 
-              {kundeTyp === 'bestand' ? (
-                <div>
-                  <TxtInput value={kundeQuery} onChange={setKundeQuery} placeholder="Name oder Ort suchen..." />
-                  <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto' }}>
-                    {gefilterteKunden.map(k => (
-                      <div key={k.id} onClick={() => { setKunde({ name: k.name, zusatz: k.zusatz || '', strasse: k.strasse, ort: k.ort, projekt: '' }); setKundeQuery('') }}
-                        style={{ padding: '10px 12px', background: C.gray2, borderRadius: 3, marginBottom: 6, cursor: 'pointer', border: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{k.name}</div>
-                          <div style={{ color: C.textMid, fontSize: 11 }}>{k.strasse} · {k.ort}</div>
-                        </div>
-                        <div style={{ fontSize: 9, background: C.copper, color: C.black, padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>{k.typ}</div>
-                      </div>
-                    ))}
-                    {gefilterteKunden.length === 0 && <div style={{ color: C.textMid, fontSize: 12, padding: '10px 0', textAlign: 'center' }}>Kein Kunde gefunden</div>}
-                  </div>
-                  {kunde.name && (
-                    <div style={{ marginTop: 8, background: C.black, borderRadius: 3, padding: '10px 12px', border: `1px solid ${C.copper}44` }}>
-                      <div style={{ color: C.copper, fontSize: 11, fontWeight: 700 }}>{kunde.name}</div>
-                      <div style={{ color: C.textMid, fontSize: 11 }}>{kunde.strasse} · {kunde.ort}</div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <div style={{ background: `${C.copper}18`, border: `1px solid ${C.copper}33`, borderRadius: 3, padding: '10px 12px', marginBottom: 10, fontSize: 12, color: C.white, lineHeight: 1.6 }}>
-                    🎤 <strong style={{ color: C.copper }}>Tipp:</strong> Im Textfeld unten einfach diktieren – die KI erkennt automatisch Name, Adresse und Projekt aus deiner Beschreibung.
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {[
-                      { f: 'name' as keyof Kunde, l: 'Kundenname', p: 'z.B. Familie Müller' },
-                      { f: 'projekt' as keyof Kunde, l: 'Bauvorhaben', p: 'z.B. TV-Board' },
-                      { f: 'strasse' as keyof Kunde, l: 'Straße', p: 'z.B. Hauptstr. 12' },
-                      { f: 'ort' as keyof Kunde, l: 'PLZ Ort', p: 'z.B. 63825 Schöllkrippen' },
-                    ].map(({ f, l, p }) => (
-                      <div key={f}>
-                        <Lbl>{l}</Lbl>
-                        <TxtInput value={kunde[f]} onChange={v => updK(f, v)} placeholder={p} />
-                      </div>
-                    ))}
-                  </div>
-                  {kunde.name && (
-                    <button onClick={() => {
-                      const neu: KundeDB = { id: Date.now(), ...kunde, typ: 'Privat' }
-                      const updated = [...kunden, neu]
-                      setKunden(updated); speichereKunden(updated)
-                    }} style={{ marginTop: 8, background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 3, padding: '7px 14px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                      + In Kundendatenbank speichern
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </Card>
+          {/* Textfeld */}
+          <textarea
+            value={startText}
+            onChange={e => setStartText(e.target.value)}
+            placeholder="Beschreibe deinen Kunden und das Projekt... oder lade ein Foto hoch"
+            style={{
+              width: '100%', background: C.gray1,
+              border: `1px solid ${C.border}`, borderRadius: 10,
+              padding: '16px', fontSize: 15, lineHeight: 1.7,
+              color: C.white, fontFamily: 'Helvetica Neue,sans-serif',
+              resize: 'none', minHeight: 170,
+              boxSizing: 'border-box', outline: 'none',
+            }}
+          />
 
-          {/* Schritt 2: Projekt */}
-          <Card>
-            <div style={{ padding: '14px 16px' }}>
-              <Lbl>Schritt 2 – Projekt beschreiben</Lbl>
-
-              {/* Foto */}
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <input ref={startFileRef} type="file" accept="image/*"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) loadBild(f, setStartBild, setStartBildB64) }}
-                    style={{ display: 'none' }} />
-                  <button onClick={() => startFileRef.current?.click()} style={{ width: '100%', padding: '9px', background: C.gray2, border: `1px dashed ${startBild ? C.copper : C.border}`, borderRadius: 3, color: startBild ? C.copper : C.textMid, fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                    {startBild ? '✓ Foto vorhanden – neues auswählen' : '📷 Situationsfoto aufnehmen oder auswählen'}
-                  </button>
-                </div>
-                {startBild && (
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <img src={startBild} alt="Situation" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 4, border: `2px solid ${C.copper}` }} />
-                    <button onClick={() => { setStartBild(null); setStartBildB64(null) }} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, background: C.copper, color: C.black, border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: 10, fontWeight: 800, lineHeight: '18px', textAlign: 'center' }}>×</button>
-                  </div>
-                )}
-              </div>
-
-              {/* Diktat */}
-              <button onClick={() => startTextRef.current?.focus()} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '10px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16 }}>🎤</span> Textfeld öffnen & diktieren
-              </button>
-
-              <textarea ref={startTextRef} value={startText} onChange={e => setStartText(e.target.value)}
-                placeholder={'Beispiel:\n"Kunde ist Sabrina Pürzl, Alter Kleinbahnweg 7, 63517 Gelnhausen Meerholz. Sie möchte ein TV-Board aus Eiche Massivholz, drei Teile: links Tür mit Regalfach, Mitte Klappe mit Akustikstoff für Soundbar, rechts zwei Schubladen. Rückwand aus Organoid Alm Heu. Montage ca. 10 Stunden."'}
-                style={{ width: '100%', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, padding: 12, fontSize: 13, lineHeight: 1.7, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'vertical', minHeight: 120, boxSizing: 'border-box', outline: 'none' }} />
-
-              <button onClick={startAnalyse} disabled={startStatus === 'loading' || !startText.trim()} style={{ width: '100%', marginTop: 10, background: (!startText.trim() || startStatus === 'loading') ? C.gray2 : C.copper, color: (!startText.trim() || startStatus === 'loading') ? C.textMid : C.black, border: 'none', borderRadius: 3, padding: '13px 0', cursor: (!startText.trim() || startStatus === 'loading') ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1 }}>
-                {startStatus === 'loading' ? '⟳ KI analysiert...' : '▶ ANGEBOT ERSTELLEN'}
-              </button>
-
-              {startMsg && (
-                <div style={{ marginTop: 10, background: startStatus === 'done' ? '#0d1a0d' : '#1a0d0d', border: `1px solid ${startStatus === 'done' ? '#2a4a2a' : '#4a2a2a'}`, borderRadius: 3, padding: '10px 12px', fontSize: 12, color: startStatus === 'done' ? '#90EE90' : '#ff9999' }}>
-                  {startMsg}
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* Weiter Button */}
-          <button onClick={() => setScreen('app')} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '15px 0', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1, cursor: 'pointer', marginBottom: 20 }}>
-            {kunde.name ? `▶ WEITER MIT "${kunde.name.split(' ').slice(-1)[0].toUpperCase()}"` : '▶ WEITER ZUR KALKULATION'}
+          {/* Generieren Button */}
+          <button
+            onClick={startAnalyse}
+            disabled={!canGenerate || loading}
+            style={{
+              width: '100%', marginTop: 14,
+              background: (!canGenerate || loading) ? C.gray2 : C.copper,
+              color: (!canGenerate || loading) ? C.textMid : C.black,
+              border: 'none', borderRadius: 10,
+              padding: '20px 0',
+              cursor: (!canGenerate || loading) ? 'not-allowed' : 'pointer',
+              fontSize: 18, fontFamily: 'Helvetica Neue,sans-serif',
+              fontWeight: 800, letterSpacing: 2,
+            }}
+          >
+            {loading ? '⟳ KI analysiert...' : '⚡ GENERIEREN'}
           </button>
 
-          <div style={{ textAlign: 'center', fontSize: 11, color: C.textMid, paddingBottom: 20 }}>
-            CraftFlow · KI-Angebotssystem für Schreiner
+          {/* Fehlermeldung */}
+          {startStatus === 'error' && startMsg && (
+            <div style={{ marginTop: 14, background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: '#ff9999' }}>
+              {startMsg}
+            </div>
+          )}
+
+          {/* Manuell-Link */}
+          <div style={{ textAlign: 'center', marginTop: 24 }}>
+            <button
+              onClick={() => { setScreen('app'); setTab('kunde') }}
+              style={{ background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline' }}
+            >
+              Manuell eingeben
+            </button>
           </div>
         </div>
       </div>
@@ -397,9 +318,9 @@ export default function CraftFlow() {
      SCREEN: APP (3 Tabs)
   ══════════════════════════════════════════════════ */
   const TABS = [
-    { id: 'diktieren', label: '🎤 Diktieren' },
+    { id: 'kunde',      label: '👤 Kunde' },
     { id: 'kalkulation', label: '🔢 Kalkulation' },
-    { id: 'dokument', label: '📄 Dokument' },
+    { id: 'angebot',    label: '📄 Angebot' },
   ]
 
   return (
@@ -419,7 +340,7 @@ export default function CraftFlow() {
             {kunde.name || 'Neues Projekt'}
           </div>
           <div style={{ color: C.textMid, fontSize: 10 }}>{docNr} · {today()}</div>
-          <div onClick={() => setScreen('start')} style={{ color: C.textMid, fontSize: 9, cursor: 'pointer', textDecoration: 'underline', marginTop: 2 }}>← Start</div>
+          <div onClick={() => setScreen('start')} style={{ color: C.textMid, fontSize: 9, cursor: 'pointer', textDecoration: 'underline', marginTop: 2 }}>← Neu</div>
         </div>
       </div>
 
@@ -434,95 +355,51 @@ export default function CraftFlow() {
 
       <div style={{ padding: 14, maxWidth: 760, margin: '0 auto', boxSizing: 'border-box' }}>
 
-        {/* ══ DIKTIEREN ══ */}
-        {tab === 'diktieren' && (
+        {/* ══ KUNDE ══ */}
+        {tab === 'kunde' && (
           <div>
-            {kunde.name && (
-              <Card accent={C.copper} style={{ marginBottom: 12 }}>
-                <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <Lbl>Aktueller Kunde</Lbl>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{kunde.name}</div>
-                    <div style={{ color: C.textMid, fontSize: 11 }}>{kunde.projekt || '–'} · {kunde.ort}</div>
-                  </div>
-                  <button onClick={() => setScreen('start')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '5px 10px', cursor: 'pointer', fontSize: 10, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                    ändern
-                  </button>
-                </div>
-              </Card>
-            )}
-
-            {/* Foto */}
-            <Card>
-              <div style={{ padding: '12px 16px' }}>
-                <Lbl>Situationsfoto (optional)</Lbl>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <input ref={diktatFileRef} type="file" accept="image/*"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) loadBild(f, setDiktatBild, setDiktatBildB64) }}
-                      style={{ display: 'none' }} />
-                    <button onClick={() => diktatFileRef.current?.click()} style={{ width: '100%', padding: '9px', background: C.gray2, border: `1px dashed ${diktatBild ? C.copper : C.border}`, borderRadius: 3, color: diktatBild ? C.copper : C.textMid, fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                      {diktatBild ? '✓ Foto vorhanden' : '📷 Foto aufnehmen oder auswählen'}
-                    </button>
-                  </div>
-                  {diktatBild && (
-                    <div style={{ position: 'relative', flexShrink: 0 }}>
-                      <img src={diktatBild} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 4, border: `2px solid ${C.copper}` }} />
-                      <button onClick={() => { setDiktatBild(null); setDiktatBildB64(null) }} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, background: C.copper, color: C.black, border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: 10, fontWeight: 800, lineHeight: '18px', textAlign: 'center' }}>×</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            {/* Stufe */}
-            <Card>
-              <div style={{ padding: '12px 16px' }}>
-                <Lbl>Was soll die KI tun?</Lbl>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  {[
-                    { id: 'text', icon: '📝', l: 'Nur transkribieren', d: 'Text formatieren – manuell anpassen' },
-                    { id: 'extrakt', icon: '🔍', l: 'Positionen extrahieren', d: 'Leistungen erkennen & Positionen erstellen' },
-                    { id: 'komplett', icon: '⚡', l: 'Komplettes Angebot', d: 'Alles automatisch – Positionen + Anschreiben' },
-                  ].map(s => (
-                    <div key={s.id} onClick={() => setDiktatStufe(s.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: diktatStufe === s.id ? `${C.copper}22` : C.gray2, border: `1px solid ${diktatStufe === s.id ? C.copper : C.border}`, borderRadius: 3, cursor: 'pointer' }}>
-                      <span style={{ fontSize: 18, flexShrink: 0 }}>{s.icon}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 12, color: diktatStufe === s.id ? C.copper : C.white }}>{s.l}</div>
-                        <div style={{ fontSize: 10, color: C.textMid }}>{s.d}</div>
-                      </div>
-                      <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${diktatStufe === s.id ? C.copper : C.border}`, background: diktatStufe === s.id ? C.copper : 'transparent' }} />
+            <Card accent={C.copper}>
+              <div style={{ padding: '14px 16px' }}>
+                <Lbl>Kundendaten prüfen & bearbeiten</Lbl>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  {([
+                    { f: 'name' as keyof Kunde,    l: 'Kundenname',  p: 'z.B. Familie Müller' },
+                    { f: 'projekt' as keyof Kunde, l: 'Bauvorhaben', p: 'z.B. TV-Board' },
+                    { f: 'strasse' as keyof Kunde, l: 'Straße',      p: 'z.B. Hauptstr. 12' },
+                    { f: 'ort' as keyof Kunde,     l: 'PLZ Ort',     p: 'z.B. 63825 Schöllkrippen' },
+                  ] as const).map(({ f, l, p }) => (
+                    <div key={f}>
+                      <Lbl>{l}</Lbl>
+                      <TxtInput value={kunde[f]} onChange={v => updK(f, v)} placeholder={p} />
                     </div>
                   ))}
                 </div>
-              </div>
-            </Card>
-
-            {/* Texteingabe */}
-            <Card>
-              <div style={{ padding: '12px 16px' }}>
-                <Lbl>Projektbeschreibung</Lbl>
-                <button onClick={() => diktatTextRef.current?.focus()} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '10px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 16 }}>🎤</span> Textfeld öffnen & diktieren
-                </button>
-                <textarea ref={diktatTextRef} value={diktatText} onChange={e => setDiktatText(e.target.value)}
-                  placeholder={'z.B. "TV-Board Eiche massiv, drei Teile, Klappe mit Akustikstoff, Schubladen, Rückwand Organoid, Montage 10 Stunden."'}
-                  style={{ width: '100%', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, padding: 12, fontSize: 13, lineHeight: 1.7, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'vertical', minHeight: 100, boxSizing: 'border-box', outline: 'none' }} />
-                <button onClick={runDiktat} disabled={diktatStatus === 'loading'} style={{ width: '100%', marginTop: 8, background: diktatStatus === 'loading' ? C.gray2 : C.copper, color: diktatStatus === 'loading' ? C.textMid : C.black, border: 'none', borderRadius: 3, padding: '12px 0', cursor: diktatStatus === 'loading' ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1 }}>
-                  {diktatStatus === 'loading' ? '⟳ KI analysiert...' : diktatStufe === 'text' ? '▶ TEXT FORMATIEREN' : diktatStufe === 'extrakt' ? '▶ POSITIONEN EXTRAHIEREN' : '▶ ANGEBOT ERSTELLEN'}
-                </button>
-              </div>
-            </Card>
-
-            {diktatMsg && (
-              <Card accent={diktatStatus === 'done' ? '#4A7C6F' : '#cc3333'}>
-                <div style={{ padding: '12px 16px' }}>
-                  <div style={{ fontSize: 12, lineHeight: 1.8, color: diktatStatus === 'done' ? '#90EE90' : '#ff9999' }}>{diktatMsg}</div>
-                  {diktatStatus === 'done' && <button onClick={() => setTab('kalkulation')} style={{ marginTop: 10, background: '#4A7C6F', color: '#fff', border: 'none', borderRadius: 3, padding: '8px 16px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>→ Zur Kalkulation</button>}
+                <div>
+                  <Lbl>Ansprechpartner / Zusatz</Lbl>
+                  <TxtInput value={kunde.zusatz} onChange={v => updK('zusatz', v)} placeholder="z.B. Thomas Müller" />
                 </div>
-              </Card>
+              </div>
+            </Card>
+
+            {kunde.name && (
+              <button
+                onClick={() => {
+                  const neu: KundeDB = { id: Date.now(), ...kunde, typ: 'Privat' }
+                  const updated = [...kunden, neu]
+                  setKunden(updated); speichereKunden(updated)
+                }}
+                style={{ width: '100%', background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '11px 0', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 12 }}
+              >
+                + In Kundendatenbank speichern
+              </button>
             )}
+
+            <button
+              onClick={() => setTab('kalkulation')}
+              style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '15px 0', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1, cursor: 'pointer' }}
+            >
+              → Weiter zur Kalkulation
+            </button>
           </div>
         )}
 
@@ -632,7 +509,7 @@ export default function CraftFlow() {
               + Position hinzufügen
             </button>
 
-            <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden' }}>
+            <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 12 }}>
               <div style={{ display: 'flex' }}>
                 {[{ l: 'Positionen', v: `${pos.length}` }, { l: 'Netto', v: eur(totals.net) }, { l: 'MwSt.', v: eur(vat) }, { l: 'Brutto', v: eur(gross) }].map(({ l, v }, i) => (
                   <div key={l} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
@@ -644,11 +521,15 @@ export default function CraftFlow() {
                 ))}
               </div>
             </div>
+
+            <button onClick={() => setTab('angebot')} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '15px 0', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1, cursor: 'pointer' }}>
+              → Weiter zum Angebot
+            </button>
           </div>
         )}
 
-        {/* ══ DOKUMENT ══ */}
-        {tab === 'dokument' && (
+        {/* ══ ANGEBOT ══ */}
+        {tab === 'angebot' && (
           <div>
             <Card accent={C.copper}>
               <div style={{ padding: '12px 16px' }}>
@@ -727,6 +608,7 @@ export default function CraftFlow() {
             </button>
           </div>
         )}
+
       </div>
     </div>
   )
