@@ -57,10 +57,13 @@ Beschreibung: "${text}"`
 
     // Bild hinzufügen falls vorhanden
     if (imageBase64) {
+      const base64Match = imageBase64.match(/^data:([^;]+);base64,(.+)$/)
+      const mimeType = base64Match ? base64Match[1] : 'image/jpeg'
+      const base64Data = base64Match ? base64Match[2] : imageBase64
       parts.push({
         inlineData: {
-          mimeType: 'image/jpeg',
-          data: imageBase64,
+          mimeType,
+          data: base64Data,
         },
       })
       parts.push({ text: 'Das ist ein Foto der Situation vor Ort. Berücksichtige es.' })
