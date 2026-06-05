@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY
+    console.log('API Key vorhanden:', !!apiKey, 'Key Länge:', apiKey?.length)
     if (!apiKey) {
       return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
     }
@@ -88,7 +89,8 @@ Beschreibung: "${text}"`
 
     if (!response.ok) {
       const err = await response.text()
-      throw new Error(`Gemini Fehler: ${response.status} – ${err.slice(0, 200)}`)
+      console.error('Gemini Fehler:', response.status, response.statusText, err)
+      throw new Error(`Gemini Fehler: ${response.status} – ${err}`)
     }
 
     const data = await response.json()
