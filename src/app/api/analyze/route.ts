@@ -13,9 +13,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
     }
 
-    const prompt = `Du bist ein erfahrener Schreinermeister aus Deutschland.
-Analysiere diese Projektbeschreibung und extrahiere alle Informationen.
-Antworte NUR mit diesem JSON (keine Backticks, kein Markdown, kein sonstiger Text):
+    const prompt = `Du bist ein erfahrener Schreinermeister aus Deutschland und kalkulierst Angebote.
+
+PREISREFERENZ – nutze diese Werte für das Feld "ep" (Einzelpreis in Euro):
+- Einbauschränke: 350-450 € pro m² (Breite × Höhe)
+- Massivholz-Möbel Pauschale: 800-3000 € je nach Komplexität
+- TV-Boards/Sideboards: 800-2500 € Pauschale
+- Wandpaneele/Lamellen: 350-500 € pro m²
+- Organoid/Naturmaterialien Rückwand: 280-380 € pro m²
+- Türen/Fronten: 300-450 € pro Stück
+- Schubladen: 250-400 € pro Stück
+- Montage: 65 € pro Stunde, typisch 6-14 Std je Projekt
+
+Analysiere die Projektbeschreibung und antworte NUR mit diesem JSON (keine Backticks, kein Markdown, kein sonstiger Text).
+WICHTIG: Das Feld "ep" ist der berechnete Einzelpreis in Euro – niemals 0, immer ein realistischer Wert aus der Preisreferenz oben.
 
 {
   "kunde": {
@@ -34,21 +45,12 @@ Antworte NUR mit diesem JSON (keine Backticks, kein Markdown, kein sonstiger Tex
       "kalkTyp": "pauschale oder qm oder lfm oder stunden",
       "menge": 1,
       "einheit": "Stk oder m² oder lfd. m oder Std oder Pausch.",
-      "ep": 0
+      "ep": 850
     }
   ]
 }
 
-Kalkulationshinweise (realistisch, leicht unter Markt):
-- Einbauschränke: 350-450 €/m²
-- Massivholz-Möbel Pauschale: 800-3000 € je Komplexität
-- TV-Boards/Sideboards: 800-2500 € Pauschale
-- Wandpaneele/Lamellen: 350-500 €/m²
-- Organoid/Naturmaterialien Rückwand: 280-380 €/m²
-- Türen/Fronten: 300-450 € Stück
-- Schubladen: 250-400 € Stück
-- Montage: 65 €/Std, typisch 6-14 Std je Projekt
-- Extrahiere Maße wenn genannt
+Extrahiere Maße wenn genannt und berechne ep entsprechend (z.B. 2m × 2,4m Schrank = 4,8m² × 400 €/m² = 1920 €).
 
 Beschreibung: "${text}"`
 
