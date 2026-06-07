@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, imageBase64, mode } = await req.json()
+    const { text, imageBase64 } = await req.json()
 
     if (!text && !imageBase64) {
       return NextResponse.json({ error: 'Kein Text oder Bild' }, { status: 400 })
     }
 
-    const apiKey = process.env.GEMINI_API_KEY
-    console.log('API Key vorhanden:', !!apiKey, 'Key Länge:', apiKey?.length)
+    const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) {
       return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
     }
@@ -53,50 +52,47 @@ Kalkulationshinweise (realistisch, leicht unter Markt):
 
 Beschreibung: "${text}"`
 
-    // Gemini API aufrufen
-    const parts: object[] = []
+    // Mit Bild: Vision-Modell, ohne Bild: Text-Modell
+    let model: string
+    let content: string | object[]
 
-    // Bild hinzufügen falls vorhanden
     if (imageBase64) {
-      const base64Match = imageBase64.match(/^data:([^;]+);base64,(.+)$/)
-      const mimeType = base64Match ? base64Match[1] : 'image/jpeg'
-      const base64Data = base64Match ? base64Match[2] : imageBase64
-      parts.push({
-        inlineData: {
-          mimeType,
-          data: base64Data,
-        },
-      })
-      parts.push({ text: 'Das ist ein Foto der Situation vor Ort. Berücksichtige es.' })
+      model = 'meta-llama/llama-4-scout-17b-16e-instruct'
+      const imageUrl = imageBase64.startsWith('data:')
+        ? imageBase64
+        : `data:image/jpeg;base64,${imageBase64}`
+      content = [
+        { type: 'image_url', image_url: { url: imageUrl } },
+        { type: 'text', text: 'Das ist ein Foto der Situation vor Ort. Berücksichtige es.\n\n' + prompt },
+      ]
+    } else {
+      model = 'llama-3.3-70b-versatile'
+      content = prompt
     }
 
-    parts.push({ text: prompt })
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 2000,
-          },
-        }),
-      }
-    )
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content }],
+        temperature: 0.2,
+        max_tokens: 2000,
+      }),
+    })
 
     if (!response.ok) {
       const err = await response.text()
-      console.error('Gemini Fehler:', response.status, response.statusText, err)
-      throw new Error(`Gemini Fehler: ${response.status} – ${err}`)
+      console.error('Groq Fehler:', response.status, response.statusText, err)
+      throw new Error(`Groq Fehler: ${response.status} – ${err}`)
     }
 
     const data = await response.json()
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    const rawText = data.choices?.[0]?.message?.content || ''
 
-    // JSON bereinigen
     const clean = rawText.replace(/```json|```/g, '').trim()
 
     try {
