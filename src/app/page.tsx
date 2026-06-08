@@ -44,6 +44,19 @@ const TxtInput = ({ value, onChange, placeholder }: { value: string; onChange: (
   <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || ''}
     style={{ width: '100%', padding: '9px 11px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 13, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }} />
 )
+const ReadOnly = ({ value }: { value: string }) => (
+  <div style={{ width: '100%', padding: '8px 10px', border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 13, background: C.black, color: C.white, boxSizing: 'border-box', fontFamily: 'Helvetica Neue,sans-serif' }}>
+    {value}
+  </div>
+)
+
+/* ── Default Position ─────────────────────────────── */
+const defaultPos = (id: number): Position => ({
+  id, kat: 'Sonstiges', titel: 'Neue Position', bez: '',
+  kalkTyp: 'detail', menge: 1, einheit: 'Stk',
+  materialKosten: 0, lohnStd: 0, lohnSatz: 0, gkProzent: 0.30, fremdleistung: 0,
+  ep: 0, std: 0, mat: 0, aufschlag: 0.3,
+})
 
 /* ── Haupt-Komponente ─────────────────────────────── */
 export default function CraftFlow() {
@@ -53,8 +66,18 @@ export default function CraftFlow() {
 
   const [tab, setTab] = useState('kunde')
   const [pos, setPos] = useState<Position[]>([
-    { id: 1, kat: 'Schrank', titel: 'Einbauschrank', bez: 'Maße und Material nach Absprache.', kalkTyp: 'qm', menge: 4, einheit: 'm²', ep: 380, std: 0, mat: 0, aufschlag: 0.3 },
-    { id: 2, kat: 'Montage', titel: 'Lieferung & Montage', bez: 'Fachgerechte Montage inkl. An-/Abfahrt.', kalkTyp: 'stunden', menge: 8, einheit: 'Std', ep: 65, std: 1, mat: 0, aufschlag: 0 },
+    {
+      id: 1, kat: 'Korpus', titel: 'Einbauschrank Korpus', bez: 'Maße und Material nach Absprache.',
+      kalkTyp: 'detail', menge: 1, einheit: 'Stk',
+      materialKosten: 380, lohnStd: 8, lohnSatz: 0, gkProzent: 0.30, fremdleistung: 0,
+      ep: 0, std: 0, mat: 0, aufschlag: 0.3,
+    },
+    {
+      id: 2, kat: 'Montage', titel: 'Lieferung & Montage', bez: 'Fachgerechte Montage inkl. An-/Abfahrt.',
+      kalkTyp: 'detail', menge: 1, einheit: 'Stk',
+      materialKosten: 0, lohnStd: 8, lohnSatz: 0, gkProzent: 0.30, fremdleistung: 50,
+      ep: 0, std: 0, mat: 0, aufschlag: 0,
+    },
   ])
   const [globalStd, setGlobalStd] = useState(65)
   const [docNr, setDocNr] = useState('AB-264')
@@ -70,22 +93,24 @@ export default function CraftFlow() {
   const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [startMsg, setStartMsg] = useState('')
 
+  // Mikrofon State
+  const [micStatus, setMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+
   const startFileRef = useRef<HTMLInputElement>(null)
 
   const updK = (f: keyof Kunde, v: string) => setKunde(prev => ({ ...prev, [f]: v }))
   const updPos = (id: number, f: keyof Position, v: unknown) =>
     setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } : p))
-  const addPos = () => setPos(prev => [...prev, {
-    id: Date.now(), kat: 'Sonstiges', titel: 'Neue Position', bez: '',
-    kalkTyp: 'pauschale', menge: 1, einheit: 'Stk', ep: 0, std: 0, mat: 0, aufschlag: 0.3,
-  }])
+  const addPos = () => setPos(prev => [...prev, defaultPos(Date.now())])
   const delPos = (id: number) => setPos(prev => prev.filter(p => p.id !== id))
 
   const totals = pos.reduce((a, p) => ({ net: a.net + calcPos(p, globalStd).gesamt }), { net: 0 })
   const vat = totals.net * 0.19
   const gross = totals.net + vat
 
-  // ── Bild komprimieren (Canvas, max 800px, JPEG 70%) ──
+  // ── Bild komprimieren (Canvas, max 1024px, JPEG 60%) ──
   const compressImage = useCallback((file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image()
@@ -116,12 +141,58 @@ export default function CraftFlow() {
     }
   }, [compressImage])
 
+  // ── Mikrofon Aufnahme ────────────────────────────────
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      const mr = new MediaRecorder(stream, { mimeType })
+      audioChunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setMicStatus('transcribing')
+        try {
+          const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
+          const blob = new Blob(audioChunksRef.current, { type: mimeType })
+          const fd = new FormData()
+          fd.append('audio', blob, `audio.${ext}`)
+          const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+          const json = await res.json()
+          if (json.success && json.text) {
+            setStartText(prev => prev ? prev + ' ' + json.text : json.text)
+          } else {
+            console.error('Transkription Fehler:', json.error)
+          }
+        } catch (e) {
+          console.error('Transkription fehlgeschlagen:', e)
+        }
+        setMicStatus('idle')
+      }
+      mr.start()
+      mediaRecorderRef.current = mr
+      setMicStatus('recording')
+    } catch {
+      alert('Mikrofon nicht verfügbar. Bitte Zugriff erlauben.')
+    }
+  }, [])
+
+  const stopRecording = useCallback(() => {
+    mediaRecorderRef.current?.stop()
+    setMicStatus('transcribing')
+  }, [])
+
+  const toggleRecording = useCallback(() => {
+    if (micStatus === 'recording') stopRecording()
+    else if (micStatus === 'idle') startRecording()
+  }, [micStatus, startRecording, stopRecording])
+
   // ── KI Analyse ─────────────────────────────────────
   const callAI = useCallback(async (text: string, imageB64: string | null) => {
     const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, imageBase64: imageB64, mode: 'analyse' }),
+      body: JSON.stringify({ text, imageBase64: imageB64 }),
     })
     if (!res.ok) throw new Error(`API Fehler: ${res.status}`)
     const json = await res.json()
@@ -150,10 +221,15 @@ export default function CraftFlow() {
           kat: p.kat || 'Sonstiges',
           titel: p.titel || 'Position',
           bez: p.bez || '',
-          kalkTyp: p.kalkTyp || 'pauschale',
-          menge: p.menge || 1,
+          kalkTyp: p.kalkTyp || 'detail',
+          menge: p.menge ?? 1,
           einheit: p.einheit || 'Stk',
-          ep: p.ep || 0,
+          materialKosten: (p as Record<string, unknown>).materialKosten as number ?? 0,
+          lohnStd: (p as Record<string, unknown>).lohnStd as number ?? 0,
+          lohnSatz: (p as Record<string, unknown>).lohnSatz as number ?? 0,
+          gkProzent: (p as Record<string, unknown>).gkProzent as number ?? 0.30,
+          fremdleistung: (p as Record<string, unknown>).fremdleistung as number ?? 0,
+          ep: p.ep ?? 0,
           std: 0, mat: 0, aufschlag: 0.3,
         })))
       }
@@ -189,13 +265,26 @@ export default function CraftFlow() {
   }
 
   /* ══════════════════════════════════════════════════
-     SCREEN: START – Assistent
+     SCREEN: START
   ══════════════════════════════════════════════════ */
   if (screen === 'start') {
     const canGenerate = !!(startText.trim() || startBildB64)
     const loading = startStatus === 'loading'
+    const isRecording = micStatus === 'recording'
+    const isTranscribing = micStatus === 'transcribing'
+
     return (
       <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+        <style>{`
+          @keyframes cfpulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.18); opacity: 0.15; }
+          }
+          @keyframes cfspin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
 
         {/* Header */}
         <div style={{ background: C.darkbg, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${C.copper}` }}>
@@ -209,46 +298,80 @@ export default function CraftFlow() {
           <div style={{ color: C.textMid, fontSize: 12 }}>{today()}</div>
         </div>
 
-        <div style={{ padding: '0 16px 32px', maxWidth: 500, margin: '0 auto', boxSizing: 'border-box' }}>
+        <div style={{ padding: '0 16px 40px', maxWidth: 500, margin: '0 auto', boxSizing: 'border-box' }}>
 
-          {/* Mic / Begrüßung */}
-          <div style={{ textAlign: 'center', padding: '40px 0 28px' }}>
-            <div style={{ fontSize: 72, lineHeight: 1, marginBottom: 18 }}>🎤</div>
-            <div style={{ color: C.white, fontSize: 22, fontWeight: 800, letterSpacing: 0.5 }}>
-              Womit kann ich dir helfen?
+          {/* Großer Mic-Button – dominantes Element */}
+          <div style={{ textAlign: 'center', padding: '44px 0 32px' }}>
+            <div style={{ color: C.textMid, fontSize: 13, marginBottom: 36, lineHeight: 1.6 }}>
+              Beschreibe Kunde und Projekt –<br />ich erstelle die Kalkulation automatisch.
             </div>
-            <div style={{ color: C.textMid, fontSize: 13, marginTop: 10, lineHeight: 1.6 }}>
-              Beschreibe Kunde und Projekt –<br />ich erstelle das Angebot automatisch.
+
+            {/* Puls-Ring + Button */}
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              {isRecording && (
+                <>
+                  <div style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', border: '2px solid #cc2222', animation: 'cfpulse 1.4s ease-in-out infinite', pointerEvents: 'none' }} />
+                  <div style={{ position: 'absolute', width: 140, height: 140, borderRadius: '50%', border: '2px solid #cc222244', animation: 'cfpulse 1.4s ease-in-out infinite 0.3s', pointerEvents: 'none' }} />
+                </>
+              )}
+              <button
+                onClick={toggleRecording}
+                disabled={isTranscribing || loading}
+                style={{
+                  width: 120, height: 120, borderRadius: '50%',
+                  background: isRecording ? '#cc2222' : isTranscribing ? C.gray2 : C.copper,
+                  border: 'none',
+                  cursor: (isTranscribing || loading) ? 'wait' : 'pointer',
+                  fontSize: 52,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: isRecording
+                    ? '0 0 0 6px rgba(204,34,34,0.2), 0 6px 32px rgba(0,0,0,.5)'
+                    : '0 6px 32px rgba(0,0,0,.4)',
+                  transition: 'background 0.2s ease, box-shadow 0.2s ease',
+                  flexShrink: 0,
+                }}
+              >
+                {isTranscribing ? '⟳' : '🎤'}
+              </button>
+            </div>
+
+            <div style={{
+              marginTop: 18, fontSize: 13, fontWeight: isRecording ? 700 : 400,
+              color: isRecording ? '#ff6666' : isTranscribing ? C.copper : C.textMid,
+              letterSpacing: isRecording ? 1 : 0,
+            }}>
+              {micStatus === 'idle' && 'Tippen zum Aufnehmen'}
+              {micStatus === 'recording' && '● Aufnahme läuft – erneut tippen zum Stoppen'}
+              {micStatus === 'transcribing' && 'Wird transkribiert…'}
             </div>
           </div>
 
-          {/* Kamera-Button */}
+          {/* Foto-Button */}
           <div style={{ marginBottom: 14 }}>
             <input
               ref={startFileRef}
-              type="file"
-              accept="image/*"
+              type="file" accept="image/*"
               onChange={e => { const f = e.target.files?.[0]; if (f) loadBild(f) }}
               style={{ display: 'none' }}
             />
             <button
               onClick={() => startFileRef.current?.click()}
               style={{
-                width: '100%', padding: '20px 16px',
+                width: '100%', padding: '16px',
                 background: startBild ? `${C.copper}18` : C.gray1,
                 border: `2px dashed ${startBild ? C.copper : C.border}`,
                 borderRadius: 10, cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
               }}
             >
-              <span style={{ fontSize: 42 }}>{startBild ? '✓' : '📷'}</span>
+              <span style={{ fontSize: 28 }}>{startBild ? '✓' : '📷'}</span>
               <span style={{ color: startBild ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
                 {startBild ? 'Foto vorhanden – neues aufnehmen' : 'Situationsfoto aufnehmen oder auswählen'}
               </span>
             </button>
             {startBild && (
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <img src={startBild} alt="" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: `2px solid ${C.copper}` }} />
+                <img src={startBild} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: `2px solid ${C.copper}` }} />
                 <button
                   onClick={() => { setStartBild(null); setStartBildB64(null) }}
                   style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}
@@ -259,18 +382,17 @@ export default function CraftFlow() {
             )}
           </div>
 
-          {/* Textfeld */}
+          {/* Textarea – für manuelle Eingabe oder Korrekturen nach Transkription */}
           <textarea
             value={startText}
             onChange={e => setStartText(e.target.value)}
-            placeholder="Beschreibe deinen Kunden und das Projekt... oder lade ein Foto hoch"
+            placeholder="Oder hier direkt eingeben / Transkription erscheint hier…"
             style={{
               width: '100%', background: C.gray1,
-              border: `1px solid ${C.border}`, borderRadius: 10,
-              padding: '16px', fontSize: 15, lineHeight: 1.7,
+              border: `1px solid ${startText ? C.copper + '66' : C.border}`,
+              borderRadius: 10, padding: '14px', fontSize: 14, lineHeight: 1.7,
               color: C.white, fontFamily: 'Helvetica Neue,sans-serif',
-              resize: 'none', minHeight: 170,
-              boxSizing: 'border-box', outline: 'none',
+              resize: 'none', minHeight: 120, boxSizing: 'border-box', outline: 'none',
             }}
           />
 
@@ -282,24 +404,21 @@ export default function CraftFlow() {
               width: '100%', marginTop: 14,
               background: (!canGenerate || loading) ? C.gray2 : C.copper,
               color: (!canGenerate || loading) ? C.textMid : C.black,
-              border: 'none', borderRadius: 10,
-              padding: '20px 0',
+              border: 'none', borderRadius: 10, padding: '18px 0',
               cursor: (!canGenerate || loading) ? 'not-allowed' : 'pointer',
-              fontSize: 18, fontFamily: 'Helvetica Neue,sans-serif',
+              fontSize: 17, fontFamily: 'Helvetica Neue,sans-serif',
               fontWeight: 800, letterSpacing: 2,
             }}
           >
-            {loading ? '⟳ KI analysiert...' : '⚡ GENERIEREN'}
+            {loading ? '⟳ KI erstellt Kalkulation…' : '⚡ KALKULATION GENERIEREN'}
           </button>
 
-          {/* Fehlermeldung */}
           {startStatus === 'error' && startMsg && (
             <div style={{ marginTop: 14, background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: '#ff9999' }}>
               {startMsg}
             </div>
           )}
 
-          {/* Manuell-Link */}
           <div style={{ textAlign: 'center', marginTop: 24 }}>
             <button
               onClick={() => { setScreen('app'); setTab('kunde') }}
@@ -405,10 +524,10 @@ export default function CraftFlow() {
         {/* ══ KALKULATION ══ */}
         {tab === 'kalkulation' && (
           <div>
+            {/* Parameter-Leiste */}
             <Card accent={C.copper}>
               <div style={{ padding: '12px 16px' }}>
-                <Lbl>Parameter</Lbl>
-                <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
+                <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{ flex: 1, padding: '9px 11px' }}>
                     <Lbl>Stundensatz (€/h)</Lbl>
                     <NumInput value={globalStd} onChange={setGlobalStd} />
@@ -432,9 +551,15 @@ export default function CraftFlow() {
               const c = calcPos(p, globalStd)
               const col = CAT_COL[p.kat] || C.copper
               const kt = KALK_TYPEN.find(k => k.id === p.kalkTyp) || KALK_TYPEN[0]
+              // Zwischenwerte für detail-Modus
+              const satz = p.lohnSatz > 0 ? p.lohnSatz : globalStd
+              const lohnWert = (p.lohnStd || 0) * satz
+              const gkWert = (p.materialKosten + lohnWert) * (p.gkProzent ?? 0.3)
+
               return (
                 <Card key={p.id} accent={col}>
                   <div style={{ padding: '12px 14px' }}>
+                    {/* Kopfzeile */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ background: col, color: C.black, fontSize: 8, padding: '2px 8px', borderRadius: 10, display: 'inline-block', fontWeight: 700, marginBottom: 4 }}>{p.kat.toUpperCase()}</span>
@@ -444,11 +569,12 @@ export default function CraftFlow() {
                           rows={2} style={{ width: '100%', background: 'transparent', border: 'none', fontSize: 11, color: C.textMid, resize: 'none', outline: 'none', fontFamily: 'Helvetica Neue,sans-serif', boxSizing: 'border-box' }} />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: col }}>{eur(c.gesamt)}</div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: col }}>{eur(c.gesamt)}</div>
                         <button onClick={() => delPos(p.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10 }}>✕</button>
                       </div>
                     </div>
-                    <HR color={C.border} my={8} />
+
+                    {/* Modus-Auswahl */}
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
                       {KALK_TYPEN.map(k => (
                         <button key={k.id} onClick={() => updPos(p.id, 'kalkTyp', k.id)} style={{ padding: '4px 9px', fontSize: 9, fontWeight: 700, background: p.kalkTyp === k.id ? col : C.gray2, color: p.kalkTyp === k.id ? C.black : C.textMid, border: `1px solid ${p.kalkTyp === k.id ? col : C.border}`, borderRadius: 3, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
@@ -457,48 +583,130 @@ export default function CraftFlow() {
                       ))}
                     </div>
                     <div style={{ fontSize: 10, color: C.textMid, marginBottom: 8 }}>{kt.desc}</div>
-                    <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ flex: 1, padding: '9px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                        <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 5, whiteSpace: 'nowrap' }}>Menge</div>
-                        <NumInput value={p.menge} onChange={v => updPos(p.id, 'menge', v)} />
-                        <input value={p.einheit} onChange={e => updPos(p.id, 'einheit', e.target.value)}
-                          style={{ width: '100%', marginTop: 4, padding: '3px 7px', background: C.black, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.textMid, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }} />
-                      </div>
-                      <div style={{ width: 1, background: C.border }} />
-                      {(p.kalkTyp === 'pauschale' || p.kalkTyp === 'qm' || p.kalkTyp === 'lfm') && (
-                        <>
-                          <div style={{ flex: 2, padding: '9px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 5, whiteSpace: 'nowrap' }}>
-                              {p.kalkTyp === 'pauschale' ? 'Preis gesamt (€)' : p.kalkTyp === 'qm' ? 'Preis/m² (€)' : 'Preis/lfd.m (€)'}
+
+                    <HR color={C.border} my={8} />
+
+                    {/* ─ Detail-Kalkulation ─ */}
+                    {p.kalkTyp === 'detail' && (
+                      <div>
+                        {/* Menge + Material */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                          <div>
+                            <Lbl>Menge</Lbl>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <div style={{ flex: 1 }}>
+                                <NumInput value={p.menge} onChange={v => updPos(p.id, 'menge', v)} />
+                              </div>
+                              <input value={p.einheit} onChange={e => updPos(p.id, 'einheit', e.target.value)}
+                                style={{ width: 52, padding: '8px 6px', background: C.black, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 11, color: C.textMid, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', textAlign: 'center' }} />
                             </div>
-                            <NumInput value={p.ep} onChange={v => updPos(p.id, 'ep', v)} />
                           </div>
-                          <div style={{ width: 1, background: C.border }} />
-                          <div style={{ flex: 1, padding: '9px 10px', background: C.black, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <Lbl c={C.textMid}>Gesamt</Lbl>
-                            <div style={{ color: col, fontSize: 13, fontWeight: 800 }}>{eur(c.gesamt)}</div>
+                          <div>
+                            <Lbl>Material (€/Stk)</Lbl>
+                            <NumInput value={p.materialKosten} onChange={v => updPos(p.id, 'materialKosten', v)} />
                           </div>
-                        </>
-                      )}
-                      {p.kalkTyp === 'stunden' && (
-                        <>
-                          <div style={{ flex: 1, padding: '9px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 5, whiteSpace: 'nowrap' }}>Std/Einh.</div>
-                            <NumInput value={p.std} onChange={v => updPos(p.id, 'std', v)} />
+                        </div>
+
+                        {/* Arbeit */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                          <div>
+                            <Lbl>Arbeit (Std/Stk)</Lbl>
+                            <NumInput value={p.lohnStd} onChange={v => updPos(p.id, 'lohnStd', v)} />
                           </div>
-                          <div style={{ width: 1, background: C.border }} />
-                          <div style={{ flex: 1, padding: '9px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 5, whiteSpace: 'nowrap' }}>Mat.(€)</div>
-                            <NumInput value={p.mat} onChange={v => updPos(p.id, 'mat', v)} />
+                          <div>
+                            <Lbl>× {globalStd} €/h</Lbl>
+                            <ReadOnly value={eur(lohnWert)} />
                           </div>
-                          <div style={{ width: 1, background: C.border }} />
-                          <div style={{ flex: 1, padding: '9px 10px', background: C.black, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <Lbl c={C.textMid}>Gesamt</Lbl>
-                            <div style={{ color: col, fontSize: 13, fontWeight: 800 }}>{eur(c.gesamt)}</div>
+                          <div>
+                            <Lbl>GK-Zuschlag (%)</Lbl>
+                            <NumInput value={Math.round((p.gkProzent ?? 0.3) * 100)} onChange={v => updPos(p.id, 'gkProzent', v / 100)} />
                           </div>
-                        </>
-                      )}
-                    </div>
+                        </div>
+
+                        {/* GK + Fremdleistung + Summary */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                          <div>
+                            <Lbl>GK-Betrag</Lbl>
+                            <ReadOnly value={eur(gkWert)} />
+                          </div>
+                          <div>
+                            <Lbl>Fremdleistung gesamt (€)</Lbl>
+                            <NumInput value={p.fremdleistung} onChange={v => updPos(p.id, 'fremdleistung', v)} />
+                          </div>
+                        </div>
+
+                        {/* Ergebnis-Zeile */}
+                        <div style={{ background: C.black, borderRadius: 3, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>Netto / Stk</div>
+                            <div style={{ color: C.white, fontSize: 12, fontWeight: 700 }}>{eur(c.ep)}</div>
+                          </div>
+                          {p.menge > 1 && (
+                            <div style={{ textAlign: 'center' }}>
+                              <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>× {p.menge} Stk</div>
+                              <div style={{ color: C.textMid, fontSize: 11 }}>{eur(c.ep * p.menge)}</div>
+                            </div>
+                          )}
+                          {p.fremdleistung > 0 && (
+                            <div style={{ textAlign: 'center' }}>
+                              <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>+ Fremd</div>
+                              <div style={{ color: C.textMid, fontSize: 11 }}>{eur(p.fremdleistung)}</div>
+                            </div>
+                          )}
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>Gesamt</div>
+                            <div style={{ color: col, fontSize: 15, fontWeight: 800 }}>{eur(c.gesamt)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ─ Einfache Modi ─ */}
+                    {(p.kalkTyp === 'pauschale' || p.kalkTyp === 'qm' || p.kalkTyp === 'lfm') && (
+                      <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ flex: 1, padding: '9px 10px' }}>
+                          <Lbl>Menge</Lbl>
+                          <NumInput value={p.menge} onChange={v => updPos(p.id, 'menge', v)} />
+                          <input value={p.einheit} onChange={e => updPos(p.id, 'einheit', e.target.value)}
+                            style={{ width: '100%', marginTop: 4, padding: '3px 7px', background: C.black, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.textMid, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                        </div>
+                        <div style={{ width: 1, background: C.border }} />
+                        <div style={{ flex: 2, padding: '9px 10px' }}>
+                          <Lbl>{p.kalkTyp === 'pauschale' ? 'Preis gesamt (€)' : p.kalkTyp === 'qm' ? 'Preis/m² (€)' : 'Preis/lfd.m (€)'}</Lbl>
+                          <NumInput value={p.ep} onChange={v => updPos(p.id, 'ep', v)} />
+                        </div>
+                        <div style={{ width: 1, background: C.border }} />
+                        <div style={{ flex: 1, padding: '9px 10px', background: C.black, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                          <Lbl c={C.textMid}>Gesamt</Lbl>
+                          <div style={{ color: col, fontSize: 13, fontWeight: 800 }}>{eur(c.gesamt)}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ─ Stunden-Modus (legacy) ─ */}
+                    {p.kalkTyp === 'stunden' && (
+                      <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ flex: 1, padding: '9px 10px' }}>
+                          <Lbl>Menge</Lbl>
+                          <NumInput value={p.menge} onChange={v => updPos(p.id, 'menge', v)} />
+                        </div>
+                        <div style={{ width: 1, background: C.border }} />
+                        <div style={{ flex: 1, padding: '9px 10px' }}>
+                          <Lbl>Std/Einh.</Lbl>
+                          <NumInput value={p.std} onChange={v => updPos(p.id, 'std', v)} />
+                        </div>
+                        <div style={{ width: 1, background: C.border }} />
+                        <div style={{ flex: 1, padding: '9px 10px' }}>
+                          <Lbl>Mat.(€)</Lbl>
+                          <NumInput value={p.mat} onChange={v => updPos(p.id, 'mat', v)} />
+                        </div>
+                        <div style={{ width: 1, background: C.border }} />
+                        <div style={{ flex: 1, padding: '9px 10px', background: C.black, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                          <Lbl c={C.textMid}>Gesamt</Lbl>
+                          <div style={{ color: col, fontSize: 13, fontWeight: 800 }}>{eur(c.gesamt)}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
               )
@@ -508,6 +716,7 @@ export default function CraftFlow() {
               + Position hinzufügen
             </button>
 
+            {/* Gesamtübersicht */}
             <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 12 }}>
               <div style={{ display: 'flex' }}>
                 {[{ l: 'Positionen', v: `${pos.length}` }, { l: 'Netto', v: eur(totals.net) }, { l: 'MwSt.', v: eur(vat) }, { l: 'Brutto', v: eur(gross) }].map(({ l, v }, i) => (

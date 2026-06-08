@@ -15,46 +15,64 @@ export async function POST(req: NextRequest) {
 
     const prompt = `Du bist ein erfahrener Schreinermeister aus Deutschland und kalkulierst Angebote.
 
-PREISREFERENZ – nutze diese Werte für das Feld "ep" (Einzelpreis in Euro):
-- Einbauschränke: 350-450 € pro m² (Breite × Höhe)
-- Massivholz-Möbel Pauschale: 800-3000 € je nach Komplexität
-- TV-Boards/Sideboards: 800-2500 € Pauschale
-- Wandpaneele/Lamellen: 350-500 € pro m²
-- Organoid/Naturmaterialien Rückwand: 280-380 € pro m²
-- Türen/Fronten: 300-450 € pro Stück
-- Schubladen: 250-400 € pro Stück
-- Montage: 65 € pro Stunde, typisch 6-14 Std je Projekt
+Erstelle aus der Projektbeschreibung eine detaillierte Stückliste. Trenne Korpus, Türen/Fronten, Schubladen, Rückwand, Beschläge, Oberfläche und Montage in separate Positionen auf.
 
-Analysiere die Projektbeschreibung und antworte NUR mit diesem JSON (keine Backticks, kein Markdown, kein sonstiger Text).
-WICHTIG: Das Feld "ep" ist der berechnete Einzelpreis in Euro – niemals 0, immer ein realistischer Wert aus der Preisreferenz oben.
+MATERIALPREISE (Netto, Richtwerte für materialKosten in € pro Einheit):
+- Spanplatte beschichtet 18mm: 18-22 €/m²
+- MDF 19mm: 20-26 €/m²
+- Eiche furniert 19mm: 60-85 €/m²
+- Massivholz Eiche: 90-130 €/m²
+- Rückwand HDF 6mm: 8-12 €/m²
+- Türfronten Lack/HPL: 80-180 € pro Stück
+- Topfscharnier: 4-8 € pro Stück (menge = Anzahl Türen × 2)
+- Schubladenführung Blum: 25-50 € pro Stück
+
+ARBEITSSTUNDEN (lohnStd pro Einheit):
+- Korpus zuschneiden und montieren: 1-2 Std pro m² Fläche
+- Front einpassen und aushängen: 0.5-1 Std pro Stück
+- Schubkasten montieren und einrichten: 1-2 Std pro Stück
+- Beschläge einbauen: 0.3-0.5 Std pro Stück
+- Oberfläche ölen oder lackieren: 0.5-1 Std pro m²
+- Montage vor Ort: 6-14 Std je nach Projektgröße
+
+KALKULATION: Gesamt = (materialKosten + lohnStd × 65 €/h) × 1.30 × menge + fremdleistung
+- gkProzent immer 0.30 (30% Gemeinkostenzuschlag)
+- lohnSatz immer 0 (System verwendet automatisch 65 €/h)
+- fremdleistung nur wenn externe Kosten anfallen: Anfahrt (50 €), Lackierer, Glaseinbau usw.
+
+Antworte NUR mit diesem JSON (keine Backticks, kein Markdown, kein sonstiger Text):
 
 {
   "kunde": {
-    "name": "Vollständiger Name (NUR den Namen, ohne 'meine Kundin' oder ähnliches)",
+    "name": "Vollständiger Name",
     "zusatz": "Ansprechpartner falls genannt, sonst leer",
     "strasse": "Straße und Hausnummer",
     "ort": "PLZ und Ort",
-    "projekt": "Kurze Projektbezeichnung (z.B. TV-Board, Einbauschrank)"
+    "projekt": "Kurze Projektbezeichnung"
   },
-  "anschreiben": "Professioneller Einleitungstext für das Angebot (2 Sätze, freundlich)",
+  "anschreiben": "Professioneller Einleitungstext (2 Sätze, freundlich)",
   "positionen": [
     {
-      "titel": "Bezeichnung der Leistung",
-      "kat": "Schrank oder Schreibtisch oder Montage oder Sonstiges",
-      "bez": "Detaillierte Beschreibung mit Material, Maßen, Besonderheiten",
-      "kalkTyp": "pauschale oder qm oder lfm oder stunden",
+      "titel": "Korpus",
+      "kat": "Korpus",
+      "bez": "Material und Abmessungen beschreiben",
+      "kalkTyp": "detail",
       "menge": 1,
-      "einheit": "Stk oder m² oder lfd. m oder Std oder Pausch.",
-      "ep": 850
+      "einheit": "Stk",
+      "materialKosten": 420,
+      "lohnStd": 8,
+      "lohnSatz": 0,
+      "gkProzent": 0.30,
+      "fremdleistung": 0
     }
   ]
 }
 
-Extrahiere Maße wenn genannt und berechne ep entsprechend (z.B. 2m × 2,4m Schrank = 4,8m² × 400 €/m² = 1920 €).
+Erlaubte Kategorien: Korpus, Türen, Fronten, Schubladen, Rückwand, Beschläge, Oberfläche, Montage, Sonstiges
 
 Beschreibung: "${text}"`
 
-    // Mit Bild: Vision-Modell, ohne Bild: Text-Modell
+    // Mit Bild: Vision-Modell; ohne Bild: Text-Modell
     let model: string
     let content: string | object[]
 
@@ -82,7 +100,7 @@ Beschreibung: "${text}"`
         model,
         messages: [{ role: 'user', content }],
         temperature: 0.2,
-        max_tokens: 2000,
+        max_tokens: 3000,
       }),
     })
 
@@ -94,14 +112,16 @@ Beschreibung: "${text}"`
 
     const data = await response.json()
     const rawText = data.choices?.[0]?.message?.content || ''
-
     const clean = rawText.replace(/```json|```/g, '').trim()
 
     try {
       const parsed = JSON.parse(clean)
       return NextResponse.json({ success: true, data: parsed })
     } catch {
-      return NextResponse.json({ success: false, error: 'JSON Parse Fehler', raw: rawText.slice(0, 300) }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: 'JSON Parse Fehler', raw: rawText.slice(0, 300) },
+        { status: 500 }
+      )
     }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'

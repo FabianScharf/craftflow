@@ -17,10 +17,18 @@ export interface Position {
   kat: string
   titel: string
   bez: string
-  kalkTyp: 'stunden' | 'pauschale' | 'qm' | 'lfm'
+  kalkTyp: 'detail' | 'stunden' | 'pauschale' | 'qm' | 'lfm'
   menge: number
   einheit: string
+  // detail-Modus: vollständige Kalkulation
+  materialKosten: number   // Materialkosten in € pro Einheit
+  lohnStd: number          // Arbeitsstunden pro Einheit
+  lohnSatz: number         // 0 = globalStd verwenden
+  gkProzent: number        // Gemeinkosten-Zuschlag (0.30 = 30%)
+  fremdleistung: number    // Fremdleistung gesamt (Anfahrt etc.)
+  // einfache Modi (pauschale/qm/lfm)
   ep: number
+  // stunden/legacy
   std: number
   mat: number
   aufschlag: number
@@ -31,6 +39,7 @@ export interface KalkResult {
   gesamt: number
   matTotal?: number
   lohn?: number
+  gk?: number
 }
 
 // ── Firmendaten ──────────────────────────────────────
@@ -58,21 +67,44 @@ export const C = {
 }
 
 export const CAT_COL: Record<string, string> = {
-  Schrank: '#C8885A',
-  Schreibtisch: '#8A6A4A',
-  Montage: '#5A6A7A',
-  Sonstiges: '#6A5A7A',
+  Korpus:        '#C8885A',
+  Schrank:       '#C8885A',
+  Türen:         '#B07848',
+  Fronten:       '#B07848',
+  Schubladen:    '#A06840',
+  Rückwand:      '#907060',
+  Beschläge:     '#6A7A8A',
+  Oberfläche:    '#7A8A6A',
+  Schreibtisch:  '#8A6A4A',
+  Fremdleistung: '#7A5A7A',
+  Montage:       '#5A6A7A',
+  Sonstiges:     '#6A5A7A',
 }
 
 export const KALK_TYPEN = [
-  { id: 'stunden',   label: 'Std × Satz', icon: '⏱', desc: 'Stunden × Stundensatz + Material' },
+  { id: 'detail',   label: 'Kalkulation', icon: '📊', desc: 'Material + Lohn + GK-Zuschlag + Fremdleistung' },
   { id: 'pauschale', label: 'Pauschale',  icon: '💶', desc: 'Fester Gesamtpreis' },
-  { id: 'qm',        label: 'pro m²',     icon: '📐', desc: 'Preis pro m²' },
-  { id: 'lfm',       label: 'pro lfd. m', icon: '📏', desc: 'Preis pro laufenden Meter' },
+  { id: 'qm',       label: 'pro m²',     icon: '📐', desc: 'Preis pro m²' },
+  { id: 'lfm',      label: 'pro lfd. m', icon: '📏', desc: 'Preis pro laufenden Meter' },
 ]
 
 // ── Kalkulation ──────────────────────────────────────
 export function calcPos(p: Position, globalStd: number): KalkResult {
+  if (p.kalkTyp === 'detail') {
+    const satz = p.lohnSatz > 0 ? p.lohnSatz : globalStd
+    const mat = p.materialKosten || 0
+    const lohn = (p.lohnStd || 0) * satz
+    const gk = (mat + lohn) * (p.gkProzent ?? 0.3)
+    const netPerUnit = mat + lohn + gk
+    const gesamt = netPerUnit * (p.menge || 1) + (p.fremdleistung || 0)
+    return {
+      ep: netPerUnit,
+      gesamt,
+      matTotal: mat * (p.menge || 1),
+      lohn: lohn * (p.menge || 1),
+      gk: gk * (p.menge || 1),
+    }
+  }
   switch (p.kalkTyp) {
     case 'pauschale':
     case 'qm':
