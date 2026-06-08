@@ -1,39 +1,35 @@
-import { Position, Kunde, FIRMA, calcPos, eur, today, inDays } from './types'
+import { Angebotsposition, Kunde, FIRMA, eur, today, inDays } from './types'
+
+function calcAngebotspos(p: Angebotsposition): number {
+  const mat = p.material.reduce((sum, m) => sum + m.ekPreis * (1 + m.aufschlag) * m.menge, 0)
+  const arb = p.arbeitszeit.reduce((sum, a) => sum + (a.minuten / 60) * a.vkStunde, 0)
+  return mat + arb
+}
 
 export function buildPDF(
-  pos: Position[],
-  globalStd: number,
+  pos: Angebotsposition[],
   kunde: Kunde,
   docNr: string,
   docTyp: string,
   anschr: string,
   mitWiderruf: boolean
 ): string {
-  const totals = pos.reduce((a, p) => ({ net: a.net + calcPos(p, globalStd).gesamt }), { net: 0 })
+  const totals = pos.reduce((a, p) => ({ net: a.net + calcAngebotspos(p) }), { net: 0 })
   const vat = totals.net * 0.19
   const gross = totals.net + vat
-  const gruppen = Array.from(new Set(pos.map((p) => p.kat)))
 
-  const rows = gruppen
-    .map((g, gi) => {
-      const gPos = pos.filter((p) => p.kat === g)
+  const rows = pos
+    .map((p, i) => {
+      const gesamt = calcAngebotspos(p)
       return (
-        `<tr><td colspan="5" style="padding:10px 8px 4px;font-weight:bold;font-size:13px;border-bottom:1px solid #eee">Pos. ${gi + 1} &nbsp;${g}</td></tr>` +
-        gPos
-          .map(
-            (p, pi) =>
-              `<tr style="background:${pi % 2 ? '#fafafa' : '#fff'}">
-          <td style="padding:6px 8px;font-size:11px;color:#888;vertical-align:top;border-bottom:1px solid #f0f0f0">${gi + 1}.00${pi + 1}</td>
-          <td style="padding:6px 8px;font-size:12px;vertical-align:top;border-bottom:1px solid #f0f0f0;white-space:nowrap">${p.menge} ${p.einheit}</td>
+        `<tr style="background:${i % 2 ? '#fafafa' : '#fff'}">
+          <td style="padding:6px 8px;font-size:11px;color:#888;vertical-align:top;border-bottom:1px solid #f0f0f0">${i + 1}</td>
           <td style="padding:6px 8px;vertical-align:top;border-bottom:1px solid #f0f0f0">
             <strong style="font-size:13px;display:block;margin-bottom:2px">${p.titel}</strong>
-            <span style="font-size:11px;color:#666">${p.bez}</span>
+            <span style="font-size:11px;color:#666">${p.beschreibung}</span>
           </td>
-          <td style="padding:6px 8px;text-align:right;font-size:12px;white-space:nowrap;vertical-align:top;border-bottom:1px solid #f0f0f0">${eur(calcPos(p, globalStd).ep)}</td>
-          <td style="padding:6px 8px;text-align:right;font-size:12px;font-weight:bold;white-space:nowrap;vertical-align:top;border-bottom:1px solid #f0f0f0">${eur(calcPos(p, globalStd).gesamt)}</td>
+          <td style="padding:6px 8px;text-align:right;font-size:12px;font-weight:bold;white-space:nowrap;vertical-align:top;border-bottom:1px solid #f0f0f0">${eur(gesamt)}</td>
         </tr>`
-          )
-          .join('')
       )
     })
     .join('')
@@ -95,11 +91,9 @@ export function buildPDF(
   </p>
   <table class="pos">
     <thead><tr>
-      <th style="width:48px">Pos</th>
-      <th style="width:60px">Menge</th>
+      <th style="width:36px">Pos</th>
       <th>Bezeichnung</th>
-      <th class="r" style="width:96px">EP</th>
-      <th class="r" style="width:96px">Gesamt</th>
+      <th class="r" style="width:100px">Gesamt</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>

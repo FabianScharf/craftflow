@@ -2,13 +2,14 @@
 
 import { useState, useRef, useCallback } from 'react'
 import {
-  C, CAT_COL, KALK_TYPEN, FIRMA,
+  C, FIRMA,
   DEFAULT_STUNDENSAETZE,
-  calcPos, eur, today, inDays,
+  eur, today,
   ladeKunden, speichereKunden,
-  type Kunde, type KundeDB, type Position,
+  type Kunde, type KundeDB,
   type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
 } from '@/lib/types'
+import { buildPDF } from '@/lib/pdf'
 
 /* ── Kostenstellen ────────────────────────────────── */
 const KOSTENSTELLE_LABELS: Record<KostenstelleId, string> = {
@@ -35,7 +36,6 @@ function calcAngebotspos(p: Angebotsposition): number {
   const arb = p.arbeitszeit.reduce((sum, a) => sum + (a.minuten / 60) * a.vkStunde, 0)
   return mat + arb
 }
-import { buildPDF } from '@/lib/pdf'
 
 /* ── Primitive UI ─────────────────────────────────── */
 const Lbl = ({ children, c }: { children: React.ReactNode; c?: string }) => (
@@ -86,11 +86,32 @@ export default function CraftFlow() {
 
   // App State
   const [tab, setTab] = useState('diktieren')
-  const [pos, setPos] = useState<Position[]>([
-    { id: 1, kat: 'Schrank', titel: 'Einbauschrank', bez: 'Maße und Material nach Absprache.', kalkTyp: 'qm', menge: 4, einheit: 'm²', ep: 380, std: 0, mat: 0, aufschlag: 0.3, materialKosten: 0, lohnStd: 0, lohnSatz: 0, gkProzent: 0.3, fremdleistung: 0 },
-    { id: 2, kat: 'Montage', titel: 'Lieferung & Montage', bez: 'Fachgerechte Montage inkl. An-/Abfahrt.', kalkTyp: 'stunden', menge: 8, einheit: 'Std', ep: 65, std: 1, mat: 0, aufschlag: 0, materialKosten: 0, lohnStd: 0, lohnSatz: 0, gkProzent: 0.3, fremdleistung: 0 },
+  const [pos, setPos] = useState<Angebotsposition[]>([
+    {
+      id: 1,
+      titel: 'Einbauschrank',
+      beschreibung: 'Maße und Material nach Absprache.',
+      material: [
+        { id: 11, bezeichnung: 'Spanplatte 18mm weiß', menge: 8, einheit: 'm²', ekPreis: 20, aufschlag: 0.30 },
+      ],
+      arbeitszeit: [
+        { id: 12, kostenstelle: '02_01_Konstruktion', minuten: 60, vkStunde: 75 },
+        { id: 13, kostenstelle: '03_02_Zuschnitt', minuten: 120, vkStunde: 72 },
+        { id: 14, kostenstelle: '03_03_Bekantung', minuten: 60, vkStunde: 100 },
+        { id: 15, kostenstelle: '03_06_Zusammenbau', minuten: 180, vkStunde: 65 },
+      ],
+    },
+    {
+      id: 2,
+      titel: 'Lieferung & Montage',
+      beschreibung: 'Fachgerechte Montage inkl. An-/Abfahrt.',
+      material: [],
+      arbeitszeit: [
+        { id: 21, kostenstelle: '05_01_Montage', minuten: 480, vkStunde: 65 },
+        { id: 22, kostenstelle: '06_01_Lieferung', minuten: 60, vkStunde: 65 },
+      ],
+    },
   ])
-  const [globalStd, setGlobalStd] = useState(65)
   const [docNr, setDocNr] = useState('AB-264')
   const [docTyp, setDocTyp] = useState('Auftragsbestätigung')
   const [anschr, setAnschr] = useState('herzlichen Dank für Ihren Auftrag, den wir hiermit gerne bestätigen:')
@@ -118,16 +139,50 @@ export default function CraftFlow() {
 
   // ── Helpers ────────────────────────────────────────
   const updK = (f: keyof Kunde, v: string) => setKunde(prev => ({ ...prev, [f]: v }))
-  const updPos = (id: number, f: keyof Position, v: unknown) =>
-    setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } : p))
+
+  const updTitel = (id: number, v: string) =>
+    setPos(prev => prev.map(p => p.id === id ? { ...p, titel: v } : p))
+  const updBeschreibung = (id: number, v: string) =>
+    setPos(prev => prev.map(p => p.id === id ? { ...p, beschreibung: v } : p))
   const addPos = () => setPos(prev => [...prev, {
-    id: Date.now(), kat: 'Sonstiges', titel: 'Neue Position', bez: '',
-    kalkTyp: 'pauschale', menge: 1, einheit: 'Stk', ep: 0, std: 0, mat: 0, aufschlag: 0.3,
-    materialKosten: 0, lohnStd: 0, lohnSatz: 0, gkProzent: 0.3, fremdleistung: 0,
+    id: Date.now(), titel: 'Neue Position', beschreibung: '', material: [], arbeitszeit: [],
   }])
   const delPos = (id: number) => setPos(prev => prev.filter(p => p.id !== id))
 
-  const totals = pos.reduce((a, p) => ({ net: a.net + calcPos(p, globalStd).gesamt }), { net: 0 })
+  const updMat = (posId: number, matId: number, f: keyof MaterialPosten, v: unknown) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, material: p.material.map(m => m.id === matId ? { ...m, [f]: v } as MaterialPosten : m) }
+      : p))
+  const addMat = (posId: number) => setPos(prev => prev.map(p => p.id === posId
+    ? { ...p, material: [...p.material, { id: Date.now(), bezeichnung: '', menge: 1, einheit: 'Stk', ekPreis: 0, aufschlag: 0.30 }] }
+    : p))
+  const delMat = (posId: number, matId: number) => setPos(prev => prev.map(p => p.id === posId
+    ? { ...p, material: p.material.filter(m => m.id !== matId) }
+    : p))
+
+  const updArb = (posId: number, arbId: number, f: keyof ArbeitsPosten, v: unknown) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, arbeitszeit: p.arbeitszeit.map(a => a.id === arbId ? { ...a, [f]: v } as ArbeitsPosten : a) }
+      : p))
+  const updArbKs = (posId: number, arbId: number, ks: KostenstelleId) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, arbeitszeit: p.arbeitszeit.map(a => a.id === arbId
+          ? { ...a, kostenstelle: ks, vkStunde: DEFAULT_STUNDENSAETZE[ks] }
+          : a) }
+      : p))
+  const addArb = (posId: number) => setPos(prev => prev.map(p => p.id === posId
+    ? { ...p, arbeitszeit: [...p.arbeitszeit, {
+        id: Date.now(),
+        kostenstelle: '03_06_Zusammenbau' as KostenstelleId,
+        minuten: 60,
+        vkStunde: DEFAULT_STUNDENSAETZE['03_06_Zusammenbau'],
+      }] }
+    : p))
+  const delArb = (posId: number, arbId: number) => setPos(prev => prev.map(p => p.id === posId
+    ? { ...p, arbeitszeit: p.arbeitszeit.filter(a => a.id !== arbId) }
+    : p))
+
+  const totals = pos.reduce((a, p) => ({ net: a.net + calcAngebotspos(p) }), { net: 0 })
   const vat = totals.net * 0.19
   const gross = totals.net + vat
 
@@ -147,7 +202,7 @@ export default function CraftFlow() {
     reader.readAsDataURL(file)
   }, [])
 
-  // ── KI Analyse (über eigene API Route) ────────────
+  // ── KI Analyse ─────────────────────────────────────
   const callAI = useCallback(async (text: string, imageB64: string | null, mode: string) => {
     const res = await fetch('/api/analyze', {
       method: 'POST',
@@ -160,6 +215,27 @@ export default function CraftFlow() {
     return json.data
   }, [])
 
+  const mapPositionen = (raw: unknown[], baseId: number): Angebotsposition[] =>
+    (raw as Partial<Angebotsposition>[]).map((p, i) => ({
+      id: baseId + i,
+      titel: p.titel || 'Position',
+      beschreibung: p.beschreibung || '',
+      material: ((p.material || []) as Partial<MaterialPosten>[]).map((m, j) => ({
+        id: baseId + i * 100 + j,
+        bezeichnung: m.bezeichnung || '',
+        menge: m.menge || 1,
+        einheit: m.einheit || 'Stk',
+        ekPreis: m.ekPreis || 0,
+        aufschlag: m.aufschlag ?? 0.30,
+      })),
+      arbeitszeit: ((p.arbeitszeit || []) as Partial<ArbeitsPosten>[]).map((a, j) => ({
+        id: baseId + i * 100 + 50 + j,
+        kostenstelle: (a.kostenstelle || '03_00_Produktion') as KostenstelleId,
+        minuten: a.minuten || 60,
+        vkStunde: a.vkStunde || 65,
+      })),
+    }))
+
   // ── Start: Analyse + Positionen erstellen ─────────
   const startAnalyse = useCallback(async () => {
     if (!startText.trim()) return
@@ -168,7 +244,12 @@ export default function CraftFlow() {
     try {
       const data = await callAI(startText, startBildB64, 'analyse')
 
-      // Kundendaten übernehmen
+      if (data.fragen?.length > 0) {
+        setStartStatus('done')
+        setStartMsg('🔍 Rückfragen – bitte ergänzen und erneut senden:\n• ' + (data.fragen as string[]).join('\n• '))
+        return
+      }
+
       if (data.kunde) {
         setKunde({
           name: data.kunde.name || '',
@@ -179,21 +260,8 @@ export default function CraftFlow() {
         })
       }
 
-      // Positionen übernehmen
       if (data.positionen?.length > 0) {
-        const newPos: Position[] = data.positionen.map((p: Partial<Position>, i: number) => ({
-          id: Date.now() + i,
-          kat: p.kat || 'Sonstiges',
-          titel: p.titel || 'Position',
-          bez: p.bez || '',
-          kalkTyp: p.kalkTyp || 'pauschale',
-          menge: p.menge || 1,
-          einheit: p.einheit || 'Stk',
-          ep: p.ep || 0,
-          std: 0, mat: 0, aufschlag: 0.3,
-          materialKosten: 0, lohnStd: 0, lohnSatz: 0, gkProzent: 0.3, fremdleistung: 0,
-        }))
-        setPos(newPos)
+        setPos(mapPositionen(data.positionen, Date.now()))
       }
 
       if (data.anschreiben) setAnschr(data.anschreiben)
@@ -219,20 +287,15 @@ export default function CraftFlow() {
         return
       }
       const data = await callAI(diktatText, diktatBildB64, 'analyse')
+
+      if (data.fragen?.length > 0) {
+        setDiktatStatus('done')
+        setDiktatMsg('🔍 Rückfragen – bitte ergänzen und erneut senden:\n• ' + (data.fragen as string[]).join('\n• '))
+        return
+      }
+
       if (data.positionen?.length > 0) {
-        const newPos: Position[] = data.positionen.map((p: Partial<Position>, i: number) => ({
-          id: Date.now() + i,
-          kat: p.kat || 'Sonstiges',
-          titel: p.titel || 'Position',
-          bez: p.bez || '',
-          kalkTyp: p.kalkTyp || 'pauschale',
-          menge: p.menge || 1,
-          einheit: p.einheit || 'Stk',
-          ep: p.ep || 0,
-          std: 0, mat: 0, aufschlag: 0.3,
-          materialKosten: 0, lohnStd: 0, lohnSatz: 0, gkProzent: 0.3, fremdleistung: 0,
-        }))
-        setPos(newPos)
+        setPos(mapPositionen(data.positionen, Date.now()))
         if (diktatStufe === 'komplett' && data.anschreiben) setAnschr(data.anschreiben)
       }
       setDiktatStatus('done')
@@ -372,7 +435,6 @@ export default function CraftFlow() {
             <div style={{ padding: '14px 16px' }}>
               <Lbl>Schritt 2 – Projekt beschreiben</Lbl>
 
-              {/* Foto */}
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
                   <input ref={startFileRef} type="file" accept="image/*"
@@ -390,7 +452,6 @@ export default function CraftFlow() {
                 )}
               </div>
 
-              {/* Diktat */}
               <button onClick={() => startTextRef.current?.focus()} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '10px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 <span style={{ fontSize: 16 }}>🎤</span> Textfeld öffnen & diktieren
               </button>
@@ -404,14 +465,13 @@ export default function CraftFlow() {
               </button>
 
               {startMsg && (
-                <div style={{ marginTop: 10, background: startStatus === 'done' ? '#0d1a0d' : '#1a0d0d', border: `1px solid ${startStatus === 'done' ? '#2a4a2a' : '#4a2a2a'}`, borderRadius: 3, padding: '10px 12px', fontSize: 12, color: startStatus === 'done' ? '#90EE90' : '#ff9999' }}>
+                <div style={{ marginTop: 10, background: startStatus === 'done' ? '#0d1a0d' : '#1a0d0d', border: `1px solid ${startStatus === 'done' ? '#2a4a2a' : '#4a2a2a'}`, borderRadius: 3, padding: '10px 12px', fontSize: 12, color: startStatus === 'done' ? '#90EE90' : '#ff9999', whiteSpace: 'pre-line' }}>
                   {startMsg}
                 </div>
               )}
             </div>
           </Card>
 
-          {/* Weiter Button */}
           <button onClick={() => setScreen('app')} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '15px 0', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1, cursor: 'pointer', marginBottom: 20 }}>
             {kunde.name ? `▶ WEITER MIT "${kunde.name.split(' ').slice(-1)[0].toUpperCase()}"` : '▶ WEITER ZUR KALKULATION'}
           </button>
@@ -483,7 +543,6 @@ export default function CraftFlow() {
               </Card>
             )}
 
-            {/* Foto */}
             <Card>
               <div style={{ padding: '12px 16px' }}>
                 <Lbl>Situationsfoto (optional)</Lbl>
@@ -506,7 +565,6 @@ export default function CraftFlow() {
               </div>
             </Card>
 
-            {/* Stufe */}
             <Card>
               <div style={{ padding: '12px 16px' }}>
                 <Lbl>Was soll die KI tun?</Lbl>
@@ -530,7 +588,6 @@ export default function CraftFlow() {
               </div>
             </Card>
 
-            {/* Texteingabe */}
             <Card>
               <div style={{ padding: '12px 16px' }}>
                 <Lbl>Projektbeschreibung</Lbl>
@@ -549,7 +606,7 @@ export default function CraftFlow() {
             {diktatMsg && (
               <Card accent={diktatStatus === 'done' ? '#4A7C6F' : '#cc3333'}>
                 <div style={{ padding: '12px 16px' }}>
-                  <div style={{ fontSize: 12, lineHeight: 1.8, color: diktatStatus === 'done' ? '#90EE90' : '#ff9999' }}>{diktatMsg}</div>
+                  <div style={{ fontSize: 12, lineHeight: 1.8, color: diktatStatus === 'done' ? '#90EE90' : '#ff9999', whiteSpace: 'pre-line' }}>{diktatMsg}</div>
                   {diktatStatus === 'done' && <button onClick={() => setTab('kalkulation')} style={{ marginTop: 10, background: '#4A7C6F', color: '#fff', border: 'none', borderRadius: 3, padding: '8px 16px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>→ Zur Kalkulation</button>}
                 </div>
               </Card>
@@ -560,100 +617,125 @@ export default function CraftFlow() {
         {/* ══ KALKULATION ══ */}
         {tab === 'kalkulation' && (
           <div>
+            {/* Netto / Brutto Übersicht */}
             <Card accent={C.copper}>
               <div style={{ padding: '12px 16px' }}>
-                <Lbl>Parameter</Lbl>
-                <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
-                  <div style={{ flex: 1, padding: '9px 11px' }}>
-                    <Lbl>Stundensatz (€/h)</Lbl>
-                    <NumInput value={globalStd} onChange={setGlobalStd} />
+                <div style={{ display: 'flex', background: C.black, borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ flex: 1, padding: '10px 14px' }}>
+                    <Lbl c={C.textMid}>Netto</Lbl>
+                    <div style={{ color: C.copper, fontSize: 19, fontWeight: 800 }}>{eur(totals.net)}</div>
                   </div>
                   <div style={{ width: 1, background: C.border }} />
-                  <div style={{ flex: 2, padding: '9px 14px', background: C.black, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <Lbl c={C.textMid}>Netto</Lbl>
-                      <div style={{ color: C.copper, fontSize: 19, fontWeight: 800 }}>{eur(totals.net)}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <Lbl c={C.textMid}>Brutto</Lbl>
-                      <div style={{ color: C.white, fontSize: 15, fontWeight: 700 }}>{eur(gross)}</div>
-                    </div>
+                  <div style={{ flex: 1, padding: '10px 14px', textAlign: 'right' }}>
+                    <Lbl c={C.textMid}>Brutto</Lbl>
+                    <div style={{ color: C.white, fontSize: 15, fontWeight: 700 }}>{eur(gross)}</div>
                   </div>
                 </div>
               </div>
             </Card>
 
+            {/* Positionen */}
             {pos.map(p => {
-              const c = calcPos(p, globalStd)
-              const col = CAT_COL[p.kat] || C.copper
-              const kt = KALK_TYPEN.find(k => k.id === p.kalkTyp) || KALK_TYPEN[0]
+              const gesamt = calcAngebotspos(p)
+              const matTotal = p.material.reduce((sum, m) => sum + m.ekPreis * (1 + m.aufschlag) * m.menge, 0)
+              const arbTotal = p.arbeitszeit.reduce((sum, a) => sum + (a.minuten / 60) * a.vkStunde, 0)
               return (
-                <Card key={p.id} accent={col}>
+                <Card key={p.id} accent={C.copper}>
                   <div style={{ padding: '12px 14px' }}>
+
+                    {/* Kopfzeile */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ background: col, color: C.black, fontSize: 8, padding: '2px 8px', borderRadius: 10, display: 'inline-block', fontWeight: 700, marginBottom: 4 }}>{p.kat.toUpperCase()}</span>
-                        <input value={p.titel} onChange={e => updPos(p.id, 'titel', e.target.value)}
-                          style={{ width: '100%', background: 'transparent', border: 'none', fontSize: 13, fontWeight: 700, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', display: 'block', marginTop: 2 }} />
-                        <textarea value={p.bez} onChange={e => updPos(p.id, 'bez', e.target.value)}
+                        <input value={p.titel} onChange={e => updTitel(p.id, e.target.value)}
+                          style={{ width: '100%', background: 'transparent', border: 'none', fontSize: 13, fontWeight: 700, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', display: 'block', marginBottom: 2 }} />
+                        <textarea value={p.beschreibung} onChange={e => updBeschreibung(p.id, e.target.value)}
                           rows={2} style={{ width: '100%', background: 'transparent', border: 'none', fontSize: 11, color: C.textMid, resize: 'none', outline: 'none', fontFamily: 'Helvetica Neue,sans-serif', boxSizing: 'border-box' }} />
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: col }}>{eur(c.gesamt)}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: C.copper }}>{eur(gesamt)}</div>
                         <button onClick={() => delPos(p.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10 }}>✕</button>
                       </div>
                     </div>
+
                     <HR color={C.border} my={8} />
-                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
-                      {KALK_TYPEN.map(k => (
-                        <button key={k.id} onClick={() => updPos(p.id, 'kalkTyp', k.id)} style={{ padding: '4px 9px', fontSize: 9, fontWeight: 700, background: p.kalkTyp === k.id ? col : C.gray2, color: p.kalkTyp === k.id ? C.black : C.textMid, border: `1px solid ${p.kalkTyp === k.id ? col : C.border}`, borderRadius: 3, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                          {k.icon} {k.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: 10, color: C.textMid, marginBottom: 8 }}>{kt.desc}</div>
-                    <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ flex: 1, padding: '9px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                        <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 5, whiteSpace: 'nowrap' }}>Menge</div>
-                        <NumInput value={p.menge} onChange={v => updPos(p.id, 'menge', v)} />
-                        <input value={p.einheit} onChange={e => updPos(p.id, 'einheit', e.target.value)}
-                          style={{ width: '100%', marginTop: 4, padding: '3px 7px', background: C.black, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.textMid, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+
+                    {/* Material */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                        <Lbl>Material</Lbl>
+                        {matTotal > 0 && <div style={{ fontSize: 10, color: C.copper, fontWeight: 700 }}>{eur(matTotal)}</div>}
                       </div>
-                      <div style={{ width: 1, background: C.border }} />
-                      {(p.kalkTyp === 'pauschale' || p.kalkTyp === 'qm' || p.kalkTyp === 'lfm') && (
-                        <>
-                          <div style={{ flex: 2, padding: '9px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 5, whiteSpace: 'nowrap' }}>
-                              {p.kalkTyp === 'pauschale' ? 'Preis gesamt (€)' : p.kalkTyp === 'qm' ? 'Preis/m² (€)' : 'Preis/lfd.m (€)'}
-                            </div>
-                            <NumInput value={p.ep} onChange={v => updPos(p.id, 'ep', v)} />
-                          </div>
-                          <div style={{ width: 1, background: C.border }} />
-                          <div style={{ flex: 1, padding: '9px 10px', background: C.black, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <Lbl c={C.textMid}>Gesamt</Lbl>
-                            <div style={{ color: col, fontSize: 13, fontWeight: 800 }}>{eur(c.gesamt)}</div>
-                          </div>
-                        </>
+                      {p.material.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 50px 40px 56px 36px 1fr 18px', gap: 3, marginBottom: 3 }}>
+                          {['Bezeichnung', 'Menge', 'Einh.', 'EK €', '+%', 'VK ges.', ''].map((h, i) => (
+                            <div key={i} style={{ fontSize: 7, color: C.textMid, letterSpacing: 1, textTransform: 'uppercase', paddingLeft: 2 }}>{h}</div>
+                          ))}
+                        </div>
                       )}
-                      {p.kalkTyp === 'stunden' && (
-                        <>
-                          <div style={{ flex: 1, padding: '9px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 5, whiteSpace: 'nowrap' }}>Std/Einh.</div>
-                            <NumInput value={p.std} onChange={v => updPos(p.id, 'std', v)} />
+                      {p.material.map(m => {
+                        const vk = m.ekPreis * (1 + m.aufschlag) * m.menge
+                        return (
+                          <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '2fr 50px 40px 56px 36px 1fr 18px', gap: 3, marginBottom: 3, alignItems: 'center' }}>
+                            <input value={m.bezeichnung} onChange={e => updMat(p.id, m.id, 'bezeichnung', e.target.value)}
+                              placeholder="Bezeichnung"
+                              style={{ padding: '4px 5px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box', minWidth: 0 }} />
+                            <input type="number" step="0.01" value={m.menge} onChange={e => updMat(p.id, m.id, 'menge', parseFloat(e.target.value) || 0)}
+                              style={{ padding: '4px 5px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box', minWidth: 0 }} />
+                            <input value={m.einheit} onChange={e => updMat(p.id, m.id, 'einheit', e.target.value)}
+                              style={{ padding: '4px 5px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box', minWidth: 0 }} />
+                            <input type="number" step="0.01" value={m.ekPreis} onChange={e => updMat(p.id, m.id, 'ekPreis', parseFloat(e.target.value) || 0)}
+                              style={{ padding: '4px 5px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box', minWidth: 0 }} />
+                            <input type="number" step="1" value={Math.round(m.aufschlag * 100)} onChange={e => updMat(p.id, m.id, 'aufschlag', (parseFloat(e.target.value) || 0) / 100)}
+                              style={{ padding: '4px 5px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box', minWidth: 0 }} />
+                            <div style={{ fontSize: 10, color: C.copper, textAlign: 'right', fontWeight: 700 }}>{eur(vk)}</div>
+                            <button onClick={() => delMat(p.id, m.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 2, padding: '2px 3px', cursor: 'pointer', fontSize: 8, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }}>✕</button>
                           </div>
-                          <div style={{ width: 1, background: C.border }} />
-                          <div style={{ flex: 1, padding: '9px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                            <div style={{ fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 5, whiteSpace: 'nowrap' }}>Mat.(€)</div>
-                            <NumInput value={p.mat} onChange={v => updPos(p.id, 'mat', v)} />
-                          </div>
-                          <div style={{ width: 1, background: C.border }} />
-                          <div style={{ flex: 1, padding: '9px 10px', background: C.black, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <Lbl c={C.textMid}>Gesamt</Lbl>
-                            <div style={{ color: col, fontSize: 13, fontWeight: 800 }}>{eur(c.gesamt)}</div>
-                          </div>
-                        </>
-                      )}
+                        )
+                      })}
+                      <button onClick={() => addMat(p.id)} style={{ width: '100%', background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 2, padding: '5px 0', cursor: 'pointer', fontSize: 10, fontFamily: 'Helvetica Neue,sans-serif', marginTop: 2 }}>
+                        + Material
+                      </button>
                     </div>
+
+                    <HR color={C.border} my={6} />
+
+                    {/* Arbeitszeit */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                        <Lbl>Arbeitszeit</Lbl>
+                        {arbTotal > 0 && <div style={{ fontSize: 10, color: C.copper, fontWeight: 700 }}>{eur(arbTotal)}</div>}
+                      </div>
+                      {p.arbeitszeit.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '3fr 52px 48px 1fr 18px', gap: 3, marginBottom: 3 }}>
+                          {['Kostenstelle', 'Min', '€/h', 'Kosten', ''].map((h, i) => (
+                            <div key={i} style={{ fontSize: 7, color: C.textMid, letterSpacing: 1, textTransform: 'uppercase', paddingLeft: 2 }}>{h}</div>
+                          ))}
+                        </div>
+                      )}
+                      {p.arbeitszeit.map(a => {
+                        const kosten = (a.minuten / 60) * a.vkStunde
+                        return (
+                          <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '3fr 52px 48px 1fr 18px', gap: 3, marginBottom: 3, alignItems: 'center' }}>
+                            <select value={a.kostenstelle} onChange={e => updArbKs(p.id, a.id, e.target.value as KostenstelleId)}
+                              style={{ padding: '4px 5px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', minWidth: 0 }}>
+                              {KOSTENSTELLEN_LIST.map(ks => (
+                                <option key={ks} value={ks}>{KOSTENSTELLE_LABELS[ks]}</option>
+                              ))}
+                            </select>
+                            <input type="number" step="1" value={a.minuten} onChange={e => updArb(p.id, a.id, 'minuten', parseFloat(e.target.value) || 0)}
+                              style={{ padding: '4px 5px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box', minWidth: 0 }} />
+                            <input type="number" step="0.5" value={a.vkStunde} onChange={e => updArb(p.id, a.id, 'vkStunde', parseFloat(e.target.value) || 0)}
+                              style={{ padding: '4px 5px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box', minWidth: 0 }} />
+                            <div style={{ fontSize: 10, color: C.copper, textAlign: 'right', fontWeight: 700 }}>{eur(kosten)}</div>
+                            <button onClick={() => delArb(p.id, a.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 2, padding: '2px 3px', cursor: 'pointer', fontSize: 8, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }}>✕</button>
+                          </div>
+                        )
+                      })}
+                      <button onClick={() => addArb(p.id)} style={{ width: '100%', background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 2, padding: '5px 0', cursor: 'pointer', fontSize: 10, fontFamily: 'Helvetica Neue,sans-serif', marginTop: 2 }}>
+                        + Arbeitsgang
+                      </button>
+                    </div>
+
                   </div>
                 </Card>
               )
@@ -716,15 +798,14 @@ export default function CraftFlow() {
               <div style={{ padding: '12px 16px' }}>
                 <Lbl>Leistungsübersicht</Lbl>
                 {pos.map((p, i) => {
-                  const c = calcPos(p, globalStd)
-                  const col = CAT_COL[p.kat] || C.copper
+                  const gesamt = calcAngebotspos(p)
                   return (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < pos.length - 1 ? `1px solid ${C.border}` : 'none', gap: 8, alignItems: 'flex-start' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{p.titel}</div>
-                        <div style={{ fontSize: 10, color: C.textMid, marginTop: 2 }}>{p.menge} {p.einheit}</div>
+                        {p.beschreibung && <div style={{ fontSize: 10, color: C.textMid, marginTop: 2 }}>{p.beschreibung}</div>}
                       </div>
-                      <div style={{ fontWeight: 800, fontSize: 12, color: col, flexShrink: 0 }}>{eur(c.gesamt)}</div>
+                      <div style={{ fontWeight: 800, fontSize: 12, color: C.copper, flexShrink: 0 }}>{eur(gesamt)}</div>
                     </div>
                   )
                 })}
@@ -751,7 +832,7 @@ export default function CraftFlow() {
             </Card>
 
             <button onClick={() => {
-              setPdfHTML(buildPDF(pos, globalStd, kunde, docNr, docTyp, anschr, widerruf))
+              setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf))
               setScreen('pdf')
             }} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: 'pointer' }}>
               ▶ DOKUMENT ALS PDF ANZEIGEN
