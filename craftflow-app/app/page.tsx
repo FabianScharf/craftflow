@@ -3,10 +3,38 @@
 import { useState, useRef, useCallback } from 'react'
 import {
   C, CAT_COL, KALK_TYPEN, FIRMA,
+  DEFAULT_STUNDENSAETZE,
   calcPos, eur, today, inDays,
   ladeKunden, speichereKunden,
   type Kunde, type KundeDB, type Position,
+  type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
 } from '@/lib/types'
+
+/* ── Kostenstellen ────────────────────────────────── */
+const KOSTENSTELLE_LABELS: Record<KostenstelleId, string> = {
+  '00_Meeting':                   '00 Meeting',
+  '01_02_Planung':                '01_02 Planung',
+  '02_01_Konstruktion':           '02_01 Konstruktion',
+  '02_02_Arbeitsvorbereitung':    '02_02 Arbeitsvorbereitung',
+  '03_00_Produktion':             '03_00 Produktion',
+  '03_01_Warenhandling':          '03_01 Warenhandling',
+  '03_02_Zuschnitt':              '03_02 Zuschnitt',
+  '03_03_Bekantung':              '03_03 Bekantung',
+  '03_04_CNC':                    '03_04 CNC',
+  '03_05_Oberflaechenbehandlung': '03_05 Oberfläche',
+  '03_06_Zusammenbau':            '03_06 Zusammenbau',
+  '03_07_Verpacken':              '03_07 Verpacken',
+  '03_08_Azubi':                  '03_08 Azubi/Helfer',
+  '05_01_Montage':                '05_01 Montage',
+  '06_01_Lieferung':              '06_01 Lieferung',
+}
+const KOSTENSTELLEN_LIST = Object.keys(KOSTENSTELLE_LABELS) as KostenstelleId[]
+
+function calcAngebotspos(p: Angebotsposition): number {
+  const mat = p.material.reduce((sum, m) => sum + m.ekPreis * (1 + m.aufschlag) * m.menge, 0)
+  const arb = p.arbeitszeit.reduce((sum, a) => sum + (a.minuten / 60) * a.vkStunde, 0)
+  return mat + arb
+}
 import { buildPDF } from '@/lib/pdf'
 
 /* ── Primitive UI ─────────────────────────────────── */
