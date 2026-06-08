@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import NoSleep from 'nosleep.js'
 import {
   C, CAT_COL, KALK_TYPEN, FIRMA,
   calcPos, eur, today, inDays,
@@ -97,7 +98,7 @@ export default function CraftFlow() {
   const [micStatus, setMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
-  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null)
+  const noSleepRef = useRef<NoSleep | null>(null)
 
   const startFileRef = useRef<HTMLInputElement>(null)
 
@@ -152,8 +153,8 @@ export default function CraftFlow() {
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
-        wakeLockRef.current?.release().catch(() => {})
-        wakeLockRef.current = null
+        noSleepRef.current?.disable()
+        noSleepRef.current = null
         setMicStatus('transcribing')
         try {
           const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
@@ -175,29 +176,16 @@ export default function CraftFlow() {
       mr.start()
       mediaRecorderRef.current = mr
       setMicStatus('recording')
-      // Wake Lock: Bildschirm während Aufnahme nicht ausschalten
+      // Screen-on: Wake Lock API (modern) + iOS Safari Video-Fallback (via NoSleep.js)
       try {
-        const nav = navigator as { wakeLock?: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }
-        if (nav.wakeLock) wakeLockRef.current = await nav.wakeLock.request('screen')
-      } catch { /* nicht unterstützt oder verweigert – ignorieren */ }
+        if (!noSleepRef.current) noSleepRef.current = new NoSleep()
+        await noSleepRef.current.enable()
+      } catch { /* ignorieren */ }
     } catch {
       alert('Mikrofon nicht verfügbar. Bitte Zugriff erlauben.')
     }
   }, [])
 
-  // Wake Lock nach App-Hintergrund wiederherstellen wenn Aufnahme noch läuft
-  useEffect(() => {
-    const handleVisibility = async () => {
-      if (document.visibilityState === 'visible' && micStatus === 'recording') {
-        try {
-          const nav = navigator as { wakeLock?: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }
-          if (nav.wakeLock) wakeLockRef.current = await nav.wakeLock.request('screen')
-        } catch { /* ignorieren */ }
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [micStatus])
 
   const stopRecording = useCallback(() => {
     mediaRecorderRef.current?.stop()
