@@ -61,11 +61,7 @@ export function buildPDF(
     @media print{body{padding:20px 28px}@page{margin:0;size:A4}}
   </style></head><body>
   <div class="logo-area">
-    <svg width="48" height="48" viewBox="0 0 100 100">
-      <polygon points="50,4 94,27 94,73 50,96 6,73 6,27" fill="none" stroke="#1a1a1a" stroke-width="5"/>
-      <text x="50" y="64" text-anchor="middle" font-family="Helvetica Neue" font-size="30" font-weight="800" fill="#1a1a1a">FS</text>
-    </svg>
-    <div class="logo-name">FS CRAFTED</div>
+    <img src="/logo.png" style="height:64px;width:auto;display:block;margin-left:auto" alt="FS Crafted" />
   </div>
   <div class="abs">${FIRMA.name} | ${FIRMA.strasse} | ${FIRMA.ort}</div>
   <div>
