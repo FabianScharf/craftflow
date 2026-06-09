@@ -85,6 +85,7 @@ export interface UserSettings {
   firmaUst: string
   materialAufschlag: number
   stundensaetze: Record<KostenstelleId, number>
+  logoUrl?: string  // URL oder base64-String, optional
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
