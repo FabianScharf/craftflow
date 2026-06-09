@@ -68,10 +68,10 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;colo
   .ftr{margin-top:28px}
 }
 
-.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:7px;border-bottom:1px solid #ddd}
+.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:7px}
 .hdr-sender{font-size:9px;color:#888;letter-spacing:.3px}
 .hdr-logo{text-align:right}
-.hdr-logo img{height:56px;width:auto;display:block;margin-left:auto}
+.hdr-logo img{height:80px;width:auto;display:block;margin-left:auto}
 .hdr-logo .brand{font-size:8px;letter-spacing:3px;font-weight:700;text-transform:uppercase;margin-top:3px}
 
 .addr-meta{display:flex;justify-content:space-between;align-items:flex-start;margin:24px 0 26px}
@@ -127,7 +127,6 @@ table.pos thead th.r{text-align:right}
 <div class="addr-meta">
   <div class="addr">
     <div class="name">${kunde.name || '–'}</div>
-    ${kunde.zusatz ? `<div class="sub">${kunde.zusatz}</div>` : ''}
     ${kunde.strasse ? `<div class="sub">${kunde.strasse}</div>` : ''}
     ${kunde.ort ? `<div class="sub">${kunde.ort}</div>` : ''}
   </div>
