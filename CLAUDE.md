@@ -183,3 +183,22 @@ Beim ersten Start wird der Nutzer durch einen Einrichtungs-Wizard geführt:
 
 Diese Einstellungen werden in der Datenbank gespeichert und bei jeder
 Kalkulation verwendet – niemals die hardcodierten Werte aus dem Code.
+
+## PDF-LAYOUT-REFERENZ
+
+Das Referenz-PDF liegt unter: docs/reference/angebot_referenz.pdf
+
+VOR JEDER Änderung an lib/pdf.ts MUSS dieses PDF gelesen werden:
+- Lies das PDF mit Read tool
+- Vergleiche jeden Element-Typ mit dem Referenz
+- Baue NUR nach was dort steht
+- NICHTS erfinden, NICHTS hinzufügen
+
+Checkliste vor jedem PDF-Commit:
+[ ] Logo: nur Bild, kein zusätzlicher Text darunter
+[ ] Header: Logo rechts, Absenderzeile links, keine Trennlinie
+[ ] Adressblock: Name, Straße, PLZ Ort - kein Zusatz
+[ ] Positionstabelle: Pos | Bezeichnung | Gesamt - keine Kostenstellen
+[ ] Summenblock: Netto, MwSt, Gesamt - rechtsbündig
+[ ] Footer: Dokumentnummer links, Firmendaten mitte, Seite rechts
+[ ] KEINE Elemente die nicht im Referenz-PDF sind
