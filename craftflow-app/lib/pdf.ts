@@ -14,119 +14,164 @@ export function buildPDF(
   anschr: string,
   mitWiderruf: boolean
 ): string {
-  const totals = pos.reduce((a, p) => ({ net: a.net + calcAngebotspos(p) }), { net: 0 })
-  const vat = totals.net * 0.19
-  const gross = totals.net + vat
+  const net = pos.reduce((s, p) => s + calcAngebotspos(p), 0)
+  const vat = net * 0.19
+  const gross = net + vat
 
-  const rows = pos
-    .map((p, i) => {
-      const gesamt = calcAngebotspos(p)
-      return (
-        `<tr style="background:${i % 2 ? '#fafafa' : '#fff'}">
-          <td style="padding:6px 8px;font-size:11px;color:#888;vertical-align:top;border-bottom:1px solid #f0f0f0">${i + 1}</td>
-          <td style="padding:6px 8px;vertical-align:top;border-bottom:1px solid #f0f0f0">
-            <strong style="font-size:13px;display:block;margin-bottom:2px">${p.titel}</strong>
-            <span style="font-size:11px;color:#666">${p.beschreibung}</span>
-          </td>
-          <td style="padding:6px 8px;text-align:right;font-size:12px;font-weight:bold;white-space:nowrap;vertical-align:top;border-bottom:1px solid #f0f0f0">${eur(gesamt)}</td>
-        </tr>`
-      )
-    })
-    .join('')
+  const rows = pos.map((p, i) => {
+    const g = calcAngebotspos(p)
+    return `<tr>
+      <td class="pos-nr">${i + 1}</td>
+      <td class="pos-bez">
+        <strong>${p.titel}</strong>
+        ${p.beschreibung ? `<span class="bez-desc">${p.beschreibung}</span>` : ''}
+      </td>
+      <td class="pos-ges">${eur(g)}</td>
+    </tr>`
+  }).join('')
+
+  const widerrufBlock = mitWiderruf
+    ? `<div class="widerruf">
+        <strong>Widerrufsrecht</strong><br><br>
+        Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
+        Um Ihr Widerrufsrecht auszuüben, wenden Sie sich an: ${FIRMA.name} – ${FIRMA.inhaber},
+        ${FIRMA.strasse}, ${FIRMA.ort}, E-Mail: ${FIRMA.email}.
+      </div>`
+    : ''
+
+  const signBlock = docTyp !== 'Rechnung'
+    ? `<div class="sign-block">
+        <p class="sign-intro">Wir freuen uns auf die Zusammenarbeit und bitten um Unterzeichnung und Rücksendung.</p>
+        <div class="sign-lines">
+          <div class="sign-line">Ort | Datum</div>
+          <div class="sign-line">Unterschrift Auftraggeber</div>
+        </div>
+      </div>`
+    : ''
 
   return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
-  <title>${docTyp} ${docNr}</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#1a1a1a;background:#fff;padding:40px 48px;font-size:13px;line-height:1.6}
-    .logo-area{text-align:right;margin-bottom:28px}
-    .logo-name{font-size:12px;letter-spacing:2px;font-weight:700;margin-top:3px}
-    .abs{font-size:10px;color:#888;margin-bottom:16px}
-    .adr{font-size:13px;margin-bottom:28px}
-    .meta{float:right;font-size:12px;margin-top:-64px}
-    .meta td{padding:2px 0 2px 20px;color:#555}
-    .meta td:first-child{color:#999;font-size:10px}
-    .cf{clear:both}
-    .proj{font-size:12px;color:#666;margin-bottom:4px}
-    h1{font-size:16px;font-weight:700;margin-bottom:6px}
-    table.pos{width:100%;border-collapse:collapse;margin-bottom:20px}
-    table.pos thead tr{border-bottom:2px solid #1a1a1a}
-    table.pos thead th{padding:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left}
-    table.pos thead th.r{text-align:right}
-    .sum{display:flex;justify-content:flex-end;margin-bottom:20px}
-    .si{width:240px;font-size:13px}
-    .sr{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee}
-    .st{display:flex;justify-content:space-between;font-weight:bold;font-size:14px;border-top:2px solid #1a1a1a;border-bottom:2px solid #1a1a1a;padding:7px 0;margin-top:2px}
-    .footer{position:fixed;bottom:20px;left:48px;right:48px;border-top:1px solid #ddd;padding-top:6px;display:flex;justify-content:space-between;font-size:10px;color:#999}
-    @media print{body{padding:20px 28px}@page{margin:0;size:A4}}
-  </style></head><body>
-  <div class="logo-area">
-    <img src="/logo.png" style="height:64px;width:auto;display:block;margin-left:auto" alt="FS Crafted" />
+<title>${docTyp} ${docNr}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;color:#1a1a1a;line-height:1.5;background:#fff}
+
+@page{size:A4;margin:38mm 15mm 26mm 15mm}
+@media print{
+  .hdr{position:fixed;top:-34mm;left:0;right:0}
+  .ftr{position:fixed;bottom:-22mm;left:0;right:0}
+  .ftr .pn::after{content:"Seite " counter(page) " / " counter(pages)}
+}
+@media screen{
+  body{background:#e8e8e8}
+  .page{max-width:210mm;margin:0 auto;background:#fff;padding:14mm 15mm 20mm;box-shadow:0 4px 24px rgba(0,0,0,.15)}
+  .hdr{padding:10mm 0 7px}
+  .ftr{margin-top:28px}
+}
+
+.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:7px;border-bottom:1px solid #ddd}
+.hdr-sender{font-size:9px;color:#888;letter-spacing:.3px}
+.hdr-logo{text-align:right}
+.hdr-logo img{height:56px;width:auto;display:block;margin-left:auto}
+.hdr-logo .brand{font-size:8px;letter-spacing:3px;font-weight:700;text-transform:uppercase;margin-top:3px}
+
+.addr-meta{display:flex;justify-content:space-between;align-items:flex-start;margin:24px 0 26px}
+.addr{line-height:1.9}
+.addr .name{font-weight:700;font-size:13px}
+.addr .sub{font-size:12px;color:#333}
+.meta-t{font-size:11px}
+.meta-t td{padding:2px 0 2px 18px;color:#444;vertical-align:top}
+.meta-t td:first-child{color:#888;font-size:10px;text-align:right}
+
+.bau{font-size:11px;color:#555;font-style:italic;margin-bottom:5px}
+.doc-nr{font-size:16px;font-weight:700;margin-bottom:10px}
+.intro{font-size:12px;margin-bottom:26px;line-height:1.75;color:#222}
+
+table.pos{width:100%;border-collapse:collapse}
+table.pos thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:8px 6px;border-top:1.5px solid #1a1a1a;border-bottom:1.5px solid #1a1a1a;white-space:nowrap}
+table.pos thead th.r{text-align:right}
+.pos-nr{width:36px;font-size:11px;color:#888;vertical-align:top;padding:10px 6px}
+.pos-bez{padding:10px 6px;vertical-align:top;border-bottom:1px solid #f0f0f0}
+.pos-bez strong{display:block;font-size:13px;margin-bottom:3px}
+.bez-desc{display:block;font-size:11px;color:#666;line-height:1.5}
+.pos-ges{width:110px;text-align:right;font-weight:600;font-size:12px;vertical-align:top;padding:10px 6px;white-space:nowrap;border-bottom:1px solid #f0f0f0}
+.tab-end{border-top:1.5px solid #1a1a1a}
+
+.sum-wrap{display:flex;justify-content:flex-end;margin:16px 0 24px}
+.sum-inner{width:272px}
+.sr{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee;font-size:12px}
+.st{display:flex;justify-content:space-between;padding:8px 0;font-weight:700;font-size:14px;border-top:2px solid #1a1a1a;border-bottom:2px solid #1a1a1a;margin-top:2px}
+
+.holz{font-style:italic;font-size:10px;color:#666;margin-bottom:12px;line-height:1.6}
+.zahlung{font-size:11px;font-weight:700;margin-bottom:16px}
+.widerruf{font-size:10px;color:#555;line-height:1.6;margin-bottom:20px}
+.sign-block{margin-top:28px}
+.sign-intro{font-size:12px;margin-bottom:24px}
+.sign-lines{display:flex;gap:40px;margin-top:32px}
+.sign-line{flex:1;border-top:1px solid #555;padding-top:5px;font-size:11px;color:#555}
+.gruss{font-size:12px;margin-top:32px;line-height:2.1}
+
+.ftr{display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#999;padding-top:5px;border-top:1px solid #ddd}
+.ftr .pn{white-space:nowrap}
+</style>
+</head><body>
+<div class="page">
+
+<div class="hdr">
+  <div class="hdr-sender">${FIRMA.name} | ${FIRMA.strasse} | ${FIRMA.ort}</div>
+  <div class="hdr-logo">
+    <img src="/logo.png" alt="${FIRMA.name}">
+    <div class="brand">FS&thinsp;CRAFTED</div>
   </div>
-  <div class="abs">${FIRMA.name} | ${FIRMA.strasse} | ${FIRMA.ort}</div>
-  <div>
-    <div class="adr">
-      <strong>${kunde.name || '–'}</strong><br>
-      ${kunde.zusatz ? kunde.zusatz + '<br>' : ''}
-      ${kunde.strasse || ''}<br>
-      ${kunde.ort || ''}
-    </div>
-    <table class="meta">
-      <tr><td>Dokumentennummer</td><td><strong>${docNr}</strong></td></tr>
-      <tr><td>Datum</td><td>${today()}</td></tr>
-      <tr><td>Ansprechpartner</td><td>${FIRMA.inhaber}</td></tr>
-      <tr><td>E-Mail</td><td>${FIRMA.email}</td></tr>
-      ${docTyp !== 'Rechnung' ? `<tr><td>Gültig bis</td><td>${inDays(30)}</td></tr>` : ''}
-    </table>
-    <div class="cf"></div>
+</div>
+
+<div class="addr-meta">
+  <div class="addr">
+    <div class="name">${kunde.name || '–'}</div>
+    ${kunde.zusatz ? `<div class="sub">${kunde.zusatz}</div>` : ''}
+    ${kunde.strasse ? `<div class="sub">${kunde.strasse}</div>` : ''}
+    ${kunde.ort ? `<div class="sub">${kunde.ort}</div>` : ''}
   </div>
-  <div class="proj">Bauvorhaben: ${kunde.projekt || '–'}</div>
-  <h1>${docTyp} Nr. ${docNr}</h1>
-  <p style="font-size:13px;margin-bottom:20px">
-    Liebe/r ${kunde.name || 'Kunde/Kundin'},<br><br>${anschr}
-  </p>
-  <table class="pos">
-    <thead><tr>
-      <th style="width:36px">Pos</th>
-      <th>Bezeichnung</th>
-      <th class="r" style="width:100px">Gesamt</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
+  <table class="meta-t">
+    <tr><td>${docTyp}-Nr.</td><td><strong>${docNr}</strong></td></tr>
+    <tr><td>Datum</td><td>${today()}</td></tr>
+    <tr><td>Ansprechpartner</td><td>${FIRMA.inhaber}</td></tr>
+    <tr><td>E-Mail</td><td>${FIRMA.email}</td></tr>
+    ${docTyp !== 'Rechnung' ? `<tr><td>Gültig bis</td><td>${inDays(30)}</td></tr>` : ''}
   </table>
-  <div class="sum"><div class="si">
-    <div class="sr"><span>Nettobetrag</span><span>${eur(totals.net)}</span></div>
-    <div class="sr"><span>zzgl. 19% MwSt.</span><span>${eur(vat)}</span></div>
-    <div class="st"><span>Gesamtsumme</span><span>${eur(gross)}</span></div>
-  </div></div>
-  <div style="font-size:12px;color:#333;margin-bottom:14px">
-    <strong>Zahlungskondition:</strong> 50% Anzahlung nach Auftragserteilung, 50% nach Abnahme innerhalb von 7 Tagen.
-  </div>
-  ${
-    docTyp !== 'Rechnung'
-      ? `<p style="font-size:13px;margin-bottom:20px">Wir freuen uns darauf, dieses Projekt umzusetzen und bitten um Unterzeichnung und Rücksendung.</p>
-  <div style="margin-top:32px;padding-top:12px;border-top:1px solid #ccc;font-size:12px">
-    Auftrag erteilt:<br><br><br>
-    <div style="display:flex;gap:40px">
-      <div style="flex:1;border-top:1px solid #333;padding-top:4px">Ort | Datum</div>
-      <div style="flex:2;border-top:1px solid #333;padding-top:4px">Unterschrift Auftraggeber</div>
-    </div>
-  </div>`
-      : ''
-  }
-  ${
-    mitWiderruf
-      ? `<div style="margin-top:28px;font-size:11px;color:#444;line-height:1.7">
-    <strong>Widerrufsrecht</strong><br><br>
-    Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
-    Um Ihr Widerrufsrecht auszuüben, wenden Sie sich an: ${FIRMA.name} – ${FIRMA.inhaber},
-    ${FIRMA.strasse}, ${FIRMA.ort}, E-Mail: ${FIRMA.email}.
-  </div>`
-      : ''
-  }
-  <div class="footer">
-    <span>${docTyp} ${docNr}</span>
-    <span>${FIRMA.name} – ${FIRMA.inhaber} | ${FIRMA.strasse} | ${FIRMA.ort}</span>
-    <span>USt-IdNr.: ${FIRMA.ust} | ${FIRMA.bank} | IBAN: ${FIRMA.iban}</span>
-  </div>
-  </body></html>`
+</div>
+
+<div class="bau">Bauvorhaben: ${kunde.projekt || '–'}</div>
+<div class="doc-nr">${docTyp}-Nr. ${docNr}</div>
+<div class="intro">Liebe/r ${kunde.name || 'Kundin / Kunde'},<br><br>${anschr}</div>
+
+<table class="pos">
+  <thead><tr>
+    <th>Pos</th>
+    <th>Bezeichnung</th>
+    <th class="r">Gesamt</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="tab-end"></div>
+
+<div class="sum-wrap"><div class="sum-inner">
+  <div class="sr"><span>Nettobetrag</span><span>${eur(net)}</span></div>
+  <div class="sr"><span>zzgl. 19% MwSt.</span><span>${eur(vat)}</span></div>
+  <div class="st"><span>Gesamtsumme</span><span>${eur(gross)}</span></div>
+</div></div>
+
+<div class="holz">Hinweis: Massivholz ist ein Naturprodukt. Farbliche und strukturelle Abweichungen zwischen einzelnen Teilen sind natürlich und kein Mangel.</div>
+<div class="zahlung">Zahlungskondition: 50% Anzahlung nach Auftragserteilung, 50% nach Abnahme, zahlbar innerhalb von 7 Tagen netto.</div>
+${widerrufBlock}
+${signBlock}
+<div class="gruss">Mit freundlichen Grüßen<br><br>${FIRMA.inhaber}<br>${FIRMA.name}</div>
+
+<div class="ftr">
+  <span>${docTyp} ${docNr}</span>
+  <span>${FIRMA.name} – ${FIRMA.inhaber} | ${FIRMA.strasse} | ${FIRMA.ort} | USt-IdNr.: ${FIRMA.ust} | ${FIRMA.bank} | IBAN: ${FIRMA.iban}</span>
+  <span class="pn">Seite 1</span>
+</div>
+
+</div>
+</body></html>`
 }
