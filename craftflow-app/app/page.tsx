@@ -251,13 +251,13 @@ export default function CraftFlow() {
       }
 
       if (data.kunde) {
-        setKunde({
-          name: data.kunde.name || '',
-          zusatz: data.kunde.zusatz || '',
-          strasse: data.kunde.strasse || '',
-          ort: data.kunde.ort || '',
-          projekt: data.kunde.projekt || '',
-        })
+        setKunde(prev => ({
+          name: data.kunde.name || prev.name,
+          zusatz: data.kunde.zusatz || prev.zusatz,
+          strasse: data.kunde.strasse || prev.strasse,
+          ort: data.kunde.ort || prev.ort,
+          projekt: data.kunde.projekt || prev.projekt,
+        }))
       }
 
       if (data.positionen?.length > 0) {
