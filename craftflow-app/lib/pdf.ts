@@ -120,7 +120,6 @@ table.pos thead th.r{text-align:right}
   <div class="hdr-sender">${FIRMA.name} | ${FIRMA.strasse} | ${FIRMA.ort}</div>
   <div class="hdr-logo">
     <img src="/logo.png" alt="${FIRMA.name}">
-    <div class="brand">FS&thinsp;CRAFTED</div>
   </div>
 </div>
 
