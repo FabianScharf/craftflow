@@ -88,7 +88,7 @@ export default function CraftFlow() {
   const [startText, setStartText] = useState('')
   const [startBild, setStartBild] = useState<string | null>(null)
   const [startBildB64, setStartBildB64] = useState<string | null>(null)
-  const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error' | 'fragen'>('idle')
   const [startMsg, setStartMsg] = useState('')
 
   // Mikrofon State
@@ -213,6 +213,14 @@ export default function CraftFlow() {
     setStartMsg('')
     try {
       const data = await callAI(startText, startBildB64)
+
+      // KI fragt nach fehlenden Pflichtangaben
+      if (data.fragen?.length > 0) {
+        setStartStatus('fragen')
+        setStartMsg((data.fragen as string[]).join('\n'))
+        return
+      }
+
       if (data.kunde) {
         setKunde({
           name: data.kunde.name || '',
@@ -222,25 +230,58 @@ export default function CraftFlow() {
           projekt: data.kunde.projekt || '',
         })
       }
+
       if (data.positionen?.length > 0) {
-        setPos(data.positionen.map((p: Partial<Position>, i: number) => ({
-          id: Date.now() + i,
-          kat: p.kat || 'Sonstiges',
-          titel: p.titel || 'Position',
-          bez: p.bez || '',
-          kalkTyp: p.kalkTyp || 'detail',
-          menge: p.menge ?? 1,
-          einheit: p.einheit || 'Stk',
-          materialKosten: (p as Record<string, unknown>).materialKosten as number ?? 0,
-          lohnStd: (p as Record<string, unknown>).lohnStd as number ?? 0,
-          lohnSatz: (p as Record<string, unknown>).lohnSatz as number ?? 0,
-          gkProzent: (p as Record<string, unknown>).gkProzent as number ?? 0.30,
-          fremdleistung: (p as Record<string, unknown>).fremdleistung as number ?? 0,
-          ep: p.ep ?? 0,
-          std: 0, mat: 0, aufschlag: 0.3,
-        })))
+        setPos(data.positionen.map((p: Record<string, unknown>, i: number) => {
+          type MatRow = { menge: number; ekPreis: number; aufschlag: number }
+          type ArbRow = { minuten: number; vkStunde: number }
+          const material = (p.material as MatRow[]) || []
+          const arbeitszeit = (p.arbeitszeit as ArbRow[]) || []
+
+          // Neues Format: vkStunde-Sätze sind bereits VK-Preise → kein GK-Aufschlag
+          const isNewFormat = material.length > 0 || arbeitszeit.length > 0
+          const materialKosten = material.reduce(
+            (s, m) => s + m.menge * m.ekPreis * (1 + (m.aufschlag ?? 0.3)), 0)
+          const arbeitsTotal = arbeitszeit.reduce(
+            (s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
+
+          return {
+            id: Date.now() + i,
+            kat: (() => {
+              const t = ((p.titel as string) || '').toLowerCase()
+              if (t.includes('montage') || t.includes('lieferung')) return 'Montage'
+              return 'Korpus'
+            })(),
+            titel: (p.titel as string) || 'Position',
+            bez: (p.beschreibung as string) || (p.bez as string) || '',
+            kalkTyp: 'detail' as const,
+            menge: 1,
+            einheit: 'Stk',
+            materialKosten: isNewFormat ? materialKosten : ((p.materialKosten as number) ?? 0),
+            lohnStd: isNewFormat ? (globalStd > 0 ? arbeitsTotal / globalStd : 0) : ((p.lohnStd as number) ?? 0),
+            lohnSatz: 0,
+            gkProzent: isNewFormat ? 0 : ((p.gkProzent as number) ?? 0.30),
+            fremdleistung: (p.fremdleistung as number) ?? 0,
+            ep: 0, std: 0, mat: 0, aufschlag: 0.3,
+          }
+        }))
       }
+
       if (data.anschreiben) setAnschr(data.anschreiben)
+
+      // Dokumenttyp aus Diktat-Text erkennen
+      if (startText) {
+        const t = startText.toLowerCase()
+        if (t.includes('rechnung')) {
+          setDocTyp('Rechnung')
+          setDocNr(prev => 'RE-' + prev.replace(/^[A-Z]+-/, ''))
+        } else if (t.includes('angebot')) {
+          setDocTyp('Angebot')
+          setDocNr(prev => 'AN-' + prev.replace(/^[A-Z]+-/, ''))
+        }
+        // 'auftragsbestätigung' bleibt als Default
+      }
+
       setStartStatus('idle')
       setScreen('app')
       setTab('kunde')
@@ -248,7 +289,7 @@ export default function CraftFlow() {
       setStartStatus('error')
       setStartMsg(`Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
     }
-  }, [startText, startBildB64, callAI])
+  }, [startText, startBildB64, callAI, globalStd])
 
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
@@ -423,6 +464,17 @@ export default function CraftFlow() {
           {startStatus === 'error' && startMsg && (
             <div style={{ marginTop: 14, background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: '#ff9999' }}>
               {startMsg}
+            </div>
+          )}
+
+          {startStatus === 'fragen' && startMsg && (
+            <div style={{ marginTop: 14, background: '#0d1520', border: `1px solid ${C.copper}55`, borderRadius: 8, padding: '14px 16px', fontSize: 13, color: C.white }}>
+              <div style={{ color: C.copper, fontWeight: 700, marginBottom: 10, fontSize: 12, letterSpacing: 1 }}>
+                FEHLENDE ANGABEN – bitte im Text ergänzen:
+              </div>
+              {startMsg.split('\n').map((q, i) => (
+                <div key={i} style={{ marginBottom: 6, lineHeight: 1.5 }}>• {q}</div>
+              ))}
             </div>
           )}
 
