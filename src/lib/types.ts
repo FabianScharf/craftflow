@@ -42,6 +42,87 @@ export interface KalkResult {
   gk?: number
 }
 
+// ── Kostenstellen ────────────────────────────────────
+export type KostenstelleId =
+  | '00_Meeting'
+  | '01_02_Planung'
+  | '02_01_Konstruktion'
+  | '02_02_Arbeitsvorbereitung'
+  | '03_00_Produktion'
+  | '03_01_Warenhandling'
+  | '03_02_Zuschnitt'
+  | '03_03_Bekantung'
+  | '03_04_CNC'
+  | '03_05_Oberflaechenbehandlung'
+  | '03_06_Zusammenbau'
+  | '03_07_Verpacken'
+  | '03_08_Azubi'
+  | '05_01_Montage'
+  | '06_01_Lieferung'
+
+export const DEFAULT_STUNDENSAETZE: Record<KostenstelleId, number> = {
+  '00_Meeting':                   65,
+  '01_02_Planung':                85,
+  '02_01_Konstruktion':           75,
+  '02_02_Arbeitsvorbereitung':    75,
+  '03_00_Produktion':             65,
+  '03_01_Warenhandling':          65,
+  '03_02_Zuschnitt':              72,
+  '03_03_Bekantung':             100,
+  '03_04_CNC':                   120,
+  '03_05_Oberflaechenbehandlung': 72,
+  '03_06_Zusammenbau':            65,
+  '03_07_Verpacken':              65,
+  '03_08_Azubi':                  52,
+  '05_01_Montage':                65,
+  '06_01_Lieferung':              65,
+}
+
+export interface UserSettings {
+  firmaName: string
+  firmaStrasse: string
+  firmaOrt: string
+  firmaEmail: string
+  firmaUst: string
+  materialAufschlag: number
+  stundensaetze: Record<KostenstelleId, number>
+  logoUrl?: string
+}
+
+export const DEFAULT_USER_SETTINGS: UserSettings = {
+  firmaName: '',
+  firmaStrasse: '',
+  firmaOrt: '',
+  firmaEmail: '',
+  firmaUst: '',
+  materialAufschlag: 0.30,
+  stundensaetze: { ...DEFAULT_STUNDENSAETZE },
+}
+
+export interface MaterialPosten {
+  id: number
+  bezeichnung: string
+  menge: number
+  einheit: string
+  ekPreis: number
+  aufschlag: number
+}
+
+export interface ArbeitsPosten {
+  id: number
+  kostenstelle: KostenstelleId
+  minuten: number
+  vkStunde: number
+}
+
+export interface Angebotsposition {
+  id: number
+  titel: string
+  beschreibung: string
+  material: MaterialPosten[]
+  arbeitszeit: ArbeitsPosten[]
+}
+
 // ── Firmendaten ──────────────────────────────────────
 export const FIRMA = {
   name: 'fs crafted',
