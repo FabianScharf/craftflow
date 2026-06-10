@@ -20,10 +20,7 @@ const HR = ({ my = 12, color }: { my?: number; color?: string }) => (
   <div style={{ height: 1, background: color || C.border, margin: `${my}px 0` }} />
 )
 const LogoMark = ({ size = 36 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 100 100">
-    <polygon points="50,4 94,27 94,73 50,96 6,73 6,27" fill="none" stroke={C.copper} strokeWidth="6" />
-    <text x="50" y="64" textAnchor="middle" fontFamily="Helvetica Neue,sans-serif" fontSize="32" fontWeight="800" fill={C.copper} letterSpacing="-1">FS</text>
-  </svg>
+  <img src="/logo.png" alt="FS Crafted" style={{ height: size, width: 'auto' }} />
 )
 const Card = ({ children, accent, style = {} }: { children: React.ReactNode; accent?: string; style?: React.CSSProperties }) => (
   <div style={{
