@@ -3,10 +3,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import NoSleep from 'nosleep.js'
 import {
-  C, CAT_COL, KALK_TYPEN, FIRMA,
-  calcPos, eur, today, inDays,
+  C,
+  calcAngebotspos, eur, today, inDays,
   ladeKunden, speichereKunden,
-  type Kunde, type KundeDB, type Position,
+  DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS,
+  type Kunde, type KundeDB,
+  type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
 } from '@/lib/types'
 import { buildPDF } from '@/lib/pdf'
 
@@ -49,11 +51,8 @@ const ReadOnly = ({ value }: { value: string }) => (
 )
 
 /* ── Default Position ─────────────────────────────── */
-const defaultPos = (id: number): Position => ({
-  id, kat: 'Sonstiges', titel: 'Neue Position', bez: '',
-  kalkTyp: 'detail', menge: 1, einheit: 'Stk',
-  materialKosten: 0, lohnStd: 0, lohnSatz: 0, gkProzent: 0.30, fremdleistung: 0,
-  ep: 0, std: 0, mat: 0, aufschlag: 0.3,
+const defaultAngebotspos = (id: number): Angebotsposition => ({
+  id, titel: 'Neue Position', beschreibung: '', material: [], arbeitszeit: [],
 })
 
 /* ── Haupt-Komponente ─────────────────────────────── */
@@ -63,21 +62,26 @@ export default function CraftFlow() {
   const [kunde, setKunde] = useState<Kunde>({ name: '', zusatz: '', strasse: '', ort: '', projekt: '' })
 
   const [tab, setTab] = useState('kunde')
-  const [pos, setPos] = useState<Position[]>([
+  const [pos, setPos] = useState<Angebotsposition[]>([
     {
-      id: 1, kat: 'Korpus', titel: 'Einbauschrank Korpus', bez: 'Maße und Material nach Absprache.',
-      kalkTyp: 'detail', menge: 1, einheit: 'Stk',
-      materialKosten: 380, lohnStd: 8, lohnSatz: 0, gkProzent: 0.30, fremdleistung: 0,
-      ep: 0, std: 0, mat: 0, aufschlag: 0.3,
+      id: 1, titel: 'Einbauschrank Korpus', beschreibung: 'Maße und Material nach Absprache.',
+      material: [
+        { id: 10, bezeichnung: 'Spanplatte beschichtet 18mm', menge: 10, einheit: 'm²', ekPreis: 20, aufschlag: 0.3 },
+      ],
+      arbeitszeit: [
+        { id: 11, kostenstelle: '03_06_Zusammenbau', minuten: 480, vkStunde: 65 },
+        { id: 12, kostenstelle: '05_01_Montage', minuten: 60, vkStunde: 65 },
+      ],
     },
     {
-      id: 2, kat: 'Montage', titel: 'Lieferung & Montage', bez: 'Fachgerechte Montage inkl. An-/Abfahrt.',
-      kalkTyp: 'detail', menge: 1, einheit: 'Stk',
-      materialKosten: 0, lohnStd: 8, lohnSatz: 0, gkProzent: 0.30, fremdleistung: 50,
-      ep: 0, std: 0, mat: 0, aufschlag: 0,
+      id: 2, titel: 'Lieferung & Montage', beschreibung: 'Fachgerechte Montage inkl. An-/Abfahrt.',
+      material: [],
+      arbeitszeit: [
+        { id: 21, kostenstelle: '05_01_Montage', minuten: 300, vkStunde: 65 },
+        { id: 22, kostenstelle: '06_01_Lieferung', minuten: 120, vkStunde: 65 },
+      ],
     },
   ])
-  const [globalStd, setGlobalStd] = useState(65)
   const [docNr, setDocNr] = useState('AB-264')
   const [docTyp, setDocTyp] = useState('Auftragsbestätigung')
   const [anschr, setAnschr] = useState('herzlichen Dank für Ihren Auftrag, den wir hiermit gerne bestätigen:')
@@ -100,12 +104,38 @@ export default function CraftFlow() {
   const startFileRef = useRef<HTMLInputElement>(null)
 
   const updK = (f: keyof Kunde, v: string) => setKunde(prev => ({ ...prev, [f]: v }))
-  const updPos = (id: number, f: keyof Position, v: unknown) =>
-    setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } : p))
-  const addPos = () => setPos(prev => [...prev, defaultPos(Date.now())])
+  const updPosF = (id: number, f: 'titel' | 'beschreibung', v: string) =>
+    setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } as Angebotsposition : p))
+  const addPos = () => setPos(prev => [...prev, defaultAngebotspos(Date.now())])
   const delPos = (id: number) => setPos(prev => prev.filter(p => p.id !== id))
 
-  const totals = pos.reduce((a, p) => ({ net: a.net + calcPos(p, globalStd).gesamt }), { net: 0 })
+  const updMatRow = (posId: number, rowId: number, f: keyof MaterialPosten, v: unknown) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, material: p.material.map(m => m.id === rowId ? { ...m, [f]: v } as MaterialPosten : m) }
+      : p))
+  const addMatRow = (posId: number) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, material: [...p.material, { id: Date.now(), bezeichnung: '', menge: 1, einheit: 'Stk', ekPreis: 0, aufschlag: 0.3 }] }
+      : p))
+  const delMatRow = (posId: number, rowId: number) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, material: p.material.filter(m => m.id !== rowId) }
+      : p))
+
+  const updArbRow = (posId: number, rowId: number, f: keyof ArbeitsPosten, v: unknown) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, arbeitszeit: p.arbeitszeit.map(a => a.id === rowId ? { ...a, [f]: v } as ArbeitsPosten : a) }
+      : p))
+  const addArbRow = (posId: number) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, arbeitszeit: [...p.arbeitszeit, { id: Date.now(), kostenstelle: '03_06_Zusammenbau' as KostenstelleId, minuten: 60, vkStunde: DEFAULT_STUNDENSAETZE['03_06_Zusammenbau'] }] }
+      : p))
+  const delArbRow = (posId: number, rowId: number) =>
+    setPos(prev => prev.map(p => p.id === posId
+      ? { ...p, arbeitszeit: p.arbeitszeit.filter(a => a.id !== rowId) }
+      : p))
+
+  const totals = pos.reduce((a, p) => ({ net: a.net + calcAngebotspos(p) }), { net: 0 })
   const vat = totals.net * 0.19
   const gross = totals.net + vat
 
@@ -232,39 +262,27 @@ export default function CraftFlow() {
       }
 
       if (data.positionen?.length > 0) {
-        setPos(data.positionen.map((p: Record<string, unknown>, i: number) => {
-          type MatRow = { menge: number; ekPreis: number; aufschlag: number }
-          type ArbRow = { minuten: number; vkStunde: number }
-          const material = (p.material as MatRow[]) || []
-          const arbeitszeit = (p.arbeitszeit as ArbRow[]) || []
-
-          // Neues Format: vkStunde-Sätze sind bereits VK-Preise → kein GK-Aufschlag
-          const isNewFormat = material.length > 0 || arbeitszeit.length > 0
-          const materialKosten = material.reduce(
-            (s, m) => s + m.menge * m.ekPreis * (1 + (m.aufschlag ?? 0.3)), 0)
-          const arbeitsTotal = arbeitszeit.reduce(
-            (s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
-
-          return {
-            id: Date.now() + i,
-            kat: (() => {
-              const t = ((p.titel as string) || '').toLowerCase()
-              if (t.includes('montage') || t.includes('lieferung')) return 'Montage'
-              return 'Korpus'
-            })(),
-            titel: (p.titel as string) || 'Position',
-            bez: (p.beschreibung as string) || (p.bez as string) || '',
-            kalkTyp: 'detail' as const,
-            menge: 1,
-            einheit: 'Stk',
-            materialKosten: isNewFormat ? materialKosten : ((p.materialKosten as number) ?? 0),
-            lohnStd: isNewFormat ? (globalStd > 0 ? arbeitsTotal / globalStd : 0) : ((p.lohnStd as number) ?? 0),
-            lohnSatz: 0,
-            gkProzent: isNewFormat ? 0 : ((p.gkProzent as number) ?? 0.30),
-            fremdleistung: (p.fremdleistung as number) ?? 0,
-            ep: 0, std: 0, mat: 0, aufschlag: 0.3,
-          }
-        }))
+        type AIMatRow = { bezeichnung?: string; menge?: number; einheit?: string; ekPreis?: number; aufschlag?: number }
+        type AIArbRow = { kostenstelle?: string; minuten?: number; vkStunde?: number }
+        setPos(data.positionen.map((p: Record<string, unknown>, i: number) => ({
+          id: Date.now() + i,
+          titel: (p.titel as string) || 'Position',
+          beschreibung: (p.beschreibung as string) || '',
+          material: ((p.material as AIMatRow[]) || []).map((m, mi) => ({
+            id: Date.now() + i * 100 + mi,
+            bezeichnung: m.bezeichnung || '',
+            menge: m.menge || 1,
+            einheit: m.einheit || 'Stk',
+            ekPreis: m.ekPreis || 0,
+            aufschlag: m.aufschlag ?? 0.3,
+          })),
+          arbeitszeit: ((p.arbeitszeit as AIArbRow[]) || []).map((a, ai) => ({
+            id: Date.now() + i * 100 + 50 + ai,
+            kostenstelle: (a.kostenstelle as KostenstelleId) || '03_06_Zusammenbau',
+            minuten: a.minuten || 60,
+            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['03_06_Zusammenbau'],
+          })),
+        })))
       }
 
       if (data.anschreiben) setAnschr(data.anschreiben)
@@ -289,7 +307,7 @@ export default function CraftFlow() {
       setStartStatus('error')
       setStartMsg(`Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
     }
-  }, [startText, startBildB64, callAI, globalStd])
+  }, [startText, startBildB64, callAI])
 
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
@@ -583,200 +601,8 @@ export default function CraftFlow() {
         {/* ══ KALKULATION ══ */}
         {tab === 'kalkulation' && (
           <div>
-            {/* Parameter-Leiste */}
-            <Card accent={C.copper}>
-              <div style={{ padding: '12px 16px' }}>
-                <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ flex: 1, padding: '9px 11px' }}>
-                    <Lbl>Stundensatz (€/h)</Lbl>
-                    <NumInput value={globalStd} onChange={setGlobalStd} />
-                  </div>
-                  <div style={{ width: 1, background: C.border }} />
-                  <div style={{ flex: 2, padding: '9px 14px', background: C.black, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <Lbl c={C.textMid}>Netto</Lbl>
-                      <div style={{ color: C.copper, fontSize: 19, fontWeight: 800 }}>{eur(totals.net)}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <Lbl c={C.textMid}>Brutto</Lbl>
-                      <div style={{ color: C.white, fontSize: 15, fontWeight: 700 }}>{eur(gross)}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {pos.map(p => {
-              const c = calcPos(p, globalStd)
-              const col = CAT_COL[p.kat] || C.copper
-              const kt = KALK_TYPEN.find(k => k.id === p.kalkTyp) || KALK_TYPEN[0]
-              // Zwischenwerte für detail-Modus
-              const satz = p.lohnSatz > 0 ? p.lohnSatz : globalStd
-              const lohnWert = (p.lohnStd || 0) * satz
-              const gkWert = (p.materialKosten + lohnWert) * (p.gkProzent ?? 0.3)
-
-              return (
-                <Card key={p.id} accent={col}>
-                  <div style={{ padding: '12px 14px' }}>
-                    {/* Kopfzeile */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ background: col, color: C.black, fontSize: 8, padding: '2px 8px', borderRadius: 10, display: 'inline-block', fontWeight: 700, marginBottom: 4 }}>{p.kat.toUpperCase()}</span>
-                        <input value={p.titel} onChange={e => updPos(p.id, 'titel', e.target.value)}
-                          style={{ width: '100%', background: 'transparent', border: 'none', fontSize: 13, fontWeight: 700, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', display: 'block', marginTop: 2 }} />
-                        <textarea value={p.bez} onChange={e => updPos(p.id, 'bez', e.target.value)}
-                          rows={2} style={{ width: '100%', background: 'transparent', border: 'none', fontSize: 11, color: C.textMid, resize: 'none', outline: 'none', fontFamily: 'Helvetica Neue,sans-serif', boxSizing: 'border-box' }} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: col }}>{eur(c.gesamt)}</div>
-                        <button onClick={() => delPos(p.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontSize: 10 }}>✕</button>
-                      </div>
-                    </div>
-
-                    {/* Modus-Auswahl */}
-                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
-                      {KALK_TYPEN.map(k => (
-                        <button key={k.id} onClick={() => updPos(p.id, 'kalkTyp', k.id)} style={{ padding: '4px 9px', fontSize: 9, fontWeight: 700, background: p.kalkTyp === k.id ? col : C.gray2, color: p.kalkTyp === k.id ? C.black : C.textMid, border: `1px solid ${p.kalkTyp === k.id ? col : C.border}`, borderRadius: 3, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                          {k.icon} {k.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: 10, color: C.textMid, marginBottom: 8 }}>{kt.desc}</div>
-
-                    <HR color={C.border} my={8} />
-
-                    {/* ─ Detail-Kalkulation ─ */}
-                    {p.kalkTyp === 'detail' && (
-                      <div>
-                        {/* Menge + Material */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                          <div>
-                            <Lbl>Menge</Lbl>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              <div style={{ flex: 1 }}>
-                                <NumInput value={p.menge} onChange={v => updPos(p.id, 'menge', v)} />
-                              </div>
-                              <input value={p.einheit} onChange={e => updPos(p.id, 'einheit', e.target.value)}
-                                style={{ width: 52, padding: '8px 6px', background: C.black, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 11, color: C.textMid, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', textAlign: 'center' }} />
-                            </div>
-                          </div>
-                          <div>
-                            <Lbl>Material (€/Stk)</Lbl>
-                            <NumInput value={p.materialKosten} onChange={v => updPos(p.id, 'materialKosten', v)} />
-                          </div>
-                        </div>
-
-                        {/* Arbeit */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-                          <div>
-                            <Lbl>Arbeit (Std/Stk)</Lbl>
-                            <NumInput value={p.lohnStd} onChange={v => updPos(p.id, 'lohnStd', v)} />
-                          </div>
-                          <div>
-                            <Lbl>× {globalStd} €/h</Lbl>
-                            <ReadOnly value={eur(lohnWert)} />
-                          </div>
-                          <div>
-                            <Lbl>GK-Zuschlag (%)</Lbl>
-                            <NumInput value={Math.round((p.gkProzent ?? 0.3) * 100)} onChange={v => updPos(p.id, 'gkProzent', v / 100)} />
-                          </div>
-                        </div>
-
-                        {/* GK + Fremdleistung + Summary */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                          <div>
-                            <Lbl>GK-Betrag</Lbl>
-                            <ReadOnly value={eur(gkWert)} />
-                          </div>
-                          <div>
-                            <Lbl>Fremdleistung gesamt (€)</Lbl>
-                            <NumInput value={p.fremdleistung} onChange={v => updPos(p.id, 'fremdleistung', v)} />
-                          </div>
-                        </div>
-
-                        {/* Ergebnis-Zeile */}
-                        <div style={{ background: C.black, borderRadius: 3, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>Netto / Stk</div>
-                            <div style={{ color: C.white, fontSize: 12, fontWeight: 700 }}>{eur(c.ep)}</div>
-                          </div>
-                          {p.menge > 1 && (
-                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>× {p.menge} Stk</div>
-                              <div style={{ color: C.textMid, fontSize: 11 }}>{eur(c.ep * p.menge)}</div>
-                            </div>
-                          )}
-                          {p.fremdleistung > 0 && (
-                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>+ Fremd</div>
-                              <div style={{ color: C.textMid, fontSize: 11 }}>{eur(p.fremdleistung)}</div>
-                            </div>
-                          )}
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>Gesamt</div>
-                            <div style={{ color: col, fontSize: 15, fontWeight: 800 }}>{eur(c.gesamt)}</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ─ Einfache Modi ─ */}
-                    {(p.kalkTyp === 'pauschale' || p.kalkTyp === 'qm' || p.kalkTyp === 'lfm') && (
-                      <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ flex: 1, padding: '9px 10px' }}>
-                          <Lbl>Menge</Lbl>
-                          <NumInput value={p.menge} onChange={v => updPos(p.id, 'menge', v)} />
-                          <input value={p.einheit} onChange={e => updPos(p.id, 'einheit', e.target.value)}
-                            style={{ width: '100%', marginTop: 4, padding: '3px 7px', background: C.black, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 10, color: C.textMid, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }} />
-                        </div>
-                        <div style={{ width: 1, background: C.border }} />
-                        <div style={{ flex: 2, padding: '9px 10px' }}>
-                          <Lbl>{p.kalkTyp === 'pauschale' ? 'Preis gesamt (€)' : p.kalkTyp === 'qm' ? 'Preis/m² (€)' : 'Preis/lfd.m (€)'}</Lbl>
-                          <NumInput value={p.ep} onChange={v => updPos(p.id, 'ep', v)} />
-                        </div>
-                        <div style={{ width: 1, background: C.border }} />
-                        <div style={{ flex: 1, padding: '9px 10px', background: C.black, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                          <Lbl c={C.textMid}>Gesamt</Lbl>
-                          <div style={{ color: col, fontSize: 13, fontWeight: 800 }}>{eur(c.gesamt)}</div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ─ Stunden-Modus (legacy) ─ */}
-                    {p.kalkTyp === 'stunden' && (
-                      <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ flex: 1, padding: '9px 10px' }}>
-                          <Lbl>Menge</Lbl>
-                          <NumInput value={p.menge} onChange={v => updPos(p.id, 'menge', v)} />
-                        </div>
-                        <div style={{ width: 1, background: C.border }} />
-                        <div style={{ flex: 1, padding: '9px 10px' }}>
-                          <Lbl>Std/Einh.</Lbl>
-                          <NumInput value={p.std} onChange={v => updPos(p.id, 'std', v)} />
-                        </div>
-                        <div style={{ width: 1, background: C.border }} />
-                        <div style={{ flex: 1, padding: '9px 10px' }}>
-                          <Lbl>Mat.(€)</Lbl>
-                          <NumInput value={p.mat} onChange={v => updPos(p.id, 'mat', v)} />
-                        </div>
-                        <div style={{ width: 1, background: C.border }} />
-                        <div style={{ flex: 1, padding: '9px 10px', background: C.black, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                          <Lbl c={C.textMid}>Gesamt</Lbl>
-                          <div style={{ color: col, fontSize: 13, fontWeight: 800 }}>{eur(c.gesamt)}</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              )
-            })}
-
-            <button onClick={addPos} style={{ width: '100%', background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 4, padding: '11px 0', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 12 }}>
-              + Position hinzufügen
-            </button>
-
-            {/* Gesamtübersicht */}
-            <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 12 }}>
+            {/* Gesamtübersicht oben */}
+            <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 14 }}>
               <div style={{ display: 'flex' }}>
                 {[{ l: 'Positionen', v: `${pos.length}` }, { l: 'Netto', v: eur(totals.net) }, { l: 'MwSt.', v: eur(vat) }, { l: 'Brutto', v: eur(gross) }].map(({ l, v }, i) => (
                   <div key={l} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
@@ -788,6 +614,179 @@ export default function CraftFlow() {
                 ))}
               </div>
             </div>
+
+            {pos.map(p => {
+              const gesamt = calcAngebotspos(p)
+              const matTotal = p.material.reduce((s, m) => s + m.menge * m.ekPreis * (1 + m.aufschlag), 0)
+              const arbTotal = p.arbeitszeit.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
+
+              const cellInput: React.CSSProperties = {
+                width: '100%', padding: '4px 6px', background: C.gray2,
+                border: `1px solid ${C.border}`, borderRadius: 2,
+                fontSize: 11, color: C.white, fontFamily: 'Helvetica Neue,sans-serif',
+                outline: 'none', boxSizing: 'border-box',
+              }
+              const thStyle: React.CSSProperties = {
+                fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase',
+                color: C.textMid, padding: '4px 4px 6px', textAlign: 'left',
+                whiteSpace: 'nowrap', fontWeight: 600,
+              }
+              const tdStyle: React.CSSProperties = { padding: '2px 3px', verticalAlign: 'middle' }
+
+              return (
+                <Card key={p.id} accent={C.copper}>
+                  <div style={{ padding: '12px 14px' }}>
+
+                    {/* Kopfzeile */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                      <input
+                        value={p.titel}
+                        onChange={e => updPosF(p.id, 'titel', e.target.value)}
+                        style={{ flex: 1, background: 'transparent', border: 'none', fontSize: 14, fontWeight: 700, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', minWidth: 0 }}
+                      />
+                      <div style={{ fontWeight: 800, fontSize: 14, color: C.copper, whiteSpace: 'nowrap' }}>{eur(gesamt)}</div>
+                      <button onClick={() => delPos(p.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>✕</button>
+                    </div>
+
+                    {/* Kundentext */}
+                    <div style={{ marginBottom: 12 }}>
+                      <Lbl>Kundentext (sichtbar im Angebot)</Lbl>
+                      <textarea
+                        value={p.beschreibung}
+                        onChange={e => updPosF(p.id, 'beschreibung', e.target.value)}
+                        rows={2}
+                        style={{ width: '100%', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 10px', fontSize: 12, lineHeight: 1.6, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
+                      />
+                    </div>
+
+                    <HR my={8} />
+
+                    <div style={{ fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: C.textMid, marginBottom: 10 }}>
+                      Interne Kalkulation – nicht sichtbar für Kunden
+                    </div>
+
+                    {/* MATERIAL */}
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                        <Lbl>Material</Lbl>
+                        {matTotal > 0 && <div style={{ fontSize: 10, color: C.textMid }}>{eur(matTotal)}</div>}
+                      </div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
+                          <thead>
+                            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                              <th style={{ ...thStyle, width: '35%' }}>Bezeichnung</th>
+                              <th style={{ ...thStyle, width: '9%' }}>Menge</th>
+                              <th style={{ ...thStyle, width: '9%' }}>Einheit</th>
+                              <th style={{ ...thStyle, width: '11%' }}>EK €</th>
+                              <th style={{ ...thStyle, width: '10%' }}>Aufschl.%</th>
+                              <th style={{ ...thStyle, width: '16%', textAlign: 'right' }}>VK gesamt</th>
+                              <th style={{ ...thStyle, width: '10%' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {p.material.map(m => (
+                              <tr key={m.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
+                                <td style={tdStyle}>
+                                  <input value={m.bezeichnung} onChange={e => updMatRow(p.id, m.id, 'bezeichnung', e.target.value)} style={cellInput} />
+                                </td>
+                                <td style={tdStyle}>
+                                  <input type="number" step="0.1" value={m.menge} onChange={e => updMatRow(p.id, m.id, 'menge', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 48 }} />
+                                </td>
+                                <td style={tdStyle}>
+                                  <input value={m.einheit} onChange={e => updMatRow(p.id, m.id, 'einheit', e.target.value)} style={{ ...cellInput, minWidth: 38 }} />
+                                </td>
+                                <td style={tdStyle}>
+                                  <input type="number" step="0.01" value={m.ekPreis} onChange={e => updMatRow(p.id, m.id, 'ekPreis', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 52 }} />
+                                </td>
+                                <td style={tdStyle}>
+                                  <input type="number" step="1" value={Math.round(m.aufschlag * 100)} onChange={e => updMatRow(p.id, m.id, 'aufschlag', (parseFloat(e.target.value) || 0) / 100)} style={{ ...cellInput, minWidth: 44 }} />
+                                </td>
+                                <td style={{ ...tdStyle, textAlign: 'right', fontSize: 11, fontWeight: 600, color: C.white, whiteSpace: 'nowrap' }}>
+                                  {eur(m.menge * m.ekPreis * (1 + m.aufschlag))}
+                                </td>
+                                <td style={tdStyle}>
+                                  <button onClick={() => delMatRow(p.id, m.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer', fontSize: 10 }}>×</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <button onClick={() => addMatRow(p.id)} style={{ marginTop: 6, background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                        + Materialzeile
+                      </button>
+                    </div>
+
+                    {/* ARBEITSZEIT */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                        <Lbl>Arbeitszeit</Lbl>
+                        {arbTotal > 0 && <div style={{ fontSize: 10, color: C.textMid }}>{eur(arbTotal)}</div>}
+                      </div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 380 }}>
+                          <thead>
+                            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                              <th style={{ ...thStyle, width: '42%' }}>Kostenstelle</th>
+                              <th style={{ ...thStyle, width: '18%' }}>Minuten</th>
+                              <th style={{ ...thStyle, width: '15%' }}>€/h</th>
+                              <th style={{ ...thStyle, width: '16%', textAlign: 'right' }}>Kosten</th>
+                              <th style={{ ...thStyle, width: '9%' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {p.arbeitszeit.map(a => (
+                              <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
+                                <td style={tdStyle}>
+                                  <select
+                                    value={a.kostenstelle}
+                                    onChange={e => updArbRow(p.id, a.id, 'kostenstelle', e.target.value as KostenstelleId)}
+                                    style={{ ...cellInput, minWidth: 148 }}
+                                  >
+                                    {(Object.keys(DEFAULT_STUNDENSAETZE) as KostenstelleId[]).map(ks => (
+                                      <option key={ks} value={ks}>{KOSTENSTELLEN_LABELS[ks]}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td style={tdStyle}>
+                                  <input type="number" step="5" value={a.minuten} onChange={e => updArbRow(p.id, a.id, 'minuten', parseInt(e.target.value) || 0)} style={{ ...cellInput, minWidth: 52 }} />
+                                </td>
+                                <td style={tdStyle}>
+                                  <input type="number" step="1" value={a.vkStunde} onChange={e => updArbRow(p.id, a.id, 'vkStunde', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 48 }} />
+                                </td>
+                                <td style={{ ...tdStyle, textAlign: 'right', fontSize: 11, fontWeight: 600, color: C.white, whiteSpace: 'nowrap' }}>
+                                  {eur((a.minuten / 60) * a.vkStunde)}
+                                </td>
+                                <td style={tdStyle}>
+                                  <button onClick={() => delArbRow(p.id, a.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer', fontSize: 10 }}>×</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <button onClick={() => addArbRow(p.id)} style={{ marginTop: 6, background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                        + Arbeitszeitzeile
+                      </button>
+                    </div>
+
+                    <HR my={8} />
+
+                    {/* Positionsgesamt */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: 12 }}>
+                      <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase' }}>Positionsgesamt</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: C.copper }}>{eur(gesamt)}</div>
+                    </div>
+
+                  </div>
+                </Card>
+              )
+            })}
+
+            <button onClick={addPos} style={{ width: '100%', background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 4, padding: '11px 0', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 12 }}>
+              + Position hinzufügen
+            </button>
 
             <button onClick={() => setTab('angebot')} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '15px 0', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1, cursor: 'pointer' }}>
               → Weiter zum Angebot
@@ -833,15 +832,13 @@ export default function CraftFlow() {
               <div style={{ padding: '12px 16px' }}>
                 <Lbl>Leistungsübersicht</Lbl>
                 {pos.map((p, i) => {
-                  const c = calcPos(p, globalStd)
-                  const col = CAT_COL[p.kat] || C.copper
+                  const g = calcAngebotspos(p)
                   return (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < pos.length - 1 ? `1px solid ${C.border}` : 'none', gap: 8, alignItems: 'flex-start' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{p.titel}</div>
-                        <div style={{ fontSize: 10, color: C.textMid, marginTop: 2 }}>{p.menge} {p.einheit}</div>
                       </div>
-                      <div style={{ fontWeight: 800, fontSize: 12, color: col, flexShrink: 0 }}>{eur(c.gesamt)}</div>
+                      <div style={{ fontWeight: 800, fontSize: 12, color: C.copper, flexShrink: 0 }}>{eur(g)}</div>
                     </div>
                   )
                 })}
@@ -868,7 +865,7 @@ export default function CraftFlow() {
             </Card>
 
             <button onClick={() => {
-              setPdfHTML(buildPDF(pos, globalStd, kunde, docNr, docTyp, anschr, widerruf))
+              setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf))
               setScreen('pdf')
             }} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: 'pointer' }}>
               ▶ DOKUMENT ALS PDF ANZEIGEN

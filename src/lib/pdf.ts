@@ -1,25 +1,24 @@
-import { Position, Kunde, FIRMA, calcPos, eur, today, inDays } from './types'
+import { Angebotsposition, Kunde, FIRMA, calcAngebotspos, eur, today, inDays } from './types'
 
 export function buildPDF(
-  pos: Position[],
-  globalStd: number,
+  pos: Angebotsposition[],
   kunde: Kunde,
   docNr: string,
   docTyp: string,
   anschr: string,
   mitWiderruf: boolean
 ): string {
-  const net = pos.reduce((s, p) => s + calcPos(p, globalStd).gesamt, 0)
+  const net = pos.reduce((s, p) => s + calcAngebotspos(p), 0)
   const vat = net * 0.19
   const gross = net + vat
 
   const rows = pos.map((p, i) => {
-    const g = calcPos(p, globalStd).gesamt
+    const g = calcAngebotspos(p)
     return `<tr>
       <td class="pos-nr">${i + 1}</td>
       <td class="pos-bez">
         <strong>${p.titel}</strong>
-        ${p.bez ? `<span class="bez-desc">${p.bez}</span>` : ''}
+        ${p.beschreibung ? `<span class="bez-desc">${p.beschreibung}</span>` : ''}
       </td>
       <td class="pos-ges">${eur(g)}</td>
     </tr>`

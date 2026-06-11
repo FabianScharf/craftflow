@@ -208,6 +208,31 @@ export const eur = (v: number) =>
 export const today = () => new Date().toLocaleDateString('de-DE')
 export const inDays = (d: number) => new Date(Date.now() + d * 864e5).toLocaleDateString('de-DE')
 
+// ── Kostenstellen Labels ─────────────────────────────
+export const KOSTENSTELLEN_LABELS: Record<KostenstelleId, string> = {
+  '00_Meeting':                   'Meeting',
+  '01_02_Planung':                'Planung',
+  '02_01_Konstruktion':           'Konstruktion',
+  '02_02_Arbeitsvorbereitung':    'Arbeitsvorbereitung',
+  '03_00_Produktion':             'Produktion',
+  '03_01_Warenhandling':          'Warenhandling',
+  '03_02_Zuschnitt':              'Zuschnitt',
+  '03_03_Bekantung':              'Bekantung',
+  '03_04_CNC':                    'CNC',
+  '03_05_Oberflaechenbehandlung': 'Oberflächenbehandlung',
+  '03_06_Zusammenbau':            'Zusammenbau',
+  '03_07_Verpacken':              'Verpacken',
+  '03_08_Azubi':                  'Azubi/Helfer',
+  '05_01_Montage':                'Montage vor Ort',
+  '06_01_Lieferung':              'Lieferung',
+}
+
+export function calcAngebotspos(p: Angebotsposition): number {
+  const mat = p.material.reduce((s, m) => s + m.menge * m.ekPreis * (1 + m.aufschlag), 0)
+  const arb = p.arbeitszeit.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
+  return mat + arb
+}
+
 // ── Demo-Kunden ──────────────────────────────────────
 export const DEMO_KUNDEN: KundeDB[] = [
   { id: 1, name: 'Familie Müller', zusatz: 'Thomas Müller', strasse: 'Hauptstr. 12', ort: '63500 Seligenstadt', projekt: '', typ: 'Privat' },
