@@ -165,6 +165,28 @@ Auch wenn einzelne Punkte bereits genannt wurden, trotzdem nochmal bestätigen:
 - Keine Annahmen ohne Bestätigung bei Oberfläche, Maßen und Sonderausstattung
 - Bei unvollständigen Angaben: STOPP und Rückfrage, nicht weitermachen
 
+## MÖBELTYP-FACHWISSEN
+
+### Küche
+- Korpusse: immer Türen oder Schubladenfront, NIE Klappen
+- Hängeschränke: immer Türen, NIE Klappen
+- Schubladen: haben Fronten, keine eigene Tür
+- Spülenschrank, Herdschrank, Spülmaschinenkorpus: Sonderpositionen
+- LED-Beleuchtung: Sonderposition, erhöht Konstruktion
+
+### Schrank / Garderobe
+- Kann Türen, Klappen oder offen sein
+- Klappen typisch bei: Oberschränken, Akustikpanelen, Stauraum
+
+### Sideboard / Lowboard
+- Türen oder Klappen möglich
+- Schubladen möglich
+
+### REGEL: Wenn Kunde sagt "ergänze den Rest"
+- NICHT weiter nachfragen
+- Erfahrungswerte verwenden
+- Im Angebot vermerken: "(Position nach Aufmaß anpassen)"
+
 ## Nutzereinstellungen (SaaS-Prinzip)
 
 Alle Stundensätze der Kostenstellen sind NICHT fest im Code.

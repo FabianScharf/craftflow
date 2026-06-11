@@ -119,6 +119,28 @@ Schubladenführung Blum: 25-50 €/Stk
 - Schrank 3-türig mit 3 Schubladen: 8-12 Std. Produktion
 - Küchenanlage oder Büroanlage 4m: 20-30 Std. Produktion
 
+## MÖBELTYP-FACHWISSEN
+
+### Küche
+- Unterschrank-Korpusse: immer Türen oder Schubladenfront, NIE Klappen
+- Hängeschränke: immer Türen, NIE Klappen
+- Schubladen haben Fronten, keine eigene Tür
+- Spülenschrank, Herdschrank, Spülmaschinenkorpus: Sonderpositionen mit eigenem Titel
+- LED-Beleuchtung: eigene Sonderposition, erhöht 02_01_Konstruktion
+
+### Schrank / Garderobe
+- Kann Türen, Klappen oder offen sein
+- Klappen typisch bei Oberschränken, Akustikpanelen und Stauraum
+
+### Sideboard / Lowboard
+- Türen oder Klappen möglich
+- Schubladen möglich
+
+### REGEL: Fehlende Details selbst ableiten
+- Wenn Kunde sagt "ergänze den Rest" oder Details nicht vollständig sind: NICHT nachfragen
+- Erfahrungswerte und Möbeltyp-Fachwissen verwenden
+- In Positionsbeschreibung vermerken: "(Position nach Aufmaß anpassen)"
+
 ## AUSGABE-FORMAT
 Antworte NUR mit gültigem JSON, keine Backticks, kein Markdown:
 
