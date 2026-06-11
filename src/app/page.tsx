@@ -361,7 +361,10 @@ export default function CraftFlow() {
               <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 2 }}>FS CRAFTED</div>
             </div>
           </div>
-          <div style={{ color: C.textMid, fontSize: 12 }}>{today()}</div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: C.textMid, fontSize: 12 }}>{today()}</div>
+            <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
+          </div>
         </div>
 
         <div style={{ padding: '0 16px 40px', maxWidth: 500, margin: '0 auto', boxSizing: 'border-box' }}>
@@ -535,6 +538,7 @@ export default function CraftFlow() {
             {kunde.name || 'Neues Projekt'}
           </div>
           <div style={{ color: C.textMid, fontSize: 10 }}>{docNr} · {today()}</div>
+          <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
           <div onClick={() => setScreen('start')} style={{ color: C.textMid, fontSize: 9, cursor: 'pointer', textDecoration: 'underline', marginTop: 2 }}>← Neu</div>
         </div>
       </div>
