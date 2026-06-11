@@ -14,8 +14,13 @@ export function buildPDF(
 
   const rows = pos.map((p, i) => {
     const g = calcAngebotspos(p)
-    return `<tr>
-      <td class="pos-nr">${i + 1}</td>
+    return `<tr class="pos-group">
+      <td class="pos-nr">Pos.&nbsp;${i + 1}</td>
+      <td class="pos-bez"><strong>${p.titel}</strong></td>
+      <td class="pos-ges"></td>
+    </tr>
+    <tr>
+      <td class="pos-nr">${i + 1}.001</td>
       <td class="pos-bez">
         <strong>${p.titel}</strong>
         ${p.beschreibung ? `<span class="bez-desc">${p.beschreibung}</span>` : ''}
@@ -82,11 +87,15 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;colo
 table.pos{width:100%;border-collapse:collapse}
 table.pos thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:8px 6px;border-top:1.5px solid #1a1a1a;border-bottom:1.5px solid #1a1a1a;white-space:nowrap}
 table.pos thead th.r{text-align:right}
-.pos-nr{width:36px;font-size:11px;color:#888;vertical-align:top;padding:10px 6px}
-.pos-bez{padding:10px 6px;vertical-align:top;border-bottom:1px solid #f0f0f0}
-.pos-bez strong{display:block;font-size:13px;margin-bottom:3px}
-.bez-desc{display:block;font-size:11px;color:#666;line-height:1.5}
-.pos-ges{width:110px;text-align:right;font-weight:600;font-size:12px;vertical-align:top;padding:10px 6px;white-space:nowrap;border-bottom:1px solid #f0f0f0}
+.pos-nr{width:46px;font-size:11px;color:#888;vertical-align:top;padding:8px 6px}
+.pos-bez{padding:8px 6px;vertical-align:top;border-bottom:1px solid #f0f0f0}
+.pos-bez strong{display:block;font-size:13px;margin-bottom:2px}
+.bez-desc{display:block;font-size:11px;color:#555;line-height:1.55;margin-top:2px}
+.pos-ges{width:110px;text-align:right;font-weight:600;font-size:12px;vertical-align:top;padding:8px 6px;white-space:nowrap;border-bottom:1px solid #f0f0f0}
+tr.pos-group .pos-nr{color:#1a1a1a;font-weight:700;padding-top:16px;padding-bottom:2px}
+tr.pos-group .pos-bez{border-bottom:none;padding-top:16px;padding-bottom:2px}
+tr.pos-group .pos-bez strong{font-size:12px}
+tr.pos-group .pos-ges{border-bottom:none;padding-top:16px;padding-bottom:2px}
 .tab-end{border-top:1.5px solid #1a1a1a}
 
 .sum-wrap{display:flex;justify-content:flex-end;margin:16px 0 24px}
@@ -105,6 +114,7 @@ table.pos thead th.r{text-align:right}
 
 .ftr{display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#999;padding-top:5px;border-top:1px solid #ddd}
 .ftr .pn{white-space:nowrap}
+.ftr .ftr-mid{text-align:center;line-height:1.6}
 </style>
 </head><body>
 <div class="page">
@@ -159,7 +169,7 @@ ${signBlock}
 
 <div class="ftr">
   <span>${docTyp} ${docNr}</span>
-  <span>${FIRMA.name} – ${FIRMA.inhaber} | ${FIRMA.strasse} | ${FIRMA.ort} | USt-IdNr.: ${FIRMA.ust} | ${FIRMA.bank} | IBAN: ${FIRMA.iban}</span>
+  <span class="ftr-mid">${FIRMA.name} – ${FIRMA.inhaber} | ${FIRMA.strasse} | ${FIRMA.ort}<br>USt-IdNr.: ${FIRMA.ust}<br>${FIRMA.bank} | IBAN: ${FIRMA.iban}</span>
   <span class="pn">Seite 1</span>
 </div>
 
