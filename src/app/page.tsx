@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import NoSleep from 'nosleep.js'
 import {
   C,
@@ -12,25 +12,10 @@ import {
 } from '@/lib/types'
 import { buildPDF } from '@/lib/pdf'
 
-/* ── Lieferanten-Typen ────────────────────────────── */
-type LieferantContact = {
-  id: string
-  first_name: string
-  last_name: string
-  email: string | null
-  phone: string | null
-  position: string | null
-  is_primary: boolean
-}
-type Lieferant = {
-  id: string
-  company_name: string
-  general_email: string | null
-  phone: string | null
-  website: string | null
-  notes: string | null
-  supplier_contacts: LieferantContact[]
-}
+/* ── Lieferantenanfrage-Typen ─────────────────────── */
+type InquiryDraft = { supplierName: string; email: string; draftId: string | null; materialCount: number }
+type InquirySuggestion = { category: string; mats: string[]; aiName: string; aiEmail: string }
+type InquiryResult = { drafts: InquiryDraft[]; suggestions: InquirySuggestion[]; uncategorized: string[] }
 
 /* ── Primitive UI ─────────────────────────────────── */
 const Lbl = ({ children, c }: { children: React.ReactNode; c?: string }) => (
@@ -108,12 +93,16 @@ export default function CraftFlow() {
   const [widerruf, setWiderruf] = useState(true)
   const [pdfHTML, setPdfHTML] = useState('')
 
-  // Lieferanten Tab
-  const [kategorien, setKategorien] = useState<{ id: string; name: string }[]>([])
-  const [lieferantenKat, setLieferantenKat] = useState('')
-  const [lieferanten, setLieferanten] = useState<Lieferant[]>([])
-  const [lieferantenStatus, setLieferantenStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [draftStatus, setDraftStatus] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
+  // Lieferantenanfrage
+  const [selectedMats, setSelectedMats] = useState<Record<number, boolean>>({})
+  const [inquiryStatus, setInquiryStatus] = useState<Record<number, 'idle' | 'loading' | 'done' | 'error'>>({})
+  const [inquiryResult, setInquiryResult] = useState<Record<number, InquiryResult>>({})
+  const [savedSuggestions, setSavedSuggestions] = useState<Record<string, boolean>>({})
+
+  const isMatSelected = (matId: number) => selectedMats[matId] !== false
+  const toggleMat = (matId: number) => setSelectedMats(prev => ({
+    ...prev, [matId]: prev[matId] !== false ? false : true,
+  }))
 
   // Start Screen State
   const [startText, setStartText] = useState('')
@@ -336,47 +325,36 @@ export default function CraftFlow() {
     }
   }, [startText, startBildB64, callAI])
 
-  const loadKategorien = useCallback(async () => {
+  const startInquiry = useCallback(async (posId: number, positionTitel: string, mats: MaterialPosten[]) => {
+    const selected = mats.filter(m => selectedMats[m.id] !== false)
+    if (!selected.length) return
+    setInquiryStatus(prev => ({ ...prev, [posId]: 'loading' }))
     try {
-      const res = await fetch('/api/suppliers/categories')
-      const json = await res.json()
-      if (json.categories) setKategorien(json.categories)
-    } catch { /* ignorieren */ }
-  }, [])
-
-  const loadLieferanten = useCallback(async (kat: string) => {
-    if (!kat) { setLieferanten([]); return }
-    setLieferantenStatus('loading')
-    setDraftStatus({})
-    try {
-      const res = await fetch(`/api/suppliers?category=${encodeURIComponent(kat)}`)
-      const json = await res.json()
-      setLieferanten(json.suppliers || [])
-      setLieferantenStatus('idle')
-    } catch {
-      setLieferantenStatus('error')
-    }
-  }, [])
-
-  const createDraft = useCallback(async (supplierId: string) => {
-    setDraftStatus(prev => ({ ...prev, [supplierId]: 'loading' }))
-    try {
-      const res = await fetch('/api/suppliers/draft', {
+      const res = await fetch('/api/suppliers/inquiry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supplierId, variables: { projekt: kunde.projekt || '' } }),
+        body: JSON.stringify({
+          positionTitel,
+          materials: selected.map(m => ({ id: m.id, bezeichnung: m.bezeichnung, menge: m.menge, einheit: m.einheit })),
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
-      setDraftStatus(prev => ({ ...prev, [supplierId]: 'done' }))
+      setInquiryResult(prev => ({ ...prev, [posId]: json as InquiryResult }))
+      setInquiryStatus(prev => ({ ...prev, [posId]: 'done' }))
     } catch {
-      setDraftStatus(prev => ({ ...prev, [supplierId]: 'error' }))
+      setInquiryStatus(prev => ({ ...prev, [posId]: 'error' }))
     }
-  }, [kunde.projekt])
+  }, [selectedMats])
 
-  useEffect(() => {
-    if (tab === 'lieferanten' && kategorien.length === 0) loadKategorien()
-  }, [tab, kategorien.length, loadKategorien])
+  const saveSuggestion = useCallback(async (category: string, name: string, email: string) => {
+    await fetch('/api/suppliers/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company_name: name, email, category_name: category }),
+    })
+    setSavedSuggestions(prev => ({ ...prev, [category]: true }))
+  }, [])
 
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
@@ -588,7 +566,6 @@ export default function CraftFlow() {
     { id: 'kunde',        label: '👤 Kunde' },
     { id: 'kalkulation',  label: '🔢 Kalkulation' },
     { id: 'angebot',      label: '📄 Angebot' },
-    { id: 'lieferanten',  label: '🏭 Lieferanten' },
   ]
 
   return (
@@ -749,18 +726,32 @@ export default function CraftFlow() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
                           <thead>
                             <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                              <th style={{ ...thStyle, width: '35%' }}>Bezeichnung</th>
+                              <th style={{ ...thStyle, width: '4%' }}></th>
+                              <th style={{ ...thStyle, width: '32%' }}>Bezeichnung</th>
                               <th style={{ ...thStyle, width: '9%' }}>Menge</th>
-                              <th style={{ ...thStyle, width: '9%' }}>Einheit</th>
-                              <th style={{ ...thStyle, width: '11%' }}>EK €</th>
+                              <th style={{ ...thStyle, width: '8%' }}>Einheit</th>
+                              <th style={{ ...thStyle, width: '10%' }}>EK €</th>
                               <th style={{ ...thStyle, width: '10%' }}>Aufschl.%</th>
-                              <th style={{ ...thStyle, width: '16%', textAlign: 'right' }}>VK gesamt</th>
-                              <th style={{ ...thStyle, width: '10%' }}></th>
+                              <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>VK gesamt</th>
+                              <th style={{ ...thStyle, width: '12%' }}></th>
                             </tr>
                           </thead>
                           <tbody>
                             {p.material.map(m => (
                               <tr key={m.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
+                                <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                  <div
+                                    onClick={() => toggleMat(m.id)}
+                                    style={{
+                                      width: 14, height: 14, margin: '0 auto',
+                                      border: `2px solid ${isMatSelected(m.id) ? C.copper : C.border}`,
+                                      borderRadius: 2, cursor: 'pointer',
+                                      background: isMatSelected(m.id) ? C.copper : 'transparent',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontSize: 9, color: C.black, fontWeight: 800, flexShrink: 0,
+                                    }}
+                                  >{isMatSelected(m.id) ? '✓' : ''}</div>
+                                </td>
                                 <td style={tdStyle}>
                                   <input value={m.bezeichnung} onChange={e => updMatRow(p.id, m.id, 'bezeichnung', e.target.value)} style={cellInput} />
                                 </td>
@@ -790,6 +781,89 @@ export default function CraftFlow() {
                       <button onClick={() => addMatRow(p.id)} style={{ marginTop: 6, background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
                         + Materialzeile
                       </button>
+
+                      {p.material.length > 0 && (() => {
+                        const selCount = p.material.filter(m => isMatSelected(m.id)).length
+                        const ist = inquiryStatus[p.id]
+                        const res = inquiryResult[p.id]
+                        return (
+                          <div style={{ marginTop: 10 }}>
+                            {ist !== 'loading' && ist !== 'done' && (
+                              <button
+                                onClick={() => startInquiry(p.id, p.titel, p.material)}
+                                disabled={selCount === 0}
+                                style={{
+                                  background: selCount === 0 ? C.gray2 : 'transparent',
+                                  color: selCount === 0 ? C.textMid : C.copper,
+                                  border: `1px solid ${selCount === 0 ? C.border : C.copper}`,
+                                  borderRadius: 3, padding: '6px 14px', cursor: selCount === 0 ? 'not-allowed' : 'pointer',
+                                  fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
+                                }}
+                              >
+                                ✉ Ausgewählte Preise anfragen ({selCount}/{p.material.length})
+                              </button>
+                            )}
+                            {ist === 'loading' && (
+                              <div style={{ fontSize: 12, color: C.textMid, padding: '6px 0' }}>
+                                ⟳ Analysiere Materialien und suche Lieferanten…
+                              </div>
+                            )}
+                            {ist === 'error' && (
+                              <div style={{ fontSize: 12, color: '#ff9999', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                Fehler beim Erstellen der Drafts.
+                                <button onClick={() => startInquiry(p.id, p.titel, p.material)} style={{ background: 'transparent', color: C.copper, border: 'none', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', fontFamily: 'Helvetica Neue,sans-serif', padding: 0 }}>
+                                  Erneut versuchen
+                                </button>
+                              </div>
+                            )}
+                            {ist === 'done' && res && (
+                              <div style={{ marginTop: 4, background: C.black, border: `1px solid ${C.border}`, borderRadius: 4, padding: '10px 12px' }}>
+                                {res.drafts.map((d, i) => (
+                                  <div key={i} style={{ fontSize: 12, color: '#90EE90', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    ✓ Draft an <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
+                                    <a href="https://mail.google.com/mail/#drafts" target="_blank" rel="noreferrer"
+                                      style={{ color: C.copper, textDecoration: 'none', fontSize: 11 }}>
+                                      In Gmail öffnen →
+                                    </a>
+                                  </div>
+                                ))}
+                                {res.suggestions?.map((s, i) => (
+                                  <div key={i} style={{ marginTop: 8, background: '#0d1520', border: `1px solid ${C.copper}44`, borderRadius: 3, padding: '8px 10px' }}>
+                                    <div style={{ color: C.copper, fontWeight: 700, fontSize: 11, marginBottom: 3 }}>
+                                      KI-Vorschlag für „{s.category}":
+                                    </div>
+                                    <div style={{ color: C.white, fontSize: 12 }}>{s.aiName}{s.aiEmail && ` · ${s.aiEmail}`}</div>
+                                    <div style={{ color: C.textMid, fontSize: 11, marginTop: 2, marginBottom: 6 }}>{s.mats.join(', ')}</div>
+                                    {savedSuggestions[s.category] ? (
+                                      <div style={{ color: '#90EE90', fontSize: 11 }}>✓ In Datenbank gespeichert</div>
+                                    ) : (
+                                      <div style={{ display: 'flex', gap: 8 }}>
+                                        <button onClick={() => saveSuggestion(s.category, s.aiName, s.aiEmail)}
+                                          style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
+                                          Ja, aufnehmen
+                                        </button>
+                                        <button onClick={() => setSavedSuggestions(prev => ({ ...prev, [s.category]: true }))}
+                                          style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                                          Nein
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                                {res.uncategorized?.length > 0 && (
+                                  <div style={{ marginTop: 8, fontSize: 11, color: C.textMid }}>
+                                    Nicht kategorisiert: {res.uncategorized.join(', ')}
+                                  </div>
+                                )}
+                                <button onClick={() => setInquiryStatus(prev => ({ ...prev, [p.id]: 'idle' }))}
+                                  style={{ marginTop: 8, background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline', padding: 0 }}>
+                                  Schließen
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
 
                     {/* ARBEITSZEIT */}
@@ -947,96 +1021,6 @@ export default function CraftFlow() {
           </div>
         )}
 
-        {/* ══ LIEFERANTEN ══ */}
-        {tab === 'lieferanten' && (
-          <div>
-            <Card accent={C.copper}>
-              <div style={{ padding: '12px 16px' }}>
-                <Lbl>Produktkategorie</Lbl>
-                <select
-                  value={lieferantenKat}
-                  onChange={e => { setLieferantenKat(e.target.value); loadLieferanten(e.target.value) }}
-                  style={{ width: '100%', padding: '9px 11px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 13, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }}
-                >
-                  <option value="">– Kategorie wählen –</option>
-                  {kategorien.map(k => (
-                    <option key={k.id} value={k.name}>{k.name}</option>
-                  ))}
-                </select>
-              </div>
-            </Card>
-
-            {lieferantenStatus === 'loading' && (
-              <div style={{ textAlign: 'center', color: C.textMid, padding: '24px 0', fontSize: 13 }}>
-                Lade Lieferanten…
-              </div>
-            )}
-
-            {lieferantenStatus === 'error' && (
-              <div style={{ background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 4, padding: '12px 16px', fontSize: 13, color: '#ff9999', marginBottom: 12 }}>
-                Fehler beim Laden der Lieferanten.
-              </div>
-            )}
-
-            {lieferanten.map(l => {
-              const primary = l.supplier_contacts?.find(c => c.is_primary) ?? l.supplier_contacts?.[0] ?? null
-              const email = primary?.email ?? l.general_email
-              const ds = draftStatus[l.id] ?? 'idle'
-
-              return (
-                <Card key={l.id}>
-                  <div style={{ padding: '12px 16px' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: C.white, marginBottom: 4 }}>
-                      {l.company_name}
-                    </div>
-                    {primary && (
-                      <div style={{ fontSize: 12, color: C.textMid, marginBottom: 2 }}>
-                        {primary.first_name} {primary.last_name}
-                        {primary.position && <span style={{ color: C.border }}> · {primary.position}</span>}
-                      </div>
-                    )}
-                    {email && <div style={{ fontSize: 11, color: C.textMid, marginBottom: 2 }}>{email}</div>}
-                    {l.phone && <div style={{ fontSize: 11, color: C.textMid }}>{l.phone}</div>}
-
-                    <HR my={10} />
-
-                    <button
-                      onClick={() => createDraft(l.id)}
-                      disabled={ds === 'loading' || ds === 'done'}
-                      style={{
-                        width: '100%', padding: '10px 0',
-                        background: ds === 'done' ? '#1a3a1a' : ds === 'error' ? '#2a1a1a' : ds === 'loading' ? C.gray2 : C.copper,
-                        color: ds === 'done' ? '#90EE90' : ds === 'error' ? '#ff9999' : ds === 'loading' ? C.textMid : C.black,
-                        border: `1px solid ${ds === 'done' ? '#3a6a3a' : ds === 'error' ? '#4a2a2a' : 'transparent'}`,
-                        borderRadius: 3,
-                        cursor: ds === 'loading' || ds === 'done' ? 'default' : 'pointer',
-                        fontSize: 12, fontWeight: 700, letterSpacing: 1,
-                        fontFamily: 'Helvetica Neue,sans-serif',
-                      }}
-                    >
-                      {ds === 'idle' && '✉ ANFRAGE-DRAFT IN GMAIL ERSTELLEN'}
-                      {ds === 'loading' && '⟳ Wird erstellt…'}
-                      {ds === 'done' && '✓ Draft in Gmail erstellt'}
-                      {ds === 'error' && '⚠ Fehler – erneut versuchen'}
-                    </button>
-                  </div>
-                </Card>
-              )
-            })}
-
-            {lieferantenStatus === 'idle' && lieferantenKat && lieferanten.length === 0 && (
-              <div style={{ textAlign: 'center', color: C.textMid, padding: '24px 0', fontSize: 13 }}>
-                Keine Lieferanten für diese Kategorie.
-              </div>
-            )}
-
-            {!lieferantenKat && (
-              <div style={{ textAlign: 'center', color: C.textMid, padding: '24px 0', fontSize: 13 }}>
-                Bitte Produktkategorie wählen.
-              </div>
-            )}
-          </div>
-        )}
 
       </div>
     </div>
