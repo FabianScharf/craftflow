@@ -441,6 +441,21 @@ function isMassivholz(pos: Pos): boolean {
   return MASSIVHOLZ_RE.test(matText) || MASSIVHOLZ_RE.test(pos.beschreibung ?? '') || MASSIVHOLZ_RE.test(pos.titel ?? '')
 }
 
+// Sums all explicit metre values in text (e.g. "3,20m + 1,80m", "3.6 lfm").
+// Falls back to a width in cm ("360cm breit") if no metre values are found.
+// Returns total linear metres, or 0 if nothing parseable.
+function parseLaufmeter(text: string): number {
+  const mRe = /(\d+[,.]\d+)\s*(?:lfm|lm|m)(?!\w)/gi
+  const mMatches = [...text.matchAll(mRe)]
+  const mSum = mMatches.reduce((s, m) => s + parseFloat(m[1].replace(',', '.')), 0)
+  if (mSum > 0) return mSum
+
+  const cmMatch = text.match(/(\d{2,4})\s*cm\s*(?:breit|breite|gesamt)/i)
+  if (cmMatch) return parseInt(cmMatch[1]) / 100
+
+  return 0
+}
+
 function validateAndFix(data: Record<string, unknown>): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
@@ -485,6 +500,18 @@ function validateAndFix(data: Record<string, unknown>): Record<string, unknown> 
       zb.minuten = Math.max(zb.minuten, minZusammenbau)
     } else {
       az.push({ kostenstelle: '03_06_Zusammenbau', minuten: minZusammenbau, vkStunde: 65 })
+    }
+
+    // 5. Montage: enforce minimum only when 05_01_Montage already present
+    //    (absence means Selbstabholung / kein Einbau — don't add it)
+    //    Minimum = total lm × 90 min/lfm (1.5 h/lfm, Neubau lower bound)
+    const montage = az.find(a => a.kostenstelle === '05_01_Montage')
+    if (montage) {
+      const lm = parseLaufmeter(descText)
+      if (lm > 0) {
+        const minMontage = Math.round(lm * 90)
+        montage.minuten = Math.max(montage.minuten, minMontage)
+      }
     }
 
     return { ...pos, arbeitszeit: az }
