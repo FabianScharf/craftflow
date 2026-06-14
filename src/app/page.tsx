@@ -493,11 +493,12 @@ export default function CraftFlow() {
           <div style={{ marginBottom: 14 }}>
             <input
               ref={startFileRef}
-              type="file" accept="image/*,application/pdf"
+              type="file" accept="image/*,.pdf"
               onChange={e => {
                 const f = e.target.files?.[0]
                 if (!f) return
-                if (f.type === 'application/pdf') handlePdfUpload(f)
+                const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+                if (isPdf) handlePdfUpload(f)
                 else loadBild(f)
               }}
               style={{ display: 'none' }}
