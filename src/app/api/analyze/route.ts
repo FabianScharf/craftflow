@@ -456,9 +456,12 @@ function parseLaufmeter(text: string): number {
   return 0
 }
 
-function validateAndFix(data: Record<string, unknown>): Record<string, unknown> {
+function validateAndFix(data: Record<string, unknown>, originalInput = ''): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
+
+  // Parse lm from original user input once — AI output may omit measurements.
+  const inputLm = parseLaufmeter(originalInput)
 
   data.positionen = positionen.map((raw: unknown) => {
     const pos = raw as Pos
@@ -504,10 +507,11 @@ function validateAndFix(data: Record<string, unknown>): Record<string, unknown> 
 
     // 5. Montage: enforce minimum only when 05_01_Montage already present
     //    (absence means Selbstabholung / kein Einbau — don't add it)
+    //    Prefer lm from original input; fall back to AI description.
     //    Minimum = total lm × 90 min/lfm (1.5 h/lfm, Neubau lower bound)
     const montage = az.find(a => a.kostenstelle === '05_01_Montage')
     if (montage) {
-      const lm = parseLaufmeter(descText)
+      const lm = inputLm > 0 ? inputLm : parseLaufmeter(descText)
       if (lm > 0) {
         const minMontage = Math.round(lm * 90)
         montage.minuten = Math.max(montage.minuten, minMontage)
@@ -589,7 +593,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const parsed = JSON.parse(clean)
-      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>)
+      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '')
       return NextResponse.json({ success: true, data: validated })
     } catch {
       return NextResponse.json(
