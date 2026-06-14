@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PDFParse } from 'pdf-parse'
+import { extractText } from 'unpdf'
 
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
@@ -16,18 +16,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'PDF zu groß. Maximum: 10 MB.' }, { status: 413 })
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const parser = new PDFParse({ data: buffer })
-    const result = await parser.getText()
+    const buffer = new Uint8Array(await file.arrayBuffer())
+    const { text } = await extractText(buffer, { mergePages: true })
 
-    if (!result.text?.trim()) {
+    if (!text?.trim()) {
       return NextResponse.json(
         { error: 'Kein Text im PDF gefunden. Gescannte PDFs (nur Bilder) werden nicht unterstützt.' },
         { status: 422 }
       )
     }
 
-    return NextResponse.json({ text: result.text.trim() })
+    return NextResponse.json({ text: text.trim() })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     return NextResponse.json({ error: msg }, { status: 500 })
