@@ -73,11 +73,18 @@ Fixkosten (bei JEDER Position anteilig einplanen, auch wenn klein):
 
 ---
 
-## OBERFLÄCHENREGEL
+## OBERFLÄCHENREGEL – HARTES ENTWEDER-ODER
 
-- Massivholz → 03_05_Oberflaechenbehandlung IMMER einplanen (zeitintensiv). 03_03_Bekantung komplett weglassen.
-- Dekormöbel → 03_03_Bekantung IMMER einplanen. 03_05_Oberflaechenbehandlung weglassen oder minimal.
-- Sonderteile (LED, Klappen mit Akustikstoff, Massivholzladen, sonstige Besonderheiten) → 02_01_Konstruktion deutlich erhöhen.
+Bei Massivholz:
+✅ 03_05_Oberflaechenbehandlung → IMMER einplanen, große Zeitposition
+❌ 03_03_Bekantung → NIEMALS verwenden, immer 0 min oder weglassen
+→ Massivholz hat keine Kanten die beklebt werden — das ist eine Grundregel des Handwerks.
+
+Bei Dekormöbel:
+✅ 03_03_Bekantung → IMMER einplanen
+❌ 03_05_Oberflaechenbehandlung → weglassen oder maximal 30 min (Schleifpolitur)
+
+Sonderteile (LED, Klappen mit Akustikstoff, Massivholzladen, sonstige Besonderheiten) → 02_01_Konstruktion deutlich erhöhen.
 
 ---
 
@@ -141,9 +148,18 @@ Plausibilitätscheck Gesamtzeit Werkstatt:
 ## ZEITRICHTWERTE OBERFLÄCHE (03_05_Oberflaechenbehandlung)
 
 OBERFLÄCHE – PFLICHTRECHNUNG (immer durchführen wenn Massivholz oder Lackierung genannt):
-Schritt 1: Sichtbare Fläche aller Bauteile schätzen (Vorderseiten + sichtbare Seiten, nicht Rückwand)
+
+WICHTIG: Die Oberflächenfläche ≠ Materialmenge in der Materialliste!
+Die Materialmenge ist das Rohmaterial. Für die Oberfläche zählen alle sichtbaren Flächen
+(Vorder- und Rückseite, Seiten, Türen, Schubfronten). Faustregel: Oberflächenfläche ≈ 1,8 × Grundfläche Möbel.
+
+Schritt 1: Sichtbare Fläche berechnen
+  Methode: Breite (m) × Höhe (m) × 2 (Vorder-/Rückseite sichtbar) + Seiten + Türen/Fronten
+  Faustformel Einbauschrank: Breite × Höhe × 2,5 = sichtbare Gesamtfläche
+  Beispiel 3,6 m × 2,4 m × 2,5 = 21,6 m²
+
 Schritt 2: Oberflächen-Minuten/m² nach Technik wählen (siehe unten)
-Schritt 3: Bei Massivholz/Eiche: Holzart-Faktor × Grundierung verdoppeln (+20 min/m² extra)
+Schritt 3: Bei Massivholz/Eiche: Holzart-Faktor × Grundierung verdoppeln (+40 min/m² extra)
 Schritt 4: Gesamtminuten = Fläche × Minuten/m² → in 03_05_Oberflaechenbehandlung eintragen
 
 MINUTEN JE m² NACH OBERFLÄCHE (Pflicht-Richtwerte, nicht unterschreiten):
@@ -158,8 +174,9 @@ Massivholz-Zuschlag Oberfläche (immer extra):
 - Doppelte Grundierung auf Eiche/Hirnholz: +15 min/m²
 - → Massivholz Eiche seidenmatt: 50 + 25 + 15 = ca. 90 min/m² gesamt
 
-Beispiel Massivholz Eiche, seidenmatt, ca. 13 m² sichtbare Fläche:
-  13 m² × 90 min/m² = 1.170 min = ca. 19,5 h → 03_05_Oberflaechenbehandlung: 1.170 min
+Beispiel Massivholz Eiche, seidenmatt, Einbauschrank 3,6 × 2,4 m:
+  Fläche: 3,6 × 2,4 × 2,5 = 21,6 m²
+  Minuten: 21,6 × 90 min/m² = 1.944 min = ca. 32 h → 03_05_Oberflaechenbehandlung: 1.944 min
 
 Ölen Details:
 - Komplett ölen 2× (je m²): 20–30 min/m²
