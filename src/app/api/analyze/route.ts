@@ -68,8 +68,11 @@ Nur diese IDs verwenden:
 05_01_Montage                 → 65 €/h
 06_01_Lieferung               → 65 €/h
 
-Fixkosten (bei JEDER Position anteilig einplanen, auch wenn klein):
-00_Meeting, 01_02_Planung, 02_01_Konstruktion, 02_02_Arbeitsvorbereitung
+Fixkosten – IMMER in jeder Position, NIEMALS 0 min:
+00_Meeting                → Minimum 15 min (auch bei kleinen Aufträgen)
+01_02_Planung             → Minimum 20 min
+02_01_Konstruktion        → Minimum 30 min
+02_02_Arbeitsvorbereitung → Minimum 20 min
 
 ---
 
@@ -97,24 +100,67 @@ Alle Maße intern immer in mm rechnen. Vor der Kalkulation konvertieren:
 
 ---
 
+## MATERIALMENGE – PFLICHTRECHNUNG (immer vor der Kalkulation durchführen)
+
+Schritt 1: Alle Plattenteile des Möbels einzeln auflisten und Fläche berechnen
+  Bauteile je Möbel (immer vorhanden):
+  - 2 × Seitenwand:      Tiefe × Höhe × 2
+  - 1 × Boden:           Breite × Tiefe
+  - 1 × Deckel:          Breite × Tiefe
+  - 1 × Rückwand (HDF):  Breite × Höhe  → separates Material, günstiger
+  - Böden/Einlegeböden:  Breite × Tiefe × Anzahl (Standard: 1–2 je Fach)
+  - Türen/Fronten:       Breite/Anzahl × Höhe je Tür × Anzahl Türen
+  - Schubfronten:        Breite × Höhe je Front × Anzahl Schubladen
+  - Mittelstege/Blenden: je nach Möbel
+
+Schritt 2: Summe aller Flächen = Materialmenge in m²
+  Verschnittaufschlag: +15 % auf Summe
+
+Schritt 3: Rückwand (HDF 6mm) als eigene Materialposition anlegen
+
+Beispiel Sideboard 180×50×42 cm:
+  2× Seite: 0,42×0,50×2 = 0,42 m²
+  Boden:    1,80×0,42   = 0,76 m²
+  Deckel:   1,80×0,42   = 0,76 m²
+  2× Schubfront: 0,90×0,20×2 = 0,36 m²  (Schubladen ca. 20 cm hoch)
+  2× Schiebetür: 0,90×0,35×2 = 0,63 m²  (Türhöhe ca. 35 cm netto)
+  Einlegeboden:  1,78×0,40   = 0,71 m²
+  Summe: 3,64 m² × 1,15 Verschnitt = 4,19 m² Spanplatte
+  Rückwand HDF: 1,80×0,50 = 0,90 m²
+
+---
+
 ## ZEITRICHTWERTE KORPUSBAU (Dekormöbel / Spanplatte / MDF)
 
-- Zuschnitt + Formatieren (je Platte): 8–15 min
-- Kante aufbringen ABS (je lfdm Kantenband): 3–5 min → verwende 03_03_Bekantung
-- Dübellöcher bohren, Verbinder setzen (je Bauteil): 5–10 min
-- Korpus zusammenbauen (einfacher Schrank, 4-seitig): 30–60 min
-- Rückwand einsetzen: 15–25 min
-- Einlegeboden + Bohrungen: 10–20 min
-- Gesamtkorpus einfacher Schrank ca. 60×200 cm: 2,5–4,0 h
-- Gesamtkorpus Einbauschrank 1 lfm raumhoch: 4–6 h Werkstatt
+Korpus-Grundzeit (in 03_02_Zuschnitt + 03_06_Zusammenbau):
+- Zuschnitt + Formatieren (je Platte, ca. 0,5–1 m²): 10 min/Platte
+- Dübellöcher bohren, Verbinder setzen (je Bauteil): 8 min
+- Korpus zusammenbauen (4-seitig): 45 min
+- Rückwand einsetzen: 20 min
+- Einlegeboden + Bohrungen: 15 min
 
-Beschläge (pro Stück, in 03_06_Zusammenbau einplanen):
-- 1 Drehtür hängen + justieren (Topfscharnier): 15–25 min
-- 1 Schiebetür montieren (Systemschiene): 30–60 min
-- 1 Klapptür mit Liftsystem: 25–45 min
-- Griffe bohren + montieren (je Griff): 5–10 min
-- 1 Systemschublade einbauen + justieren (Blum Legrabox/Tandembox): 20–35 min → Schubfront ansetzen: +10–20 min
-- 1 Schubkasten Massivholz (eigengefertigt): 45–90 min
+BESCHLÄGE – PFLICHTRECHNUNG (immer je Stück addieren, in 03_06_Zusammenbau):
+Für jede genannte Tür, Schublade, Klappe einzeln einrechnen:
+
+  Drehtür (je Stück):                         20 min (Topfscharnier + Justage)
+  Schiebetür (je Stück):                      45 min (Systemschiene montieren + einhängen)
+  Klapptür mit Liftsystem (je Stück):         35 min
+  Griff bohren + montieren (je Stück):         8 min
+  Systemschublade Blum (je Stück):            30 min (einbauen + Schubfront + Justage)
+  Schubkasten Massivholz eigengefertigt (je): 60 min
+
+Pflichtformel: 03_06_Zusammenbau = Korpus-Grundzeit + Σ (Anzahl × Minutenwert je Beschlag)
+
+Beispiel Sideboard 2 Schiebetüren + 2 Schubladen:
+  Korpus: 45+20+15 = 80 min
+  2 Schiebetüren: 2 × 45 = 90 min
+  2 Schubladen Blum: 2 × 30 = 60 min
+  → 03_06_Zusammenbau: 230 min
+
+Bekantung (03_03_Bekantung, nur Dekormöbel):
+- Kante aufbringen ABS (je lfdm): 4 min
+- Faustformel lfdm Kanten: (Breite + Tiefe + Höhe) × 4 × Anzahl sichtbare Kanten
+- Vereinfacht: Materialmenge m² × 3 lfdm/m² × 4 min = Gesamtminuten Bekantung
 
 LED-Beleuchtung (pro Schrank/Position):
 - 02_01_Konstruktion zusätzlich: 30 min (Kabelführung planen)
