@@ -529,8 +529,13 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
 export async function POST(req: NextRequest) {
   try {
     const { text, imageBase64 } = await req.json()
+    const images: string[] = Array.isArray(imageBase64)
+      ? imageBase64.filter(Boolean)
+      : imageBase64
+      ? [imageBase64]
+      : []
 
-    if (!text && !imageBase64) {
+    if (!text && images.length === 0) {
       return NextResponse.json({ error: 'Kein Text oder Bild' }, { status: 400 })
     }
 
@@ -544,18 +549,18 @@ export async function POST(req: NextRequest) {
     let model: string
     let messages: object[]
 
-    if (imageBase64) {
+    if (images.length > 0) {
       model = 'meta-llama/llama-4-scout-17b-16e-instruct'
-      const imageUrl = imageBase64.startsWith('data:')
-        ? imageBase64
-        : `data:image/jpeg;base64,${imageBase64}`
       messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
           content: [
-            { type: 'image_url', image_url: { url: imageUrl } },
-            { type: 'text', text: 'Das ist ein Foto der Situation vor Ort. Berücksichtige es.\n\n' + userMessage },
+            ...images.map(img => ({
+              type: 'image_url',
+              image_url: { url: img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}` },
+            })),
+            { type: 'text', text: 'Das sind Fotos der Situation vor Ort. Berücksichtige alle.\n\n' + userMessage },
           ],
         },
       ]

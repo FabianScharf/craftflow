@@ -17,6 +17,15 @@ type InquiryDraft = { supplierName: string; email: string; draftId: string | nul
 type InquirySuggestion = { category: string; mats: string[]; aiName: string; aiEmail: string }
 type InquiryResult = { drafts: InquiryDraft[]; suggestions: InquirySuggestion[]; uncategorized: string[] }
 
+/* ── Upload-Typen ─────────────────────────────────── */
+type UploadedFile = {
+  id: number
+  name: string
+  type: 'image' | 'pdf'
+  previewUrl?: string
+  b64?: string
+}
+
 /* ── Primitive UI ─────────────────────────────────── */
 const Lbl = ({ children, c }: { children: React.ReactNode; c?: string }) => (
   <div style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: c || C.textMid, marginBottom: 5 }}>
@@ -106,10 +115,8 @@ export default function CraftFlow() {
 
   // Start Screen State
   const [startText, setStartText] = useState('')
-  const [startBild, setStartBild] = useState<string | null>(null)
-  const [startBildB64, setStartBildB64] = useState<string | null>(null)
-  const [startPdf, setStartPdf] = useState<string | null>(null)
-  const [pdfLoading, setPdfLoading] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [uploadingCount, setUploadingCount] = useState(0)
   const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error' | 'fragen'>('idle')
   const [startMsg, setStartMsg] = useState('')
 
@@ -178,12 +185,18 @@ export default function CraftFlow() {
   }, [])
 
   const loadBild = useCallback(async (file: File) => {
-    setStartBild(URL.createObjectURL(file))
+    const id = Date.now() + Math.round(Math.random() * 1000)
+    const previewUrl = URL.createObjectURL(file)
+    setUploadedFiles(prev => [...prev, { id, name: file.name, type: 'image', previewUrl }])
     try {
-      setStartBildB64(await compressImage(file))
+      const b64 = await compressImage(file)
+      setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, b64 } : f))
     } catch {
       const reader = new FileReader()
-      reader.onload = ev => setStartBildB64((ev.target?.result as string).split(',')[1])
+      reader.onload = ev => {
+        const b64 = (ev.target?.result as string).split(',')[1]
+        setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, b64 } : f))
+      }
       reader.readAsDataURL(file)
     }
   }, [compressImage])
@@ -194,22 +207,26 @@ export default function CraftFlow() {
       setStartMsg('PDF zu groß. Maximum: 10 MB.')
       return
     }
-    setStartPdf(file.name)
-    setPdfLoading(true)
+    const id = Date.now() + Math.round(Math.random() * 1000)
+    setUploadedFiles(prev => [...prev, { id, name: file.name, type: 'pdf' }])
+    setUploadingCount(prev => prev + 1)
     setStartStatus('idle')
     try {
       const fd = new FormData()
       fd.append('pdf', file)
       const res = await fetch('/api/parse-pdf', { method: 'POST', body: fd })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
+      if (!res.ok) {
+        setUploadedFiles(prev => prev.filter(f => f.id !== id))
+        throw new Error(json.error)
+      }
       setStartText(prev => prev ? prev + '\n\n' + json.text : json.text)
     } catch (e: unknown) {
-      setStartPdf(null)
+      setUploadedFiles(prev => prev.filter(f => f.id !== id))
       setStartStatus('error')
       setStartMsg(e instanceof Error ? e.message : 'PDF konnte nicht gelesen werden.')
     } finally {
-      setPdfLoading(false)
+      setUploadingCount(prev => prev - 1)
     }
   }, [])
 
@@ -268,11 +285,11 @@ export default function CraftFlow() {
   }, [micStatus, startRecording, stopRecording])
 
   // ── KI Analyse ─────────────────────────────────────
-  const callAI = useCallback(async (text: string, imageB64: string | null) => {
+  const callAI = useCallback(async (text: string, imageB64s: string[]) => {
     const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, imageBase64: imageB64 }),
+      body: JSON.stringify({ text, imageBase64: imageB64s }),
     })
     if (!res.ok) throw new Error(`API Fehler: ${res.status}`)
     const json = await res.json()
@@ -281,11 +298,12 @@ export default function CraftFlow() {
   }, [])
 
   const startAnalyse = useCallback(async () => {
-    if (!startText.trim() && !startBildB64) return
+    const imageB64s = uploadedFiles.filter(f => f.type === 'image' && f.b64).map(f => f.b64!)
+    if (!startText.trim() && imageB64s.length === 0) return
     setStartStatus('loading')
     setStartMsg('')
     try {
-      const data = await callAI(startText, startBildB64)
+      const data = await callAI(startText, imageB64s)
 
       // KI fragt nach fehlenden Pflichtangaben
       if (data.fragen?.length > 0) {
@@ -350,7 +368,7 @@ export default function CraftFlow() {
       setStartStatus('error')
       setStartMsg(`Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
     }
-  }, [startText, startBildB64, callAI])
+  }, [startText, uploadedFiles, callAI])
 
   const startInquiry = useCallback(async (posId: number, positionTitel: string, mats: MaterialPosten[]) => {
     const selected = mats.filter(m => selectedMats[m.id] !== false)
@@ -408,7 +426,7 @@ export default function CraftFlow() {
      SCREEN: START
   ══════════════════════════════════════════════════ */
   if (screen === 'start') {
-    const canGenerate = !!(startText.trim() || startBildB64)
+    const canGenerate = !!(startText.trim() || uploadedFiles.some(f => f.type === 'image' && f.b64))
     const loading = startStatus === 'loading'
     const isRecording = micStatus === 'recording'
     const isTranscribing = micStatus === 'transcribing'
@@ -494,59 +512,58 @@ export default function CraftFlow() {
             <input
               ref={startFileRef}
               type="file" accept="image/*,.pdf"
+              multiple
               onChange={e => {
-                const f = e.target.files?.[0]
-                if (!f) return
-                const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
-                if (isPdf) handlePdfUpload(f)
-                else loadBild(f)
+                const files = Array.from(e.target.files ?? [])
+                e.target.value = ''
+                for (const f of files) {
+                  const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+                  if (isPdf) handlePdfUpload(f)
+                  else loadBild(f)
+                }
               }}
               style={{ display: 'none' }}
             />
             <button
               onClick={() => startFileRef.current?.click()}
-              disabled={pdfLoading}
+              disabled={uploadingCount > 0}
               style={{
                 width: '100%', padding: '16px',
-                background: (startBild || startPdf) ? `${C.copper}18` : C.gray1,
-                border: `2px dashed ${(startBild || startPdf) ? C.copper : C.border}`,
-                borderRadius: 10, cursor: pdfLoading ? 'wait' : 'pointer',
+                background: uploadedFiles.length > 0 ? `${C.copper}18` : C.gray1,
+                border: `2px dashed ${uploadedFiles.length > 0 ? C.copper : C.border}`,
+                borderRadius: 10, cursor: uploadingCount > 0 ? 'wait' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
               }}
             >
               <span style={{ fontSize: 28 }}>
-                {pdfLoading ? '⟳' : startBild ? '✓' : startPdf ? '📄' : '📷'}
+                {uploadingCount > 0 ? '⟳' : uploadedFiles.length > 0 ? '✓' : '📷'}
               </span>
-              <span style={{ color: (startBild || startPdf) ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                {pdfLoading
-                  ? 'PDF wird verarbeitet…'
-                  : startBild
-                  ? 'Foto vorhanden – neues aufnehmen'
-                  : startPdf
-                  ? `${startPdf} – neues hochladen`
-                  : 'Foto oder PDF hochladen'}
+              <span style={{ color: uploadedFiles.length > 0 ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                {uploadingCount > 0
+                  ? 'Wird verarbeitet…'
+                  : uploadedFiles.length > 0
+                  ? `${uploadedFiles.length} Datei${uploadedFiles.length > 1 ? 'en' : ''} – weitere hinzufügen`
+                  : 'Fotos oder PDFs hochladen (mehrere möglich)'}
               </span>
             </button>
-            {startBild && (
-              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <img src={startBild} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: `2px solid ${C.copper}` }} />
-                <button
-                  onClick={() => { setStartBild(null); setStartBildB64(null) }}
-                  style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}
-                >
-                  × Entfernen
-                </button>
-              </div>
-            )}
-            {startPdf && !pdfLoading && (
-              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ fontSize: 11, color: C.textMid }}>Text aus PDF in Eingabefeld übernommen</div>
-                <button
-                  onClick={() => setStartPdf(null)}
-                  style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', flexShrink: 0 }}
-                >
-                  × Entfernen
-                </button>
+            {uploadedFiles.length > 0 && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {uploadedFiles.map(f => (
+                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: C.gray1, borderRadius: 6, border: `1px solid ${C.border}` }}>
+                    {f.type === 'image' && f.previewUrl
+                      ? <img src={f.previewUrl} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4, border: `1px solid ${C.copper}`, flexShrink: 0 }} />
+                      : <span style={{ fontSize: 22, flexShrink: 0 }}>{f.type === 'pdf' ? '📄' : '🖼️'}</span>
+                    }
+                    <span style={{ flex: 1, fontSize: 11, color: C.textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                    <button
+                      onClick={() => {
+                        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+                        setUploadedFiles(prev => prev.filter(u => u.id !== f.id))
+                      }}
+                      style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', flexShrink: 0 }}
+                    >×</button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
