@@ -397,6 +397,104 @@ Antworte NUR mit gültigem JSON, keine Backticks, kein Markdown:
   ]
 }`
 
+// ---------------------------------------------------------------------------
+// Server-side validation — enforces FS Crafted rules deterministically after
+// the LLM response, so prompt engineering limits don't affect correctness.
+// ---------------------------------------------------------------------------
+
+const STUNDENSAETZE: Record<string, number> = {
+  '00_Meeting': 65, '01_02_Planung': 85, '02_01_Konstruktion': 75,
+  '02_02_Arbeitsvorbereitung': 75, '03_00_Produktion': 65, '03_01_Warenhandling': 65,
+  '03_02_Zuschnitt': 72, '03_03_Bekantung': 100, '03_04_CNC': 120,
+  '03_05_Oberflaechenbehandlung': 72, '03_06_Zusammenbau': 65, '03_07_Verpacken': 65,
+  '03_08_Azubi': 52, '05_01_Montage': 65, '06_01_Lieferung': 65,
+}
+
+// Fixkosten that must appear in every position with at least these minutes.
+const FIXKOSTEN_MINIMA: Record<string, number> = {
+  '00_Meeting': 15,
+  '01_02_Planung': 20,
+  '02_01_Konstruktion': 30,
+  '02_02_Arbeitsvorbereitung': 20,
+}
+
+const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
+
+type AZ = { kostenstelle: string; minuten: number; vkStunde: number }
+type MatItem = { bezeichnung: string; menge?: number; einheit?: string; ekPreis?: number; aufschlag?: number }
+type Pos = { titel?: string; beschreibung?: string; material?: MatItem[]; arbeitszeit?: AZ[] }
+
+function countHardware(text: string): { drehtüren: number; schiebetüren: number; klappen: number; schubladen: number } {
+  const n = (re: RegExp) => { const m = text.match(re); return m ? parseInt(m[1], 10) : 0 }
+  const schiebe = n(/(\d+)\s*schiebet[üu]r/i)
+  const dreh = n(/(\d+)\s*dreht[üu]r/i)
+  const klapp = n(/(\d+)\s*klapp/i)
+  const schub = n(/(\d+)\s*schublade/i)
+  // Generic "X Türen" not yet matched → treat as hinged doors
+  const genericTüren = n(/(\d+)\s*t[üu]r(?:en)?/i)
+  const hinged = dreh > 0 ? dreh : (schiebe === 0 && klapp === 0 ? genericTüren : 0)
+  return { drehtüren: hinged, schiebetüren: schiebe, klappen: klapp, schubladen: schub }
+}
+
+function isMassivholz(pos: Pos): boolean {
+  const matText = (pos.material ?? []).map(m => m.bezeichnung).join(' ')
+  return MASSIVHOLZ_RE.test(matText) || MASSIVHOLZ_RE.test(pos.beschreibung ?? '') || MASSIVHOLZ_RE.test(pos.titel ?? '')
+}
+
+function validateAndFix(data: Record<string, unknown>): Record<string, unknown> {
+  const positionen = data.positionen
+  if (!Array.isArray(positionen)) return data
+
+  data.positionen = positionen.map((raw: unknown) => {
+    const pos = raw as Pos
+    const az: AZ[] = Array.isArray(pos.arbeitszeit) ? pos.arbeitszeit.map(a => ({ ...a })) : []
+    const massiv = isMassivholz(pos)
+
+    // 1. Correct all vkStunde to exact FS Crafted rates
+    for (const a of az) {
+      if (a.kostenstelle in STUNDENSAETZE) a.vkStunde = STUNDENSAETZE[a.kostenstelle]
+    }
+
+    // 2. Fixkosten: enforce presence and minimum minutes
+    for (const [ks, minMin] of Object.entries(FIXKOSTEN_MINIMA)) {
+      const existing = az.find(a => a.kostenstelle === ks)
+      if (existing) {
+        existing.minuten = Math.max(existing.minuten, minMin)
+      } else {
+        az.push({ kostenstelle: ks, minuten: minMin, vkStunde: STUNDENSAETZE[ks] })
+      }
+    }
+
+    // 3. Massivholz: Bekantung must be 0 (solid wood has no glued ABS edges)
+    if (massiv) {
+      const b = az.find(a => a.kostenstelle === '03_03_Bekantung')
+      if (b) b.minuten = 0
+    }
+
+    // 4. Zusammenbau: enforce minimum based on hardware count in description
+    const descText = [pos.beschreibung ?? '', pos.titel ?? ''].join(' ')
+    const hw = countHardware(descText)
+    const minZusammenbau = 80             // corpus base (assemble + back panel)
+      + hw.drehtüren * 20
+      + hw.schiebetüren * 45
+      + hw.klappen * 35
+      + hw.schubladen * 30
+
+    const zb = az.find(a => a.kostenstelle === '03_06_Zusammenbau')
+    if (zb) {
+      zb.minuten = Math.max(zb.minuten, minZusammenbau)
+    } else {
+      az.push({ kostenstelle: '03_06_Zusammenbau', minuten: minZusammenbau, vkStunde: 65 })
+    }
+
+    return { ...pos, arbeitszeit: az }
+  })
+
+  return data
+}
+
+// ---------------------------------------------------------------------------
+
 export async function POST(req: NextRequest) {
   try {
     const { text, imageBase64 } = await req.json()
@@ -464,7 +562,8 @@ export async function POST(req: NextRequest) {
 
     try {
       const parsed = JSON.parse(clean)
-      return NextResponse.json({ success: true, data: parsed })
+      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>)
+      return NextResponse.json({ success: true, data: validated })
     } catch {
       return NextResponse.json(
         { success: false, error: 'JSON Parse Fehler', raw: rawText.slice(0, 300) },
