@@ -12,6 +12,26 @@ import {
 } from '@/lib/types'
 import { buildPDF } from '@/lib/pdf'
 
+/* ── Lieferanten-Typen ────────────────────────────── */
+type LieferantContact = {
+  id: string
+  first_name: string
+  last_name: string
+  email: string | null
+  phone: string | null
+  position: string | null
+  is_primary: boolean
+}
+type Lieferant = {
+  id: string
+  company_name: string
+  general_email: string | null
+  phone: string | null
+  website: string | null
+  notes: string | null
+  supplier_contacts: LieferantContact[]
+}
+
 /* ── Primitive UI ─────────────────────────────────── */
 const Lbl = ({ children, c }: { children: React.ReactNode; c?: string }) => (
   <div style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: c || C.textMid, marginBottom: 5 }}>
@@ -87,6 +107,13 @@ export default function CraftFlow() {
   const [anschr, setAnschr] = useState('herzlichen Dank für Ihren Auftrag, den wir hiermit gerne bestätigen:')
   const [widerruf, setWiderruf] = useState(true)
   const [pdfHTML, setPdfHTML] = useState('')
+
+  // Lieferanten Tab
+  const [kategorien, setKategorien] = useState<{ id: string; name: string }[]>([])
+  const [lieferantenKat, setLieferantenKat] = useState('')
+  const [lieferanten, setLieferanten] = useState<Lieferant[]>([])
+  const [lieferantenStatus, setLieferantenStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [draftStatus, setDraftStatus] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
 
   // Start Screen State
   const [startText, setStartText] = useState('')
@@ -309,6 +336,48 @@ export default function CraftFlow() {
     }
   }, [startText, startBildB64, callAI])
 
+  const loadKategorien = useCallback(async () => {
+    try {
+      const res = await fetch('/api/suppliers/categories')
+      const json = await res.json()
+      if (json.categories) setKategorien(json.categories)
+    } catch { /* ignorieren */ }
+  }, [])
+
+  const loadLieferanten = useCallback(async (kat: string) => {
+    if (!kat) { setLieferanten([]); return }
+    setLieferantenStatus('loading')
+    setDraftStatus({})
+    try {
+      const res = await fetch(`/api/suppliers?category=${encodeURIComponent(kat)}`)
+      const json = await res.json()
+      setLieferanten(json.suppliers || [])
+      setLieferantenStatus('idle')
+    } catch {
+      setLieferantenStatus('error')
+    }
+  }, [])
+
+  const createDraft = useCallback(async (supplierId: string) => {
+    setDraftStatus(prev => ({ ...prev, [supplierId]: 'loading' }))
+    try {
+      const res = await fetch('/api/suppliers/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supplierId, variables: { projekt: kunde.projekt || '' } }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setDraftStatus(prev => ({ ...prev, [supplierId]: 'done' }))
+    } catch {
+      setDraftStatus(prev => ({ ...prev, [supplierId]: 'error' }))
+    }
+  }, [kunde.projekt])
+
+  useEffect(() => {
+    if (tab === 'lieferanten' && kategorien.length === 0) loadKategorien()
+  }, [tab, kategorien.length, loadKategorien])
+
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
   ══════════════════════════════════════════════════ */
@@ -516,9 +585,10 @@ export default function CraftFlow() {
      SCREEN: APP (3 Tabs)
   ══════════════════════════════════════════════════ */
   const TABS = [
-    { id: 'kunde',      label: '👤 Kunde' },
-    { id: 'kalkulation', label: '🔢 Kalkulation' },
-    { id: 'angebot',    label: '📄 Angebot' },
+    { id: 'kunde',        label: '👤 Kunde' },
+    { id: 'kalkulation',  label: '🔢 Kalkulation' },
+    { id: 'angebot',      label: '📄 Angebot' },
+    { id: 'lieferanten',  label: '🏭 Lieferanten' },
   ]
 
   return (
@@ -874,6 +944,97 @@ export default function CraftFlow() {
             }} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: 'pointer' }}>
               ▶ DOKUMENT ALS PDF ANZEIGEN
             </button>
+          </div>
+        )}
+
+        {/* ══ LIEFERANTEN ══ */}
+        {tab === 'lieferanten' && (
+          <div>
+            <Card accent={C.copper}>
+              <div style={{ padding: '12px 16px' }}>
+                <Lbl>Produktkategorie</Lbl>
+                <select
+                  value={lieferantenKat}
+                  onChange={e => { setLieferantenKat(e.target.value); loadLieferanten(e.target.value) }}
+                  style={{ width: '100%', padding: '9px 11px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 13, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                >
+                  <option value="">– Kategorie wählen –</option>
+                  {kategorien.map(k => (
+                    <option key={k.id} value={k.name}>{k.name}</option>
+                  ))}
+                </select>
+              </div>
+            </Card>
+
+            {lieferantenStatus === 'loading' && (
+              <div style={{ textAlign: 'center', color: C.textMid, padding: '24px 0', fontSize: 13 }}>
+                Lade Lieferanten…
+              </div>
+            )}
+
+            {lieferantenStatus === 'error' && (
+              <div style={{ background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 4, padding: '12px 16px', fontSize: 13, color: '#ff9999', marginBottom: 12 }}>
+                Fehler beim Laden der Lieferanten.
+              </div>
+            )}
+
+            {lieferanten.map(l => {
+              const primary = l.supplier_contacts?.find(c => c.is_primary) ?? l.supplier_contacts?.[0] ?? null
+              const email = primary?.email ?? l.general_email
+              const ds = draftStatus[l.id] ?? 'idle'
+
+              return (
+                <Card key={l.id}>
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: C.white, marginBottom: 4 }}>
+                      {l.company_name}
+                    </div>
+                    {primary && (
+                      <div style={{ fontSize: 12, color: C.textMid, marginBottom: 2 }}>
+                        {primary.first_name} {primary.last_name}
+                        {primary.position && <span style={{ color: C.border }}> · {primary.position}</span>}
+                      </div>
+                    )}
+                    {email && <div style={{ fontSize: 11, color: C.textMid, marginBottom: 2 }}>{email}</div>}
+                    {l.phone && <div style={{ fontSize: 11, color: C.textMid }}>{l.phone}</div>}
+
+                    <HR my={10} />
+
+                    <button
+                      onClick={() => createDraft(l.id)}
+                      disabled={ds === 'loading' || ds === 'done'}
+                      style={{
+                        width: '100%', padding: '10px 0',
+                        background: ds === 'done' ? '#1a3a1a' : ds === 'error' ? '#2a1a1a' : ds === 'loading' ? C.gray2 : C.copper,
+                        color: ds === 'done' ? '#90EE90' : ds === 'error' ? '#ff9999' : ds === 'loading' ? C.textMid : C.black,
+                        border: `1px solid ${ds === 'done' ? '#3a6a3a' : ds === 'error' ? '#4a2a2a' : 'transparent'}`,
+                        borderRadius: 3,
+                        cursor: ds === 'loading' || ds === 'done' ? 'default' : 'pointer',
+                        fontSize: 12, fontWeight: 700, letterSpacing: 1,
+                        fontFamily: 'Helvetica Neue,sans-serif',
+                      }}
+                    >
+                      {ds === 'idle' && '✉ ANFRAGE-DRAFT IN GMAIL ERSTELLEN'}
+                      {ds === 'loading' && '⟳ Wird erstellt…'}
+                      {ds === 'done' && '✓ Draft in Gmail erstellt'}
+                      {ds === 'error' && '⚠ Fehler – erneut versuchen'}
+                    </button>
+                  </div>
+                </Card>
+              )
+            })}
+
+            {lieferantenStatus === 'idle' && lieferantenKat && lieferanten.length === 0 && (
+              <div style={{ textAlign: 'center', color: C.textMid, padding: '24px 0', fontSize: 13 }}>
+                Keine Lieferanten für diese Kategorie.
+              </div>
+            )}
+
+            {!lieferantenKat && (
+              <div style={{ textAlign: 'center', color: C.textMid, padding: '24px 0', fontSize: 13 }}>
+                Bitte Produktkategorie wählen.
+              </div>
+            )}
           </div>
         )}
 
