@@ -113,43 +113,63 @@ LED-Beleuchtung (pro Schrank/Position):
 - 02_01_Konstruktion zusätzlich: 30 min (Kabelführung planen)
 - 03_06_Zusammenbau zusätzlich: 45 min Einbau
 
-Massivholz-Aufschlag gegenüber Dekormöbel: +30–60 % Mehrzeit
-- Verleimen Massivholzplatten (je m² Leimfläche): 30–60 min
-- Hobeln + Abrichten (je lfdm): 3–8 min
-- Profilieren / Fräsen (je lfdm): 5–15 min
+MASSIVHOLZ – PFLICHTRECHNUNG (immer durchführen wenn Material = Massivholz):
+Schritt 1: Basis-Produktionszeit = Anzahl lfm × 5 h/lfm (Mittelwert 4–6 h/lfm raumhoch)
+Schritt 2: Holzart-Faktor anwenden (siehe Tabelle unten):
+  Fichte/Kiefer: ×1,0 | Buche: ×1,15 | Eiche: ×1,3 | Nussbaum: ×1,4 | Kirsche: ×1,3
+Schritt 3: Ergebnis aufteilen auf 03_02_Zuschnitt (40 %) und 03_06_Zusammenbau (60 %)
+Schritt 4: Zusätzlich Verleimen einplanen: 45 min je m² Leimfläche (in 03_06_Zusammenbau)
 
-Plausibilitätscheck Gesamtzeit:
-- 1-türiger einfacher Schrank: 4–6 h Produktion gesamt
-- 3-türiger Schrank mit 3 Schubladen: 8–12 h Produktion gesamt
-- Küchenanlage / Büroanlage 4 m: 20–30 h Produktion gesamt
+Beispiel Massivholz Eiche, 3,6 lfm raumhoch:
+  Basis: 3,6 × 5 h = 18 h × 1,3 (Eiche) = 23,4 h = 1.404 min
+  03_02_Zuschnitt: 562 min | 03_06_Zusammenbau: 842 min
+
+Zusätzliche Massivholz-Einzelwerte:
+- Verleimen Massivholzplatten (je m² Leimfläche): 30–60 min → in 03_06_Zusammenbau
+- Hobeln + Abrichten (je lfdm): 3–8 min → in 03_02_Zuschnitt
+- Profilieren / Fräsen (je lfdm): 5–15 min → in 03_04_CNC
+
+Plausibilitätscheck Gesamtzeit Werkstatt:
+- 1-türiger einfacher Schrank Dekor: 4–6 h
+- 1-türiger einfacher Schrank Massivholz Eiche: 6–9 h
+- 3-türiger Schrank mit 3 Schubladen Dekor: 8–12 h
+- 3-türiger Schrank mit 3 Schubladen Massivholz Eiche: 12–18 h
+- Einbauschrank 3,6 lfm raumhoch Massivholz Eiche: 20–28 h Werkstatt
 
 ---
 
 ## ZEITRICHTWERTE OBERFLÄCHE (03_05_Oberflaechenbehandlung)
 
-Schleifen:
-- Exzenter- / Bandschleifer (je m²): 8–15 min/m²
-- Handschliff Feinarbeit (je m²): 15–25 min/m²
-- Zwischenschliff nach 1. Lackauftrag (je m²): 5–10 min/m²
-- Spachteln + schleifen Hirnholz / Poren (je m²): 20–40 min/m²
+OBERFLÄCHE – PFLICHTRECHNUNG (immer durchführen wenn Massivholz oder Lackierung genannt):
+Schritt 1: Sichtbare Fläche aller Bauteile schätzen (Vorderseiten + sichtbare Seiten, nicht Rückwand)
+Schritt 2: Oberflächen-Minuten/m² nach Technik wählen (siehe unten)
+Schritt 3: Bei Massivholz/Eiche: Holzart-Faktor × Grundierung verdoppeln (+20 min/m² extra)
+Schritt 4: Gesamtminuten = Fläche × Minuten/m² → in 03_05_Oberflaechenbehandlung eintragen
 
-Ölen (Holzöl / Hartwachsöl):
-- 1 Ölauftrag mit Rolle/Tuch (je m²): 6–10 min/m²
-- Einarbeiten + Abziehen (je m²): 5–8 min/m²
-- Komplett ölen (2× Auftrag + Abziehen, je m²): 20–30 min/m²
-- Trocknungszeit zwischen Aufträgen: 8–24 h (produktionsunterbrechend)
-- Achtung: bei beidseitiger Behandlung Zeit verdoppeln
+MINUTEN JE m² NACH OBERFLÄCHE (Pflicht-Richtwerte, nicht unterschreiten):
+- Geölt 1× (Q1): 15 min/m²
+- Geölt 2× / Hartwachsöl komplett (Q2): 28 min/m²
+- Seidenmatt lackiert 3-Schicht (Q2–Q3): 50 min/m²   ← Standardfall wenn "lackiert" ohne weiteres
+- Hochwertig lackiert 3-Schicht + Zwischenschliff (Q3): 65 min/m²
+- Hochglanz (Q4): 100–120 min/m²
 
-Lackieren (Spritzlackierung Wasserlack / PU-Lack):
-- Grundierung spritzen (je m²): 8–12 min/m² inkl. Vorbereitung
-- Decklack spritzen 1 Schicht (je m²): 8–12 min/m²
-- Kompletter Lackaufbau Grundierung + 2× Decklack (je m²): 35–55 min/m² inkl. Zwischenschliff
+Massivholz-Zuschlag Oberfläche (immer extra):
+- Spachteln + Schleifen Hirnholz/Poren: +25 min/m²
+- Doppelte Grundierung auf Eiche/Hirnholz: +15 min/m²
+- → Massivholz Eiche seidenmatt: 50 + 25 + 15 = ca. 90 min/m² gesamt
+
+Beispiel Massivholz Eiche, seidenmatt, ca. 13 m² sichtbare Fläche:
+  13 m² × 90 min/m² = 1.170 min = ca. 19,5 h → 03_05_Oberflaechenbehandlung: 1.170 min
+
+Ölen Details:
+- Komplett ölen 2× (je m²): 20–30 min/m²
+- Trocknungszeit zwischen Aufträgen: 8–24 h (produktionsunterbrechend – als Hinweis im Angebot)
+
+Lackieren Details:
+- Grundierung: 8–12 min/m²
+- Je Decklack-Schicht: 8–12 min/m²
+- Zwischenschliff: 5–10 min/m²
 - Abkleben / Maskieren (je Bauteil): 10–20 min
-- Hochglanzlackierung Nassschliff + Polieren: +20–40 min/m² zusätzlich
-- Beizen vor Lackierung: +8–15 min/m²
-- Praxisregel Seidenmatt (Standard): 3-Schicht = ca. 50 min/m² gesamt
-- Praxisregel Hochglanz: 3-Schicht + Nassschliff + Polieren = ca. 90–120 min/m²
-- Grundierung auf Massivholz/Hirnholz: oft 2× Grundierung nötig → Zeit verdoppeln
 
 ---
 
