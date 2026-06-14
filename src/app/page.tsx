@@ -108,6 +108,8 @@ export default function CraftFlow() {
   const [startText, setStartText] = useState('')
   const [startBild, setStartBild] = useState<string | null>(null)
   const [startBildB64, setStartBildB64] = useState<string | null>(null)
+  const [startPdf, setStartPdf] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
   const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error' | 'fragen'>('idle')
   const [startMsg, setStartMsg] = useState('')
 
@@ -185,6 +187,31 @@ export default function CraftFlow() {
       reader.readAsDataURL(file)
     }
   }, [compressImage])
+
+  const handlePdfUpload = useCallback(async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setStartStatus('error')
+      setStartMsg('PDF zu groß. Maximum: 10 MB.')
+      return
+    }
+    setStartPdf(file.name)
+    setPdfLoading(true)
+    setStartStatus('idle')
+    try {
+      const fd = new FormData()
+      fd.append('pdf', file)
+      const res = await fetch('/api/parse-pdf', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setStartText(prev => prev ? prev + '\n\n' + json.text : json.text)
+    } catch (e: unknown) {
+      setStartPdf(null)
+      setStartStatus('error')
+      setStartMsg(e instanceof Error ? e.message : 'PDF konnte nicht gelesen werden.')
+    } finally {
+      setPdfLoading(false)
+    }
+  }, [])
 
   // ── Mikrofon Aufnahme ────────────────────────────────
   const startRecording = useCallback(async () => {
@@ -462,27 +489,41 @@ export default function CraftFlow() {
             </div>
           </div>
 
-          {/* Foto-Button */}
+          {/* Foto / PDF-Button */}
           <div style={{ marginBottom: 14 }}>
             <input
               ref={startFileRef}
-              type="file" accept="image/*"
-              onChange={e => { const f = e.target.files?.[0]; if (f) loadBild(f) }}
+              type="file" accept="image/*,application/pdf"
+              onChange={e => {
+                const f = e.target.files?.[0]
+                if (!f) return
+                if (f.type === 'application/pdf') handlePdfUpload(f)
+                else loadBild(f)
+              }}
               style={{ display: 'none' }}
             />
             <button
               onClick={() => startFileRef.current?.click()}
+              disabled={pdfLoading}
               style={{
                 width: '100%', padding: '16px',
-                background: startBild ? `${C.copper}18` : C.gray1,
-                border: `2px dashed ${startBild ? C.copper : C.border}`,
-                borderRadius: 10, cursor: 'pointer',
+                background: (startBild || startPdf) ? `${C.copper}18` : C.gray1,
+                border: `2px dashed ${(startBild || startPdf) ? C.copper : C.border}`,
+                borderRadius: 10, cursor: pdfLoading ? 'wait' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
               }}
             >
-              <span style={{ fontSize: 28 }}>{startBild ? '✓' : '📷'}</span>
-              <span style={{ color: startBild ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                {startBild ? 'Foto vorhanden – neues aufnehmen' : 'Situationsfoto aufnehmen oder auswählen'}
+              <span style={{ fontSize: 28 }}>
+                {pdfLoading ? '⟳' : startBild ? '✓' : startPdf ? '📄' : '📷'}
+              </span>
+              <span style={{ color: (startBild || startPdf) ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                {pdfLoading
+                  ? 'PDF wird verarbeitet…'
+                  : startBild
+                  ? 'Foto vorhanden – neues aufnehmen'
+                  : startPdf
+                  ? `${startPdf} – neues hochladen`
+                  : 'Foto oder PDF hochladen'}
               </span>
             </button>
             {startBild && (
@@ -491,6 +532,17 @@ export default function CraftFlow() {
                 <button
                   onClick={() => { setStartBild(null); setStartBildB64(null) }}
                   style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}
+                >
+                  × Entfernen
+                </button>
+              </div>
+            )}
+            {startPdf && !pdfLoading && (
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ fontSize: 11, color: C.textMid }}>Text aus PDF in Eingabefeld übernommen</div>
+                <button
+                  onClick={() => setStartPdf(null)}
+                  style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', flexShrink: 0 }}
                 >
                   × Entfernen
                 </button>
