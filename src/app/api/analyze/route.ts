@@ -575,14 +575,37 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
 
 // ---------------------------------------------------------------------------
 
+// 1 MB base64 ≈ 750 KB binary — bleibt gut unter Vercel-Limit und Groq-Limit
+const MAX_IMAGE_B64_BYTES = 1_000_000
+
 export async function POST(req: NextRequest) {
   try {
+    // Guard: Vercel limit ist 4.5 MB body
+    const contentLength = Number(req.headers.get('content-length') ?? 0)
+    console.log('[analyze] content-length:', contentLength, 'bytes')
+    if (contentLength > 4_000_000) {
+      console.error('[analyze] request too large:', contentLength)
+      return NextResponse.json({ error: 'Anfrage zu groß – bitte weniger oder kleinere Bilder verwenden.' }, { status: 413 })
+    }
+
     const { text, imageBase64 } = await req.json()
-    const images: string[] = Array.isArray(imageBase64)
+    const rawImages: string[] = Array.isArray(imageBase64)
       ? imageBase64.filter(Boolean)
       : imageBase64
       ? [imageBase64]
       : []
+
+    // Bilder auf max. 1 MB base64 begrenzen; zu große still überspringen
+    const images = rawImages.filter(img => {
+      const size = img.length
+      if (size > MAX_IMAGE_B64_BYTES) {
+        console.error('[analyze] image dropped — too large:', Math.round(size / 1024), 'KB')
+        return false
+      }
+      return true
+    })
+
+    console.log('[analyze] images:', images.length, '(raw:', rawImages.length, '), text len:', text?.length ?? 0)
 
     if (!text && images.length === 0) {
       return NextResponse.json({ error: 'Kein Text oder Bild' }, { status: 400 })
@@ -621,28 +644,28 @@ export async function POST(req: NextRequest) {
       ]
     }
 
+    console.log('[analyze] calling Groq model:', model)
+    const groqBody = JSON.stringify({ model, messages, temperature: 0.2, max_tokens: 3000 })
+    console.log('[analyze] Groq request body size:', Math.round(groqBody.length / 1024), 'KB')
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.2,
-        max_tokens: 3000,
-      }),
+      body: groqBody,
     })
 
     if (!response.ok) {
       const err = await response.text()
-      console.error('Groq Fehler:', response.status, response.statusText, err)
-      throw new Error(`Groq Fehler: ${response.status} – ${err}`)
+      console.error('[analyze] Groq error:', response.status, err.slice(0, 500))
+      throw new Error(`Groq Fehler ${response.status}: ${err.slice(0, 300)}`)
     }
 
     const data = await response.json()
     const rawText = data.choices?.[0]?.message?.content || ''
+    console.log('[analyze] Groq response length:', rawText.length)
     const clean = rawText.replace(/```json|```/g, '').trim()
 
     try {
@@ -650,6 +673,7 @@ export async function POST(req: NextRequest) {
       const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '')
       return NextResponse.json({ success: true, data: validated })
     } catch {
+      console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))
       return NextResponse.json(
         { success: false, error: 'JSON Parse Fehler', raw: rawText.slice(0, 300) },
         { status: 500 }
@@ -657,6 +681,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
+    console.error('[analyze] unhandled error:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

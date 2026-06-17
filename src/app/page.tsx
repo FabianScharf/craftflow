@@ -29,7 +29,7 @@ type UploadedFile = {
 /* ── PDF-Seiten → JPEG (client-seitig, browser canvas) ── */
 async function renderPdfPages(
   file: File,
-  maxPages = 4
+  maxPages = 2
 ): Promise<Array<{ b64: string; name: string }>> {
   const pdfjsLib = await import('pdfjs-dist')
   if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
@@ -49,7 +49,7 @@ async function renderPdfPages(
     canvas.width = Math.round(viewport.width)
     canvas.height = Math.round(viewport.height)
     await page.render({ canvasContext: canvas.getContext('2d')!, canvas, viewport }).promise
-    const b64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1]
+    const b64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1]
     const label = pdf.numPages === 1 ? file.name : `${file.name} – S.${i}/${pdf.numPages}`
     results.push({ b64, name: label })
   }
