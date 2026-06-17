@@ -145,8 +145,19 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseClient()
 
+    // Diagnostics: log which Supabase project and key type is being used
+    const supabaseUrl = process.env.SUPABASE_URL ?? ''
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+    console.log('[inquiry] SUPABASE_URL:', supabaseUrl.substring(0, 50) || 'MISSING')
+    console.log('[inquiry] KEY_LENGTH:', supabaseKey.length)
+    try {
+      const payload = JSON.parse(Buffer.from(supabaseKey.split('.')[1] ?? '', 'base64').toString())
+      console.log('[inquiry] KEY_ROLE:', payload.role ?? 'unknown')
+    } catch { console.log('[inquiry] KEY_ROLE: JWT decode failed') }
+
     // 1. Load all product categories
     const { data: allCats, error: catsErr } = await supabase.from('product_categories').select('id, name')
+    console.log('[inquiry] categories query: count=', allCats?.length ?? 'null', 'error=', catsErr?.message ?? 'none', 'code=', catsErr?.code ?? 'none')
     if (catsErr) {
       console.error('[inquiry] Supabase product_categories query failed:', catsErr.message)
     }
@@ -154,7 +165,7 @@ export async function POST(req: NextRequest) {
 
     // If no categories in DB: skip DB lookup entirely, go straight to AI suggestions.
     if (!catNames.length) {
-      console.error('[inquiry] product_categories table is empty — falling back to direct AI suggestions')
+      console.error('[inquiry] product_categories table is empty or blocked — falling back to direct AI suggestions')
       const suggestions = await aiSuggestDirect(materials)
       return NextResponse.json({
         drafts: [],
