@@ -119,6 +119,8 @@ export default function CraftFlow() {
   const [uploadingCount, setUploadingCount] = useState(0)
   const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error' | 'fragen'>('idle')
   const [startMsg, setStartMsg] = useState('')
+  const [saveCustomerStatus, setSaveCustomerStatus] = useState<'idle' | 'saving' | 'saved' | 'duplicate' | 'error'>('idle')
+  const [saveCustomerMsg, setSaveCustomerMsg] = useState('')
 
   // Mikrofon State
   const [micStatus, setMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
@@ -283,6 +285,57 @@ export default function CraftFlow() {
     if (micStatus === 'recording') stopRecording()
     else if (micStatus === 'idle') startRecording()
   }, [micStatus, startRecording, stopRecording])
+
+  const resetAll = useCallback(() => {
+    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+    setStartText('')
+    setUploadedFiles([])
+    setUploadingCount(0)
+    setStartStatus('idle')
+    setStartMsg('')
+    setMicStatus('idle')
+    setKunde({ name: '', zusatz: '', strasse: '', ort: '', projekt: '' })
+    setPos([defaultAngebotspos(Date.now())])
+    setDocNr('AB-264')
+    setDocTyp('Auftragsbestätigung')
+    setAnschr('herzlichen Dank für Ihren Auftrag, den wir hiermit gerne bestätigen:')
+    setWiderruf(true)
+    setSaveCustomerStatus('idle')
+    setSaveCustomerMsg('')
+    setSelectedMats({})
+    setInquiryStatus({})
+    setInquiryResult({})
+    setSavedSuggestions({})
+    setScreen('start')
+  }, [])
+
+  const saveCustomerToDb = useCallback(async () => {
+    setSaveCustomerStatus('saving')
+    setSaveCustomerMsg('')
+    try {
+      const ortParts = kunde.ort.trim().split(/\s+/)
+      const zip = /^\d{4,5}$/.test(ortParts[0] ?? '') ? ortParts[0] : ''
+      const city = zip ? ortParts.slice(1).join(' ') : kunde.ort
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: kunde.name, street: kunde.strasse, zip, city }),
+      })
+      const json = await res.json()
+      if (json.duplicate) {
+        setSaveCustomerStatus('duplicate')
+        setSaveCustomerMsg('Bereits vorhanden (gleicher Name + PLZ).')
+      } else if (!res.ok) {
+        setSaveCustomerStatus('error')
+        setSaveCustomerMsg(json.error || 'Fehler beim Speichern.')
+      } else {
+        setSaveCustomerStatus('saved')
+      }
+    } catch {
+      setSaveCustomerStatus('error')
+      setSaveCustomerMsg('Verbindungsfehler.')
+    }
+  }, [kunde])
 
   // ── KI Analyse ─────────────────────────────────────
   const callAI = useCallback(async (text: string, imageB64s: string[]) => {
@@ -453,8 +506,13 @@ export default function CraftFlow() {
               <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 2 }}>FS CRAFTED</div>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ color: C.textMid, fontSize: 12 }}>{today()}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <button
+              onClick={resetAll}
+              style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 6, padding: '10px 18px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.5 }}
+            >
+              + Neues Projekt
+            </button>
             <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
           </div>
         </div>
@@ -650,13 +708,19 @@ export default function CraftFlow() {
             <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 2 }}>FS CRAFTED</div>
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {kunde.name || 'Neues Projekt'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {kunde.name || '–'}
+            </div>
+            <div style={{ color: C.textMid, fontSize: 9 }}>{docNr} · {today()}</div>
           </div>
-          <div style={{ color: C.textMid, fontSize: 10 }}>{docNr} · {today()}</div>
-          <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
-          <div onClick={() => setScreen('start')} style={{ color: C.textMid, fontSize: 9, cursor: 'pointer', textDecoration: 'underline', marginTop: 2 }}>← Neu</div>
+          <button
+            onClick={() => setScreen('start')}
+            style={{ background: C.gray1, color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 6, padding: '10px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, whiteSpace: 'nowrap' }}
+          >
+            ← Zurück
+          </button>
         </div>
       </div>
 
@@ -698,16 +762,30 @@ export default function CraftFlow() {
             </Card>
 
             {kunde.name && (
-              <button
-                onClick={() => {
-                  const neu: KundeDB = { id: Date.now(), ...kunde, typ: 'Privat' }
-                  const updated = [...kunden, neu]
-                  setKunden(updated); speichereKunden(updated)
-                }}
-                style={{ width: '100%', background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '11px 0', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 12 }}
-              >
-                + In Kundendatenbank speichern
-              </button>
+              <div style={{ marginBottom: 12 }}>
+                <button
+                  onClick={saveCustomerToDb}
+                  disabled={saveCustomerStatus === 'saving' || saveCustomerStatus === 'saved'}
+                  style={{
+                    width: '100%',
+                    background: saveCustomerStatus === 'saved' ? '#1a3a1a' : 'transparent',
+                    color: saveCustomerStatus === 'saved' ? '#90EE90' : saveCustomerStatus === 'saving' ? C.textMid : C.copper,
+                    border: `1px solid ${saveCustomerStatus === 'saved' ? '#3a6a3a' : saveCustomerStatus === 'duplicate' || saveCustomerStatus === 'error' ? '#8b2222' : C.copper}`,
+                    borderRadius: 4, padding: '11px 0',
+                    cursor: saveCustomerStatus === 'saving' || saveCustomerStatus === 'saved' ? 'default' : 'pointer',
+                    fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif',
+                  }}
+                >
+                  {saveCustomerStatus === 'saving' && '⟳ Wird gespeichert…'}
+                  {saveCustomerStatus === 'saved' && '✓ In Kundendatenbank gespeichert'}
+                  {(saveCustomerStatus === 'idle' || saveCustomerStatus === 'duplicate' || saveCustomerStatus === 'error') && '+ In Kundendatenbank speichern'}
+                </button>
+                {(saveCustomerStatus === 'duplicate' || saveCustomerStatus === 'error') && (
+                  <div style={{ marginTop: 6, fontSize: 11, color: '#ff9999', padding: '6px 10px', background: '#1a0d0d', borderRadius: 3, border: '1px solid #4a2020' }}>
+                    {saveCustomerStatus === 'duplicate' ? '⚠ Bereits vorhanden (gleicher Name + PLZ).' : `✕ ${saveCustomerMsg}`}
+                  </div>
+                )}
+              </div>
             )}
 
             <button
