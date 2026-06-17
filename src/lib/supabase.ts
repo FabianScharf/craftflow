@@ -46,7 +46,10 @@ export function getSupabaseClient() {
   if (!url || !key) throw new Error('Supabase-Konfiguration fehlt (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)')
   return createClient(url, key, {
     global: {
-      headers: { apikey: key },
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
     },
   })
 }
