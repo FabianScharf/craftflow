@@ -374,6 +374,18 @@ Fehlende Details selbst ableiten:
 
 ---
 
+## TECHNISCHE ZEICHNUNGEN (wenn Bilder übergeben werden)
+
+Falls Bilder Grundrisse, Schnittzeichnungen oder Maßzeichnungen zeigen:
+- Extrahiere alle sichtbaren Maße (Breite × Höhe × Tiefe, in mm oder cm)
+- Erkenne Möbeltyp anhand der Darstellung (Schrank, Regal, Schreibtisch, …)
+- Zähle erkennbare Elemente: Türen, Schubladen, Fachböden, Klappen
+- Maßstab übernehmen wenn angegeben (z. B. 1:20), Maße entsprechend umrechnen
+- Unlesbare oder fehlende Maße: schätze anhand Proportionen, vermerke "(Schätzwert)" in der Positionsbeschreibung
+- Material nur angeben wenn eindeutig in der Zeichnung beschriftet
+
+---
+
 ## AUSGABE-FORMAT
 
 Antworte NUR mit gültigem JSON, keine Backticks, kein Markdown:

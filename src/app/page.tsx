@@ -26,6 +26,36 @@ type UploadedFile = {
   b64?: string
 }
 
+/* ── PDF-Seiten → JPEG (client-seitig, browser canvas) ── */
+async function renderPdfPages(
+  file: File,
+  maxPages = 4
+): Promise<Array<{ b64: string; name: string }>> {
+  const pdfjsLib = await import('pdfjs-dist')
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
+  }
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
+  const total = Math.min(pdf.numPages, maxPages)
+  const results: Array<{ b64: string; name: string }> = []
+  for (let i = 1; i <= total; i++) {
+    const page = await pdf.getPage(i)
+    const baseVp = page.getViewport({ scale: 1 })
+    const scale = Math.min(2.0, 1500 / baseVp.width)
+    const viewport = page.getViewport({ scale })
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(viewport.width)
+    canvas.height = Math.round(viewport.height)
+    await page.render({ canvasContext: canvas.getContext('2d')!, canvas, viewport }).promise
+    const b64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1]
+    const label = pdf.numPages === 1 ? file.name : `${file.name} – S.${i}/${pdf.numPages}`
+    results.push({ b64, name: label })
+  }
+  return results
+}
+
 /* ── Primitive UI ─────────────────────────────────── */
 const Lbl = ({ children, c }: { children: React.ReactNode; c?: string }) => (
   <div style={{ fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: c || C.textMid, marginBottom: 5 }}>
@@ -209,27 +239,49 @@ export default function CraftFlow() {
       setStartMsg('PDF zu groß. Maximum: 10 MB.')
       return
     }
-    const id = Date.now() + Math.round(Math.random() * 1000)
-    setUploadedFiles(prev => [...prev, { id, name: file.name, type: 'pdf' }])
+    const pdfId = Date.now() + Math.round(Math.random() * 1000)
+    setUploadedFiles(prev => [...prev, { id: pdfId, name: file.name, type: 'pdf' }])
     setUploadingCount(prev => prev + 1)
     setStartStatus('idle')
-    try {
-      const fd = new FormData()
-      fd.append('pdf', file)
-      const res = await fetch('/api/parse-pdf', { method: 'POST', body: fd })
-      const json = await res.json()
-      if (!res.ok) {
-        setUploadedFiles(prev => prev.filter(f => f.id !== id))
-        throw new Error(json.error)
-      }
-      setStartText(prev => prev ? prev + '\n\n' + json.text : json.text)
-    } catch (e: unknown) {
-      setUploadedFiles(prev => prev.filter(f => f.id !== id))
-      setStartStatus('error')
-      setStartMsg(e instanceof Error ? e.message : 'PDF konnte nicht gelesen werden.')
-    } finally {
-      setUploadingCount(prev => prev - 1)
+
+    // Text-Extraktion (Server) und Seiten-Rendering (Browser) parallel
+    const [textRes, pagesRes] = await Promise.allSettled([
+      (async () => {
+        const fd = new FormData()
+        fd.append('pdf', file)
+        const r = await fetch('/api/parse-pdf', { method: 'POST', body: fd })
+        return r.json()
+      })(),
+      renderPdfPages(file),
+    ])
+
+    // Text in Textarea einfügen (wenn vorhanden)
+    if (textRes.status === 'fulfilled' && textRes.value?.text) {
+      setStartText(prev => prev ? prev + '\n\n' + textRes.value.text : textRes.value.text)
     }
+
+    // PDF-Platzhalter durch Seiten-Thumbnails ersetzen
+    if (pagesRes.status === 'fulfilled' && pagesRes.value.length > 0) {
+      setUploadedFiles(prev => prev.filter(f => f.id !== pdfId))
+      for (const { b64, name } of pagesRes.value) {
+        const imgId = Date.now() + Math.round(Math.random() * 1000)
+        setUploadedFiles(prev => [
+          ...prev,
+          { id: imgId, name, type: 'image', previewUrl: `data:image/jpeg;base64,${b64}`, b64 },
+        ])
+      }
+    } else if (pagesRes.status === 'rejected') {
+      // Rendering fehlgeschlagen — PDF-Platzhalter bleibt, Text-Fallback greift
+      console.error('[renderPdfPages]', pagesRes.reason)
+      // Wenn auch Text fehlgeschlagen: Fehlermeldung anzeigen
+      if (textRes.status === 'rejected' || textRes.value?.error) {
+        setUploadedFiles(prev => prev.filter(f => f.id !== pdfId))
+        setStartStatus('error')
+        setStartMsg('PDF konnte nicht verarbeitet werden.')
+      }
+    }
+
+    setUploadingCount(prev => prev - 1)
   }, [])
 
   // ── Mikrofon Aufnahme ────────────────────────────────
