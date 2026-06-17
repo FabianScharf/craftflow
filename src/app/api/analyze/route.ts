@@ -12,7 +12,7 @@ Fehlt MATERIAL oder eine DIMENSION vollständig, antworte AUSSCHLIESSLICH mit:
 {"fragen":["Konkrete Frage"]}
 Kein Angebot, keine Positionen, kein weiterer Text.
 
-### STOPP NUR WENN eines dieser zwei Probleme vorliegt:
+### STOPP NUR WENN eines dieser drei Probleme vorliegt:
 
 **PROBLEM A – MATERIAL fehlt komplett:**
 Kein einziges dieser Wörter oder Synonyme taucht im Text auf:
@@ -25,6 +25,12 @@ Mindestens eine der drei Dimensionen (Breite, Höhe, Tiefe) fehlt vollständig.
 → Dann NUR nach der fehlenden Dimension fragen.
 → NICHT fragen wenn alle drei Maße vorhanden, auch wenn in cm oder m statt mm.
 
+**PROBLEM C – Kundenadresse fehlt:**
+Weder Straße noch Ort noch Ortsname taucht im Text auf.
+→ Dann fragen: "Wie lautet die Lieferadresse des Kunden (Straße, Ort)?"
+→ NICHT fragen wenn mindestens ein Ortsname oder eine Straße erkennbar ist.
+→ Stadtname allein (z.B. "Schöllkrippen", "Frankfurt") reicht aus – dann Anfahrt ab Rodenbach schätzen.
+
 ### BEI ALLEM ANDEREN → SCHÄTZEN, NICHT FRAGEN:
 
 **Ausstattung (Türen, Klappen, Schubladen):**
@@ -32,11 +38,6 @@ Mindestens eine der drei Dimensionen (Breite, Höhe, Tiefe) fehlt vollständig.
 → Erfüllt wenn eines dieser Wörter vorkommt: Tür, Türen, Klappe, Klappen, Schublade,
   Schubladen, Front, Fronten, Schwebetür, Schwebetüren, Schiebetür, Schiebetüren, Griff
 → Sonst: aus Möbeltyp und Maßen selbst ableiten, in Beschreibung "(nach Aufmaß)" vermerken.
-
-**Montageadresse:**
-→ KEIN Pflichtpunkt. Nie automatisch danach fragen.
-→ Wenn nur Stadtname/Ort: Anfahrt ab Rodenbach schätzen.
-→ Wenn kein Ort vorhanden: Anfahrt weglassen.
 
 **Kundenname:**
 → Wenn erkennbar: verwenden. Wenn nicht vorhanden: "Kunde" eintragen.
@@ -176,6 +177,21 @@ Schritt 4: Zusätzlich Verleimen einplanen: 45 min je m² Leimfläche (in 03_06_
 Beispiel Massivholz Eiche, 3,6 lfm raumhoch:
   Basis: 3,6 × 5 h = 18 h × 1,3 (Eiche) = 23,4 h = 1.404 min
   03_02_Zuschnitt: 562 min | 03_06_Zusammenbau: 842 min
+
+DEKORMÖBEL – PFLICHTRECHNUNG (immer wenn Material = Spanplatte / MDF / Dekor / Melamin):
+Schritt 1: Laufmeter = Breite des Möbels in Meter (z.B. 2,40 m breit = 2,4 lfm)
+Schritt 2: Werkstattzeit gesamt = Laufmeter × 4,5 h/lfm
+Schritt 3: Aufteilen: 40 % → 03_02_Zuschnitt, 60 % → 03_06_Zusammenbau
+  (Beschläge kommen in Schritt 4 oben drauf)
+
+Beispiel Dekormöbel Einbauschrank 3,6 lfm raumhoch:
+  Basis: 3,6 × 4,5 h = 16,2 h = 972 min
+  03_02_Zuschnitt: 389 min | 03_06_Zusammenbau: 583 min (+ Beschläge)
+
+PLAUSIBILITÄTSPRÜFUNG – PFLICHT nach jeder Kalkulation:
+Gesamtpreis je Position = Materialkosten (EK × 1,30) + Σ (Minuten / 60 × Stundensatz)
+Mindestpreis je Position: Laufmeter × 800 € netto
+Falls Gesamtpreis unter diesem Mindest → Werkstattzeiten proportional erhöhen bis Preis stimmt.
 
 Zusätzliche Massivholz-Einzelwerte:
 - Verleimen Massivholzplatten (je m² Leimfläche): 30–60 min → in 03_06_Zusammenbau
@@ -489,8 +505,33 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
       if (b) b.minuten = 0
     }
 
-    // 4. Zusammenbau: enforce minimum based on hardware count in description
+    // 4. Workshop time floor: lm × 4.5 h (Dekor) or lm × 5 h (Massivholz)
+    //    Scales Zuschnitt + Zusammenbau proportionally when AI is too low.
+    //    Applied before hardware-count check so both constraints stack.
     const descText = [pos.beschreibung ?? '', pos.titel ?? ''].join(' ')
+    const lm = inputLm > 0 ? inputLm : parseLaufmeter(descText)
+    if (lm > 0) {
+      const hPerLm = massiv ? 5 : 4.5
+      const minWorkshopMin = Math.round(lm * hPerLm * 60)
+      const zsItem = az.find(a => a.kostenstelle === '03_02_Zuschnitt')
+      const zbItem = az.find(a => a.kostenstelle === '03_06_Zusammenbau')
+      const currentWorkshop = (zsItem?.minuten ?? 0) + (zbItem?.minuten ?? 0)
+      if (currentWorkshop < minWorkshopMin) {
+        const scale = minWorkshopMin / Math.max(currentWorkshop, 1)
+        if (zsItem) {
+          zsItem.minuten = Math.round(zsItem.minuten * scale)
+        } else {
+          az.push({ kostenstelle: '03_02_Zuschnitt', minuten: Math.round(minWorkshopMin * 0.4), vkStunde: 72 })
+        }
+        if (zbItem) {
+          zbItem.minuten = Math.round(zbItem.minuten * scale)
+        } else {
+          az.push({ kostenstelle: '03_06_Zusammenbau', minuten: Math.round(minWorkshopMin * 0.6), vkStunde: 65 })
+        }
+      }
+    }
+
+    // 5. Zusammenbau: enforce minimum based on hardware count in description
     const hw = countHardware(descText)
     const minZusammenbau = 80             // corpus base (assemble + back panel)
       + hw.drehtüren * 20
@@ -505,17 +546,13 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
       az.push({ kostenstelle: '03_06_Zusammenbau', minuten: minZusammenbau, vkStunde: 65 })
     }
 
-    // 5. Montage: enforce minimum only when 05_01_Montage already present
+    // 6. Montage: enforce minimum only when 05_01_Montage already present
     //    (absence means Selbstabholung / kein Einbau — don't add it)
     //    Prefer lm from original input; fall back to AI description.
     //    Minimum = total lm × 90 min/lfm (1.5 h/lfm, Neubau lower bound)
     const montage = az.find(a => a.kostenstelle === '05_01_Montage')
-    if (montage) {
-      const lm = inputLm > 0 ? inputLm : parseLaufmeter(descText)
-      if (lm > 0) {
-        const minMontage = Math.round(lm * 90)
-        montage.minuten = Math.max(montage.minuten, minMontage)
-      }
+    if (montage && lm > 0) {
+      montage.minuten = Math.max(montage.minuten, Math.round(lm * 90))
     }
 
     return { ...pos, arbeitszeit: az }

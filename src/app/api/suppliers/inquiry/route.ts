@@ -127,9 +127,18 @@ Antworte NUR mit gültigem JSON (keine Backticks):
       700
     )
 
-    const catData: { results: { id: number; category: string | null }[] } = JSON.parse(catJson)
+    let catData: { results: { id: number; category: string | null }[] }
+    try {
+      catData = JSON.parse(catJson)
+    } catch {
+      console.error('Groq material categorization returned non-JSON:', catJson)
+      return NextResponse.json(
+        { error: 'KI-Kategorisierung fehlgeschlagen – bitte erneut versuchen.' },
+        { status: 502 }
+      )
+    }
     const matCatMap = new Map(
-      catData.results.filter(r => r.category).map(r => [r.id, r.category!])
+      (catData.results ?? []).filter(r => r.category).map(r => [r.id, r.category!])
     )
 
     const uncategorized = materials
@@ -241,12 +250,16 @@ Kategorien: ${missing.map(m => m.category).join(', ')}
 Antworte NUR mit JSON: { "results": [{ "category": "...", "name": "...", "email": "..." }] }`,
         400
       )
-      const suggestData: {
-        results: { category: string; name: string; email: string }[]
-      } = JSON.parse(suggestJson)
+      let suggestData: { results: { category: string; name: string; email: string }[] }
+      try {
+        suggestData = JSON.parse(suggestJson)
+      } catch {
+        console.error('Groq supplier suggestion returned non-JSON:', suggestJson)
+        suggestData = { results: [] }
+      }
 
       for (const m of missing) {
-        const s = suggestData.results?.find(r => r.category === m.category)
+        const s = (suggestData.results ?? []).find(r => r.category === m.category)
         suggestions.push({
           category: m.category,
           mats: m.mats.map(mat => `${mat.bezeichnung} (${mat.menge} ${mat.einheit})`),
