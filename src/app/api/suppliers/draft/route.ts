@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (supplierErr || !supplier) {
+      console.error('[draft] supplier not found:', supplierId, supplierErr?.message)
       return NextResponse.json({ error: 'Lieferant nicht gefunden' }, { status: 404 })
     }
 
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
     const toEmail = contact?.email ?? supplier.general_email
 
     if (!toEmail) {
+      console.error('[draft] no email for supplier:', supplierId)
       return NextResponse.json(
         { error: 'Kein E-Mail-Empfänger für diesen Lieferanten hinterlegt' },
         { status: 400 }
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
       : await supabase.from('email_templates').select('subject, body').eq('is_default', true).single()
 
     if (templateErr || !template) {
+      console.error('[draft] no email template found, templateId:', templateId ?? 'is_default', templateErr?.message)
       return NextResponse.json({ error: 'Kein E-Mail-Template gefunden' }, { status: 404 })
     }
 
@@ -119,6 +122,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ draftId: draft.id, to: toEmail, subject })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
+    console.error('[draft] unhandled error:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
