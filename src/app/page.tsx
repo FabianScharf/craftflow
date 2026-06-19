@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import NoSleep from 'nosleep.js'
 import {
   C,
@@ -16,6 +16,9 @@ import { buildPDF } from '@/lib/pdf'
 type InquiryDraft = { supplierName: string; email: string; draftId: string | null; materialCount: number }
 type InquirySuggestion = { category: string; mats: string[]; aiName: string; aiEmail: string }
 type InquiryResult = { drafts: InquiryDraft[]; suggestions: InquirySuggestion[]; uncategorized: string[] }
+
+type OptimChatMsg = { role: 'user' | 'assistant'; content: string }
+type OfferVersion = { id: string; version_number: number; created_at: string; description: string | null }
 
 /* ── Upload-Typen ─────────────────────────────────── */
 type UploadedFile = {
@@ -157,6 +160,24 @@ export default function CraftFlow() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const noSleepRef = useRef<NoSleep | null>(null)
+
+  // ── Optimierungs-Panel ──────────────────────────────
+  const [optimPanelOpen, setOptimPanelOpen] = useState(false)
+  const [optimMessages, setOptimMessages] = useState<OptimChatMsg[]>([])
+  const [optimInput, setOptimInput] = useState('')
+  const [optimLoading, setOptimLoading] = useState(false)
+  const [optimMicStatus, setOptimMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
+  const [offerId, setOfferId] = useState<string>(() => crypto.randomUUID())
+  const [versions, setVersions] = useState<OfferVersion[]>([])
+  const [versionsOpen, setVersionsOpen] = useState(false)
+  const optimMediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const optimAudioChunksRef = useRef<Blob[]>([])
+  const optimChatRef = useRef<HTMLDivElement>(null)
+
+  // ── Zentrale Materialanfrage + Export ───────────────
+  const [allInquiryStatus, setAllInquiryStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [allInquiryResult, setAllInquiryResult] = useState<InquiryResult | null>(null)
+  const [copiedFeedback, setCopiedFeedback] = useState(false)
 
   const startFileRef = useRef<HTMLInputElement>(null)
 
@@ -338,8 +359,15 @@ export default function CraftFlow() {
     else if (micStatus === 'idle') startRecording()
   }, [micStatus, startRecording, stopRecording])
 
+  useEffect(() => {
+    if (optimChatRef.current) {
+      optimChatRef.current.scrollTop = optimChatRef.current.scrollHeight
+    }
+  }, [optimMessages])
+
   const resetAll = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+    if (optimMediaRecorderRef.current?.state === 'recording') optimMediaRecorderRef.current.stop()
     setStartText('')
     setUploadedFiles([])
     setUploadingCount(0)
@@ -358,6 +386,17 @@ export default function CraftFlow() {
     setInquiryStatus({})
     setInquiryResult({})
     setSavedSuggestions({})
+    setOptimPanelOpen(false)
+    setOptimMessages([])
+    setOptimInput('')
+    setOptimLoading(false)
+    setOptimMicStatus('idle')
+    setOfferId(crypto.randomUUID())
+    setVersions([])
+    setVersionsOpen(false)
+    setAllInquiryStatus('idle')
+    setAllInquiryResult(null)
+    setCopiedFeedback(false)
     setScreen('start')
   }, [])
 
@@ -505,6 +544,182 @@ export default function CraftFlow() {
     })
     setSavedSuggestions(prev => ({ ...prev, [category]: true }))
   }, [])
+
+  // ── Optimierung-Panel: Mic ──────────────────────────
+  const optimStartRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      const mr = new MediaRecorder(stream, { mimeType })
+      optimAudioChunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) optimAudioChunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setOptimMicStatus('transcribing')
+        try {
+          const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
+          const blob = new Blob(optimAudioChunksRef.current, { type: mimeType })
+          const fd = new FormData()
+          fd.append('audio', blob, `audio.${ext}`)
+          const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+          const json = await res.json()
+          if (json.success && json.text) setOptimInput(prev => prev ? prev + ' ' + json.text : json.text)
+        } catch (e) { console.error('[optim-mic]', e) }
+        setOptimMicStatus('idle')
+      }
+      mr.start()
+      optimMediaRecorderRef.current = mr
+      setOptimMicStatus('recording')
+    } catch {
+      alert('Mikrofon nicht verfügbar. Bitte Zugriff erlauben.')
+    }
+  }, [])
+
+  const optimStopRecording = useCallback(() => {
+    optimMediaRecorderRef.current?.stop()
+    setOptimMicStatus('transcribing')
+  }, [])
+
+  const optimToggleRecording = useCallback(() => {
+    if (optimMicStatus === 'recording') optimStopRecording()
+    else if (optimMicStatus === 'idle') optimStartRecording()
+  }, [optimMicStatus, optimStartRecording, optimStopRecording])
+
+  // ── Optimierung-Panel: Chat + Versionen ─────────────
+  const openOptimPanel = useCallback(async () => {
+    setOptimPanelOpen(true)
+    try {
+      const vRes = await fetch(`/api/offer-versions?offerId=${offerId}`)
+      const vJson = await vRes.json()
+      if (vJson.versions) setVersions(vJson.versions)
+    } catch { /* ignorieren */ }
+    if (optimMessages.length > 0) return
+    setOptimLoading(true)
+    try {
+      const res = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          offerData: { positionen: pos, kunde },
+          chatHistory: [],
+          message: 'Analysiere mein Angebot und liste auf, was noch fehlt oder unklar ist (Holzart, Maße, Oberfläche, Montageort etc.). Sei präzise und konkret.',
+        }),
+      })
+      const json = await res.json()
+      if (json.message) setOptimMessages([{ role: 'assistant', content: json.message }])
+    } catch (e) { console.error('[openOptimPanel]', e) }
+    setOptimLoading(false)
+  }, [offerId, optimMessages.length, pos, kunde])
+
+  const sendOptimMessage = useCallback(async () => {
+    const msg = optimInput.trim()
+    if (!msg || optimLoading) return
+    setOptimInput('')
+    const userMsg: OptimChatMsg = { role: 'user', content: msg }
+    setOptimMessages(prev => [...prev, userMsg])
+    setOptimLoading(true)
+    try {
+      const res = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          offerData: { positionen: pos, kunde },
+          chatHistory: optimMessages,
+          message: msg,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Unbekannter Fehler')
+      setOptimMessages(prev => [...prev, { role: 'assistant', content: json.message ?? '' }])
+      if (json.updatedOffer) {
+        await fetch('/api/offer-versions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offerId, description: msg.slice(0, 60), data: { positionen: pos, kunde } }),
+        })
+        if (json.updatedOffer.positionen) setPos(json.updatedOffer.positionen)
+        if (json.updatedOffer.kunde) setKunde(json.updatedOffer.kunde)
+        const vRes = await fetch(`/api/offer-versions?offerId=${offerId}`)
+        const vJson = await vRes.json()
+        if (vJson.versions) setVersions(vJson.versions)
+      }
+    } catch (e: unknown) {
+      setOptimMessages(prev => [...prev, { role: 'assistant', content: `Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}` }])
+    }
+    setOptimLoading(false)
+  }, [optimInput, optimLoading, optimMessages, pos, kunde, offerId])
+
+  const restoreVersion = useCallback(async (versionId: string) => {
+    try {
+      const res = await fetch(`/api/offer-versions?versionId=${versionId}`)
+      const json = await res.json()
+      if (json.data?.positionen) setPos(json.data.positionen)
+      if (json.data?.kunde) setKunde(json.data.kunde)
+    } catch (e) { console.error('[restoreVersion]', e) }
+  }, [])
+
+  // ── Feature 3: Zentrale Materialanfrage ─────────────
+  const startAllInquiry = useCallback(async () => {
+    const allMats = pos.flatMap(p =>
+      p.material.filter(m => selectedMats[m.id] !== false && m.bezeichnung)
+        .map(m => ({ id: m.id, bezeichnung: m.bezeichnung, menge: m.menge, einheit: m.einheit }))
+    )
+    if (!allMats.length) return
+    setAllInquiryStatus('loading')
+    try {
+      const res = await fetch('/api/suppliers/inquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positionTitel: 'Gesamtanfrage', materials: allMats }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setAllInquiryResult(json as InquiryResult)
+      setAllInquiryStatus('done')
+    } catch {
+      setAllInquiryStatus('error')
+    }
+  }, [pos, selectedMats])
+
+  // ── Feature 4: Export ────────────────────────────────
+  const exportJSON = useCallback(() => {
+    const data = { positionen: pos, kunde, docNr, docTyp, exportedAt: new Date().toISOString() }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const lastName = kunde.name.trim().split(/\s+/).pop() || 'Angebot'
+    a.href = url
+    a.download = `offer_${lastName}_${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [pos, kunde, docNr, docTyp])
+
+  const copyToClipboard = useCallback(async () => {
+    const date = today()
+    const lines: string[] = [
+      `ANGEBOT – ${kunde.name || 'Unbekannt'} – ${date}`,
+      '='.repeat(48),
+      '',
+    ]
+    pos.forEach((p, i) => {
+      const gesamt = calcAngebotspos(p)
+      lines.push(`Position ${i + 1}: ${p.titel}`)
+      if (p.material.length > 0) {
+        lines.push('Material: ' + p.material.map(m => `${m.bezeichnung} (${m.menge} ${m.einheit})`).join(', '))
+      }
+      if (p.arbeitszeit.length > 0) {
+        const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
+        lines.push(`Arbeitszeit: ${(totalMin / 60).toFixed(1)} h`)
+      }
+      lines.push(`Gesamtpreis: ${eur(gesamt)}`)
+      lines.push('')
+    })
+    lines.push('='.repeat(48))
+    lines.push(`GESAMTSUMME NETTO: ${eur(totals.net)}`)
+    await navigator.clipboard.writeText(lines.join('\n'))
+    setCopiedFeedback(true)
+    setTimeout(() => setCopiedFeedback(false), 2000)
+  }, [pos, kunde, totals])
 
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
@@ -785,7 +1000,7 @@ export default function CraftFlow() {
         ))}
       </div>
 
-      <div style={{ padding: 14, maxWidth: 760, margin: '0 auto', boxSizing: 'border-box' }}>
+      <div style={{ padding: tab === 'kalkulation' ? 0 : 14, maxWidth: (tab === 'kalkulation' && optimPanelOpen) ? 'none' : 760, margin: (tab === 'kalkulation' && optimPanelOpen) ? '0' : '0 auto', boxSizing: 'border-box' }}>
 
         {/* ══ KUNDE ══ */}
         {tab === 'kunde' && (
@@ -851,7 +1066,78 @@ export default function CraftFlow() {
 
         {/* ══ KALKULATION ══ */}
         {tab === 'kalkulation' && (
-          <div>
+          <>
+            <style>{`
+              .cf-optim-panel {
+                width: 300px; min-width: 300px;
+                border-left: 1px solid #2E2E2E;
+                display: flex; flex-direction: column;
+                flex-shrink: 0; overflow: hidden;
+                background: #141414;
+              }
+              @media (max-width: 640px) {
+                .cf-optim-panel {
+                  position: fixed; bottom: 0; left: 0; right: 0;
+                  width: 100% !important; min-width: 0; height: 65vh;
+                  border-left: none; border-top: 2px solid #C8885A; z-index: 100;
+                }
+              }
+            `}</style>
+            <div style={{ display: 'flex', minHeight: 'calc(100vh - 116px)', alignItems: 'flex-start' }}>
+
+            {/* ── LEFT: Kalkulation Content ── */}
+            <div style={{ flex: 1, padding: 14, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 116px)' }}>
+
+            {/* Feature 3+4: Top action buttons */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <button
+                onClick={startAllInquiry}
+                disabled={allInquiryStatus === 'loading'}
+                style={{
+                  flex: 1, minWidth: 160,
+                  background: allInquiryStatus === 'done' ? '#1a3a1a' : 'transparent',
+                  color: allInquiryStatus === 'done' ? '#90EE90' : allInquiryStatus === 'loading' ? C.textMid : C.copper,
+                  border: `1px solid ${allInquiryStatus === 'done' ? '#3a6a3a' : allInquiryStatus === 'error' ? '#8b2222' : C.copper}`,
+                  borderRadius: 3, padding: '8px 12px',
+                  cursor: allInquiryStatus === 'loading' ? 'wait' : 'pointer',
+                  fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
+                }}
+              >
+                {allInquiryStatus === 'loading' ? '⟳ Anfragen werden erstellt…' : allInquiryStatus === 'done' ? '✓ Drafts erstellt' : '✉ Alle Materialien anfragen'}
+              </button>
+              <button onClick={exportJSON} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                ↓ JSON
+              </button>
+              <button onClick={copyToClipboard} style={{ background: copiedFeedback ? '#1a3a1a' : 'transparent', color: copiedFeedback ? '#90EE90' : C.textMid, border: `1px solid ${copiedFeedback ? '#3a6a3a' : C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                {copiedFeedback ? '✓ Kopiert' : '⎘ Kopieren'}
+              </button>
+            </div>
+
+            {allInquiryStatus === 'done' && allInquiryResult && (
+              <div style={{ background: C.black, border: `1px solid ${C.border}`, borderRadius: 4, padding: '10px 12px', marginBottom: 14 }}>
+                {allInquiryResult.drafts.map((d, i) => (
+                  <div key={i} style={{ fontSize: 12, color: '#90EE90', marginBottom: 4 }}>
+                    ✓ Draft an <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
+                    <a href="https://mail.google.com/mail/#drafts" target="_blank" rel="noreferrer" style={{ color: C.copper, textDecoration: 'none', fontSize: 11, marginLeft: 8 }}>In Gmail →</a>
+                  </div>
+                ))}
+                {allInquiryResult.uncategorized?.length > 0 && (
+                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Nicht kategorisiert: {allInquiryResult.uncategorized.join(', ')}</div>
+                )}
+                {allInquiryResult.drafts.length === 0 && (
+                  <div style={{ fontSize: 12, color: C.textMid }}>Keine bekannten Lieferanten – KI-Vorschläge in den Positionen prüfen.</div>
+                )}
+                <button onClick={() => { setAllInquiryStatus('idle'); setAllInquiryResult(null) }} style={{ marginTop: 8, background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline', padding: 0 }}>
+                  Schließen
+                </button>
+              </div>
+            )}
+            {allInquiryStatus === 'error' && (
+              <div style={{ background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 4, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: '#ff9999' }}>
+                Fehler beim Erstellen der Anfragen.
+              </div>
+            )}
+
             {/* Gesamtübersicht oben */}
             <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 14 }}>
               <div style={{ display: 'flex' }}>
@@ -1139,7 +1425,119 @@ export default function CraftFlow() {
             <button onClick={() => setTab('angebot')} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '15px 0', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1, cursor: 'pointer' }}>
               → Weiter zum Angebot
             </button>
-          </div>
+            </div>{/* end left column */}
+
+            {/* ── RIGHT: Panel toggle or Panel ── */}
+            {!optimPanelOpen ? (
+              <button
+                onClick={openOptimPanel}
+                style={{
+                  background: C.darkbg, color: C.copper,
+                  border: 'none', borderLeft: `2px solid ${C.copper}44`,
+                  padding: '24px 9px', cursor: 'pointer',
+                  fontSize: 10, fontFamily: 'Helvetica Neue,sans-serif',
+                  letterSpacing: 2, writingMode: 'vertical-rl',
+                  flexShrink: 0, alignSelf: 'flex-start',
+                  position: 'sticky', top: 0, fontWeight: 700,
+                }}
+              >
+                Optimierung ›
+              </button>
+            ) : (
+              <div className="cf-optim-panel">
+                {/* Header */}
+                <div style={{ padding: '12px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                  <span style={{ color: C.copper, fontWeight: 700, fontSize: 13, letterSpacing: 1 }}>OPTIMIERUNG</span>
+                  <button onClick={() => setOptimPanelOpen(false)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 9px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>×</button>
+                </div>
+
+                {/* Chat */}
+                <div ref={optimChatRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {optimMessages.length === 0 && !optimLoading && (
+                    <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6 }}>
+                      KI analysiert gleich das Angebot…
+                    </div>
+                  )}
+                  {optimMessages.map((msg, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                      <div style={{
+                        maxWidth: '88%', padding: '8px 12px', borderRadius: 8,
+                        fontSize: 12, lineHeight: 1.55,
+                        background: msg.role === 'user' ? C.copper : C.gray1,
+                        color: msg.role === 'user' ? C.black : C.white,
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      }}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                  {optimLoading && (
+                    <div style={{ color: C.textMid, fontSize: 12 }}>⟳ KI denkt…</div>
+                  )}
+                </div>
+
+                {/* Versionshistorie */}
+                {versions.length > 0 && (
+                  <div style={{ borderTop: `1px solid ${C.border}`, padding: '8px 14px', flexShrink: 0 }}>
+                    <button onClick={() => setVersionsOpen(v => !v)} style={{ background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>Versionen ({versions.length})</span>
+                      <span>{versionsOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {versionsOpen && (
+                      <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {versions.map(v => (
+                          <div key={v.id} style={{ padding: '6px 8px', background: C.black, borderRadius: 3, border: `1px solid ${C.border}` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: 10, color: C.textMid }}>
+                                V{v.version_number} · {new Date(v.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <button onClick={() => restoreVersion(v.id)} style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}55`, borderRadius: 2, padding: '2px 7px', cursor: 'pointer', fontSize: 10, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                                Wiederherstellen
+                              </button>
+                            </div>
+                            {v.description && (
+                              <div style={{ fontSize: 10, color: C.white, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.description}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Eingabebereich */}
+                <div style={{ padding: '10px 14px', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+                  <textarea
+                    value={optimInput}
+                    onChange={e => setOptimInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendOptimMessage() } }}
+                    placeholder="Nachricht… (Enter = Senden)"
+                    rows={2}
+                    disabled={optimLoading}
+                    style={{ width: '100%', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 4, padding: '8px 10px', fontSize: 12, lineHeight: 1.5, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <button
+                      onClick={optimToggleRecording}
+                      disabled={optimMicStatus === 'transcribing' || optimLoading}
+                      style={{ background: optimMicStatus === 'recording' ? '#cc2222' : C.gray2, color: optimMicStatus === 'recording' ? '#fff' : C.textMid, border: `1px solid ${optimMicStatus === 'recording' ? '#cc2222' : C.border}`, borderRadius: 3, padding: '6px 10px', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}
+                    >
+                      {optimMicStatus === 'transcribing' ? '⟳' : '🎤'}
+                    </button>
+                    <button
+                      onClick={sendOptimMessage}
+                      disabled={!optimInput.trim() || optimLoading}
+                      style={{ flex: 1, background: (!optimInput.trim() || optimLoading) ? C.gray2 : C.copper, color: (!optimInput.trim() || optimLoading) ? C.textMid : C.black, border: 'none', borderRadius: 3, padding: '6px 12px', cursor: (!optimInput.trim() || optimLoading) ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}
+                    >
+                      Senden
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            </div>{/* end flex row */}
+          </>
         )}
 
         {/* ══ ANGEBOT ══ */}
