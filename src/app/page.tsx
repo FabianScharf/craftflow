@@ -435,9 +435,8 @@ export default function CraftFlow() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, imageBase64: imageB64s }),
     })
-    if (!res.ok) throw new Error(`API Fehler: ${res.status}`)
     const json = await res.json()
-    if (!json.success) throw new Error(json.error || 'Unbekannter Fehler')
+    if (!res.ok || !json.success) throw new Error(json.error || `API Fehler: ${res.status}`)
     return json.data
   }, [])
 

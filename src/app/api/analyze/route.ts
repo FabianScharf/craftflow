@@ -576,7 +576,7 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
 // ---------------------------------------------------------------------------
 
 // 1 MB base64 ≈ 750 KB binary — bleibt gut unter Vercel-Limit und Groq-Limit
-const MAX_IMAGE_B64_BYTES = 1_000_000
+const MAX_IMAGE_B64_BYTES = 4_000_000
 
 export async function POST(req: NextRequest) {
   try {
@@ -595,7 +595,7 @@ export async function POST(req: NextRequest) {
       ? [imageBase64]
       : []
 
-    // Bilder auf max. 1 MB base64 begrenzen; zu große still überspringen
+    // Bilder auf max. 4 MB base64 begrenzen; zu große still überspringen
     const images = rawImages.filter(img => {
       const size = img.length
       if (size > MAX_IMAGE_B64_BYTES) {
@@ -606,6 +606,9 @@ export async function POST(req: NextRequest) {
     })
 
     console.log('[analyze] images:', images.length, '(raw:', rawImages.length, '), text len:', text?.length ?? 0)
+    if (rawImages.length > 0 && images.length === 0 && text) {
+      console.log('[analyze] alle Bilder gefiltert — fahre mit Text-only fort')
+    }
 
     if (!text && images.length === 0) {
       return NextResponse.json({ error: 'Kein Text oder Bild' }, { status: 400 })
@@ -659,8 +662,11 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const err = await response.text()
-      console.error('[analyze] Groq error:', response.status, err.slice(0, 500))
-      throw new Error(`Groq Fehler ${response.status}: ${err.slice(0, 300)}`)
+      console.error('[analyze] Groq error:', response.status, err)
+      return NextResponse.json(
+        { success: false, error: `Groq ${response.status}: ${err}` },
+        { status: 502 }
+      )
     }
 
     const data = await response.json()
