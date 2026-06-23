@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
   title: 'CraftFlow – FS Crafted',
@@ -27,6 +28,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body style={{ margin: 0, padding: 0, background: '#0D0D0D' }}>
         {children}
+        <footer style={{ padding: '14px 24px', borderTop: '1px solid #1E1E1E', display: 'flex', justifyContent: 'center', gap: 24 }}>
+          <a href="/impressum"   style={{ fontSize: 11, color: '#4A4A4A', textDecoration: 'none' }}>Impressum</a>
+          <a href="/datenschutz" style={{ fontSize: 11, color: '#4A4A4A', textDecoration: 'none' }}>Datenschutz</a>
+        </footer>
       </body>
     </html>
   )
