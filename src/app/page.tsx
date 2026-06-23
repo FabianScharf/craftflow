@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import NoSleep from 'nosleep.js'
+import { createClient } from '@/utils/supabase/client'
 import {
   C,
   calcAngebotspos, eur, today, inDays,
@@ -105,6 +106,18 @@ const defaultAngebotspos = (id: number): Angebotsposition => ({
 /* ── Haupt-Komponente ─────────────────────────────── */
 export default function CraftFlow() {
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf'>('start')
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null))
+  }, [])
+
+  async function logout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
   const [kunden, setKunden] = useState<KundeDB[]>(ladeKunden)
   const [kunde, setKunde] = useState<Kunde>({ name: '', zusatz: '', strasse: '', ort: '', projekt: '' })
 
@@ -779,7 +792,14 @@ export default function CraftFlow() {
             >
               + Neues Projekt
             </button>
-            <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
+              {userEmail && (
+                <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 9, fontFamily: 'Helvetica Neue,sans-serif', padding: 0, letterSpacing: 0.5 }}>
+                  Abmelden
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -981,12 +1001,19 @@ export default function CraftFlow() {
             </div>
             <div style={{ color: C.textMid, fontSize: 9 }}>{docNr} · {today()}</div>
           </div>
-          <button
-            onClick={() => setScreen('start')}
-            style={{ background: C.gray1, color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 6, padding: '10px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, whiteSpace: 'nowrap' }}
-          >
-            ← Zurück
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <button
+              onClick={() => setScreen('start')}
+              style={{ background: C.gray1, color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 6, padding: '10px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, whiteSpace: 'nowrap' }}
+            >
+              ← Zurück
+            </button>
+            {userEmail && (
+              <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 9, fontFamily: 'Helvetica Neue,sans-serif', padding: 0, letterSpacing: 0.5 }}>
+                Abmelden
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
