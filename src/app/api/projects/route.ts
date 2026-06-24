@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 
 export async function GET() {
   try {
+    console.log('[projects] start GET')
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
@@ -16,12 +17,14 @@ export async function GET() {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)
   } catch (e) {
+    console.error('[projects] error GET:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Fehler' }, { status: 500 })
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('[projects] start POST')
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
@@ -41,6 +44,7 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(row, { status: 201 })
   } catch (e) {
+    console.error('[projects] error POST:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Fehler' }, { status: 500 })
   }
 }
