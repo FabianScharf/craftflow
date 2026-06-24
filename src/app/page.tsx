@@ -118,6 +118,59 @@ export default function CraftFlow() {
     await supabase.auth.signOut()
     window.location.href = '/login'
   }
+
+  // ── Projektverwaltung ───────────────────────────────
+  type ProjectMeta = { id: string; title: string; status: string; updated_at: string }
+  const [projects, setProjects] = useState<ProjectMeta[]>([])
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  useEffect(() => {
+    fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) })
+  }, [])
+
+  async function saveProject() {
+    setSaveStatus('saving')
+    const title = [kunde.name.trim(), kunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
+    const payload = { kunde, pos, docNr, docTyp, anschr, widerruf }
+    try {
+      let res: Response
+      if (currentProjectId) {
+        res = await fetch(`/api/projects/${currentProjectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, data: payload }) })
+      } else {
+        res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, data: payload }) })
+      }
+      const row = await res.json()
+      if (!res.ok) throw new Error(row.error)
+      if (!currentProjectId) setCurrentProjectId(row.id)
+      setProjects(prev => {
+        const exists = prev.find(p => p.id === row.id)
+        return exists ? prev.map(p => p.id === row.id ? row : p) : [row, ...prev]
+      })
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 3000)
+    } catch {
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus('idle'), 3000)
+    }
+  }
+
+  async function loadProject(id: string) {
+    const res = await fetch(`/api/projects/${id}`)
+    if (!res.ok) return
+    const row = await res.json()
+    const d = row.data
+    if (d.kunde) setKunde(d.kunde)
+    if (d.pos)   setPos(d.pos)
+    if (d.docNr) setDocNr(d.docNr)
+    if (d.docTyp) setDocTyp(d.docTyp)
+    if (d.anschr) setAnschr(d.anschr)
+    if (typeof d.widerruf === 'boolean') setWiderruf(d.widerruf)
+    setCurrentProjectId(id)
+    setScreen('app')
+    setTab('kalkulation')
+  }
+
   const [kunden, setKunden] = useState<KundeDB[]>(ladeKunden)
   const [kunde, setKunde] = useState<Kunde>({ name: '', zusatz: '', strasse: '', ort: '', projekt: '' })
 
@@ -403,6 +456,8 @@ export default function CraftFlow() {
     setOptimMessages([])
     setOptimInput('')
     setOptimLoading(false)
+    setCurrentProjectId(null)
+    setSaveStatus('idle')
     setOptimMicStatus('idle')
     setOfferId(crypto.randomUUID())
     setVersions([])
@@ -969,6 +1024,37 @@ export default function CraftFlow() {
             </button>
           </div>
         </div>
+
+        {/* ── Meine Projekte ── */}
+        {projects.length > 0 && (
+          <div style={{ padding: '0 16px 48px', maxWidth: 500, margin: '0 auto' }}>
+            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 28, marginBottom: 14 }}>
+              <div style={{ color: C.textMid, fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
+                Meine Projekte
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {projects.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => loadProject(p.id)}
+                    style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '11px 14px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'Helvetica Neue,sans-serif' }}
+                  >
+                    <div>
+                      <div style={{ color: C.white, fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{p.title}</div>
+                      <div style={{ color: C.textMid, fontSize: 10 }}>
+                        {new Date(p.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </div>
+                    </div>
+                    <div style={{ color: p.status === 'abgeschlossen' ? '#5ABE6A' : C.copper, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                      {p.status === 'entwurf' ? 'Entwurf' : p.status === 'abgeschlossen' ? '✓ Fertig' : p.status}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     )
   }
@@ -1635,6 +1721,14 @@ export default function CraftFlow() {
                 <span style={{ fontSize: 12 }}>Widerrufsbelehrung einfügen</span>
               </div>
             </Card>
+
+            <button
+              onClick={saveProject}
+              disabled={saveStatus === 'saving'}
+              style={{ width: '100%', background: saveStatus === 'saved' ? '#1a3a1a' : C.darkbg, color: saveStatus === 'saved' ? '#5ABE6A' : saveStatus === 'error' ? '#E05A5A' : C.textMid, border: `1px solid ${saveStatus === 'saved' ? '#3a6a3a' : saveStatus === 'error' ? '#6a3a3a' : C.border}`, padding: '12px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, letterSpacing: 1, cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer', marginBottom: 8 }}
+            >
+              {saveStatus === 'saving' ? '…' : saveStatus === 'saved' ? '✓ Gespeichert' : saveStatus === 'error' ? '✗ Fehler beim Speichern' : currentProjectId ? '💾 Projekt aktualisieren' : '💾 Projekt speichern'}
+            </button>
 
             <button onClick={() => {
               setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf))
