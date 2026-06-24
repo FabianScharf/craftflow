@@ -218,6 +218,12 @@ export default function CraftFlow() {
   const [uploadingCount, setUploadingCount] = useState(0)
   const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error' | 'fragen'>('idle')
   const [startMsg, setStartMsg] = useState('')
+  const [fragenInput, setFragenInput] = useState('')
+  const [fragenMicStatus, setFragenMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
+  const fragenMediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const fragenAudioChunksRef = useRef<Blob[]>([])
+  const [progressIdx, setProgressIdx] = useState(0)
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [saveCustomerStatus, setSaveCustomerStatus] = useState<'idle' | 'saving' | 'saved' | 'duplicate' | 'error'>('idle')
   const [saveCustomerMsg, setSaveCustomerMsg] = useState('')
 
@@ -508,19 +514,29 @@ export default function CraftFlow() {
     return json.data
   }, [])
 
-  const startAnalyse = useCallback(async () => {
+  const PROGRESS_MSGS = [
+    'Analysiere Projektbeschreibung…',
+    'Berechne Materialmengen…',
+    'Kalkuliere Arbeitszeiten…',
+    'Erstelle Angebot…',
+  ]
+
+  const startAnalyse = useCallback(async (overrideText?: string) => {
+    const textToUse = overrideText ?? startText
     const imageB64s = uploadedFiles.filter(f => f.type === 'image' && f.b64).map(f => f.b64!)
-    if (!startText.trim() && imageB64s.length === 0) return
+    if (!textToUse.trim() && imageB64s.length === 0) return
     setStartStatus('loading')
     setStartMsg('')
+    setProgressIdx(0)
+    if (progressTimerRef.current) clearInterval(progressTimerRef.current)
+    progressTimerRef.current = setInterval(() => setProgressIdx(i => i + 1), 1500)
     try {
-      const data = await callAI(startText, imageB64s)
+      const data = await callAI(textToUse, imageB64s)
 
-      // KI fragt nach fehlenden Pflichtangaben
+      // KI hat Rückfragen — trotzdem Kalkulation verarbeiten, Chat-Fenster zeigen
       if (data.fragen?.length > 0) {
         setStartStatus('fragen')
         setStartMsg((data.fragen as string[]).join('\n'))
-        return
       }
 
       if (data.kunde) {
@@ -559,9 +575,8 @@ export default function CraftFlow() {
 
       if (data.anschreiben) setAnschr(data.anschreiben)
 
-      // Dokumenttyp aus Diktat-Text erkennen
-      if (startText) {
-        const t = startText.toLowerCase()
+      if (textToUse) {
+        const t = textToUse.toLowerCase()
         if (t.includes('rechnung')) {
           setDocTyp('Rechnung')
           setDocNr(prev => 'RE-' + prev.replace(/^[A-Z]+-/, ''))
@@ -569,17 +584,56 @@ export default function CraftFlow() {
           setDocTyp('Angebot')
           setDocNr(prev => 'AN-' + prev.replace(/^[A-Z]+-/, ''))
         }
-        // 'auftragsbestätigung' bleibt als Default
       }
 
-      setStartStatus('idle')
-      setScreen('app')
-      setTab('kunde')
+      // Kein fragen → direkt zum App-Screen
+      if (!data.fragen?.length) {
+        setStartStatus('idle')
+        setScreen('app')
+        setTab('kunde')
+      }
     } catch (e: unknown) {
       setStartStatus('error')
       setStartMsg(`Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
+    } finally {
+      if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
     }
   }, [startText, uploadedFiles, callAI])
+
+  async function startFragenMic() {
+    if (fragenMicStatus !== 'idle') { fragenMediaRecorderRef.current?.stop(); return }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      setFragenMicStatus('recording')
+      const recorder = new MediaRecorder(stream)
+      fragenAudioChunksRef.current = []
+      fragenMediaRecorderRef.current = recorder
+      recorder.ondataavailable = e => { if (e.data.size > 0) fragenAudioChunksRef.current.push(e.data) }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setFragenMicStatus('transcribing')
+        try {
+          const blob = new Blob(fragenAudioChunksRef.current, { type: 'audio/webm' })
+          const form = new FormData()
+          form.append('audio', blob, 'fragen.webm')
+          const res = await fetch('/api/transcribe', { method: 'POST', body: form })
+          const json = await res.json()
+          if (json.text) setFragenInput(prev => prev ? prev + ' ' + json.text : json.text)
+        } catch {}
+        setFragenMicStatus('idle')
+      }
+      recorder.start()
+    } catch { setFragenMicStatus('idle') }
+  }
+
+  function submitFragenAnswer() {
+    if (!fragenInput.trim()) return
+    const combined = startText.trim()
+      ? startText + '\n\nErgänzende Informationen: ' + fragenInput.trim()
+      : fragenInput.trim()
+    setFragenInput('')
+    startAnalyse(combined)
+  }
 
   const startInquiry = useCallback(async (posId: number, positionTitel: string, mats: MaterialPosten[]) => {
     const selected = mats.filter(m => selectedMats[m.id] !== false)
@@ -850,7 +904,7 @@ export default function CraftFlow() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
               {userEmail && (
-                <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 9, fontFamily: 'Helvetica Neue,sans-serif', padding: 0, letterSpacing: 0.5 }}>
+                <button onClick={logout} style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 3, padding: '8px 16px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, letterSpacing: 0.5 }}>
                   Abmelden
                 </button>
               )}
@@ -983,7 +1037,7 @@ export default function CraftFlow() {
 
           {/* Generieren Button */}
           <button
-            onClick={startAnalyse}
+            onClick={() => startAnalyse()}
             disabled={!canGenerate || loading}
             style={{
               width: '100%', marginTop: 14,
@@ -998,20 +1052,64 @@ export default function CraftFlow() {
             {loading ? '⟳ KI erstellt Kalkulation…' : '⚡ KALKULATION GENERIEREN'}
           </button>
 
+          {/* Fortschritts-Indikator während Loading */}
+          {loading && (
+            <div style={{ marginTop: 10, textAlign: 'center', color: C.copper, fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', letterSpacing: 0.5, opacity: 0.8 }}>
+              {PROGRESS_MSGS[progressIdx % PROGRESS_MSGS.length]}
+            </div>
+          )}
+
           {startStatus === 'error' && startMsg && (
             <div style={{ marginTop: 14, background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: '#ff9999' }}>
               {startMsg}
             </div>
           )}
 
+          {/* KI-Chat-Fenster bei Rückfragen */}
           {startStatus === 'fragen' && startMsg && (
-            <div style={{ marginTop: 14, background: '#0d1520', border: `1px solid ${C.copper}55`, borderRadius: 8, padding: '14px 16px', fontSize: 13, color: C.white }}>
-              <div style={{ color: C.copper, fontWeight: 700, marginBottom: 10, fontSize: 12, letterSpacing: 1 }}>
-                FEHLENDE ANGABEN – bitte im Text ergänzen:
+            <div style={{ marginTop: 14, background: '#0d1520', border: `1px solid ${C.copper}55`, borderRadius: 10, padding: '16px' }}>
+              <div style={{ color: C.copper, fontWeight: 700, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>
+                KI BRAUCHT NOCH INFORMATIONEN
               </div>
-              {startMsg.split('\n').map((q, i) => (
-                <div key={i} style={{ marginBottom: 6, lineHeight: 1.5 }}>• {q}</div>
-              ))}
+              <div style={{ color: C.white, fontSize: 13, marginBottom: 14, lineHeight: 1.7 }}>
+                Ich habe eine erste Kalkulation erstellt — für eine genauere Berechnung wäre hilfreich zu wissen:
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                {startMsg.split('\n').map((q, i) => (
+                  <div key={i} style={{ color: 'rgba(240,237,232,0.7)', fontSize: 13, marginBottom: 5, paddingLeft: 10, borderLeft: `2px solid ${C.copper}66`, lineHeight: 1.5 }}>
+                    {q}
+                  </div>
+                ))}
+              </div>
+              <textarea
+                value={fragenInput}
+                onChange={e => setFragenInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitFragenAnswer() } }}
+                placeholder="Deine Antwort (Enter zum Absenden)…"
+                rows={3}
+                style={{ width: '100%', background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '11px 13px', fontSize: 13, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none', marginBottom: 8 }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={startFragenMic}
+                  style={{ background: fragenMicStatus === 'recording' ? '#5a1a1a' : fragenMicStatus === 'transcribing' ? C.gray2 : C.gray1, border: `1px solid ${fragenMicStatus === 'recording' ? '#ff6666' : C.border}`, borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontSize: 16, color: fragenMicStatus === 'recording' ? '#ff6666' : C.textMid, flexShrink: 0 }}
+                >
+                  {fragenMicStatus === 'recording' ? '⏹' : fragenMicStatus === 'transcribing' ? '⟳' : '🎙️'}
+                </button>
+                <button
+                  onClick={submitFragenAnswer}
+                  disabled={!fragenInput.trim()}
+                  style={{ flex: 1, background: fragenInput.trim() ? C.copper : C.gray2, color: fragenInput.trim() ? C.black : C.textMid, border: 'none', borderRadius: 8, padding: '10px', cursor: fragenInput.trim() ? 'pointer' : 'not-allowed', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}
+                >
+                  Kalkulation verfeinern
+                </button>
+                <button
+                  onClick={() => { setScreen('app'); setTab('kalkulation') }}
+                  style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', flexShrink: 0 }}
+                >
+                  Trotzdem weiter →
+                </button>
+              </div>
             </div>
           )}
 
