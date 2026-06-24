@@ -1066,7 +1066,7 @@ export default function CraftFlow() {
           )}
 
           {/* KI-Chat-Fenster bei Rückfragen */}
-          {startStatus === 'fragen' && startMsg && (
+          {startStatus === 'fragen' && (
             <div style={{ marginTop: 14, background: '#0d1520', border: `1px solid ${C.copper}55`, borderRadius: 10, padding: '16px' }}>
               <div style={{ color: C.copper, fontWeight: 700, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>
                 KI BRAUCHT NOCH INFORMATIONEN
@@ -1124,12 +1124,16 @@ export default function CraftFlow() {
         </div>
 
         {/* ── Meine Projekte ── */}
-        {projects.length > 0 && (
-          <div style={{ padding: '0 16px 48px', maxWidth: 500, margin: '0 auto' }}>
-            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 28, marginBottom: 14 }}>
-              <div style={{ color: C.textMid, fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
-                Meine Projekte
+        <div style={{ padding: '0 16px 48px', maxWidth: 500, margin: '0 auto' }}>
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 28, marginBottom: 14 }}>
+            <div style={{ color: C.textMid, fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
+              Meine Projekte
+            </div>
+            {projects.length === 0 ? (
+              <div style={{ color: C.textMid, fontSize: 12, fontStyle: 'italic', padding: '8px 0' }}>
+                Noch keine Projekte gespeichert. Erstelle eine Kalkulation und tippe auf „Projekt speichern".
               </div>
+            ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {projects.map(p => (
                   <button
@@ -1149,9 +1153,9 @@ export default function CraftFlow() {
                   </button>
                 ))}
               </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
 
       </div>
     )
