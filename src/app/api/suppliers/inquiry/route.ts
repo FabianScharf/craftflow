@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
-import { getSupabaseClient } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/server'
 
 type ReqMaterial = { id: number; bezeichnung: string; menge: number; einheit: string }
 
@@ -21,7 +21,7 @@ function getGmailClient() {
   const clientSecret = process.env.GMAIL_CLIENT_SECRET
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Gmail-Umgebungsvariablen fehlen (GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET / GMAIL_REFRESH_TOKEN)')
+    throw new Error('Gmail-Umgebungsvariablen fehlen')
   }
   const auth = new google.auth.OAuth2(clientId, clientSecret)
   auth.setCredentials({ refresh_token: refreshToken })
@@ -48,24 +48,12 @@ async function callGroq(prompt: string, maxTokens = 600): Promise<string> {
     }),
   })
   const data = await res.json()
-  if (!res.ok) {
-    console.error('[inquiry] Groq HTTP error:', res.status, JSON.stringify(data))
-    throw new Error(`Groq ${res.status}: ${(data as { error?: { message?: string } }).error?.message ?? 'unbekannter Fehler'}`)
-  }
+  if (!res.ok) throw new Error(`Groq ${res.status}: ${(data as { error?: { message?: string } }).error?.message ?? 'Fehler'}`)
   const content = (data as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content
-  if (!content) {
-    console.error('[inquiry] Groq response has no content:', JSON.stringify(data))
-    return ''
-  }
-  return content.replace(/```json\n?|```/g, '').trim()
+  return (content ?? '').replace(/```json\n?|```/g, '').trim()
 }
 
-async function createGmailDraft(
-  toEmail: string,
-  toName: string,
-  subject: string,
-  body: string
-): Promise<string | null> {
+async function createGmailDraft(toEmail: string, toName: string, subject: string, body: string): Promise<string | null> {
   try {
     const toHeader = toName ? `"${toName}" <${toEmail}>` : toEmail
     const encodedSubject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`
@@ -83,118 +71,76 @@ async function createGmailDraft(
     })
     return data.id ?? null
   } catch (err) {
-    console.error('[inquiry] Gmail draft creation failed for', toEmail, ':', err instanceof Error ? err.message : err)
+    console.error('[inquiry] Gmail draft failed:', err instanceof Error ? err.message : err)
     return null
   }
 }
 
-function groupByCategory(
-  matCatMap: Map<number, string>,
-  materials: ReqMaterial[]
-): Map<string, ReqMaterial[]> {
-  const result = new Map<string, ReqMaterial[]>()
-  for (const mat of materials) {
-    const cat = matCatMap.get(mat.id)
-    if (!cat) continue
-    const existing = result.get(cat)
-    if (existing) existing.push(mat)
-    else result.set(cat, [mat])
-  }
-  return result
-}
-
-// When no categories exist in DB, ask Groq to suggest suppliers per material name.
-async function aiSuggestDirect(materials: ReqMaterial[]): Promise<{ category: string; mats: string[]; aiName: string; aiEmail: string }[]> {
-  const suggestJson = await callGroq(
-    `Schlage für jede der folgenden Materialien einen deutschen B2B-Lieferanten im Schreiner/Tischlerbereich vor.
-Materialien: ${materials.map(m => `"${m.bezeichnung}"`).join(', ')}
-Antworte NUR mit JSON: { "results": [{ "material": "...", "name": "...", "email": "..." }] }`,
-    600
-  )
-  let suggestData: { results: { material: string; name: string; email: string }[] }
-  try {
-    suggestData = JSON.parse(suggestJson)
-  } catch {
-    console.error('[inquiry] aiSuggestDirect: non-JSON from Groq:', suggestJson)
-    suggestData = { results: [] }
-  }
-  return materials.map(m => {
-    const s = (suggestData.results ?? []).find(r => r.material === m.bezeichnung)
-    return {
-      category: m.bezeichnung,
-      mats: [`${m.bezeichnung} (${m.menge} ${m.einheit})`],
-      aiName: s?.name ?? '',
-      aiEmail: s?.email ?? '',
-    }
-  })
-}
-
-// POST /api/suppliers/inquiry
-// Body: { positionTitel: string, materials: ReqMaterial[] }
-// Returns: { drafts, suggestions, uncategorized }
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient()
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+
     const { positionTitel, materials } = await req.json() as {
       positionTitel: string
       materials: ReqMaterial[]
     }
 
-    if (!materials?.length) {
-      return NextResponse.json({ error: 'Keine Materialien übergeben' }, { status: 400 })
-    }
+    if (!materials?.length) return NextResponse.json({ error: 'Keine Materialien übergeben' }, { status: 400 })
 
-    const supabase = getSupabaseClient()
+    // Nur eigene Kategorien
+    const { data: allCats } = await supabase
+      .from('product_categories')
+      .select('id, name')
+      .eq('user_id', user.id)
 
-    // 1. Load all product categories
-    const { data: allCats, error: catsErr } = await supabase.from('product_categories').select('id, name')
-    if (catsErr) {
-      console.error('[inquiry] Supabase product_categories query failed:', catsErr.message)
-    }
     const catNames = (allCats ?? []).map(c => c.name)
 
-    // If no categories in DB: skip DB lookup entirely, go straight to AI suggestions.
     if (!catNames.length) {
-      console.error('[inquiry] product_categories empty or inaccessible — falling back to direct AI suggestions')
-      const suggestions = await aiSuggestDirect(materials)
-      return NextResponse.json({
-        drafts: [],
-        suggestions,
-        uncategorized: [],
-      })
+      const suggestions = await Promise.all(materials.map(async m => {
+        const json = await callGroq(
+          `Schlage für das Material "${m.bezeichnung}" einen deutschen B2B-Lieferanten im Schreinerbereich vor.
+Antworte NUR mit JSON: { "name": "...", "email": "..." }`, 200
+        )
+        try {
+          const s = JSON.parse(json)
+          return { category: m.bezeichnung, mats: [`${m.bezeichnung} (${m.menge} ${m.einheit})`], aiName: s.name ?? '', aiEmail: s.email ?? '' }
+        } catch {
+          return { category: m.bezeichnung, mats: [`${m.bezeichnung} (${m.menge} ${m.einheit})`], aiName: '', aiEmail: '' }
+        }
+      }))
+      return NextResponse.json({ drafts: [], suggestions, uncategorized: [] })
     }
 
-    // 2. AI: categorize each material
+    // KI: Materialien kategorisieren
     const catJson = await callGroq(
       `Ordne folgende Materialien den passenden Produktkategorien zu.
-Verfügbare Kategorien: ${catNames.join(', ')}
+Kategorien: ${catNames.join(', ')}
 Materialien:
 ${materials.map(m => `ID ${m.id}: "${m.bezeichnung}"`).join('\n')}
-Antworte NUR mit gültigem JSON (keine Backticks):
-{ "results": [{ "id": <number>, "category": "<kategorie oder null>" }] }`,
-      700
+Antworte NUR mit JSON: { "results": [{ "id": <number>, "category": "<kategorie oder null>" }] }`, 700
     )
 
     let catData: { results: { id: number; category: string | null }[] }
-    try {
-      catData = JSON.parse(catJson)
-    } catch {
-      console.error('[inquiry] material categorization non-JSON from Groq:', catJson)
-      return NextResponse.json(
-        { error: 'KI-Kategorisierung fehlgeschlagen – bitte erneut versuchen.' },
-        { status: 502 }
-      )
-    }
+    try { catData = JSON.parse(catJson) }
+    catch { return NextResponse.json({ error: 'KI-Kategorisierung fehlgeschlagen' }, { status: 502 }) }
 
     const matCatMap = new Map(
       (catData.results ?? []).filter(r => r.category).map(r => [r.id, r.category!])
     )
+    const uncategorized = materials.filter(m => !matCatMap.has(m.id)).map(m => m.bezeichnung)
 
-    const uncategorized = materials
-      .filter(m => !matCatMap.has(m.id))
-      .map(m => m.bezeichnung)
+    // Materialien nach Kategorie gruppieren → Lieferant suchen
+    const catGroups = new Map<string, ReqMaterial[]>()
+    for (const mat of materials) {
+      const cat = matCatMap.get(mat.id)
+      if (!cat) continue
+      const existing = catGroups.get(cat)
+      if (existing) existing.push(mat)
+      else catGroups.set(cat, [mat])
+    }
 
-    // 3. Group materials by category, then find suppliers
-    const catGroups = groupByCategory(matCatMap, materials)
     const supplierGroups = new Map<string, { supplier: SupplierRow; mats: ReqMaterial[] }>()
     const missing: { category: string; mats: ReqMaterial[] }[] = []
 
@@ -202,56 +148,44 @@ Antworte NUR mit gültigem JSON (keine Backticks):
       const cat = (allCats ?? []).find(c => c.name === catName)
       if (!cat) { missing.push({ category: catName, mats }); continue }
 
-      const { data: links, error: linksErr } = await supabase
+      const { data: links } = await supabase
         .from('supplier_categories')
         .select('supplier_id')
         .eq('category_id', cat.id)
-      if (linksErr) console.error('[inquiry] supplier_categories query error:', linksErr.message)
 
       const ids = (links ?? []).map(l => l.supplier_id as string)
       if (!ids.length) { missing.push({ category: catName, mats }); continue }
 
-      const { data: suppliers, error: suppErr } = await supabase
+      const { data: suppliers } = await supabase
         .from('suppliers')
         .select('id, company_name, general_email, supplier_contacts(first_name, last_name, email, is_primary)')
+        .eq('user_id', user.id)
         .in('id', ids)
-      if (suppErr) console.error('[inquiry] suppliers query error:', suppErr.message)
 
       if (!suppliers?.length) { missing.push({ category: catName, mats }); continue }
 
       const supplier = suppliers[0] as SupplierRow
       const existing = supplierGroups.get(supplier.id)
-      if (existing) {
-        existing.mats.push(...mats)
-      } else {
-        supplierGroups.set(supplier.id, { supplier, mats: [...mats] })
-      }
+      if (existing) existing.mats.push(...mats)
+      else supplierGroups.set(supplier.id, { supplier, mats: [...mats] })
     }
 
-    // 4. Load default email template — degrade gracefully if missing
-    const { data: tmpl, error: tmplErr } = await supabase
+    // E-Mail-Template laden (nur eigenes)
+    const { data: tmpl } = await supabase
       .from('email_templates')
       .select('subject, body')
       .eq('is_default', true)
+      .eq('user_id', user.id)
       .single()
-    if (tmplErr || !tmpl) {
-      console.error('[inquiry] email_templates: no is_default template found —', tmplErr?.message ?? 'null result')
-    }
 
-    // 5. Create one Gmail draft per supplier (skip if no template)
+    // Gmail-Drafts erstellen
     const drafts: { supplierName: string; email: string; draftId: string | null; materialCount: number }[] = []
 
     if (tmpl) {
       for (const { supplier, mats } of supplierGroups.values()) {
-        const contact =
-          supplier.supplier_contacts?.find(c => c.is_primary) ??
-          supplier.supplier_contacts?.[0] ??
-          null
+        const contact = supplier.supplier_contacts?.find(c => c.is_primary) ?? supplier.supplier_contacts?.[0] ?? null
         const toEmail = contact?.email ?? supplier.general_email
-        if (!toEmail) {
-          console.error('[inquiry] no email for supplier', supplier.company_name, '— skipping draft')
-          continue
-        }
+        if (!toEmail) continue
 
         const contactName = contact ? `${contact.first_name} ${contact.last_name}`.trim() : ''
         const artikelListe = mats.map(m => `• ${m.bezeichnung}: ${m.menge} ${m.einheit}`).join('\n')
@@ -263,32 +197,22 @@ Antworte NUR mit gültigem JSON (keine Backticks):
           position: positionTitel,
         }
 
-        const draftId = await createGmailDraft(
-          toEmail, contactName,
-          fill(tmpl.subject, vars),
-          fill(tmpl.body, vars)
-        )
+        const draftId = await createGmailDraft(toEmail, contactName, fill(tmpl.subject, vars), fill(tmpl.body, vars))
         drafts.push({ supplierName: supplier.company_name, email: toEmail, draftId, materialCount: mats.length })
       }
     }
 
-    // 6. AI suggestions for categories with no supplier in DB
+    // KI-Vorschläge für fehlende Lieferanten
     const suggestions: { category: string; mats: string[]; aiName: string; aiEmail: string }[] = []
-
     if (missing.length) {
       const suggestJson = await callGroq(
-        `Schlage für jede folgende Produktkategorie einen deutschen B2B-Lieferanten im Schreiner/Tischlerbereich vor.
+        `Schlage für jede Produktkategorie einen deutschen B2B-Lieferanten im Schreinerbereich vor.
 Kategorien: ${missing.map(m => m.category).join(', ')}
-Antworte NUR mit JSON: { "results": [{ "category": "...", "name": "...", "email": "..." }] }`,
-        400
+Antworte NUR mit JSON: { "results": [{ "category": "...", "name": "...", "email": "..." }] }`, 400
       )
       let suggestData: { results: { category: string; name: string; email: string }[] }
-      try {
-        suggestData = JSON.parse(suggestJson)
-      } catch {
-        console.error('[inquiry] supplier suggestion non-JSON from Groq:', suggestJson)
-        suggestData = { results: [] }
-      }
+      try { suggestData = JSON.parse(suggestJson) }
+      catch { suggestData = { results: [] } }
 
       for (const m of missing) {
         const s = (suggestData.results ?? []).find(r => r.category === m.category)
