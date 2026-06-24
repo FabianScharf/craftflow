@@ -1,26 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseClient } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/server'
 
-// GET /api/suppliers?category=<name>
-// Returns all suppliers with their contacts.
-// If ?category is given, only suppliers linked to that product_categories.name are returned.
 export async function GET(req: NextRequest) {
   try {
-    const category = req.nextUrl.searchParams.get('category')
-    const supabase = getSupabaseClient()
+    const supabase = await createClient()
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
+    const category = req.nextUrl.searchParams.get('category')
     let supplierIds: string[] | null = null
 
     if (category) {
       const { data: cat, error: catErr } = await supabase
         .from('product_categories')
         .select('id')
+        .eq('user_id', user.id)
         .eq('name', category)
         .single()
 
-      if (catErr || !cat) {
-        return NextResponse.json({ suppliers: [] })
-      }
+      if (catErr || !cat) return NextResponse.json({ suppliers: [] })
 
       const { data: links, error: linksErr } = await supabase
         .from('supplier_categories')
@@ -30,9 +28,7 @@ export async function GET(req: NextRequest) {
       if (linksErr) throw linksErr
 
       supplierIds = (links ?? []).map(l => l.supplier_id as string)
-      if (supplierIds.length === 0) {
-        return NextResponse.json({ suppliers: [] })
-      }
+      if (supplierIds.length === 0) return NextResponse.json({ suppliers: [] })
     }
 
     let query = supabase
@@ -42,11 +38,10 @@ export async function GET(req: NextRequest) {
         website, general_email, phone, notes,
         supplier_contacts(id, first_name, last_name, email, phone, mobile, position, is_primary)
       `)
+      .eq('user_id', user.id)
       .order('company_name')
 
-    if (supplierIds) {
-      query = query.in('id', supplierIds)
-    }
+    if (supplierIds) query = query.in('id', supplierIds)
 
     const { data, error } = await query
     if (error) throw error
