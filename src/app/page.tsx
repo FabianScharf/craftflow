@@ -162,6 +162,27 @@ export default function CraftFlow() {
       })
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 3000)
+      // Outcome-Tracking initialisieren
+      const savedId = currentProjectId ?? row.id
+      const gesamtNetto = pos.reduce((a, p) => a + calcAngebotspos(p), 0)
+      const ersteMaterial = pos.flatMap(p => p.material)[0]?.bezeichnung ?? ''
+      const massivRe = /massiv|eiche|buche|nuss|fichte|kiefer/i
+      const istMassiv = massivRe.test(ersteMaterial)
+      fetch('/api/tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'outcome_init',
+          projectId: savedId,
+          data: {
+            moebel_typ: pos[0]?.titel ?? '',
+            material: ersteMaterial,
+            ist_massivholz: istMassiv,
+            preis_kalkuliert: gesamtNetto,
+            plz: kunde.ort.trim().split(/\s+/)[0] ?? '',
+          }
+        })
+      }).catch(() => {})
     } catch {
       setSaveStatus('error')
       setTimeout(() => setSaveStatus('idle'), 3000)
