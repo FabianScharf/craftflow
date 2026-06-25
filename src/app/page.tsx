@@ -107,10 +107,23 @@ const defaultAngebotspos = (id: number): Angebotsposition => ({
 export default function CraftFlow() {
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null))
+    supabase.auth.getUser().then(({ data }) => {
+      setUserEmail(data.user?.email ?? null)
+      if (data.user) {
+        fetch('/api/settings/betriebsprofil')
+          .then(r => r.json())
+          .then(d => {
+            if (d.profil && d.profil.onboarding_abgeschlossen === false) {
+              setShowOnboarding(true)
+            }
+          })
+          .catch(() => {})
+      }
+    })
   }, [])
 
   async function logout() {
@@ -842,6 +855,43 @@ export default function CraftFlow() {
     setTimeout(() => setCopiedFeedback(false), 2000)
   }, [pos, kunde, totals])
 
+
+  /* ══════════════════════════════════════════════════
+     ONBOARDING MODAL
+  ══════════════════════════════════════════════════ */
+  const OnboardingModal = showOnboarding ? (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#141414', border: '2px solid ' + C.copper, borderRadius: 12, padding: '32px 28px', width: '100%', maxWidth: 400, fontFamily: 'Helvetica Neue,sans-serif' }}>
+        <div style={{ color: C.copper, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Willkommen bei CraftFlow</div>
+        <h2 style={{ color: C.white, fontSize: 20, fontWeight: 800, marginBottom: 12, letterSpacing: -0.3 }}>Einstellungen hinterlegen</h2>
+        <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.65, marginBottom: 24 }}>
+          Damit die KI mit deinen individuellen Stundensätzen und Materialaufschlägen kalkuliert, hinterleg einmalig deine Betriebsdaten. Das dauert 2 Minuten.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            onClick={() => {
+              fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
+              setShowOnboarding(false)
+              window.location.href = '/settings'
+            }}
+            style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 8, padding: '14px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', letterSpacing: 0.3 }}
+          >
+            Jetzt Einstellungen öffnen
+          </button>
+          <button
+            onClick={() => {
+              fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
+              setShowOnboarding(false)
+            }}
+            style={{ background: 'transparent', color: '#8A8A8A', border: '1px solid ' + C.border, borderRadius: 8, padding: '12px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+          >
+            Später – direkt loslegen
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
   ══════════════════════════════════════════════════ */
@@ -874,6 +924,7 @@ export default function CraftFlow() {
 
     return (
       <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+        {OnboardingModal}
         <style>{`
           @keyframes cfpulse {
             0%, 100% { transform: scale(1); opacity: 0.5; }
@@ -1191,6 +1242,7 @@ export default function CraftFlow() {
 
   return (
     <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+      {OnboardingModal}
 
       {/* Header */}
       <div style={{ background: C.darkbg, padding: '13px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${C.copper}` }}>
