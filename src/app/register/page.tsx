@@ -5,21 +5,44 @@ import { createClient } from '@/utils/supabase/client'
 
 const C = { black: '#0D0D0D', dark: '#141414', copper: '#C8885A', white: '#F5F2EE', gray: '#8A8A8A', border: '#2E2E2E', err: '#E05A5A', ok: '#5ABE6A' }
 
+const inputStyle = { background: C.black, border: `1px solid ${C.border}`, borderRadius: 7, padding: '11px 13px', color: C.white, fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }
+
+function checkPassword(pw: string) {
+  return {
+    length:    pw.length >= 8,
+    upper:     /[A-Z]/.test(pw),
+    lower:     /[a-z]/.test(pw),
+    digit:     /[0-9]/.test(pw),
+    special:   /[^A-Za-z0-9]/.test(pw),
+  }
+}
+
+const CRITERIA_LABELS = [
+  { key: 'length',  label: 'Mindestens 8 Zeichen' },
+  { key: 'upper',   label: 'Mindestens ein Großbuchstabe' },
+  { key: 'lower',   label: 'Mindestens ein Kleinbuchstabe' },
+  { key: 'digit',   label: 'Mindestens eine Zahl' },
+  { key: 'special', label: 'Mindestens ein Sonderzeichen (!@#$%^&* …)' },
+] as const
+
 export default function RegisterPage() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail]         = useState('')
+  const [password, setPassword]   = useState('')
   const [password2, setPassword2] = useState('')
-  const [agb, setAgb]           = useState(false)
-  const [error, setError]       = useState('')
-  const [success, setSuccess]   = useState(false)
-  const [loading, setLoading]   = useState(false)
+  const [agb, setAgb]             = useState(false)
+  const [error, setError]         = useState('')
+  const [success, setSuccess]     = useState(false)
+  const [loading, setLoading]     = useState(false)
+
+  const criteria = checkPassword(password)
+  const allValid = Object.values(criteria).every(Boolean)
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    if (!allValid)              { setError('Das Passwort erfüllt nicht alle Anforderungen.'); return }
     if (password !== password2) { setError('Die Passwörter stimmen nicht überein.'); return }
-    if (password.length < 8)    { setError('Das Passwort muss mindestens 8 Zeichen lang sein.'); return }
-    if (!agb)                    { setError('Bitte akzeptiere die AGB.'); return }
+    if (!agb)                   { setError('Bitte akzeptiere die AGB.'); return }
 
     setLoading(true)
     const supabase = createClient()
@@ -80,7 +103,7 @@ export default function RegisterPage() {
                   autoComplete="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  style={{ background: C.black, border: `1px solid ${C.border}`, borderRadius: 7, padding: '11px 13px', color: C.white, fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
+                  style={inputStyle}
                 />
               </div>
 
@@ -92,8 +115,26 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  style={{ background: C.black, border: `1px solid ${C.border}`, borderRadius: 7, padding: '11px 13px', color: C.white, fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
+                  style={inputStyle}
                 />
+                {/* Live-Kriterien */}
+                {password.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 4, padding: '10px 12px', background: '#0D0D0D', borderRadius: 6, border: `1px solid ${C.border}` }}>
+                    {CRITERIA_LABELS.map(({ key, label }) => {
+                      const ok = criteria[key]
+                      return (
+                        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 13, color: ok ? C.ok : C.err, lineHeight: 1, flexShrink: 0 }}>
+                            {ok ? '✓' : '○'}
+                          </span>
+                          <span style={{ fontSize: 12, color: ok ? C.ok : C.gray }}>
+                            {label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -104,8 +145,16 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={password2}
                   onChange={e => setPassword2(e.target.value)}
-                  style={{ background: C.black, border: `1px solid ${C.border}`, borderRadius: 7, padding: '11px 13px', color: C.white, fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
+                  style={{
+                    ...inputStyle,
+                    borderColor: password2.length > 0
+                      ? (password2 === password ? '#3a6a3a' : C.err)
+                      : C.border,
+                  }}
                 />
+                {password2.length > 0 && password2 !== password && (
+                  <span style={{ fontSize: 12, color: C.err }}>Passwörter stimmen nicht überein.</span>
+                )}
               </div>
 
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
