@@ -67,6 +67,12 @@ export default function LoginPage() {
             />
           </div>
 
+          <div style={{ textAlign: 'right', marginTop: -6 }}>
+            <a href="/auth/forgot-password" style={{ color: C.gray, fontSize: 12, textDecoration: 'none' }}>
+              Passwort vergessen?
+            </a>
+          </div>
+
           {error && (
             <div style={{ color: C.err, fontSize: 13, background: 'rgba(224,90,90,0.08)', border: `1px solid rgba(224,90,90,0.2)`, borderRadius: 6, padding: '9px 12px' }}>
               {error}

@@ -23,7 +23,11 @@ export default function RegisterPage() {
 
     setLoading(true)
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: 'https://craftflow-sable.vercel.app' },
+    })
     if (error) {
       setError(error.message)
       setLoading(false)
