@@ -36,29 +36,36 @@ export async function POST(req: NextRequest) {
       message: string
     }
 
-    const apiKey = process.env.GROQ_API_KEY
+    const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
 
-    const messages = [
-      { role: 'system', content: SYSTEM },
-      { role: 'user', content: `Aktuelles Angebot:\n${JSON.stringify(offerData, null, 2)}` },
-      ...chatHistory,
-      { role: 'user', content: message },
-    ]
-
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.3, max_tokens: 4000 }),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 4000,
+        temperature: 0.3,
+        system: SYSTEM,
+        messages: [
+          { role: 'user', content: `Aktuelles Angebot:\n${JSON.stringify(offerData, null, 2)}` },
+          ...chatHistory,
+          { role: 'user', content: message },
+        ],
+      }),
     })
 
     if (!res.ok) {
       const err = await res.text()
-      throw new Error(`Groq ${res.status}: ${err.slice(0, 200)}`)
+      throw new Error(`Claude ${res.status}: ${err.slice(0, 200)}`)
     }
 
     const data = await res.json()
-    const raw = (data.choices?.[0]?.message?.content ?? '') as string
+    const raw = ((data as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? '') as string
     const clean = raw.replace(/```json\n?|```/g, '').trim()
 
     try {

@@ -81,13 +81,13 @@ export default function Datenschutz() {
           <p style={st.h2}>KI-Verarbeitung von Projektbeschreibungen</p>
           <p style={st.p}>
             Zur Erstellung von Kalkulationen übermittelt CraftFlow Ihre Projektbeschreibungen
-            (Texte, ggf. Fotos) an <span style={st.hi}>Groq Inc.</span>,
-            101 Mission Street, San Francisco, CA 94105, USA.
+            (Texte, ggf. Fotos) an <span style={st.hi}>Anthropic, PBC</span>,
+            548 Market St PMB 90375, San Francisco, CA 94104, USA.
           </p>
           <p style={st.p}>
             Die Übermittlung in die USA erfolgt auf Grundlage der Standardvertragsklauseln
             der EU-Kommission (Art. 46 Abs. 2 lit. c DSGVO). Übermittelte Projektbeschreibungen
-            werden von Groq nicht dauerhaft gespeichert oder für das Training von KI-Modellen
+            werden von Anthropic nicht dauerhaft gespeichert oder für das Training von KI-Modellen
             verwendet.
           </p>
           <p style={st.p}>

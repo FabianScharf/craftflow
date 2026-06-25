@@ -7,7 +7,7 @@ import {
   C,
   calcAngebotspos, eur, today, inDays,
   ladeKunden, speichereKunden,
-  DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS,
+  DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS, KOSTENSTELLEN_GRUPPEN, KOSTENSTELLEN_GRUPPEN_ORDER,
   type Kunde, type KundeDB,
   type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
 } from '@/lib/types'
@@ -216,7 +216,7 @@ export default function CraftFlow() {
         { id: 10, bezeichnung: 'Spanplatte beschichtet 18mm', menge: 10, einheit: 'm²', ekPreis: 20, aufschlag: 0.3 },
       ],
       arbeitszeit: [
-        { id: 11, kostenstelle: '03_06_Zusammenbau', minuten: 480, vkStunde: 65 },
+        { id: 11, kostenstelle: '03_00_Produktion', minuten: 480, vkStunde: 65 },
         { id: 12, kostenstelle: '05_01_Montage', minuten: 60, vkStunde: 65 },
       ],
     },
@@ -312,7 +312,7 @@ export default function CraftFlow() {
       : p))
   const addArbRow = (posId: number) =>
     setPos(prev => prev.map(p => p.id === posId
-      ? { ...p, arbeitszeit: [...p.arbeitszeit, { id: Date.now(), kostenstelle: '03_06_Zusammenbau' as KostenstelleId, minuten: 60, vkStunde: DEFAULT_STUNDENSAETZE['03_06_Zusammenbau'] }] }
+      ? { ...p, arbeitszeit: [...p.arbeitszeit, { id: Date.now(), kostenstelle: '03_00_Produktion' as KostenstelleId, minuten: 60, vkStunde: DEFAULT_STUNDENSAETZE['03_00_Produktion'] }] }
       : p))
   const delArbRow = (posId: number, rowId: number) =>
     setPos(prev => prev.map(p => p.id === posId
@@ -600,9 +600,9 @@ export default function CraftFlow() {
           })),
           arbeitszeit: ((p.arbeitszeit as AIArbRow[]) || []).map((a, ai) => ({
             id: Date.now() + i * 100 + 50 + ai,
-            kostenstelle: (a.kostenstelle as KostenstelleId) || '03_06_Zusammenbau',
+            kostenstelle: (a.kostenstelle as KostenstelleId) || '03_00_Produktion',
             minuten: a.minuten || 60,
-            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['03_06_Zusammenbau'],
+            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['03_00_Produktion'],
           })),
         })))
       }
@@ -1660,53 +1660,106 @@ export default function CraftFlow() {
 
                     {/* ARBEITSZEIT */}
                     <div style={{ marginBottom: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                      {/* Header + Gesamtübersicht */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
                         <Lbl>Arbeitszeit</Lbl>
-                        {arbTotal > 0 && <div style={{ fontSize: 10, color: C.textMid }}>{eur(arbTotal)}</div>}
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                          {(() => {
+                            const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
+                            if (totalMin === 0) return null
+                            const h = Math.floor(totalMin / 60)
+                            const m = totalMin % 60
+                            return <span style={{ fontSize: 11, color: C.white, fontWeight: 600 }}>{h > 0 ? `${h}h ` : ''}{m > 0 ? `${m}min` : ''}</span>
+                          })()}
+                          {arbTotal > 0 && <span style={{ fontSize: 10, color: C.textMid }}>{eur(arbTotal)}</span>}
+                        </div>
                       </div>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 380 }}>
-                          <thead>
-                            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                              <th style={{ ...thStyle, width: '42%' }}>Kostenstelle</th>
-                              <th style={{ ...thStyle, width: '18%' }}>Minuten</th>
-                              <th style={{ ...thStyle, width: '15%' }}>€/h</th>
-                              <th style={{ ...thStyle, width: '16%', textAlign: 'right' }}>Kosten</th>
-                              <th style={{ ...thStyle, width: '9%' }}></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {p.arbeitszeit.map(a => (
-                              <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
-                                <td style={tdStyle}>
-                                  <select
-                                    value={a.kostenstelle}
-                                    onChange={e => updArbRow(p.id, a.id, 'kostenstelle', e.target.value as KostenstelleId)}
-                                    style={{ ...cellInput, minWidth: 148 }}
-                                  >
-                                    {(Object.keys(DEFAULT_STUNDENSAETZE) as KostenstelleId[]).map(ks => (
-                                      <option key={ks} value={ks}>{KOSTENSTELLEN_LABELS[ks]}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td style={tdStyle}>
-                                  <input type="number" step="5" value={a.minuten} onChange={e => updArbRow(p.id, a.id, 'minuten', parseInt(e.target.value) || 0)} style={{ ...cellInput, minWidth: 52 }} />
-                                </td>
-                                <td style={tdStyle}>
-                                  <input type="number" step="1" value={a.vkStunde} onChange={e => updArbRow(p.id, a.id, 'vkStunde', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 48 }} />
-                                </td>
-                                <td style={{ ...tdStyle, textAlign: 'right', fontSize: 11, fontWeight: 600, color: C.white, whiteSpace: 'nowrap' }}>
-                                  {eur((a.minuten / 60) * a.vkStunde)}
-                                </td>
-                                <td style={tdStyle}>
-                                  <button onClick={() => delArbRow(p.id, a.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer', fontSize: 10 }}>×</button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <button onClick={() => addArbRow(p.id)} style={{ marginTop: 6, background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
+
+                      {/* Gruppierte Kostenstellen */}
+                      {KOSTENSTELLEN_GRUPPEN_ORDER.map(gruppe => {
+                        const eintraege = p.arbeitszeit.filter(a => (KOSTENSTELLEN_GRUPPEN[gruppe] as readonly string[]).includes(a.kostenstelle))
+                        if (eintraege.length === 0) return null
+                        const gruppeMin = eintraege.reduce((s, a) => s + a.minuten, 0)
+                        const gh = Math.floor(gruppeMin / 60)
+                        const gm = gruppeMin % 60
+                        return (
+                          <div key={gruppe} style={{ marginBottom: 10 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 4 }}>
+                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.copper }}>{gruppe}</span>
+                              <span style={{ fontSize: 10, color: C.textMid }}>{gh > 0 ? `${gh}h ` : ''}{gm > 0 ? `${gm}min` : (gruppeMin === 0 ? '' : '')}</span>
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <tbody>
+                                {eintraege.map(a => (
+                                  <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
+                                    <td style={{ ...tdStyle, width: '36%', color: C.white, fontSize: 12 }}>
+                                      {KOSTENSTELLEN_LABELS[a.kostenstelle as KostenstelleId] ?? a.kostenstelle}
+                                    </td>
+                                    <td style={{ ...tdStyle, width: '14%', fontSize: 10, color: C.textMid, whiteSpace: 'nowrap' as const }}>
+                                      {a.vkStunde} €/h
+                                    </td>
+                                    <td style={{ ...tdStyle, width: '22%' }}>
+                                      <input type="number" step="5" value={a.minuten}
+                                        onChange={e => updArbRow(p.id, a.id, 'minuten', parseInt(e.target.value) || 0)}
+                                        style={{ ...cellInput, minWidth: 48 }} /> <span style={{ fontSize: 10, color: C.textMid }}>min</span>
+                                    </td>
+                                    <td style={{ ...tdStyle, width: '10%', fontSize: 10, color: C.textMid }}>
+                                      {(a.minuten / 60).toFixed(1)}h
+                                    </td>
+                                    <td style={{ ...tdStyle, width: '14%', textAlign: 'right' as const, fontSize: 11, fontWeight: 600, color: C.white, whiteSpace: 'nowrap' as const }}>
+                                      {eur((a.minuten / 60) * a.vkStunde)}
+                                    </td>
+                                    <td style={tdStyle}>
+                                      <button onClick={() => delArbRow(p.id, a.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer', fontSize: 10 }}>×</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )
+                      })}
+
+                      {/* Einträge ohne bekannte Gruppe (Fallback) */}
+                      {(() => {
+                        const allGrouped = Object.values(KOSTENSTELLEN_GRUPPEN).flat() as string[]
+                        const ungrouped = p.arbeitszeit.filter(a => !allGrouped.includes(a.kostenstelle))
+                        if (ungrouped.length === 0) return null
+                        return (
+                          <div style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.textMid, paddingBottom: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 4 }}>Sonstiges</div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <tbody>
+                                {ungrouped.map(a => (
+                                  <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
+                                    <td style={tdStyle}>
+                                      <select value={a.kostenstelle} onChange={e => updArbRow(p.id, a.id, 'kostenstelle', e.target.value as KostenstelleId)} style={{ ...cellInput, minWidth: 148 }}>
+                                        {(Object.keys(DEFAULT_STUNDENSAETZE) as KostenstelleId[]).map(ks => (
+                                          <option key={ks} value={ks}>{KOSTENSTELLEN_LABELS[ks]}</option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td style={tdStyle}>
+                                      <input type="number" step="5" value={a.minuten} onChange={e => updArbRow(p.id, a.id, 'minuten', parseInt(e.target.value) || 0)} style={{ ...cellInput, minWidth: 52 }} />
+                                    </td>
+                                    <td style={tdStyle}>
+                                      <input type="number" step="1" value={a.vkStunde} onChange={e => updArbRow(p.id, a.id, 'vkStunde', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 48 }} />
+                                    </td>
+                                    <td style={{ ...tdStyle, textAlign: 'right' as const, fontSize: 11, fontWeight: 600, color: C.white, whiteSpace: 'nowrap' as const }}>
+                                      {eur((a.minuten / 60) * a.vkStunde)}
+                                    </td>
+                                    <td style={tdStyle}>
+                                      <button onClick={() => delArbRow(p.id, a.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer', fontSize: 10 }}>×</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )
+                      })()}
+
+                      <button onClick={() => addArbRow(p.id)} style={{ marginTop: 4, background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
                         + Arbeitszeitzeile
                       </button>
                     </div>

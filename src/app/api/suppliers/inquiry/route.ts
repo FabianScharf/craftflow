@@ -34,22 +34,25 @@ function fill(template: string, vars: Record<string, string>): string {
     .replace(/\[([A-Z_]+)\]/g, (_, k) => vars[k] ?? `[${k}]`)
 }
 
-async function callGroq(prompt: string, maxTokens = 600): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) throw new Error('GROQ_API_KEY fehlt')
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+async function callAnthropic(prompt: string, maxTokens = 600): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY fehlt')
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0,
+      model: 'claude-haiku-4-5',
       max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
     }),
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(`Groq ${res.status}: ${(data as { error?: { message?: string } }).error?.message ?? 'Fehler'}`)
-  const content = (data as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content
+  if (!res.ok) throw new Error(`Claude ${res.status}: ${(data as { error?: { message?: string } }).error?.message ?? 'Fehler'}`)
+  const content = (data as { content?: Array<{ text?: string }> }).content?.[0]?.text
   return (content ?? '').replace(/```json\n?|```/g, '').trim()
 }
 
@@ -99,7 +102,7 @@ export async function POST(req: NextRequest) {
 
     if (!catNames.length) {
       const suggestions = await Promise.all(materials.map(async m => {
-        const json = await callGroq(
+        const json = await callAnthropic(
           `Schlage für das Material "${m.bezeichnung}" einen deutschen B2B-Lieferanten im Schreinerbereich vor.
 Antworte NUR mit JSON: { "name": "...", "email": "..." }`, 200
         )
@@ -114,7 +117,7 @@ Antworte NUR mit JSON: { "name": "...", "email": "..." }`, 200
     }
 
     // KI: Materialien kategorisieren
-    const catJson = await callGroq(
+    const catJson = await callAnthropic(
       `Ordne folgende Materialien den passenden Produktkategorien zu.
 Kategorien: ${catNames.join(', ')}
 Materialien:
@@ -205,7 +208,7 @@ Antworte NUR mit JSON: { "results": [{ "id": <number>, "category": "<kategorie o
     // KI-Vorschläge für fehlende Lieferanten
     const suggestions: { category: string; mats: string[]; aiName: string; aiEmail: string }[] = []
     if (missing.length) {
-      const suggestJson = await callGroq(
+      const suggestJson = await callAnthropic(
         `Schlage für jede Produktkategorie einen deutschen B2B-Lieferanten im Schreinerbereich vor.
 Kategorien: ${missing.map(m => m.category).join(', ')}
 Antworte NUR mit JSON: { "results": [{ "category": "...", "name": "...", "email": "..." }] }`, 400

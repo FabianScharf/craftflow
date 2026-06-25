@@ -575,7 +575,7 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
 
 // ---------------------------------------------------------------------------
 
-// 1 MB base64 ≈ 750 KB binary — bleibt gut unter Vercel-Limit und Groq-Limit
+// 1 MB base64 ≈ 750 KB binary — bleibt gut unter Vercel-Limit und Claude-Limit
 const MAX_IMAGE_B64_BYTES = 4_000_000
 
 export async function POST(req: NextRequest) {
@@ -614,64 +614,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Kein Text oder Bild' }, { status: 400 })
     }
 
-    const apiKey = process.env.GROQ_API_KEY
+    const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
     }
 
-    const userMessage = `Beschreibung: "${text}"`
-
-    let model: string
-    let messages: object[]
+    const userContent: object[] = []
 
     if (images.length > 0) {
-      model = 'meta-llama/llama-4-scout-17b-16e-instruct'
-      messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: [
-            ...images.map(img => ({
-              type: 'image_url',
-              image_url: { url: img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}` },
-            })),
-            { type: 'text', text: 'Das sind Fotos der Situation vor Ort. Berücksichtige alle.\n\n' + userMessage },
-          ],
-        },
-      ]
+      for (const img of images) {
+        const b64 = img.startsWith('data:') ? img.split(',')[1] : img
+        userContent.push({
+          type: 'image',
+          source: { type: 'base64', media_type: 'image/jpeg', data: b64 },
+        })
+      }
+      userContent.push({
+        type: 'text',
+        text: 'Das sind Fotos der Situation vor Ort. Berücksichtige alle.\n\nBeschreibung: "' + (text ?? '') + '"',
+      })
     } else {
-      model = 'llama-3.3-70b-versatile'
-      messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ]
+      userContent.push({ type: 'text', text: `Beschreibung: "${text}"` })
     }
 
-    console.log('[analyze] calling Groq model:', model)
-    const groqBody = JSON.stringify({ model, messages, temperature: 0.2, max_tokens: 3000 })
-    console.log('[analyze] Groq request body size:', Math.round(groqBody.length / 1024), 'KB')
+    const model = 'claude-sonnet-4-6'
+    const reqBody = JSON.stringify({
+      model,
+      max_tokens: 3000,
+      temperature: 0.2,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userContent }],
+    })
+    console.log('[analyze] calling Claude model:', model, '— body size:', Math.round(reqBody.length / 1024), 'KB')
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
       },
-      body: groqBody,
+      body: reqBody,
     })
 
     if (!response.ok) {
       const err = await response.text()
-      console.error('[analyze] Groq error:', response.status, err)
+      console.error('[analyze] Claude error:', response.status, err)
       return NextResponse.json(
-        { success: false, error: `Groq ${response.status}: ${err}` },
+        { success: false, error: `Claude ${response.status}: ${err}` },
         { status: 502 }
       )
     }
 
     const data = await response.json()
-    const rawText = data.choices?.[0]?.message?.content || ''
-    console.log('[analyze] Groq response length:', rawText.length)
+    const rawText = (data as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? ''
+    console.log('[analyze] Claude response length:', rawText.length)
     const clean = rawText.replace(/```json|```/g, '').trim()
 
     try {
