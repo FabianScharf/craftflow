@@ -25,10 +25,11 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json() as Record<string, unknown>
   const allowed = [
-    'firma_name', 'firma_zusatz', 'strasse', 'plz', 'ort',
+    'firma_name', 'firma_zusatz', 'inhaber', 'strasse', 'plz', 'ort',
     'telefon', 'email', 'website', 'ust_id', 'steuernummer',
-    'farbe_primaer', 'farbe_akzent', 'angebotsnummer_prefix',
-    'angebotsnummer_naechste', 'angebot_gueltig_tage',
+    'iban', 'bic', 'bank_name',
+    'farbe_primaer', 'farbe_akzent', 'logo_url',
+    'angebotsnummer_prefix', 'angebotsnummer_naechste', 'angebot_gueltig_tage',
     'zahlungsziel_tage', 'angebot_einleitung', 'angebot_abschluss',
     'zahlungskonditionen_text', 'mwst_satz', 'onboarding_abgeschlossen',
   ]

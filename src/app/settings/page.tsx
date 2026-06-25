@@ -1,312 +1,665 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 
 const C = {
-  black: '#0D0D0D', dark: '#141414', copper: '#C8885A',
-  white: '#F5F2EE', gray: '#8A8A8A', border: '#2E2E2E',
-  gray1: '#1E1E1E', gray2: '#2A2A2A', ok: '#5ABE6A', err: '#E05A5A',
+  black:   '#0D0D0D',
+  dark:    '#141414',
+  gray1:   '#1A1A1A',
+  gray2:   '#222222',
+  border:  '#2E2E2E',
+  copper:  '#C8885A',
+  white:   '#F5F2EE',
+  textMid: '#8A8A8A',
+  ok:      '#5ABE6A',
+  err:     '#E05A5A',
 }
 
-const inputStyle = {
-  width: '100%', background: C.gray2, border: `1px solid ${C.border}`,
-  borderRadius: 6, padding: '10px 12px', color: C.white, fontSize: 13,
-  fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' as const,
+const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
+  width: '100%', boxSizing: 'border-box',
+  padding: '9px 11px', background: C.gray2,
+  border: `1px solid ${C.border}`, borderRadius: 4,
+  fontSize: 13, color: C.white,
+  fontFamily: 'Helvetica Neue,sans-serif', outline: 'none',
+  ...extra,
+})
+
+const lbl: React.CSSProperties = {
+  fontSize: 10, letterSpacing: 2, textTransform: 'uppercase',
+  color: C.textMid, marginBottom: 4, display: 'block',
 }
 
-const labelStyle = { color: C.gray, fontSize: 10, fontWeight: 600 as const, letterSpacing: 1, textTransform: 'uppercase' as const, display: 'block', marginBottom: 5 }
+const STANDARD_CODES = [
+  '00_Meeting','01_02_Planung','02_01_Konstruktion','02_02_Arbeitsvorbereitung',
+  '03_00_Produktion','03_01_Warenhandling','03_02_Zuschnitt','03_03_Bekantung',
+  '03_04_CNC','03_05_Oberflaechenbehandlung','03_06_Zusammenbau','03_07_Verpacken',
+  '03_08_Azubi','05_01_Montage','06_01_Lieferung',
+]
 
-type Betriebsprofil = {
-  firma_name: string; firma_zusatz: string; strasse: string; plz: string; ort: string
-  telefon: string; email: string; website: string; ust_id: string; steuernummer: string
-  farbe_akzent: string; angebotsnummer_prefix: string; angebotsnummer_naechste: number
-  angebot_gueltig_tage: number; zahlungsziel_tage: number; mwst_satz: number
+const DEFAULT_MATERIALGRUPPEN = [
+  'Massivholz','Plattenwerkstoffe','Beschläge','Handelsware',
+  'Oberflächenmaterialien','Montagematerial',
+]
+
+type Profil = Record<string, string>
+type Kostenstelle = {
+  id: string; code: string; bezeichnung: string; stundensatz: number
+  aktiv: boolean; gruppe: string | null; reihenfolge: number; ist_standard: boolean
+}
+type Materialgruppe = {
+  id: string; name: string; aufschlag_prozent: number; reihenfolge: number; aktiv: boolean
 }
 
-type Kostenstelle = { id: string; code: string; bezeichnung: string; stundensatz: number; gruppe: string | null }
+const GRUPPEN_ORDER = ['Verwaltung','Planung','Konstruktion','Produktion','Montage','Lieferung']
 
-const GRUPPEN_ORDER = ['Planung', 'Maschinenraum', 'Bankraum', 'Montage']
-
-const defaultProfil: Betriebsprofil = {
-  firma_name: '', firma_zusatz: '', strasse: '', plz: '', ort: '',
-  telefon: '', email: '', website: '', ust_id: '', steuernummer: '',
-  farbe_akzent: '#C8885A', angebotsnummer_prefix: 'AN', angebotsnummer_naechste: 1,
-  angebot_gueltig_tage: 30, zahlungsziel_tage: 14, mwst_satz: 19,
+function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]> {
+  const map: Record<string, Kostenstelle[]> = {}
+  for (const k of list) {
+    const g = k.gruppe ?? 'Sonstige'
+    if (!map[g]) map[g] = []
+    map[g].push(k)
+  }
+  return map
 }
 
 export default function SettingsPage() {
-  const [profil, setProfil]           = useState<Betriebsprofil>(defaultProfil)
+  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege'>('firma')
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const [profil, setProfil] = useState<Profil>({})
+  const [profilSaving, setProfilSaving] = useState(false)
+  const [profilMsg, setProfilMsg] = useState('')
+
   const [kostenstellen, setKostenstellen] = useState<Kostenstelle[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [saving, setSaving]           = useState(false)
-  const [saveStatus, setSaveStatus]   = useState<'idle' | 'ok' | 'err'>('idle')
-  const [ksStatus, setKsStatus]       = useState<Record<string, 'saving' | 'ok'>>({})
-  const [userEmail, setUserEmail]     = useState('')
+  const [ksMsg, setKsMsg] = useState<Record<string, string>>({})
+  const [newKs, setNewKs] = useState({ code: '', bezeichnung: '', stundensatz: 65, gruppe: '' })
+  const [showNewKs, setShowNewKs] = useState(false)
+
+  const [materialgruppen, setMaterialgruppen] = useState<Materialgruppe[]>([])
+  const [mgMsg, setMgMsg] = useState<Record<string, string>>({})
+  const [newMg, setNewMg] = useState({ name: '', aufschlag_prozent: 30 })
+  const [showNewMg, setShowNewMg] = useState(false)
+
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const [userEmail, setUserEmail] = useState('')
 
   useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const { data } = await supabase.auth.getUser()
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? '')
+    })
 
-      const [pRes, kRes] = await Promise.all([
-        fetch('/api/settings/betriebsprofil').then(r => r.json()),
-        fetch('/api/settings/kostenstellen').then(r => r.json()),
-      ])
-      if (pRes.profil) setProfil(p => ({ ...p, ...pRes.profil }))
-      if (kRes.kostenstellen) setKostenstellen(kRes.kostenstellen)
-      setLoading(false)
-    }
-    load().catch(() => setLoading(false))
+    fetch('/api/settings/betriebsprofil')
+      .then(r => r.json())
+      .then(d => {
+        if (d.profil) {
+          setProfil(d.profil)
+          if (d.profil.logo_url) setLogoPreview(d.profil.logo_url)
+        }
+      })
+      .catch(() => {})
+
+    fetch('/api/settings/kostenstellen')
+      .then(r => r.json())
+      .then(d => { if (d.kostenstellen) setKostenstellen(d.kostenstellen) })
+      .catch(() => {})
+
+    fetch('/api/settings/materialgruppen')
+      .then(r => r.json())
+      .then(d => { if (d.materialgruppen) setMaterialgruppen(d.materialgruppen) })
+      .catch(() => {})
   }, [])
 
+  function setP(key: string, val: string) {
+    setProfil(prev => ({ ...prev, [key]: val }))
+  }
+
   async function saveProfil() {
-    setSaving(true)
-    setSaveStatus('idle')
+    setProfilSaving(true)
+    setProfilMsg('')
     const res = await fetch('/api/settings/betriebsprofil', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...profil, onboarding_abgeschlossen: true }),
     })
-    setSaveStatus(res.ok ? 'ok' : 'err')
-    setSaving(false)
-    if (res.ok) setTimeout(() => setSaveStatus('idle'), 3000)
+    setProfilSaving(false)
+    setProfilMsg(res.ok ? 'Gespeichert.' : 'Fehler beim Speichern.')
+    setTimeout(() => setProfilMsg(''), 3000)
   }
 
-  async function saveKostenstelle(ks: Kostenstelle) {
-    setKsStatus(prev => ({ ...prev, [ks.id]: 'saving' }))
-    await fetch('/api/settings/kostenstellen', {
+  async function saveKs(ks: Kostenstelle, field: 'stundensatz' | 'aktiv', val: number | boolean) {
+    const res = await fetch('/api/settings/kostenstellen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: ks.id, stundensatz: ks.stundensatz }),
+      body: JSON.stringify({ id: ks.id, [field]: val }),
     })
-    setKsStatus(prev => ({ ...prev, [ks.id]: 'ok' }))
-    setTimeout(() => setKsStatus(prev => { const n = { ...prev }; delete n[ks.id]; return n }), 2000)
+    setKsMsg(prev => ({ ...prev, [ks.id]: res.ok ? '✓' : 'Fehler' }))
+    if (res.ok) {
+      setKostenstellen(prev => prev.map(k => k.id === ks.id ? { ...k, [field]: val } : k))
+      setTimeout(() => setKsMsg(prev => { const n = { ...prev }; delete n[ks.id]; return n }), 2000)
+    }
   }
 
-  function updKs(id: string, val: number) {
-    setKostenstellen(prev => prev.map(k => k.id === id ? { ...k, stundensatz: val } : k))
+  async function deleteKs(id: string) {
+    const res = await fetch('/api/settings/kostenstellen', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) setKostenstellen(prev => prev.filter(k => k.id !== id))
   }
 
-  const gruppen = GRUPPEN_ORDER.map(g => ({
-    name: g,
-    items: kostenstellen.filter(k => k.gruppe === g),
-  })).filter(g => g.items.length > 0)
-  const ungrouped = kostenstellen.filter(k => !k.gruppe || !GRUPPEN_ORDER.includes(k.gruppe))
-
-  if (loading) {
-    return (
-      <div style={{ background: C.black, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Helvetica Neue,sans-serif' }}>
-        <div style={{ color: C.gray, fontSize: 13 }}>Lädt…</div>
-      </div>
-    )
+  async function addKs() {
+    if (!newKs.code || !newKs.bezeichnung) return
+    const res = await fetch('/api/settings/kostenstellen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newKs),
+    })
+    const d = await res.json()
+    if (d.kostenstelle) {
+      setKostenstellen(prev => [...prev, d.kostenstelle])
+      setNewKs({ code: '', bezeichnung: '', stundensatz: 65, gruppe: '' })
+      setShowNewKs(false)
+    }
   }
+
+  async function saveMg(id: string, name: string, aufschlag: number) {
+    const res = await fetch('/api/settings/materialgruppen', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name, aufschlag_prozent: aufschlag }),
+    })
+    setMgMsg(prev => ({ ...prev, [id]: res.ok ? '✓' : 'Fehler' }))
+    if (res.ok) {
+      setMaterialgruppen(prev => prev.map(m => m.id === id ? { ...m, name, aufschlag_prozent: aufschlag } : m))
+      setTimeout(() => setMgMsg(prev => { const n = { ...prev }; delete n[id]; return n }), 2000)
+    }
+  }
+
+  async function deleteMg(id: string, name: string) {
+    if (DEFAULT_MATERIALGRUPPEN.includes(name)) return
+    const res = await fetch('/api/settings/materialgruppen', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) setMaterialgruppen(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function addMg() {
+    if (!newMg.name) return
+    const res = await fetch('/api/settings/materialgruppen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newMg),
+    })
+    const d = await res.json()
+    if (d.materialgruppe) {
+      setMaterialgruppen(prev => [...prev, d.materialgruppe])
+      setNewMg({ name: '', aufschlag_prozent: 30 })
+      setShowNewMg(false)
+    }
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setLogoUploading(false); return }
+
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `${user.id}/logo.${ext}`
+    const { error } = await supabase.storage.from('logos').upload(path, file, { upsert: true })
+    if (error) { setLogoUploading(false); return }
+
+    const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path)
+    const logo_url = urlData.publicUrl
+    setLogoPreview(logo_url)
+    setP('logo_url', logo_url)
+    await fetch('/api/settings/betriebsprofil', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logo_url }),
+    })
+    setLogoUploading(false)
+  }
+
+  async function logout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
+
+  const navItems: { id: typeof section; label: string; icon: string }[] = [
+    { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
+    { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
+    { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
+    { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
+  ]
+
+  const groups = groupKostenstellen(kostenstellen)
+  const allGruppen = [...new Set([...GRUPPEN_ORDER, ...Object.keys(groups)])]
 
   return (
     <div style={{ background: C.black, minHeight: '100vh', fontFamily: 'Helvetica Neue,sans-serif', color: C.white }}>
 
-      {/* Header */}
-      <div style={{ background: C.dark, borderBottom: `2px solid ${C.copper}`, padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <a href="/" style={{ color: C.copper, fontSize: 20, textDecoration: 'none', fontWeight: 400 }}>←</a>
-          <div>
-            <div style={{ color: C.copper, fontSize: 14, fontWeight: 800, letterSpacing: 2 }}>CRAFTFLOW</div>
-            <div style={{ color: C.gray, fontSize: 9, letterSpacing: 2 }}>EINSTELLUNGEN</div>
+      {/* Top bar */}
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 52, gap: 12 }}>
+        <button
+          onClick={() => window.history.back()}
+          style={{ background: 'none', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}
+        >←</button>
+        <span style={{ color: C.copper, fontWeight: 800, letterSpacing: 2, fontSize: 13 }}>EINSTELLUNGEN</span>
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.white, cursor: 'pointer', fontSize: 20, padding: 0 }}
+        >☰</button>
+      </div>
+
+      <div style={{ display: 'flex', maxWidth: 960, margin: '0 auto' }}>
+
+        {/* Desktop sidebar */}
+        <div style={{
+          width: 210, flexShrink: 0, borderRight: `1px solid ${C.border}`,
+          minHeight: 'calc(100vh - 52px)', padding: '16px 0',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setSection(item.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '11px 20px', border: 'none', cursor: 'pointer',
+                background: section === item.id ? C.gray2 : 'transparent',
+                color: section === item.id ? C.white : C.textMid,
+                fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left',
+                borderLeft: section === item.id ? `3px solid ${C.copper}` : '3px solid transparent',
+              }}
+            >
+              <span style={{ fontSize: 15 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+
+          <div style={{ marginTop: 'auto', padding: '24px 20px 16px', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6, wordBreak: 'break-all' }}>{userEmail}</div>
+            <button
+              onClick={logout}
+              style={{ background: 'none', border: 'none', color: C.err, fontSize: 12, cursor: 'pointer', padding: 0 }}
+            >Abmelden</button>
           </div>
         </div>
-        <div style={{ color: C.gray, fontSize: 11 }}>{userEmail}</div>
-      </div>
 
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 16px 60px' }}>
-
-        {/* ── BETRIEBSPROFIL ── */}
-        <section style={{ marginBottom: 36 }}>
-          <div style={{ color: C.copper, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 16, fontWeight: 700 }}>Betriebsprofil</div>
-
-          <div style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>Firmenname *</label>
-                <input style={inputStyle} value={profil.firma_name} onChange={e => setProfil(p => ({ ...p, firma_name: e.target.value }))} placeholder="z.B. Tischler Mustermann" />
-              </div>
-              <div>
-                <label style={labelStyle}>Zusatz</label>
-                <input style={inputStyle} value={profil.firma_zusatz} onChange={e => setProfil(p => ({ ...p, firma_zusatz: e.target.value }))} placeholder="z.B. GmbH" />
+        {/* Mobile drawer overlay */}
+        {menuOpen && (
+          <>
+            <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.6)' }} />
+            <div style={{ position: 'fixed', top: 52, left: 0, bottom: 0, width: 240, background: C.dark, zIndex: 41, borderRight: `1px solid ${C.border}`, padding: '16px 0', display: 'flex', flexDirection: 'column' }}>
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => { setSection(item.id); setMenuOpen(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', padding: '13px 20px', border: 'none', cursor: 'pointer',
+                    background: section === item.id ? C.gray2 : 'transparent',
+                    color: section === item.id ? C.white : C.textMid,
+                    fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left',
+                    borderLeft: section === item.id ? `3px solid ${C.copper}` : '3px solid transparent',
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+              <div style={{ marginTop: 'auto', padding: '20px', borderTop: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 12, color: C.textMid, marginBottom: 6, wordBreak: 'break-all' }}>{userEmail}</div>
+                <button onClick={logout} style={{ background: 'none', border: 'none', color: C.err, fontSize: 13, cursor: 'pointer', padding: 0 }}>Abmelden</button>
               </div>
             </div>
+          </>
+        )}
 
+        {/* Main content */}
+        <div style={{ flex: 1, padding: '24px 20px', maxWidth: 680, minWidth: 0 }}>
+
+          {/* BEREICH 1 — FIRMENDATEN */}
+          {section === 'firma' && (
             <div>
-              <label style={labelStyle}>Straße & Hausnummer</label>
-              <input style={inputStyle} value={profil.strasse} onChange={e => setProfil(p => ({ ...p, strasse: e.target.value }))} placeholder="z.B. Musterstraße 12" />
-            </div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: C.white }}>Firmendaten</h2>
+              <div style={{ display: 'grid', gap: 14 }}>
+                <Field label="Firmenname" value={profil.firma_name ?? ''} onChange={v => setP('firma_name', v)} />
+                <Field label="Inhaber / Geschäftsführer" value={profil.inhaber ?? ''} onChange={v => setP('inhaber', v)} />
+                <Field label="Zusatz (z.B. GmbH, Meisterbetrieb)" value={profil.firma_zusatz ?? ''} onChange={v => setP('firma_zusatz', v)} />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>PLZ</label>
-                <input style={inputStyle} value={profil.plz} onChange={e => setProfil(p => ({ ...p, plz: e.target.value }))} placeholder="63517" />
-              </div>
-              <div>
-                <label style={labelStyle}>Ort</label>
-                <input style={inputStyle} value={profil.ort} onChange={e => setProfil(p => ({ ...p, ort: e.target.value }))} placeholder="z.B. Rodenbach" />
-              </div>
-            </div>
+                <Divider />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>E-Mail</label>
-                <input style={inputStyle} type="email" value={profil.email} onChange={e => setProfil(p => ({ ...p, email: e.target.value }))} placeholder="anfrage@firma.de" />
-              </div>
-              <div>
-                <label style={labelStyle}>Telefon</label>
-                <input style={inputStyle} value={profil.telefon} onChange={e => setProfil(p => ({ ...p, telefon: e.target.value }))} placeholder="+49 6185 ..." />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>USt-IdNr.</label>
-                <input style={inputStyle} value={profil.ust_id} onChange={e => setProfil(p => ({ ...p, ust_id: e.target.value }))} placeholder="DE123456789" />
-              </div>
-              <div>
-                <label style={labelStyle}>Steuernummer</label>
-                <input style={inputStyle} value={profil.steuernummer} onChange={e => setProfil(p => ({ ...p, steuernummer: e.target.value }))} placeholder="04 815 12345" />
-              </div>
-            </div>
-
-            <div style={{ height: 1, background: C.border }} />
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>Angebots-Prefix</label>
-                <input style={inputStyle} value={profil.angebotsnummer_prefix} onChange={e => setProfil(p => ({ ...p, angebotsnummer_prefix: e.target.value }))} placeholder="AN" />
-              </div>
-              <div>
-                <label style={labelStyle}>Nächste Nr.</label>
-                <input style={inputStyle} type="number" value={profil.angebotsnummer_naechste} onChange={e => setProfil(p => ({ ...p, angebotsnummer_naechste: parseInt(e.target.value) || 1 }))} />
-              </div>
-              <div>
-                <label style={labelStyle}>Gültig (Tage)</label>
-                <input style={inputStyle} type="number" value={profil.angebot_gueltig_tage} onChange={e => setProfil(p => ({ ...p, angebot_gueltig_tage: parseInt(e.target.value) || 30 }))} />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>Zahlungsziel (Tage)</label>
-                <input style={inputStyle} type="number" value={profil.zahlungsziel_tage} onChange={e => setProfil(p => ({ ...p, zahlungsziel_tage: parseInt(e.target.value) || 14 }))} />
-              </div>
-              <div>
-                <label style={labelStyle}>MwSt. (%)</label>
-                <input style={inputStyle} type="number" value={profil.mwst_satz} onChange={e => setProfil(p => ({ ...p, mwst_satz: parseFloat(e.target.value) || 19 }))} />
-              </div>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Akzentfarbe (CI)</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input type="color" value={profil.farbe_akzent} onChange={e => setProfil(p => ({ ...p, farbe_akzent: e.target.value }))}
-                  style={{ width: 44, height: 44, border: `1px solid ${C.border}`, borderRadius: 6, background: 'none', cursor: 'pointer', padding: 2 }} />
-                <input style={{ ...inputStyle, flex: 1 }} value={profil.farbe_akzent} onChange={e => setProfil(p => ({ ...p, farbe_akzent: e.target.value }))} placeholder="#C8885A" />
-              </div>
-            </div>
-
-            {saveStatus === 'err' && (
-              <div style={{ color: C.err, fontSize: 12, background: 'rgba(224,90,90,0.08)', border: `1px solid rgba(224,90,90,0.2)`, borderRadius: 6, padding: '8px 12px' }}>
-                Fehler beim Speichern. Bitte erneut versuchen.
-              </div>
-            )}
-
-            <button
-              onClick={saveProfil}
-              disabled={saving}
-              style={{ background: saveStatus === 'ok' ? '#1a3a1a' : saving ? '#7a5535' : C.copper, color: saveStatus === 'ok' ? '#90EE90' : C.black, border: saveStatus === 'ok' ? '1px solid #3a6a3a' : 'none', borderRadius: 8, padding: '13px', fontSize: 14, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', letterSpacing: 0.3 }}
-            >
-              {saving ? 'Wird gespeichert …' : saveStatus === 'ok' ? '✓ Gespeichert' : 'Betriebsprofil speichern'}
-            </button>
-          </div>
-        </section>
-
-        {/* ── KOSTENSTELLEN ── */}
-        <section style={{ marginBottom: 36 }}>
-          <div style={{ color: C.copper, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>Stundensätze</div>
-          <div style={{ color: C.gray, fontSize: 12, marginBottom: 16, lineHeight: 1.55 }}>
-            Diese Stundensätze werden bei jeder KI-Kalkulation verwendet. Ändere einzelne Werte und speichere direkt.
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {gruppen.map(g => (
-              <div key={g.name} style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ background: C.gray1, padding: '8px 14px', color: C.copper, fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
-                  {g.name}
+                <Field label="Straße & Hausnummer" value={profil.strasse ?? ''} onChange={v => setP('strasse', v)} />
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 10 }}>
+                  <Field label="PLZ" value={profil.plz ?? ''} onChange={v => setP('plz', v)} />
+                  <Field label="Ort" value={profil.ort ?? ''} onChange={v => setP('ort', v)} />
                 </div>
-                {g.items.map((ks, i) => (
-                  <div key={ks.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderTop: i > 0 ? `1px solid ${C.border}` : undefined }}>
-                    <div style={{ flex: 1, fontSize: 13, color: C.white }}>{ks.bezeichnung}</div>
-                    <div style={{ color: C.gray, fontSize: 10, minWidth: 60 }}>{ks.code}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input
-                        type="number"
-                        value={ks.stundensatz}
-                        onChange={e => updKs(ks.id, parseFloat(e.target.value) || 0)}
-                        style={{ width: 70, padding: '6px 8px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 5, color: C.white, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', textAlign: 'right' as const }}
-                      />
-                      <span style={{ color: C.gray, fontSize: 12 }}>€/h</span>
-                      <button
-                        onClick={() => saveKostenstelle(ks)}
-                        disabled={ksStatus[ks.id] === 'saving'}
-                        style={{ background: ksStatus[ks.id] === 'ok' ? '#1a3a1a' : 'transparent', color: ksStatus[ks.id] === 'ok' ? '#90EE90' : C.copper, border: `1px solid ${ksStatus[ks.id] === 'ok' ? '#3a6a3a' : C.copper}`, borderRadius: 5, padding: '6px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, minWidth: 40 }}
-                      >
-                        {ksStatus[ks.id] === 'saving' ? '…' : ksStatus[ks.id] === 'ok' ? '✓' : 'OK'}
-                      </button>
+                <Field label="Telefon" value={profil.telefon ?? ''} onChange={v => setP('telefon', v)} type="tel" />
+                <Field label="E-Mail" value={profil.email ?? ''} onChange={v => setP('email', v)} type="email" />
+                <Field label="Website" value={profil.website ?? ''} onChange={v => setP('website', v)} />
+
+                <Divider />
+
+                <Field label="USt-IdNr." value={profil.ust_id ?? ''} onChange={v => setP('ust_id', v)} placeholder="DE123456789" />
+                <Field label="Steuernummer" value={profil.steuernummer ?? ''} onChange={v => setP('steuernummer', v)} />
+
+                <Divider label="Bankverbindung" />
+
+                <Field label="IBAN" value={profil.iban ?? ''} onChange={v => setP('iban', v)} placeholder="DE00 0000 0000 0000 0000 00" />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <Field label="BIC" value={profil.bic ?? ''} onChange={v => setP('bic', v)} />
+                  <Field label="Bank" value={profil.bank_name ?? ''} onChange={v => setP('bank_name', v)} />
+                </div>
+              </div>
+              <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
+            </div>
+          )}
+
+          {/* BEREICH 2 — MARKETING & CI */}
+          {section === 'marketing' && (
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: C.white }}>Marketing & CI</h2>
+              <div style={{ display: 'grid', gap: 20 }}>
+
+                <div>
+                  <label style={lbl}>Primärfarbe (Hintergrund)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="color"
+                      value={profil.farbe_primaer || '#0D0D0D'}
+                      onChange={e => setP('farbe_primaer', e.target.value)}
+                      style={{ width: 46, height: 36, border: `1px solid ${C.border}`, borderRadius: 4, background: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}
+                    />
+                    <input
+                      value={profil.farbe_primaer || '#0D0D0D'}
+                      onChange={e => setP('farbe_primaer', e.target.value)}
+                      style={inp({ width: 110 })}
+                      maxLength={7}
+                      placeholder="#0D0D0D"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={lbl}>Akzentfarbe (Buttons / Highlights)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="color"
+                      value={profil.farbe_akzent || '#C8885A'}
+                      onChange={e => setP('farbe_akzent', e.target.value)}
+                      style={{ width: 46, height: 36, border: `1px solid ${C.border}`, borderRadius: 4, background: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}
+                    />
+                    <input
+                      value={profil.farbe_akzent || '#C8885A'}
+                      onChange={e => setP('farbe_akzent', e.target.value)}
+                      style={inp({ width: 110 })}
+                      maxLength={7}
+                      placeholder="#C8885A"
+                    />
+                  </div>
+                </div>
+
+                {/* Live-Vorschau */}
+                <div>
+                  <label style={lbl}>Vorschau</label>
+                  <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                    <div style={{ background: profil.farbe_primaer || '#0D0D0D', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {logoPreview && <img src={logoPreview} alt="Logo" style={{ height: 26, width: 'auto' }} />}
+                      <span style={{ color: profil.farbe_akzent || '#C8885A', fontWeight: 800, letterSpacing: 3, fontSize: 13 }}>
+                        {profil.firma_name || 'FIRMENNAME'}
+                      </span>
+                    </div>
+                    <div style={{ background: profil.farbe_primaer || '#0D0D0D', padding: '10px 18px 14px', display: 'flex', gap: 8 }}>
+                      <div style={{ background: profil.farbe_akzent || '#C8885A', borderRadius: 4, padding: '7px 14px', fontSize: 12, fontWeight: 700, color: profil.farbe_primaer || '#0D0D0D' }}>
+                        Speichern
+                      </div>
+                      <div style={{ border: `1px solid ${profil.farbe_akzent || '#C8885A'}`, borderRadius: 4, padding: '7px 14px', fontSize: 12, color: profil.farbe_akzent || '#C8885A' }}>
+                        Abbrechen
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            ))}
+                </div>
 
-            {ungrouped.length > 0 && (
-              <div style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ background: C.gray1, padding: '8px 14px', color: C.gray, fontSize: 10, fontWeight: 700, letterSpacing: 2 }}>SONSTIGE</div>
-                {ungrouped.map((ks, i) => (
-                  <div key={ks.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderTop: i > 0 ? `1px solid ${C.border}` : undefined }}>
-                    <div style={{ flex: 1, fontSize: 13, color: C.white }}>{ks.bezeichnung}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input type="number" value={ks.stundensatz} onChange={e => updKs(ks.id, parseFloat(e.target.value) || 0)}
-                        style={{ width: 70, padding: '6px 8px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 5, color: C.white, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', textAlign: 'right' as const }} />
-                      <span style={{ color: C.gray, fontSize: 12 }}>€/h</span>
-                      <button onClick={() => saveKostenstelle(ks)} style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 5, padding: '6px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>OK</button>
-                    </div>
+                <Divider label="Logo" />
+
+                {logoPreview && (
+                  <div style={{ padding: 12, background: C.gray2, borderRadius: 6, border: `1px solid ${C.border}`, display: 'inline-block' }}>
+                    <img src={logoPreview} alt="Logo-Vorschau" style={{ maxHeight: 60, maxWidth: 200, display: 'block' }} />
                   </div>
-                ))}
+                )}
+                <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
+                <div>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={logoUploading}
+                    style={{ background: C.gray2, border: `1px solid ${C.border}`, color: C.white, borderRadius: 5, padding: '9px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                  >
+                    {logoUploading ? 'Wird hochgeladen …' : logoPreview ? 'Logo ersetzen' : 'Logo hochladen'}
+                  </button>
+                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>PNG, SVG oder WebP, max. 2 MB. Erscheint im PDF-Angebot.</div>
+                </div>
               </div>
-            )}
+              <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
+            </div>
+          )}
 
-            {kostenstellen.length === 0 && (
-              <div style={{ color: C.gray, fontSize: 13, fontStyle: 'italic', padding: '12px 0' }}>
-                Keine Kostenstellen gefunden. Melde dich ab und wieder an, um sie zu initialisieren.
-              </div>
-            )}
-          </div>
-        </section>
+          {/* BEREICH 3 — KOSTENSTELLEN */}
+          {section === 'kostenstellen' && (
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Kostenstellen</h2>
+              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 20 }}>Stundensatz direkt editieren — wird sofort gespeichert. Toggle ✓/○ aktiviert oder deaktiviert die Kostenstelle.</p>
 
-        {/* ── KONTO ── */}
-        <section>
-          <div style={{ color: C.copper, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 16, fontWeight: 700 }}>Konto</div>
-          <div style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 18px' }}>
-            <div style={{ color: C.gray, fontSize: 12, marginBottom: 4 }}>Eingeloggt als</div>
-            <div style={{ color: C.white, fontSize: 14, fontWeight: 600, marginBottom: 16 }}>{userEmail}</div>
-            <button
-              onClick={async () => { const s = createClient(); await s.auth.signOut(); window.location.href = '/login' }}
-              style={{ background: 'transparent', color: C.err, border: `1px solid ${C.err}`, borderRadius: 6, padding: '10px 18px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}
-            >
-              Abmelden
-            </button>
-          </div>
-        </section>
+              {allGruppen.map(gruppe => {
+                const items = groups[gruppe]
+                if (!items || items.length === 0) return null
+                return (
+                  <div key={gruppe} style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 10, letterSpacing: 2, color: C.textMid, textTransform: 'uppercase', marginBottom: 8 }}>{gruppe}</div>
+                    {items.map(ks => (
+                      <div key={ks.id}>
+                        <div style={{
+                          display: 'grid', gridTemplateColumns: '1fr 100px 44px 28px',
+                          alignItems: 'center', gap: 8, marginBottom: 6,
+                          padding: '8px 10px', background: C.gray1,
+                          borderRadius: 4, border: `1px solid ${C.border}`,
+                          opacity: ks.aktiv ? 1 : 0.45,
+                        }}>
+                          <div>
+                            <div style={{ fontSize: 13, color: C.white }}>{ks.bezeichnung}</div>
+                            <div style={{ fontSize: 10, color: C.textMid }}>{ks.code}</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input
+                              type="number"
+                              defaultValue={ks.stundensatz}
+                              onBlur={e => {
+                                const v = parseFloat(e.target.value) || 0
+                                if (v !== ks.stundensatz) saveKs(ks, 'stundensatz', v)
+                              }}
+                              style={{ ...inp({ padding: '5px 7px', fontSize: 13, textAlign: 'right' }), width: '100%' }}
+                            />
+                            <span style={{ fontSize: 11, color: C.textMid, whiteSpace: 'nowrap' }}>€/h</span>
+                          </div>
+                          <button
+                            onClick={() => saveKs(ks, 'aktiv', !ks.aktiv)}
+                            style={{
+                              background: ks.aktiv ? 'rgba(90,190,106,.15)' : C.gray2,
+                              border: `1px solid ${ks.aktiv ? C.ok : C.border}`,
+                              borderRadius: 4, color: ks.aktiv ? C.ok : C.textMid,
+                              fontSize: 14, cursor: 'pointer', padding: '5px 0', width: '100%',
+                            }}
+                          >{ks.aktiv ? '✓' : '○'}</button>
+                          {!STANDARD_CODES.includes(ks.code) ? (
+                            <button
+                              onClick={() => deleteKs(ks.id)}
+                              style={{ background: 'none', border: 'none', color: C.err, fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                            >×</button>
+                          ) : <div />}
+                        </div>
+                        {ksMsg[ks.id] && (
+                          <div style={{ fontSize: 11, color: C.ok, marginTop: -4, marginBottom: 4, paddingLeft: 10 }}>{ksMsg[ks.id]}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
 
+              {showNewKs ? (
+                <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginTop: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <Field label="Code (z.B. 07_Sonstiges)" value={newKs.code} onChange={v => setNewKs(p => ({ ...p, code: v }))} />
+                    <Field label="Bezeichnung" value={newKs.bezeichnung} onChange={v => setNewKs(p => ({ ...p, bezeichnung: v }))} />
+                    <Field label="Stundensatz (€/h)" value={String(newKs.stundensatz)} onChange={v => setNewKs(p => ({ ...p, stundensatz: parseFloat(v) || 0 }))} type="number" />
+                    <Field label="Gruppe" value={newKs.gruppe} onChange={v => setNewKs(p => ({ ...p, gruppe: v }))} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={addKs} style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Hinzufügen</button>
+                    <button onClick={() => setShowNewKs(false)} style={{ background: C.gray2, border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 5, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Abbrechen</button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowNewKs(true)}
+                  style={{ marginTop: 8, background: 'none', border: `1px dashed ${C.border}`, color: C.textMid, borderRadius: 5, padding: '9px 16px', fontSize: 13, cursor: 'pointer', width: '100%', fontFamily: 'Helvetica Neue,sans-serif' }}
+                >+ Neue Kostenstelle</button>
+              )}
+            </div>
+          )}
+
+          {/* BEREICH 4 — WARENAUFSCHLÄGE */}
+          {section === 'warenaufschlaege' && (
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Warenaufschläge</h2>
+              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 20 }}>Aufschlag auf den Materialeinkaufspreis — deckt Beschaffung, Lager und Verschnitt ab.</p>
+
+              {materialgruppen.map(mg => (
+                <MgRow
+                  key={mg.id}
+                  mg={mg}
+                  msg={mgMsg[mg.id]}
+                  isDefault={DEFAULT_MATERIALGRUPPEN.includes(mg.name)}
+                  onSave={(name, aufschlag) => saveMg(mg.id, name, aufschlag)}
+                  onDelete={() => deleteMg(mg.id, mg.name)}
+                />
+              ))}
+
+              {materialgruppen.length === 0 && (
+                <div style={{ color: C.textMid, fontSize: 13, marginBottom: 16 }}>Noch keine Gruppen angelegt.</div>
+              )}
+
+              {showNewMg ? (
+                <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginTop: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 10, marginBottom: 10 }}>
+                    <Field label="Gruppenname" value={newMg.name} onChange={v => setNewMg(p => ({ ...p, name: v }))} />
+                    <Field label="Aufschlag %" value={String(newMg.aufschlag_prozent)} onChange={v => setNewMg(p => ({ ...p, aufschlag_prozent: parseFloat(v) || 0 }))} type="number" />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={addMg} style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Hinzufügen</button>
+                    <button onClick={() => setShowNewMg(false)} style={{ background: C.gray2, border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 5, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Abbrechen</button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowNewMg(true)}
+                  style={{ marginTop: 8, background: 'none', border: `1px dashed ${C.border}`, color: C.textMid, borderRadius: 5, padding: '9px 16px', fontSize: 13, cursor: 'pointer', width: '100%', fontFamily: 'Helvetica Neue,sans-serif' }}
+                >+ Neue Gruppe</button>
+              )}
+            </div>
+          )}
+
+        </div>
       </div>
+    </div>
+  )
+}
+
+/* ── Hilfs-Komponenten ─────────────────────────────── */
+
+function Field({ label, value, onChange, type = 'text', placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string
+}) {
+  return (
+    <div>
+      <label style={lbl}>{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={inp()} />
+    </div>
+  )
+}
+
+function Divider({ label }: { label?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0' }}>
+      {label && <span style={{ fontSize: 10, letterSpacing: 2, color: C.textMid, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>}
+      <div style={{ flex: 1, height: 1, background: C.border }} />
+    </div>
+  )
+}
+
+function SaveRow({ saving, msg, onSave }: { saving: boolean; msg: string; onSave: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 24, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+      <button
+        onClick={onSave}
+        disabled={saving}
+        style={{
+          background: saving ? '#7a5535' : C.copper,
+          color: C.black, border: 'none', borderRadius: 6,
+          padding: '10px 22px', fontSize: 13, fontWeight: 700,
+          cursor: saving ? 'not-allowed' : 'pointer',
+          fontFamily: 'Helvetica Neue,sans-serif',
+        }}
+      >{saving ? 'Wird gespeichert …' : 'Speichern'}</button>
+      {msg && <span style={{ fontSize: 12, color: msg.includes('Fehler') ? C.err : C.ok }}>{msg}</span>}
+    </div>
+  )
+}
+
+function MgRow({ mg, msg, isDefault, onSave, onDelete }: {
+  mg: Materialgruppe; msg?: string; isDefault: boolean
+  onSave: (name: string, aufschlag: number) => void
+  onDelete: () => void
+}) {
+  const [name, setName] = useState(mg.name)
+  const [aufschlag, setAufschlag] = useState(mg.aufschlag_prozent)
+
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr 100px 52px 28px',
+      alignItems: 'center', gap: 8, marginBottom: 6,
+      padding: '8px 10px', background: C.gray1,
+      borderRadius: 4, border: `1px solid ${C.border}`,
+    }}>
+      <input value={name} onChange={e => setName(e.target.value)} style={inp({ padding: '5px 8px', fontSize: 13 })} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        <input
+          type="number"
+          value={aufschlag}
+          onChange={e => setAufschlag(parseFloat(e.target.value) || 0)}
+          style={{ ...inp({ padding: '5px 7px', fontSize: 13, textAlign: 'right' }), width: '100%' }}
+        />
+        <span style={{ fontSize: 11, color: C.textMid }}>%</span>
+      </div>
+      <button
+        onClick={() => onSave(name, aufschlag)}
+        style={{ background: C.gray2, border: `1px solid ${msg === '✓' ? C.ok : C.border}`, color: msg === '✓' ? C.ok : C.textMid, borderRadius: 4, fontSize: 12, cursor: 'pointer', padding: '5px 0', fontFamily: 'Helvetica Neue,sans-serif' }}
+      >{msg ?? 'OK'}</button>
+      {!isDefault ? (
+        <button onClick={onDelete} style={{ background: 'none', border: 'none', color: C.err, fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+      ) : <div />}
     </div>
   )
 }
