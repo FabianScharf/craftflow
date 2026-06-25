@@ -1212,7 +1212,7 @@ export default function CraftFlow() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {projects.map(p => (
                   <div key={p.id} style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '11px 14px', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }} onClick={() => loadProject(p.id)} role="button" style2={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }} onClick={() => loadProject(p.id)}>
                       <button onClick={() => loadProject(p.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', flex: 1 }}>
                         <div style={{ color: C.white, fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{p.title}</div>
                         <div style={{ color: C.textMid, fontSize: 10 }}>
