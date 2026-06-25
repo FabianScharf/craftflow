@@ -903,6 +903,9 @@ export default function CraftFlow() {
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
+              <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                ⚙ Einstellungen
+              </button>
               {userEmail && (
                 <button onClick={logout} style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 3, padding: '8px 16px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, letterSpacing: 0.5 }}>
                   Abmelden
@@ -1136,21 +1139,37 @@ export default function CraftFlow() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {projects.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => loadProject(p.id)}
-                    style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '11px 14px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'Helvetica Neue,sans-serif' }}
-                  >
-                    <div>
-                      <div style={{ color: C.white, fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{p.title}</div>
-                      <div style={{ color: C.textMid, fontSize: 10 }}>
-                        {new Date(p.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                      </div>
+                  <div key={p.id} style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '11px 14px', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }} onClick={() => loadProject(p.id)} role="button" style2={{ cursor: 'pointer' }}>
+                      <button onClick={() => loadProject(p.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', flex: 1 }}>
+                        <div style={{ color: C.white, fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{p.title}</div>
+                        <div style={{ color: C.textMid, fontSize: 10 }}>
+                          {new Date(p.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </div>
+                      </button>
                     </div>
-                    <div style={{ color: p.status === 'abgeschlossen' ? '#5ABE6A' : C.copper, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                      {p.status === 'entwurf' ? 'Entwurf' : p.status === 'abgeschlossen' ? '✓ Fertig' : p.status}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(['gewonnen', 'verhandelt', 'verloren'] as const).map(s => {
+                        const colors: Record<string, { bg: string; border: string; color: string }> = {
+                          gewonnen:  { bg: p.status === 'gewonnen'  ? '#1a3a1a' : 'transparent', border: '#3a6a3a', color: '#90EE90' },
+                          verhandelt:{ bg: p.status === 'verhandelt' ? '#0d1520' : 'transparent', border: C.copper + '66', color: C.copper },
+                          verloren:  { bg: p.status === 'verloren'  ? '#2a0d0d' : 'transparent', border: '#6a2a2a', color: '#ff9999' },
+                        };
+                        const c = colors[s];
+                        return (
+                          <button key={s} onClick={async (e) => {
+                            e.stopPropagation();
+                            const newStatus = p.status === s ? 'offen' : s;
+                            await fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'status_set', projectId: p.id, data: { status: newStatus } }) });
+                            setProjects(prev => prev.map(x => x.id === p.id ? { ...x, status: newStatus } : x));
+                          }} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, border: `1px solid ${c.border}`, background: p.status === s ? c.bg : 'transparent', color: c.color, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: p.status === s ? 700 : 400 }}>
+                            {s === 'gewonnen' ? '✓ Gewonnen' : s === 'verhandelt' ? '↔ Verhandelt' : '✕ Verloren'}
+                          </button>
+                        );
+                      })}
+                      {p.status === 'offen' && <span style={{ fontSize: 10, color: C.textMid, alignSelf: 'center', marginLeft: 4 }}>offen</span>}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -1835,6 +1854,9 @@ export default function CraftFlow() {
             <button onClick={() => {
               setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf))
               setScreen('pdf')
+              if (currentProjectId) {
+                fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'pdf_export', projectId: currentProjectId, data: { preis_netto: totals.net } }) })
+              }
             }} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: 'pointer' }}>
               ▶ DOKUMENT ALS PDF ANZEIGEN
             </button>
