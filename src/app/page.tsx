@@ -121,8 +121,10 @@ export default function CraftFlow() {
           .then(r => r.json())
           .then(d => {
             const p = d.profil
-            if (!p) return
-            if (p.onboarding_abgeschlossen === false) setShowOnboarding(true)
+            if (!p || p.onboarding_abgeschlossen === false) {
+              setShowOnboarding(true)
+              if (!p) return
+            }
             const name: string = p.firma_name ?? ''
             setProfilFirmaName(name)
             setBrandAccent(p.farbe_akzent || C.copper)

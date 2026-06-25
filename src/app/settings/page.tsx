@@ -87,31 +87,43 @@ export default function SettingsPage() {
 
   const [userEmail, setUserEmail] = useState('')
 
+  async function loadAll() {
+    const [bpRes, ksRes, mgRes] = await Promise.all([
+      fetch('/api/settings/betriebsprofil').then(r => r.json()).catch(() => ({})),
+      fetch('/api/settings/kostenstellen').then(r => r.json()).catch(() => ({})),
+      fetch('/api/settings/materialgruppen').then(r => r.json()).catch(() => ({})),
+    ])
+
+    if (bpRes.profil) {
+      setProfil(bpRes.profil)
+      if (bpRes.profil.logo_url) setLogoPreview(bpRes.profil.logo_url)
+    }
+
+    const ks: Kostenstelle[] = ksRes.kostenstellen ?? []
+    const mg: Materialgruppe[] = mgRes.materialgruppen ?? []
+
+    if (ks.length === 0) {
+      await fetch('/api/settings/init', { method: 'POST' }).catch(() => {})
+      const [ks2, mg2] = await Promise.all([
+        fetch('/api/settings/kostenstellen').then(r => r.json()).catch(() => ({})),
+        fetch('/api/settings/materialgruppen').then(r => r.json()).catch(() => ({})),
+      ])
+      setKostenstellen(ks2.kostenstellen ?? [])
+      setMaterialgruppen(mg2.materialgruppen ?? [])
+    } else {
+      setKostenstellen(ks)
+      setMaterialgruppen(mg)
+    }
+  }
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? '')
     })
 
-    fetch('/api/settings/betriebsprofil')
-      .then(r => r.json())
-      .then(d => {
-        if (d.profil) {
-          setProfil(d.profil)
-          if (d.profil.logo_url) setLogoPreview(d.profil.logo_url)
-        }
-      })
-      .catch(() => {})
-
-    fetch('/api/settings/kostenstellen')
-      .then(r => r.json())
-      .then(d => { if (d.kostenstellen) setKostenstellen(d.kostenstellen) })
-      .catch(() => {})
-
-    fetch('/api/settings/materialgruppen')
-      .then(r => r.json())
-      .then(d => { if (d.materialgruppen) setMaterialgruppen(d.materialgruppen) })
-      .catch(() => {})
+    loadAll()
+   
   }, [])
 
   function setP(key: string, val: string) {

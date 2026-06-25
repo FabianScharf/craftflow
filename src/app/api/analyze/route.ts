@@ -388,7 +388,12 @@ Falls Bilder Grundrisse, Schnittzeichnungen oder Maßzeichnungen zeigen:
 
 ## AUSGABE-FORMAT
 
-KRITISCH: Deine Antwort beginnt SOFORT mit { und endet mit }. KEIN erklärender Text, KEINE Schrittbeschreibung, KEIN Markdown, KEINE Einleitung. Nur reines JSON.
+KRITISCH — AUSGABE-REGELN (höchste Priorität):
+- Antworte AUSSCHLIESSLICH mit validem JSON
+- KEIN Text vor dem JSON, KEIN Text nach dem JSON
+- KEINE Erklärungen, KEINE Schrittbeschreibungen, KEIN Markdown
+- KEIN Backtick-Code-Block drum herum
+- Deine erste Ausgabe ist { und deine letzte Ausgabe ist }
 
 Antworte NUR mit gültigem JSON, keine Backticks, kein Markdown:
 
@@ -645,10 +650,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 3000,
       temperature: 0.2,
       system: SYSTEM_PROMPT,
-      messages: [
-        { role: 'user', content: userContent },
-        { role: 'assistant', content: '{' },
-      ],
+      messages: [{ role: 'user', content: userContent }],
     })
     console.log('[analyze] calling Claude model:', model, '— body size:', Math.round(reqBody.length / 1024), 'KB')
 
@@ -672,7 +674,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json()
-    const rawText = '{' + ((data as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? '')
+    const rawText = (data as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? ''
     console.log('[analyze] Claude response length:', rawText.length)
     const clean = rawText.replace(/```json|```/g, '').trim()
 
