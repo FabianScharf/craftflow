@@ -108,7 +108,8 @@ export default function CraftFlow() {
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [brandAccent, setBrandAccent] = useState('#4A9EFF')
+  const [brandAccent, setBrandAccent] = useState(C.copper)
+  const [brandPrimary, setBrandPrimary] = useState(C.black)
   const [profilFirmaName, setProfilFirmaName] = useState<string | null>(null)
 
   useEffect(() => {
@@ -124,7 +125,8 @@ export default function CraftFlow() {
             if (p.onboarding_abgeschlossen === false) setShowOnboarding(true)
             const name: string = p.firma_name ?? ''
             setProfilFirmaName(name)
-            setBrandAccent(name ? (p.farbe_akzent || C.copper) : '#4A9EFF')
+            setBrandAccent(p.farbe_akzent || C.copper)
+            setBrandPrimary(p.farbe_primaer || C.black)
           })
           .catch(() => {})
       }
@@ -214,26 +216,7 @@ export default function CraftFlow() {
   const [kunde, setKunde] = useState<Kunde>({ name: '', zusatz: '', strasse: '', ort: '', projekt: '' })
 
   const [tab, setTab] = useState('kunde')
-  const [pos, setPos] = useState<Angebotsposition[]>([
-    {
-      id: 1, titel: 'Einbauschrank Korpus', beschreibung: 'Maße und Material nach Absprache.',
-      material: [
-        { id: 10, bezeichnung: 'Spanplatte beschichtet 18mm', menge: 10, einheit: 'm²', ekPreis: 20, aufschlag: 0.3 },
-      ],
-      arbeitszeit: [
-        { id: 11, kostenstelle: '03_00_Produktion', minuten: 480, vkStunde: 65 },
-        { id: 12, kostenstelle: '05_01_Montage', minuten: 60, vkStunde: 65 },
-      ],
-    },
-    {
-      id: 2, titel: 'Lieferung & Montage', beschreibung: 'Fachgerechte Montage inkl. An-/Abfahrt.',
-      material: [],
-      arbeitszeit: [
-        { id: 21, kostenstelle: '05_01_Montage', minuten: 300, vkStunde: 65 },
-        { id: 22, kostenstelle: '06_01_Lieferung', minuten: 120, vkStunde: 65 },
-      ],
-    },
-  ])
+  const [pos, setPos] = useState<Angebotsposition[]>([defaultAngebotspos(Date.now())])
   const [docNr, setDocNr] = useState('AB-264')
   const [docTyp, setDocTyp] = useState('Auftragsbestätigung')
   const [anschr, setAnschr] = useState('herzlichen Dank für Ihren Auftrag, den wir hiermit gerne bestätigen:')

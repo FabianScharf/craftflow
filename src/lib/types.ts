@@ -247,12 +247,12 @@ export const DEMO_KUNDEN: KundeDB[] = [
 
 // ── Kunden DB (localStorage) ─────────────────────────
 export function ladeKunden(): KundeDB[] {
-  if (typeof window === 'undefined') return DEMO_KUNDEN
+  if (typeof window === 'undefined') return []
   try {
     const d = localStorage.getItem('craftflow_kunden')
-    return d ? JSON.parse(d) : DEMO_KUNDEN
+    return d ? JSON.parse(d) : []
   } catch {
-    return DEMO_KUNDEN
+    return []
   }
 }
 
