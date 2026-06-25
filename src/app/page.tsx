@@ -108,6 +108,8 @@ export default function CraftFlow() {
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [brandAccent, setBrandAccent] = useState('#4A9EFF')
+  const [profilFirmaName, setProfilFirmaName] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -117,9 +119,12 @@ export default function CraftFlow() {
         fetch('/api/settings/betriebsprofil')
           .then(r => r.json())
           .then(d => {
-            if (d.profil && d.profil.onboarding_abgeschlossen === false) {
-              setShowOnboarding(true)
-            }
+            const p = d.profil
+            if (!p) return
+            if (p.onboarding_abgeschlossen === false) setShowOnboarding(true)
+            const name: string = p.firma_name ?? ''
+            setProfilFirmaName(name)
+            setBrandAccent(name ? (p.farbe_akzent || C.copper) : '#4A9EFF')
           })
           .catch(() => {})
       }
@@ -284,6 +289,7 @@ export default function CraftFlow() {
   const [allInquiryStatus, setAllInquiryStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [allInquiryResult, setAllInquiryResult] = useState<InquiryResult | null>(null)
   const [copiedFeedback, setCopiedFeedback] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
   const startFileRef = useRef<HTMLInputElement>(null)
 
@@ -849,6 +855,79 @@ export default function CraftFlow() {
     URL.revokeObjectURL(url)
   }, [pos, kunde, docNr, docTyp])
 
+  const exportCSV = useCallback(() => {
+    const BOM = '﻿'
+    const header = ['Position', 'Typ', 'Bezeichnung', 'Menge', 'Einheit', 'EK €', 'Aufschlag %', 'VK €']
+    const rows: string[][] = [header]
+    pos.forEach((p, pi) => {
+      p.material.forEach(m => {
+        const vk = m.menge * m.ekPreis * (1 + m.aufschlag)
+        rows.push([String(pi + 1), 'Material', m.bezeichnung, String(m.menge), m.einheit, String(m.ekPreis), String(Math.round(m.aufschlag * 100)), String(Math.round(vk * 100) / 100)])
+      })
+      p.arbeitszeit.forEach(a => {
+        const vk = (a.minuten / 60) * a.vkStunde
+        rows.push([String(pi + 1), 'Arbeitszeit', KOSTENSTELLEN_LABELS[a.kostenstelle] ?? a.kostenstelle, String(Math.round(a.minuten / 60 * 100) / 100), 'h', String(a.vkStunde), '', String(Math.round(vk * 100) / 100)])
+      })
+    })
+    rows.push([])
+    rows.push(['', '', '', '', '', '', 'Netto', String(Math.round(totals.net * 100) / 100)])
+    rows.push(['', '', '', '', '', '', 'MwSt. 19%', String(Math.round(totals.net * 0.19 * 100) / 100)])
+    rows.push(['', '', '', '', '', '', 'Brutto', String(Math.round(totals.net * 1.19 * 100) / 100)])
+
+    const csv = BOM + rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(';')).join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `angebot_${kunde.name.trim().split(/\s+/).pop() || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [pos, kunde, totals])
+
+  const exportXLSX = useCallback(async () => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+
+    // Header-Block
+    const meta: string[][] = [
+      ['CraftFlow – Kalkulation'],
+      ['Kunde', kunde.name, '', 'Projekt', kunde.projekt],
+      ['Adresse', `${kunde.strasse}, ${kunde.ort}`],
+      ['Datum', new Date().toLocaleDateString('de-DE')],
+      [],
+    ]
+
+    const tableHeader = ['Pos', 'Typ', 'Bezeichnung', 'Menge', 'Einheit', 'EK €', 'Aufschlag %', 'VK €']
+    const tableRows: (string | number)[][] = []
+
+    pos.forEach((p, pi) => {
+      tableRows.push([String(pi + 1), p.titel, '', '', '', '', '', ''])
+      p.material.forEach(m => {
+        const vk = m.menge * m.ekPreis * (1 + m.aufschlag)
+        tableRows.push(['', 'Material', m.bezeichnung, m.menge, m.einheit, m.ekPreis, Math.round(m.aufschlag * 100), Math.round(vk * 100) / 100])
+      })
+      p.arbeitszeit.forEach(a => {
+        const vk = (a.minuten / 60) * a.vkStunde
+        tableRows.push(['', 'Arbeitszeit', KOSTENSTELLEN_LABELS[a.kostenstelle] ?? a.kostenstelle, Math.round(a.minuten / 60 * 100) / 100, 'h', a.vkStunde, '', Math.round(vk * 100) / 100])
+      })
+    })
+
+    tableRows.push([])
+    tableRows.push(['', '', '', '', '', '', 'Netto', Math.round(totals.net * 100) / 100])
+    tableRows.push(['', '', '', '', '', '', 'MwSt. 19%', Math.round(totals.net * 0.19 * 100) / 100])
+    tableRows.push(['', '', '', '', '', '', 'Brutto', Math.round(totals.net * 1.19 * 100) / 100])
+
+    const sheetData = [...meta, tableHeader, ...tableRows]
+    const ws = XLSX.utils.aoa_to_sheet(sheetData)
+
+    // Spaltenbreiten
+    ws['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 36 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }]
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Kalkulation')
+    const filename = `angebot_${kunde.name.trim().split(/\s+/).pop() || 'export'}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    XLSX.writeFile(wb, filename)
+  }, [pos, kunde, totals])
+
   const copyToClipboard = useCallback(async () => {
     const date = today()
     const lines: string[] = [
@@ -958,32 +1037,29 @@ export default function CraftFlow() {
         `}</style>
 
         {/* Header */}
-        <div style={{ background: C.darkbg, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${C.copper}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <LogoMark size={38} />
-            <div>
-              <div style={{ color: C.copper, fontSize: 17, fontWeight: 800, letterSpacing: 3 }}>CRAFTFLOW</div>
-              <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 2 }}>FS CRAFTED</div>
+        <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
+            {profilFirmaName && <LogoMark size={34} />}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: brandAccent, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
+              {profilFirmaName && <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{profilFirmaName.toUpperCase()}</div>}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
             <button
               onClick={resetAll}
-              style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 6, padding: '10px 18px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.5 }}
+              style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.3, whiteSpace: 'nowrap' }}
             >
-              + Neues Projekt
+              + Neu
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ color: C.textMid, fontSize: 9 }}>v{process.env.NEXT_PUBLIC_VERSION}</div>
-              <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                ⚙ Einstellungen
+            <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }}>
+              ⚙
+            </button>
+            {userEmail && (
+              <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                ↩
               </button>
-              {userEmail && (
-                <button onClick={logout} style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 3, padding: '8px 16px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, letterSpacing: 0.5 }}>
-                  Abmelden
-                </button>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
@@ -1220,7 +1296,7 @@ export default function CraftFlow() {
                         </div>
                       </button>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                       {(['gewonnen', 'verhandelt', 'verloren'] as const).map(s => {
                         const colors: Record<string, { bg: string; border: string; color: string }> = {
                           gewonnen:  { bg: p.status === 'gewonnen'  ? '#1a3a1a' : 'transparent', border: '#3a6a3a', color: '#90EE90' },
@@ -1228,18 +1304,19 @@ export default function CraftFlow() {
                           verloren:  { bg: p.status === 'verloren'  ? '#2a0d0d' : 'transparent', border: '#6a2a2a', color: '#ff9999' },
                         };
                         const c = colors[s];
+                        const label = s === 'gewonnen' ? '✓ Won' : s === 'verhandelt' ? '↔ Deal' : '✕ Lost';
                         return (
                           <button key={s} onClick={async (e) => {
                             e.stopPropagation();
                             const newStatus = p.status === s ? 'offen' : s;
                             await fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'status_set', projectId: p.id, data: { status: newStatus } }) });
                             setProjects(prev => prev.map(x => x.id === p.id ? { ...x, status: newStatus } : x));
-                          }} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, border: `1px solid ${c.border}`, background: p.status === s ? c.bg : 'transparent', color: c.color, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: p.status === s ? 700 : 400 }}>
-                            {s === 'gewonnen' ? '✓ Gewonnen' : s === 'verhandelt' ? '↔ Verhandelt' : '✕ Verloren'}
+                          }} style={{ padding: '4px 9px', borderRadius: 20, fontSize: 10, border: `1px solid ${c.border}`, background: p.status === s ? c.bg : 'transparent', color: c.color, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: p.status === s ? 700 : 400, whiteSpace: 'nowrap' }}>
+                            {label}
                           </button>
                         );
                       })}
-                      {p.status === 'offen' && <span style={{ fontSize: 10, color: C.textMid, alignSelf: 'center', marginLeft: 4 }}>offen</span>}
+                      {p.status === 'offen' && <span style={{ fontSize: 10, color: C.textMid, alignSelf: 'center' }}>offen</span>}
                     </div>
                   </div>
                 ))}
@@ -1266,34 +1343,31 @@ export default function CraftFlow() {
       {OnboardingModal}
 
       {/* Header */}
-      <div style={{ background: C.darkbg, padding: '13px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${C.copper}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <LogoMark size={34} />
-          <div>
-            <div style={{ color: C.copper, fontSize: 15, fontWeight: 800, letterSpacing: 3 }}>CRAFTFLOW</div>
-            <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 2 }}>FS CRAFTED</div>
+      <div style={{ background: C.darkbg, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 }}>
+          {profilFirmaName && <LogoMark size={30} />}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: brandAccent, fontSize: 13, fontWeight: 800, letterSpacing: 2, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
+            {profilFirmaName && <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 1, whiteSpace: 'nowrap' }}>{profilFirmaName.toUpperCase()}</div>}
+          </div>
+          <div style={{ display: 'none' }} />
+          <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 6 }}>
+            {kunde.name || '–'}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {kunde.name || '–'}
-            </div>
-            <div style={{ color: C.textMid, fontSize: 9 }}>{docNr} · {today()}</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <button
-              onClick={() => setScreen('start')}
-              style={{ background: C.gray1, color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 6, padding: '10px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, whiteSpace: 'nowrap' }}
-            >
-              ← Zurück
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <div style={{ color: C.textMid, fontSize: 9, whiteSpace: 'nowrap' }}>{docNr}</div>
+          <button
+            onClick={() => setScreen('start')}
+            style={{ background: C.gray1, color: brandAccent, border: `1px solid ${brandAccent}`, borderRadius: 6, padding: '9px 12px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, whiteSpace: 'nowrap' }}
+          >
+            ← Zurück
+          </button>
+          {userEmail && (
+            <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>
+              ↩
             </button>
-            {userEmail && (
-              <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 9, fontFamily: 'Helvetica Neue,sans-serif', padding: 0, letterSpacing: 0.5 }}>
-                Abmelden
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
@@ -1411,9 +1485,40 @@ export default function CraftFlow() {
               >
                 {allInquiryStatus === 'loading' ? '⟳ Anfragen werden erstellt…' : allInquiryStatus === 'done' ? '✓ Drafts erstellt' : '✉ Alle Materialien anfragen'}
               </button>
-              <button onClick={exportJSON} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                ↓ JSON
-              </button>
+              {/* Export Dropdown */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setExportMenuOpen(o => !o)}
+                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap' }}
+                >
+                  ↓ Export {exportMenuOpen ? '▲' : '▼'}
+                </button>
+                {exportMenuOpen && (
+                  <>
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 49 }}
+                      onClick={() => setExportMenuOpen(false)}
+                    />
+                    <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#1E1E1E', border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden', zIndex: 50, minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
+                      {[
+                        { label: '{ } JSON', action: () => { exportJSON(); setExportMenuOpen(false) } },
+                        { label: '⬛ CSV', action: () => { exportCSV(); setExportMenuOpen(false) } },
+                        { label: '📊 Excel (.xlsx)', action: () => { exportXLSX(); setExportMenuOpen(false) } },
+                      ].map(item => (
+                        <button
+                          key={item.label}
+                          onClick={item.action}
+                          style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.white, fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left', cursor: 'pointer', minHeight: 44 }}
+                          onMouseEnter={e => (e.currentTarget.style.background = C.gray2)}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
               <button onClick={copyToClipboard} style={{ background: copiedFeedback ? '#1a3a1a' : 'transparent', color: copiedFeedback ? '#90EE90' : C.textMid, border: `1px solid ${copiedFeedback ? '#3a6a3a' : C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
                 {copiedFeedback ? '✓ Kopiert' : '⎘ Kopieren'}
               </button>
@@ -1443,6 +1548,27 @@ export default function CraftFlow() {
                 Fehler beim Erstellen der Anfragen.
               </div>
             )}
+
+            {/* KI-Optimierung Haupt-Button */}
+            <button
+              onClick={openOptimPanel}
+              style={{
+                width: '100%', marginBottom: 14,
+                background: optimPanelOpen ? `${C.copper}22` : `${C.copper}15`,
+                border: `1px solid ${C.copper}`,
+                borderRadius: 8, padding: '14px 16px',
+                cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
+                display: 'flex', alignItems: 'center', gap: 12,
+                textAlign: 'left' as const,
+              }}
+            >
+              <span style={{ fontSize: 24, flexShrink: 0 }}>✨</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: C.copper, fontSize: 14, fontWeight: 800, letterSpacing: 0.3 }}>KI-Optimierung</div>
+                <div style={{ color: C.textMid, fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>KI analysiert dein Angebot und schlägt Verbesserungen vor</div>
+              </div>
+              <span style={{ color: C.copper, fontSize: 18, flexShrink: 0 }}>→</span>
+            </button>
 
             {/* Gesamtübersicht oben */}
             <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 14 }}>
