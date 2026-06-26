@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { PlanGate } from '@/components/PlanGate'
+import { PricingModal } from '@/components/PricingModal'
 import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
 import { EmailSettings } from '@/components/settings/EmailSettings'
 import { type Plan } from '@/hooks/usePlan'
@@ -68,8 +69,11 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'plan'>('firma')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showPricingModal, setShowPricingModal] = useState(false)
+  const [loadingPortal, setLoadingPortal] = useState(false)
+  const [stripeMsg, setStripeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const [profil, setProfil] = useState<Profil>({})
   const [profilSaving, setProfilSaving] = useState(false)
@@ -125,9 +129,18 @@ export default function SettingsPage() {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? '')
     })
-
     loadAll()
-   
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('stripe') === 'success') {
+      setStripeMsg({ type: 'ok', text: 'Plan erfolgreich aktiviert!' })
+      setSection('plan')
+      window.history.replaceState({}, '', '/settings')
+    } else if (params.get('stripe') === 'cancelled') {
+      setStripeMsg({ type: 'err', text: 'Checkout abgebrochen.' })
+      setSection('plan')
+      window.history.replaceState({}, '', '/settings')
+    }
   }, [])
 
   function setP(key: string, val: string) {
@@ -247,6 +260,19 @@ export default function SettingsPage() {
     setLogoUploading(false)
   }
 
+  async function openPortal() {
+    setLoadingPortal(true)
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+      const { url, error } = await res.json()
+      if (error) { setStripeMsg({ type: 'err', text: error }); setLoadingPortal(false); return }
+      window.location.href = url
+    } catch {
+      setStripeMsg({ type: 'err', text: 'Fehler beim Öffnen des Kundenportals.' })
+      setLoadingPortal(false)
+    }
+  }
+
   async function logout() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -262,6 +288,7 @@ export default function SettingsPage() {
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
     { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' },
     { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'starter' },
+    { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
   ]
 
   const groups = groupKostenstellen(kostenstellen)
@@ -623,8 +650,83 @@ export default function SettingsPage() {
             <EmailSettings />
           )}
 
+          {/* BEREICH 7 — MEIN PLAN */}
+          {section === 'plan' && (
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Mein Plan</h2>
+              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 24 }}>Aktuelles Abonnement und Upgrade-Optionen.</p>
+
+              {stripeMsg && (
+                <div style={{
+                  marginBottom: 20, padding: '12px 16px', borderRadius: 6,
+                  background: stripeMsg.type === 'ok' ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)',
+                  border: `1px solid ${stripeMsg.type === 'ok' ? '#5ABE6A' : C.err}`,
+                  fontSize: 13, color: stripeMsg.type === 'ok' ? '#5ABE6A' : C.err,
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                  {stripeMsg.text}
+                  <button onClick={() => setStripeMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+                </div>
+              )}
+
+              {/* Aktueller Plan */}
+              <div style={{
+                background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8,
+                padding: '20px 20px', marginBottom: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+              }}>
+                <div>
+                  <div style={{ fontSize: 11, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>Aktueller Plan</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: C.copper, textTransform: 'capitalize' }}>{userPlan}</div>
+                  {userPlan === 'solo' && (
+                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>7 € / Monat</div>
+                  )}
+                  {userPlan === 'starter' && (
+                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>29 € / Monat</div>
+                  )}
+                  {userPlan === 'pro' && (
+                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>49 € / Monat</div>
+                  )}
+                  {userPlan === 'enterprise' && (
+                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>79 € / Monat</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {profil.stripe_customer_id && (
+                    <button
+                      onClick={openPortal}
+                      disabled={loadingPortal}
+                      style={{
+                        background: C.gray2, border: `1px solid ${C.border}`,
+                        color: C.white, borderRadius: 6, padding: '9px 16px',
+                        fontSize: 13, cursor: loadingPortal ? 'not-allowed' : 'pointer',
+                        fontFamily: 'Helvetica Neue, sans-serif',
+                      }}
+                    >{loadingPortal ? '…' : 'Plan verwalten'}</button>
+                  )}
+                  <button
+                    onClick={() => setShowPricingModal(true)}
+                    style={{
+                      background: C.copper, color: C.black, border: 'none',
+                      borderRadius: 6, padding: '9px 16px', fontSize: 13, fontWeight: 700,
+                      cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif',
+                    }}
+                  >Upgrade</button>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 11, color: C.textMid }}>
+                Du hast einen BETA-Gutschein? Klicke auf Upgrade und gib ihn im Checkout ein.
+              </p>
+            </div>
+          )}
+
         </div>
       </div>
+
+      {showPricingModal && (
+        <PricingModal currentPlan={userPlan} onClose={() => setShowPricingModal(false)} />
+      )}
     </div>
   )
 }
