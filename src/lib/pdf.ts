@@ -5,6 +5,7 @@ export interface PDFTextOpts {
   nachtext?: string
   widerrufText?: string
   zahlungText?: string
+  logoUrl?: string
 }
 
 export function buildPDF(
@@ -137,7 +138,7 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:16px;padding-bottom:2px}
 <div class="hdr">
   <div class="hdr-sender">${FIRMA.name} | ${FIRMA.strasse} | ${FIRMA.ort}</div>
   <div class="hdr-logo">
-    <img src="/logo.png" alt="${FIRMA.name}">
+    ${textOpts.logoUrl ? `<img src="${textOpts.logoUrl}" alt="Logo">` : ''}
   </div>
 </div>
 

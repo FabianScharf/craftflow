@@ -2192,6 +2192,7 @@ export default function CraftFlow() {
                 nachtext: dokNachtext || undefined,
                 widerrufText: dokWiderruf || undefined,
                 zahlungText: dokZahlung || undefined,
+                logoUrl: profilLogoUrl || undefined,
               }))
               setScreen('pdf')
               if (currentProjectId) {
