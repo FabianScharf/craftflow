@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { PlanGate } from '@/components/PlanGate'
+import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
+import { EmailSettings } from '@/components/settings/EmailSettings'
+import { type Plan } from '@/hooks/usePlan'
 
 const C = {
   black:   '#0D0D0D',
@@ -64,7 +68,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email'>('firma')
   const [menuOpen, setMenuOpen] = useState(false)
 
   const [profil, setProfil] = useState<Profil>({})
@@ -249,11 +253,15 @@ export default function SettingsPage() {
     window.location.href = '/login'
   }
 
-  const navItems: { id: typeof section; label: string; icon: string }[] = [
+  const userPlan = (profil.plan as Plan | undefined) ?? 'solo'
+
+  const navItems: { id: typeof section; label: string; icon: string; minPlan?: Plan }[] = [
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
+    { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' },
+    { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'starter' },
   ]
 
   const groups = groupKostenstellen(kostenstellen)
@@ -297,7 +305,12 @@ export default function SettingsPage() {
               }}
             >
               <span style={{ fontSize: 15 }}>{item.icon}</span>
-              {item.label}
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.minPlan && userPlan === 'solo' && (
+                <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${C.copper}50`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0 }}>
+                  Starter
+                </span>
+              )}
             </button>
           ))}
 
@@ -329,7 +342,12 @@ export default function SettingsPage() {
                   }}
                 >
                   <span style={{ fontSize: 16 }}>{item.icon}</span>
-                  {item.label}
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.minPlan && userPlan === 'solo' && (
+                    <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${C.copper}50`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0 }}>
+                      Starter
+                    </span>
+                  )}
                 </button>
               ))}
               <div style={{ marginTop: 'auto', padding: '20px', borderTop: `1px solid ${C.border}` }}>
@@ -591,6 +609,18 @@ export default function SettingsPage() {
                 >+ Neue Gruppe</button>
               )}
             </div>
+          )}
+
+          {/* BEREICH 5 — LIEFERANTEN */}
+          {section === 'lieferanten' && (
+            <PlanGate minPlan="starter">
+              <LieferantenSettings />
+            </PlanGate>
+          )}
+
+          {/* BEREICH 6 — E-MAIL & VERSAND */}
+          {section === 'email' && (
+            <EmailSettings />
           )}
 
         </div>

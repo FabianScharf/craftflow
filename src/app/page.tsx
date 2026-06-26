@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { usePlan } from '@/hooks/usePlan'
 import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
 import {
@@ -104,13 +105,18 @@ const defaultAngebotspos = (id: number): Angebotsposition => ({
 })
 
 /* ── Haupt-Komponente ─────────────────────────────── */
+const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.d82', '.d83', '.p81', '.p82', '.p83']
+
 export default function CraftFlow() {
+  const { canUse: planCanUse } = usePlan()
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [brandAccent, setBrandAccent] = useState(C.copper)
   const [brandPrimary, setBrandPrimary] = useState(C.black)
   const [profilFirmaName, setProfilFirmaName] = useState<string | null>(null)
+  const [gaebDetected, setGaebDetected] = useState(false)
+  const [gaebFileName, setGaebFileName] = useState('')
 
   useEffect(() => {
     const supabase = createClient()
@@ -1100,15 +1106,25 @@ export default function CraftFlow() {
           <div style={{ marginBottom: 14 }}>
             <input
               ref={startFileRef}
-              type="file" accept="image/*,.pdf"
+              type="file"
+              accept={planCanUse('enterprise')
+                ? 'image/*,application/pdf,.x81,.x82,.x83,.d81,.d82,.d83,.p81,.p82,.p83'
+                : 'image/*,application/pdf'}
               multiple
               onChange={e => {
                 const files = Array.from(e.target.files ?? [])
                 e.target.value = ''
                 for (const f of files) {
-                  const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
-                  if (isPdf) handlePdfUpload(f)
-                  else loadBild(f)
+                  const nameLc = f.name.toLowerCase()
+                  const isGaeb = GAEB_EXTENSIONS.some(ext => nameLc.endsWith(ext))
+                  if (isGaeb) {
+                    setGaebDetected(true)
+                    setGaebFileName(f.name)
+                  } else {
+                    const isPdf = f.type === 'application/pdf' || nameLc.endsWith('.pdf')
+                    if (isPdf) handlePdfUpload(f)
+                    else loadBild(f)
+                  }
                 }
               }}
               style={{ display: 'none' }}
@@ -1153,6 +1169,20 @@ export default function CraftFlow() {
                     >×</button>
                   </div>
                 ))}
+              </div>
+            )}
+            {gaebDetected && (
+              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${C.copper}40`, background: `${C.copper}08`, padding: '10px 14px' }}>
+                <div style={{ fontSize: 13, color: C.copper, marginBottom: 2 }}>
+                  GAEB-Datei erkannt: <strong>{gaebFileName}</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, color: C.textMid }}>GAEB-Analyse folgt in einem kommenden Update.</span>
+                  <button
+                    onClick={() => { setGaebDetected(false); setGaebFileName('') }}
+                    style={{ background: 'none', border: 'none', color: C.textMid, fontSize: 14, cursor: 'pointer', padding: 0 }}
+                  >×</button>
+                </div>
               </div>
             )}
           </div>
