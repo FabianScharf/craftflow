@@ -116,7 +116,7 @@ const defaultAngebotspos = (id: number): Angebotsposition => ({
 const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.d82', '.d83', '.p81', '.p82', '.p83']
 
 export default function CraftFlow() {
-  const { canUse: planCanUse, usage, incrementUsage } = usePlan()
+  const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft } = usePlan()
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -1119,6 +1119,15 @@ export default function CraftFlow() {
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {OnboardingModal}
+        {isInTrial && (
+          <div onClick={() => window.location.href = '/settings#plan'} style={{ background: `${C.copper}18`, borderBottom: `1px solid ${C.copper}55`, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer' }}>
+            <span style={{ fontSize: 14 }}>🎁</span>
+            <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
+              <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet
+            </span>
+            <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>Plan wählen →</span>
+          </div>
+        )}
         <style>{`
           @keyframes cfpulse {
             0%, 100% { transform: scale(1); opacity: 0.5; }

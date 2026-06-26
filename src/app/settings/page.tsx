@@ -6,7 +6,7 @@ import { PlanGate } from '@/components/PlanGate'
 
 import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
 import { EmailSettings } from '@/components/settings/EmailSettings'
-import { type Plan } from '@/hooks/usePlan'
+import { type Plan, usePlan } from '@/hooks/usePlan'
 
 const C = {
   black:   'var(--c-primary, #0D0D0D)',
@@ -76,6 +76,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
+  const { isInTrial, trialDaysLeft } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan'>('firma')
   const [isMobile, setIsMobile] = useState(false)
   const [mobileShowContent, setMobileShowContent] = useState(false)
@@ -789,7 +790,21 @@ export default function SettingsPage() {
           {section === 'plan' && (
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Mein Plan</h2>
-              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 24 }}>Aktuelles Abonnement und Upgrade-Optionen.</p>
+              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 16 }}>Aktuelles Abonnement und Upgrade-Optionen.</p>
+
+              {isInTrial && (
+                <div style={{ background: `${C.copper}15`, border: `1px solid ${C.copper}55`, borderRadius: 8, padding: '14px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 22 }}>🎁</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.copper }}>
+                      {trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'} Testversion verbleiben
+                    </div>
+                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 2 }}>
+                      Du hast aktuell Zugriff auf alle Enterprise-Funktionen. Wähle jetzt einen Plan, um nach dem Test weiterzumachen.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {stripeMsg && (
                 <div style={{

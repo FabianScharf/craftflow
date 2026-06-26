@@ -8,6 +8,8 @@ const PLAN_RANK: Record<Plan, number> = {
   solo: 1, starter: 2, pro: 3, enterprise: 4,
 }
 
+export const TRIAL_DAYS = 14
+
 export const PLAN_LIMITS_ANGEBOTE: Record<Plan, number | null> = {
   solo: 3, starter: 15, pro: 50, enterprise: null,
 }
@@ -32,8 +34,15 @@ export interface UsageInfo {
   erlaubt: boolean
 }
 
+function calcTrialDaysLeft(trialStartsAt: string | null): number {
+  if (!trialStartsAt) return 0
+  const end = new Date(trialStartsAt).getTime() + TRIAL_DAYS * 86400_000
+  return Math.max(0, Math.ceil((end - Date.now()) / 86400_000))
+}
+
 export function usePlan() {
   const [plan, setPlan] = useState<Plan>('solo')
+  const [trialDaysLeft, setTrialDaysLeft] = useState(0)
   const [loading, setLoading] = useState(true)
   const [usage, setUsage] = useState<UsageInfo | null>(null)
 
@@ -49,16 +58,21 @@ export function usePlan() {
       if (!user) { setLoading(false); return }
       const { data } = await supabase
         .from('betriebsprofil')
-        .select('plan')
+        .select('plan, trial_starts_at')
         .eq('user_id', user.id)
         .single()
       if (data?.plan) setPlan(data.plan as Plan)
+      setTrialDaysLeft(calcTrialDaysLeft(data?.trial_starts_at ?? null))
       setLoading(false)
     })()
     loadUsage()
   }, [loadUsage])
 
-  const canUse = (minPlan: Plan) => PLAN_RANK[plan] >= PLAN_RANK[minPlan]
+  const isInTrial = trialDaysLeft > 0
+  // Während Trial hat jeder Enterprise-Zugriff
+  const effectivePlan: Plan = isInTrial ? 'enterprise' : plan
+
+  const canUse = (minPlan: Plan) => PLAN_RANK[effectivePlan] >= PLAN_RANK[minPlan]
 
   const incrementUsage = useCallback(async (): Promise<boolean> => {
     const res = await fetch('/api/usage', { method: 'POST' })
@@ -67,5 +81,5 @@ export function usePlan() {
     return true
   }, [loadUsage])
 
-  return { plan, loading, canUse, usage, incrementUsage }
+  return { plan, effectivePlan, isInTrial, trialDaysLeft, loading, canUse, usage, incrementUsage }
 }
