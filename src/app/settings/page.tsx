@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { PlanGate } from '@/components/PlanGate'
 
@@ -76,7 +76,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'plan'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'plan'>('firma')
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [loadingPortal, setLoadingPortal] = useState(false)
   const [stripeMsg, setStripeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -313,6 +313,7 @@ export default function SettingsPage() {
   const navItems: { id: typeof section; label: string; icon: string; minPlan?: Plan }[] = [
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
     { id: 'buchhaltung',      label: 'Buchhaltung',     icon: '🧾' },
+    { id: 'auswertung',       label: 'Auswertung',      icon: '📊' },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
@@ -682,6 +683,9 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* BEREICH — AUSWERTUNG */}
+          {section === 'auswertung' && <AuswertungSection />}
+
           {/* BEREICH 7 — MEIN PLAN */}
           {section === 'plan' && (
             <div>
@@ -858,6 +862,196 @@ function MgRow({ mg, msg, isDefault, onSave, onDelete }: {
       {!isDefault ? (
         <button onClick={onDelete} style={{ background: 'none', border: 'none', color: C.err, fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
       ) : <div />}
+    </div>
+  )
+}
+
+// ── AUSWERTUNG ────────────────────────────────────────────────────────────────
+
+type Zeitraum = 'woche' | 'monat' | 'quartal' | 'jahr' | 'gesamt'
+
+interface AnalyticsStats {
+  anzahl: number; volumen: number; durchschnitt: number; max: number
+}
+interface AnalyticsData {
+  gesamt: AnalyticsStats
+  woche: AnalyticsStats
+  monat: AnalyticsStats
+  quartal: AnalyticsStats
+  jahr: AnalyticsStats
+  monatlich: Record<string, { anzahl: number; volumen: number }>
+  nachTyp: Record<string, { anzahl: number; volumen: number }>
+  topKunden: { name: string; volumen: number; anzahl: number }[]
+  letzte: { id: string; title: string; docTyp: string; netto: number; created_at: string }[]
+}
+
+function eur2(n: number) {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+}
+
+function monatLabel(key: string) {
+  const [y, m] = key.split('-')
+  return new Date(Number(y), Number(m) - 1).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' })
+}
+
+function AuswertungSection() {
+  const [data, setData] = useState<AnalyticsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [zeitraum, setZeitraum] = useState<Zeitraum>('monat')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/analytics')
+      if (res.ok) setData(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const zeitraeume: { id: Zeitraum; label: string }[] = [
+    { id: 'woche', label: 'Diese Woche' },
+    { id: 'monat', label: 'Dieser Monat' },
+    { id: 'quartal', label: 'Dieses Quartal' },
+    { id: 'jahr', label: 'Dieses Jahr' },
+    { id: 'gesamt', label: 'Gesamt' },
+  ]
+
+  const stats = data ? data[zeitraum] : null
+
+  const kpiCard = (label: string, value: string, sub?: string) => (
+    <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '16px 18px' }}>
+      <div style={{ fontSize: 11, color: C.textMid, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: C.white, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>{sub}</div>}
+    </div>
+  )
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: C.textMid, fontSize: 13 }}>
+      Lade Auswertung…
+    </div>
+  )
+
+  if (!data) return (
+    <div style={{ color: C.textMid, fontSize: 13 }}>Keine Daten verfügbar.</div>
+  )
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: C.white }}>Auswertung</h2>
+
+      {/* Zeitraum-Filter */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
+        {zeitraeume.map(z => (
+          <button key={z.id} onClick={() => setZeitraum(z.id)} style={{
+            padding: '7px 14px', borderRadius: 6, border: `1px solid ${zeitraum === z.id ? C.copper : C.border}`,
+            background: zeitraum === z.id ? `${C.copper}22` : 'transparent',
+            color: zeitraum === z.id ? C.copper : C.textMid,
+            fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
+          }}>{z.label}</button>
+        ))}
+      </div>
+
+      {/* KPI-Karten */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 28 }}>
+        {kpiCard('Angebote', String(stats?.anzahl ?? 0))}
+        {kpiCard('Gesamtvolumen', eur2(stats?.volumen ?? 0), 'netto')}
+        {kpiCard('Ø Angebotswert', eur2(stats?.durchschnitt ?? 0), 'netto')}
+        {kpiCard('Größtes Angebot', eur2(stats?.max ?? 0), 'netto')}
+      </div>
+
+      {/* Monatliche Übersicht */}
+      <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '18px', marginBottom: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.white, marginBottom: 14, letterSpacing: 0.5 }}>MONATLICHER VERLAUF (12 MONATE)</div>
+        {(() => {
+          const entries = Object.entries(data.monatlich)
+          const maxVol = Math.max(...entries.map(([, v]) => v.volumen), 1)
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {entries.map(([key, v]) => (
+                <div key={key} style={{ display: 'grid', gridTemplateColumns: '52px 1fr 80px 44px', gap: 8, alignItems: 'center' }}>
+                  <div style={{ fontSize: 11, color: C.textMid }}>{monatLabel(key)}</div>
+                  <div style={{ height: 6, borderRadius: 3, background: C.gray2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(v.volumen / maxVol) * 100}%`, background: C.copper, borderRadius: 3, transition: 'width .3s' }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: C.white, textAlign: 'right' }}>{eur2(v.volumen)}</div>
+                  <div style={{ fontSize: 11, color: C.textMid, textAlign: 'right' }}>{v.anzahl} Stk.</div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* Nach Dokumenttyp */}
+      {Object.keys(data.nachTyp).length > 0 && (
+        <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '18px', marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.white, marginBottom: 14, letterSpacing: 0.5 }}>NACH DOKUMENTTYP</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {Object.entries(data.nachTyp).map(([typ, v]) => (
+              <div key={typ} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: typ === 'Angebot' ? C.copper : typ === 'Auftragsbestätigung' ? '#5ABE6A' : C.textMid }} />
+                  <span style={{ fontSize: 13, color: C.white }}>{typ}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: C.textMid }}>{v.anzahl} Stk.</span>
+                  <span style={{ fontSize: 12, color: C.white, minWidth: 80, textAlign: 'right' }}>{eur2(v.volumen)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top-Kunden */}
+      {data.topKunden.length > 0 && (
+        <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '18px', marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.white, marginBottom: 14, letterSpacing: 0.5 }}>TOP-KUNDEN (VOLUMEN)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.topKunden.map((k, i) => (
+              <div key={k.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 11, color: C.textMid, width: 16 }}>#{i + 1}</span>
+                  <span style={{ fontSize: 13, color: C.white }}>{k.name}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: C.textMid }}>{k.anzahl} Stk.</span>
+                  <span style={{ fontSize: 12, color: C.copper, minWidth: 80, textAlign: 'right', fontWeight: 700 }}>{eur2(k.volumen)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Letzte Angebote */}
+      {data.letzte.length > 0 && (
+        <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.white, marginBottom: 14, letterSpacing: 0.5 }}>LETZTE 10 ANGEBOTE</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {data.letzte.map(p => (
+              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 90px', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${C.border}` }}>
+                <div>
+                  <div style={{ fontSize: 12, color: C.white }}>{p.title}</div>
+                  <div style={{ fontSize: 10, color: C.textMid }}>{new Date(p.created_at).toLocaleDateString('de-DE')}</div>
+                </div>
+                <div style={{ fontSize: 11, color: C.textMid, textAlign: 'center' }}>{p.docTyp}</div>
+                <div style={{ fontSize: 12, color: C.white, textAlign: 'right', fontWeight: 600 }}>{eur2(p.netto)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.gesamt.anzahl === 0 && (
+        <div style={{ textAlign: 'center', color: C.textMid, fontSize: 13, padding: '40px 0' }}>
+          Noch keine gespeicherten Angebote vorhanden.
+        </div>
+      )}
     </div>
   )
 }
