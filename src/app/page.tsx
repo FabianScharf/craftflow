@@ -1146,10 +1146,10 @@ export default function CraftFlow() {
             <LogoMark size={34} userLogoUrl={profilLogoUrl} />
             <div style={{ minWidth: 0 }}>
               <div style={{ color: brandAccent, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
-              {profilFirmaName && <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{profilFirmaName.toUpperCase()}</div>}
+              {profilFirmaName && !isMobile && <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{profilFirmaName.toUpperCase()}</div>}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
             {!isMobile && (
               <button
                 onClick={() => setScreen('projekte')}
@@ -1160,17 +1160,17 @@ export default function CraftFlow() {
             )}
             <button
               onClick={resetAll}
-              style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.3, whiteSpace: 'nowrap' }}
+              style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 14px', cursor: 'pointer', fontSize: isMobile ? 12 : 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.3, whiteSpace: 'nowrap' }}
             >
               + Neu
             </button>
-            <button onClick={() => setScreen('projekte')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">
+            <button onClick={() => setScreen('projekte')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">
               📋
             </button>
-            <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }}>
+            <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }}>
               ⚙
             </button>
-            {userEmail && (
+            {userEmail && !isMobile && (
               <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>
                 ↩
               </button>
