@@ -126,6 +126,11 @@ export default function CraftFlow() {
   const [profilLogoUrl, setProfilLogoUrl] = useState<string | null>(null)
   const [nummernPrefix, setNummernPrefix] = useState('AN')
   const [nummernNaechste, setNummernNaechste] = useState(1)
+  const [dokAnrede, setDokAnrede] = useState('')
+  const [dokEinleitung, setDokEinleitung] = useState('')
+  const [dokNachtext, setDokNachtext] = useState('')
+  const [dokWiderruf, setDokWiderruf] = useState('')
+  const [dokZahlung, setDokZahlung] = useState('')
   const [gaebDetected, setGaebDetected] = useState(false)
   const [gaebFileName, setGaebFileName] = useState('')
 
@@ -149,6 +154,11 @@ export default function CraftFlow() {
             setBrandPrimary(p.farbe_primaer || C.black)
             setNummernPrefix(p.angebotsnummer_prefix ?? 'AN')
             setNummernNaechste(p.angebotsnummer_naechste ?? 1)
+            setDokAnrede(p.anrede_vorlage ?? '')
+            setDokEinleitung(p.angebot_einleitung ?? '')
+            setDokNachtext(p.angebot_abschluss ?? '')
+            setDokWiderruf(p.widerrufsbelehrung_text ?? '')
+            setDokZahlung(p.zahlungskonditionen_text ?? '')
           })
           .catch(() => {})
       }
@@ -505,7 +515,7 @@ export default function CraftFlow() {
     setPos([defaultAngebotspos(Date.now())])
     setDocNr(`${nummernPrefix}-${nummernNaechste}`)
     setDocTyp('Angebot')
-    setAnschr('vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
+    setAnschr(dokEinleitung || 'vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
     setWiderruf(true)
     setSaveCustomerStatus('idle')
     setSaveCustomerMsg('')
@@ -2169,7 +2179,12 @@ export default function CraftFlow() {
             </button>
 
             <button onClick={() => {
-              setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf))
+              setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, {
+                anredeVorlage: dokAnrede || undefined,
+                nachtext: dokNachtext || undefined,
+                widerrufText: dokWiderruf || undefined,
+                zahlungText: dokZahlung || undefined,
+              }))
               setScreen('pdf')
               if (currentProjectId) {
                 fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'pdf_export', projectId: currentProjectId, data: { preis_netto: totals.net } }) })

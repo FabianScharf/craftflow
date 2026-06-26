@@ -76,7 +76,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'plan'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan'>('firma')
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [loadingPortal, setLoadingPortal] = useState(false)
   const [stripeMsg, setStripeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -313,6 +313,7 @@ export default function SettingsPage() {
   const navItems: { id: typeof section; label: string; icon: string; minPlan?: Plan }[] = [
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
     { id: 'buchhaltung',      label: 'Buchhaltung',     icon: '🧾' },
+    { id: 'dokumente',        label: 'Dokumente',       icon: '📝' },
     { id: 'auswertung',       label: 'Auswertung',      icon: '📊' },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
@@ -677,6 +678,81 @@ export default function SettingsPage() {
                 <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
                   Nächstes Angebot erhält z.B. die Nummer <strong style={{ color: C.white }}>{(profil.angebotsnummer_prefix ?? 'AN')}-{profil.angebotsnummer_naechste ?? 1}</strong>
                 </p>
+
+              </div>
+              <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
+            </div>
+          )}
+
+          {/* BEREICH — DOKUMENTE */}
+          {section === 'dokumente' && (
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: C.white }}>Dokumente</h2>
+              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 24 }}>
+                Diese Texte erscheinen in deinen Angeboten und Rechnungen. Du kannst sie hier zentral festlegen.
+              </p>
+              <div style={{ display: 'grid', gap: 20 }}>
+
+                <Divider label="Anrede" />
+                <div>
+                  <label style={lbl}>Anrede-Vorlage</label>
+                  <input
+                    style={inp()}
+                    value={profil.anrede_vorlage ?? ''}
+                    onChange={e => setP('anrede_vorlage', e.target.value)}
+                    placeholder="Liebe/r {name},"
+                  />
+                  <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
+                    <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{name}'}</code> wird durch den Kundennamen ersetzt.
+                  </p>
+                </div>
+
+                <Divider label="Anschreiben" />
+                <div>
+                  <label style={lbl}>Einleitungstext (Anschreiben)</label>
+                  <textarea
+                    style={{ ...inp(), height: 90, resize: 'vertical' as const }}
+                    value={profil.angebot_einleitung ?? ''}
+                    onChange={e => setP('angebot_einleitung', e.target.value)}
+                    placeholder="vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:"
+                  />
+                </div>
+
+                <Divider label="Nachtext" />
+                <div>
+                  <label style={lbl}>Abschlusstext (nach Positionen)</label>
+                  <textarea
+                    style={{ ...inp(), height: 80, resize: 'vertical' as const }}
+                    value={profil.angebot_abschluss ?? ''}
+                    onChange={e => setP('angebot_abschluss', e.target.value)}
+                    placeholder="Mit freundlichen Grüßen"
+                  />
+                </div>
+
+                <Divider label="Zahlungskonditionen" />
+                <div>
+                  <label style={lbl}>Zahlungskonditionen-Text</label>
+                  <textarea
+                    style={{ ...inp(), height: 70, resize: 'vertical' as const }}
+                    value={profil.zahlungskonditionen_text ?? ''}
+                    onChange={e => setP('zahlungskonditionen_text', e.target.value)}
+                    placeholder="50% Anzahlung nach Auftragserteilung, 50% nach Abnahme, zahlbar innerhalb von 7 Tagen netto."
+                  />
+                </div>
+
+                <Divider label="Widerrufsbelehrung" />
+                <div>
+                  <label style={lbl}>Widerrufsbelehrung-Text</label>
+                  <textarea
+                    style={{ ...inp(), height: 120, resize: 'vertical' as const, fontSize: 12 }}
+                    value={profil.widerrufsbelehrung_text ?? ''}
+                    onChange={e => setP('widerrufsbelehrung_text', e.target.value)}
+                    placeholder="Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Um Ihr Widerrufsrecht auszuüben, wenden Sie sich an uns per E-Mail oder Post."
+                  />
+                  <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
+                    Wird nur eingefügt wenn die Option „Widerrufsbelehrung einfügen" im Angebot aktiviert ist.
+                  </p>
+                </div>
 
               </div>
               <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />

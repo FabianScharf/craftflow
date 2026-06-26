@@ -1,12 +1,20 @@
 import { Angebotsposition, Kunde, FIRMA, calcAngebotspos, eur, today, inDays } from './types'
 
+export interface PDFTextOpts {
+  anredeVorlage?: string
+  nachtext?: string
+  widerrufText?: string
+  zahlungText?: string
+}
+
 export function buildPDF(
   pos: Angebotsposition[],
   kunde: Kunde,
   docNr: string,
   docTyp: string,
   anschr: string,
-  mitWiderruf: boolean
+  mitWiderruf: boolean,
+  textOpts: PDFTextOpts = {}
 ): string {
   const net = pos.reduce((s, p) => s + calcAngebotspos(p), 0)
   const vat = net * 0.19
@@ -29,14 +37,21 @@ export function buildPDF(
     </tr>`
   }).join('')
 
+  const anredeText = (textOpts.anredeVorlage || 'Liebe/r {name},')
+    .replace('{name}', kunde.name || 'Kundin / Kunde')
+
+  const defaultWiderruf = `Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Um Ihr Widerrufsrecht auszuüben, wenden Sie sich an: ${FIRMA.name} – ${FIRMA.inhaber}, ${FIRMA.strasse}, ${FIRMA.ort}, E-Mail: ${FIRMA.email}.`
   const widerrufBlock = mitWiderruf
     ? `<div class="widerruf">
         <strong>Widerrufsrecht</strong><br><br>
-        Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
-        Um Ihr Widerrufsrecht auszuüben, wenden Sie sich an: ${FIRMA.name} – ${FIRMA.inhaber},
-        ${FIRMA.strasse}, ${FIRMA.ort}, E-Mail: ${FIRMA.email}.
+        ${textOpts.widerrufText || defaultWiderruf}
       </div>`
     : ''
+
+  const defaultZahlung = '50% Anzahlung nach Auftragserteilung, 50% nach Abnahme, zahlbar innerhalb von 7 Tagen netto.'
+  const defaultNachtext = `Mit freundlichen Grüßen<br><br>${FIRMA.inhaber}<br>${FIRMA.name}`
+  const nachtextRaw = textOpts.nachtext || `Mit freundlichen Grüßen\n\n${FIRMA.inhaber}\n${FIRMA.name}`
+  const nachtextHtml = nachtextRaw.replace(/\n/g, '<br>')
 
   const signBlock = docTyp !== 'Rechnung'
     ? `<div class="sign-block">
@@ -143,7 +158,7 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:16px;padding-bottom:2px}
 
 <div class="bau">Bauvorhaben: ${kunde.projekt || '–'}</div>
 <div class="doc-nr">${docTyp}-Nr. ${docNr}</div>
-<div class="intro">Liebe/r ${kunde.name || 'Kundin / Kunde'},<br><br>${anschr}</div>
+<div class="intro">${anredeText}<br><br>${anschr}</div>
 
 <table class="pos">
   <thead><tr>
@@ -162,10 +177,10 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:16px;padding-bottom:2px}
 </div></div>
 
 <div class="holz">Hinweis: Massivholz ist ein Naturprodukt. Farbliche und strukturelle Abweichungen zwischen einzelnen Teilen sind natürlich und kein Mangel.</div>
-<div class="zahlung">Zahlungskondition: 50% Anzahlung nach Auftragserteilung, 50% nach Abnahme, zahlbar innerhalb von 7 Tagen netto.</div>
+<div class="zahlung">Zahlungskondition: ${textOpts.zahlungText || defaultZahlung}</div>
 ${widerrufBlock}
 ${signBlock}
-<div class="gruss">Mit freundlichen Grüßen<br><br>${FIRMA.inhaber}<br>${FIRMA.name}</div>
+<div class="gruss">${nachtextHtml}</div>
 
 <div class="ftr">
   <span>${docTyp} ${docNr}</span>
