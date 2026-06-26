@@ -131,8 +131,16 @@ export default function CraftFlow() {
   const [dokNachtext, setDokNachtext] = useState('')
   const [dokWiderruf, setDokWiderruf] = useState('')
   const [dokZahlung, setDokZahlung] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
   const [gaebDetected, setGaebDetected] = useState(false)
   const [gaebFileName, setGaebFileName] = useState('')
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -1142,17 +1150,22 @@ export default function CraftFlow() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <button
-              onClick={() => setScreen('projekte')}
-              style={{ background: 'transparent', color: C.white, border: `1px solid ${C.border}`, borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, whiteSpace: 'nowrap', letterSpacing: 0.2 }}
-            >
-              Meine Projekte
-            </button>
+            {!isMobile && (
+              <button
+                onClick={() => setScreen('projekte')}
+                style={{ background: 'transparent', color: C.white, border: `1px solid ${C.border}`, borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, whiteSpace: 'nowrap', letterSpacing: 0.2 }}
+              >
+                Meine Projekte
+              </button>
+            )}
             <button
               onClick={resetAll}
               style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.3, whiteSpace: 'nowrap' }}
             >
               + Neu
+            </button>
+            <button onClick={() => setScreen('projekte')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">
+              📋
             </button>
             <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }}>
               ⚙
@@ -1463,7 +1476,7 @@ export default function CraftFlow() {
             <Card accent={C.copper}>
               <div style={{ padding: '14px 16px' }}>
                 <Lbl>Kundendaten prüfen & bearbeiten</Lbl>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   {([
                     { f: 'name' as keyof Kunde,    l: 'Kundenname',  p: 'z.B. Familie Müller' },
                     { f: 'projekt' as keyof Kunde, l: 'Bauvorhaben', p: 'z.B. TV-Board' },
@@ -1648,7 +1661,9 @@ export default function CraftFlow() {
             {/* Gesamtübersicht oben */}
             <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 14 }}>
               <div style={{ display: 'flex' }}>
-                {[{ l: 'Positionen', v: `${pos.length}` }, { l: 'Netto', v: eur(totals.net) }, { l: 'MwSt.', v: eur(vat) }, { l: 'Brutto', v: eur(gross) }].map(({ l, v }, i) => (
+                {[{ l: 'Positionen', v: `${pos.length}`, hideOnMobile: false }, { l: 'Netto', v: eur(totals.net), hideOnMobile: false }, { l: 'MwSt.', v: eur(vat), hideOnMobile: true }, { l: 'Brutto', v: eur(gross), hideOnMobile: false }]
+                  .filter(item => !isMobile || !item.hideOnMobile)
+                  .map(({ l, v }, i) => (
                   <div key={l} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
                     <div style={{ padding: '11px 6px', textAlign: 'center' }}>
                       <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 3 }}>{l}</div>
@@ -1716,17 +1731,17 @@ export default function CraftFlow() {
                         {matTotal > 0 && <div style={{ fontSize: 10, color: C.textMid }}>{eur(matTotal)}</div>}
                       </div>
                       <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 320 : 480 }}>
                           <thead>
                             <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                               <th style={{ ...thStyle, width: '4%' }}></th>
-                              <th style={{ ...thStyle, width: '32%' }}>Bezeichnung</th>
+                              <th style={{ ...thStyle, width: isMobile ? '40%' : '32%' }}>Bezeichnung</th>
                               <th style={{ ...thStyle, width: '9%' }}>Menge</th>
-                              <th style={{ ...thStyle, width: '8%' }}>Einheit</th>
+                              {!isMobile && <th style={{ ...thStyle, width: '8%' }}>Einheit</th>}
                               <th style={{ ...thStyle, width: '10%' }}>EK €</th>
-                              <th style={{ ...thStyle, width: '10%' }}>Aufschl.%</th>
-                              <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>VK gesamt</th>
-                              <th style={{ ...thStyle, width: '12%' }}></th>
+                              {!isMobile && <th style={{ ...thStyle, width: '10%' }}>Aufschl.%</th>}
+                              <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>VK</th>
+                              <th style={{ ...thStyle, width: '8%' }}></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1749,17 +1764,17 @@ export default function CraftFlow() {
                                   <input value={m.bezeichnung} onChange={e => updMatRow(p.id, m.id, 'bezeichnung', e.target.value)} style={cellInput} />
                                 </td>
                                 <td style={tdStyle}>
-                                  <input type="number" step="0.1" value={m.menge} onChange={e => updMatRow(p.id, m.id, 'menge', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 48 }} />
+                                  <input type="number" step="0.1" value={m.menge} onChange={e => updMatRow(p.id, m.id, 'menge', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 44 }} />
                                 </td>
-                                <td style={tdStyle}>
+                                {!isMobile && <td style={tdStyle}>
                                   <input value={m.einheit} onChange={e => updMatRow(p.id, m.id, 'einheit', e.target.value)} style={{ ...cellInput, minWidth: 38 }} />
-                                </td>
+                                </td>}
                                 <td style={tdStyle}>
-                                  <input type="number" step="0.01" value={m.ekPreis} onChange={e => updMatRow(p.id, m.id, 'ekPreis', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 52 }} />
+                                  <input type="number" step="0.01" value={m.ekPreis} onChange={e => updMatRow(p.id, m.id, 'ekPreis', parseFloat(e.target.value) || 0)} style={{ ...cellInput, minWidth: 48 }} />
                                 </td>
-                                <td style={tdStyle}>
+                                {!isMobile && <td style={tdStyle}>
                                   <input type="number" step="1" value={Math.round(m.aufschlag * 100)} onChange={e => updMatRow(p.id, m.id, 'aufschlag', (parseFloat(e.target.value) || 0) / 100)} style={{ ...cellInput, minWidth: 44 }} />
-                                </td>
+                                </td>}
                                 <td style={{ ...tdStyle, textAlign: 'right', fontSize: 11, fontWeight: 600, color: C.white, whiteSpace: 'nowrap' }}>
                                   {eur(m.menge * m.ekPreis * (1 + m.aufschlag))}
                                 </td>
@@ -1893,21 +1908,21 @@ export default function CraftFlow() {
                               <tbody>
                                 {eintraege.map(a => (
                                   <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
-                                    <td style={{ ...tdStyle, width: '36%', color: C.white, fontSize: 12 }}>
+                                    <td style={{ ...tdStyle, width: isMobile ? '50%' : '36%', color: C.white, fontSize: 12 }}>
                                       {KOSTENSTELLEN_LABELS[a.kostenstelle as KostenstelleId] ?? a.kostenstelle}
                                     </td>
-                                    <td style={{ ...tdStyle, width: '14%', fontSize: 10, color: C.textMid, whiteSpace: 'nowrap' as const }}>
+                                    {!isMobile && <td style={{ ...tdStyle, width: '14%', fontSize: 10, color: C.textMid, whiteSpace: 'nowrap' as const }}>
                                       {a.vkStunde} €/h
-                                    </td>
-                                    <td style={{ ...tdStyle, width: '22%' }}>
+                                    </td>}
+                                    <td style={{ ...tdStyle, width: isMobile ? '28%' : '22%' }}>
                                       <input type="number" step="5" value={a.minuten}
                                         onChange={e => updArbRow(p.id, a.id, 'minuten', parseInt(e.target.value) || 0)}
-                                        style={{ ...cellInput, minWidth: 48 }} /> <span style={{ fontSize: 10, color: C.textMid }}>min</span>
+                                        style={{ ...cellInput, minWidth: 44 }} /> <span style={{ fontSize: 10, color: C.textMid }}>min</span>
                                     </td>
-                                    <td style={{ ...tdStyle, width: '10%', fontSize: 10, color: C.textMid }}>
+                                    {!isMobile && <td style={{ ...tdStyle, width: '10%', fontSize: 10, color: C.textMid }}>
                                       {(a.minuten / 60).toFixed(1)}h
-                                    </td>
-                                    <td style={{ ...tdStyle, width: '14%', textAlign: 'right' as const, fontSize: 11, fontWeight: 600, color: C.white, whiteSpace: 'nowrap' as const }}>
+                                    </td>}
+                                    <td style={{ ...tdStyle, width: isMobile ? '16%' : '14%', textAlign: 'right' as const, fontSize: 11, fontWeight: 600, color: C.white, whiteSpace: 'nowrap' as const }}>
                                       {eur((a.minuten / 60) * a.vkStunde)}
                                     </td>
                                     <td style={tdStyle}>
@@ -1989,7 +2004,7 @@ export default function CraftFlow() {
 
             {/* ── RIGHT: Panel toggle or Panel ── */}
             {!optimPanelOpen ? (
-              <button
+              !isMobile && <button
                 onClick={openOptimPanel}
                 style={{
                   background: C.darkbg, color: C.copper,
