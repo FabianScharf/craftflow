@@ -3,18 +3,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { PlanGate } from '@/components/PlanGate'
-import { PricingModal } from '@/components/PricingModal'
+
 import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
 import { EmailSettings } from '@/components/settings/EmailSettings'
 import { type Plan } from '@/hooks/usePlan'
 
 const C = {
-  black:   '#0D0D0D',
+  black:   'var(--c-primary, #0D0D0D)',
   dark:    '#141414',
   gray1:   '#1A1A1A',
   gray2:   '#222222',
   border:  '#2E2E2E',
-  copper:  '#C8885A',
+  copper:  'var(--c-accent, #C8885A)',
   white:   '#F5F2EE',
   textMid: '#8A8A8A',
   ok:      '#5ABE6A',
@@ -58,6 +58,13 @@ type Materialgruppe = {
 
 const GRUPPEN_ORDER = ['Verwaltung','Planung','Konstruktion','Produktion','Montage','Lieferung']
 
+const PLANS: { id: Plan; name: string; price: number; priceId: string; features: string[] }[] = [
+  { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1TmSblRvozvhvO9J3EKljmMh', features: ['Angebote & Kalkulation','PDF-Export','1 Nutzer','Kostenstellen-Editor'] },
+  { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1TmScDRvozvhvO9J9tvsywrG', features: ['Alles aus Solo','Lieferanten-Verwaltung','E-Mail-Versand','Mehr Projekte'] },
+  { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1TmScSRvozvhvO9J0RF42acJ', features: ['Alles aus Starter','Analysen & Benchmarks','Preisempfehlungen','API-Zugang'] },
+  { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1TmSchRvozvhvO9JOduoM8KU', features: ['Alles aus Pro','Persönliches Onboarding','Dedizierter Support','SLA-Garantie'] },
+]
+
 function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]> {
   const map: Record<string, Kostenstelle[]> = {}
   for (const k of list) {
@@ -69,9 +76,8 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'plan'>('firma')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [showPricingModal, setShowPricingModal] = useState(false)
+  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'plan'>('firma')
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [loadingPortal, setLoadingPortal] = useState(false)
   const [stripeMsg, setStripeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -157,6 +163,11 @@ export default function SettingsPage() {
     })
     setProfilSaving(false)
     setProfilMsg(res.ok ? 'Gespeichert.' : 'Fehler beim Speichern.')
+    if (res.ok) {
+      const root = document.documentElement
+      if (profil.farbe_primaer) root.style.setProperty('--c-primary', profil.farbe_primaer)
+      if (profil.farbe_akzent) root.style.setProperty('--c-accent', profil.farbe_akzent)
+    }
     setTimeout(() => setProfilMsg(''), 3000)
   }
 
@@ -260,6 +271,24 @@ export default function SettingsPage() {
     setLogoUploading(false)
   }
 
+  async function selectPlan(priceId: string, planId: string) {
+    if (planId === userPlan) return
+    setCheckoutLoading(priceId)
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      })
+      const { url, error } = await res.json()
+      if (error) { setStripeMsg({ type: 'err', text: error }); setCheckoutLoading(null); return }
+      window.location.href = url
+    } catch {
+      setStripeMsg({ type: 'err', text: 'Fehler beim Öffnen des Checkouts.' })
+      setCheckoutLoading(null)
+    }
+  }
+
   async function openPortal() {
     setLoadingPortal(true)
     try {
@@ -283,6 +312,7 @@ export default function SettingsPage() {
 
   const navItems: { id: typeof section; label: string; icon: string; minPlan?: Plan }[] = [
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
+    { id: 'buchhaltung',      label: 'Buchhaltung',     icon: '🧾' },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
@@ -304,10 +334,6 @@ export default function SettingsPage() {
           style={{ background: 'none', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}
         >←</button>
         <span style={{ color: C.copper, fontWeight: 800, letterSpacing: 2, fontSize: 13 }}>EINSTELLUNGEN</span>
-        <button
-          onClick={() => setMenuOpen(o => !o)}
-          style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.white, cursor: 'pointer', fontSize: 20, padding: 0 }}
-        >☰</button>
       </div>
 
       <div style={{ display: 'flex', maxWidth: 960, margin: '0 auto' }}>
@@ -350,40 +376,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Mobile drawer overlay */}
-        {menuOpen && (
-          <>
-            <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.6)' }} />
-            <div style={{ position: 'fixed', top: 52, left: 0, bottom: 0, width: 240, background: C.dark, zIndex: 41, borderRight: `1px solid ${C.border}`, padding: '16px 0', display: 'flex', flexDirection: 'column' }}>
-              {navItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => { setSection(item.id); setMenuOpen(false) }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '13px 20px', border: 'none', cursor: 'pointer',
-                    background: section === item.id ? C.gray2 : 'transparent',
-                    color: section === item.id ? C.white : C.textMid,
-                    fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left',
-                    borderLeft: section === item.id ? `3px solid ${C.copper}` : '3px solid transparent',
-                  }}
-                >
-                  <span style={{ fontSize: 16 }}>{item.icon}</span>
-                  <span style={{ flex: 1 }}>{item.label}</span>
-                  {item.minPlan && userPlan === 'solo' && (
-                    <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${C.copper}50`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0 }}>
-                      Starter
-                    </span>
-                  )}
-                </button>
-              ))}
-              <div style={{ marginTop: 'auto', padding: '20px', borderTop: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 12, color: C.textMid, marginBottom: 6, wordBreak: 'break-all' }}>{userEmail}</div>
-                <button onClick={logout} style={{ background: 'none', border: 'none', color: C.err, fontSize: 13, cursor: 'pointer', padding: 0 }}>Abmelden</button>
-              </div>
-            </div>
-          </>
-        )}
 
         {/* Main content */}
         <div style={{ flex: 1, padding: '24px 20px', maxWidth: 680, minWidth: 0 }}>
@@ -408,18 +400,6 @@ export default function SettingsPage() {
                 <Field label="E-Mail" value={profil.email ?? ''} onChange={v => setP('email', v)} type="email" />
                 <Field label="Website" value={profil.website ?? ''} onChange={v => setP('website', v)} />
 
-                <Divider />
-
-                <Field label="USt-IdNr." value={profil.ust_id ?? ''} onChange={v => setP('ust_id', v)} placeholder="DE123456789" />
-                <Field label="Steuernummer" value={profil.steuernummer ?? ''} onChange={v => setP('steuernummer', v)} />
-
-                <Divider label="Bankverbindung" />
-
-                <Field label="IBAN" value={profil.iban ?? ''} onChange={v => setP('iban', v)} placeholder="DE00 0000 0000 0000 0000 00" />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <Field label="BIC" value={profil.bic ?? ''} onChange={v => setP('bic', v)} />
-                  <Field label="Bank" value={profil.bank_name ?? ''} onChange={v => setP('bank_name', v)} />
-                </div>
               </div>
               <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
             </div>
@@ -650,6 +630,58 @@ export default function SettingsPage() {
             <EmailSettings />
           )}
 
+          {/* BEREICH — BUCHHALTUNG */}
+          {section === 'buchhaltung' && (
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: C.white }}>Buchhaltung</h2>
+              <div style={{ display: 'grid', gap: 14 }}>
+
+                <Divider label="Steuerdaten" />
+
+                <Field label="USt-IdNr." value={profil.ust_id ?? ''} onChange={v => setP('ust_id', v)} placeholder="DE123456789" />
+                <Field label="Steuernummer" value={profil.steuernummer ?? ''} onChange={v => setP('steuernummer', v)} />
+
+                <Divider label="Bankverbindung" />
+
+                <Field label="IBAN" value={profil.iban ?? ''} onChange={v => setP('iban', v)} placeholder="DE00 0000 0000 0000 0000 00" />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <Field label="BIC" value={profil.bic ?? ''} onChange={v => setP('bic', v)} />
+                  <Field label="Bank" value={profil.bank_name ?? ''} onChange={v => setP('bank_name', v)} />
+                </div>
+
+                <Divider label="Angebotsnummern" />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={lbl}>Präfix</label>
+                    <input
+                      style={inp()}
+                      value={profil.angebotsnummer_prefix ?? 'AN'}
+                      onChange={e => setP('angebotsnummer_prefix', e.target.value)}
+                      placeholder="AN"
+                      maxLength={6}
+                    />
+                  </div>
+                  <div>
+                    <label style={lbl}>Nächste Nummer</label>
+                    <input
+                      style={inp()}
+                      type="number"
+                      min={1}
+                      value={profil.angebotsnummer_naechste ?? 1}
+                      onChange={e => setP('angebotsnummer_naechste', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
+                  Nächstes Angebot erhält z.B. die Nummer <strong style={{ color: C.white }}>{(profil.angebotsnummer_prefix ?? 'AN')}-{profil.angebotsnummer_naechste ?? 1}</strong>
+                </p>
+
+              </div>
+              <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
+            </div>
+          )}
+
           {/* BEREICH 7 — MEIN PLAN */}
           {section === 'plan' && (
             <div>
@@ -669,54 +701,79 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Aktueller Plan */}
-              <div style={{
-                background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8,
-                padding: '20px 20px', marginBottom: 16,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-              }}>
-                <div>
-                  <div style={{ fontSize: 11, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>Aktueller Plan</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: C.copper, textTransform: 'capitalize' }}>{userPlan}</div>
-                  {userPlan === 'solo' && (
-                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>7 € / Monat</div>
-                  )}
-                  {userPlan === 'starter' && (
-                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>29 € / Monat</div>
-                  )}
-                  {userPlan === 'pro' && (
-                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>49 € / Monat</div>
-                  )}
-                  {userPlan === 'enterprise' && (
-                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>79 € / Monat</div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {profil.stripe_customer_id && (
-                    <button
-                      onClick={openPortal}
-                      disabled={loadingPortal}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
+                {PLANS.map(plan => {
+                  const isCurrent = plan.id === userPlan
+                  const isLoading = checkoutLoading === plan.priceId
+                  return (
+                    <div
+                      key={plan.id}
                       style={{
-                        background: C.gray2, border: `1px solid ${C.border}`,
-                        color: C.white, borderRadius: 6, padding: '9px 16px',
-                        fontSize: 13, cursor: loadingPortal ? 'not-allowed' : 'pointer',
-                        fontFamily: 'Helvetica Neue, sans-serif',
+                        background: isCurrent ? C.gray2 : C.gray1,
+                        border: `2px solid ${isCurrent ? C.copper : C.border}`,
+                        borderRadius: 10, padding: '22px 20px',
+                        display: 'flex', flexDirection: 'column', gap: 14,
+                        position: 'relative',
+                        opacity: isCurrent ? 1 : 0.45,
                       }}
-                    >{loadingPortal ? '…' : 'Plan verwalten'}</button>
-                  )}
-                  <button
-                    onClick={() => setShowPricingModal(true)}
-                    style={{
-                      background: C.copper, color: C.black, border: 'none',
-                      borderRadius: 6, padding: '9px 16px', fontSize: 13, fontWeight: 700,
-                      cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif',
-                    }}
-                  >Upgrade</button>
-                </div>
+                    >
+                      {isCurrent && (
+                        <div style={{
+                          position: 'absolute', top: -11, left: 20,
+                          background: C.copper, color: C.black, fontSize: 9, fontWeight: 800,
+                          letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap',
+                        }}>AKTIV</div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: C.white, marginBottom: 2 }}>{plan.name}</div>
+                          <div style={{ fontSize: 26, fontWeight: 800, color: isCurrent ? C.copper : C.white, lineHeight: 1 }}>
+                            {plan.price} €<span style={{ fontSize: 13, fontWeight: 400, color: C.textMid }}> / Monat</span>
+                          </div>
+                        </div>
+                      </div>
+                      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
+                        {plan.features.map(f => (
+                          <li key={f} style={{ fontSize: 12, color: C.textMid, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                            <span style={{ color: C.copper, flexShrink: 0, fontWeight: 700 }}>✓</span>{f}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => selectPlan(plan.priceId, plan.id)}
+                        disabled={isCurrent || !!checkoutLoading}
+                        style={{
+                          background: isCurrent ? 'transparent' : C.copper,
+                          color: isCurrent ? '#5ABE6A' : C.black,
+                          border: `1px solid ${isCurrent ? '#5ABE6A' : C.copper}`,
+                          borderRadius: 6, padding: '10px 0', fontSize: 13, fontWeight: 700,
+                          cursor: isCurrent || checkoutLoading ? 'not-allowed' : 'pointer',
+                          fontFamily: 'Helvetica Neue, sans-serif', width: '100%',
+                          opacity: checkoutLoading && !isLoading ? 0.4 : 1,
+                        }}
+                      >
+                        {isLoading ? '…' : isCurrent ? 'Aktueller Plan' : 'Auswählen'}
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
 
+              {profil.stripe_customer_id && (
+                <button
+                  onClick={openPortal}
+                  disabled={loadingPortal}
+                  style={{
+                    background: C.gray2, border: `1px solid ${C.border}`,
+                    color: C.white, borderRadius: 6, padding: '9px 16px',
+                    fontSize: 13, cursor: loadingPortal ? 'not-allowed' : 'pointer',
+                    fontFamily: 'Helvetica Neue, sans-serif', marginBottom: 12,
+                  }}
+                >{loadingPortal ? '…' : 'Abonnement verwalten'}</button>
+              )}
+
               <p style={{ fontSize: 11, color: C.textMid }}>
-                Du hast einen BETA-Gutschein? Klicke auf Upgrade und gib ihn im Checkout ein.
+                Du hast einen BETA-Gutschein? Klicke auf Auswählen und gib ihn im Checkout ein.
               </p>
             </div>
           )}
@@ -724,9 +781,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {showPricingModal && (
-        <PricingModal currentPlan={userPlan} onClose={() => setShowPricingModal(false)} />
-      )}
     </div>
   )
 }

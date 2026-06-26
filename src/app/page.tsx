@@ -70,9 +70,17 @@ const Lbl = ({ children, c }: { children: React.ReactNode; c?: string }) => (
 const HR = ({ my = 12, color }: { my?: number; color?: string }) => (
   <div style={{ height: 1, background: color || C.border, margin: `${my}px 0` }} />
 )
-const LogoMark = ({ size = 36 }: { size?: number }) => (
-  <img src="/logo.png" alt="FS Crafted" style={{ height: size, width: 'auto' }} />
-)
+const LogoMark = ({ size = 36, userLogoUrl }: { size?: number; userLogoUrl?: string | null }) =>
+  userLogoUrl
+    ? <img src={userLogoUrl} alt="Logo" style={{ height: size, width: 'auto', maxWidth: size * 4, objectFit: 'contain' }} />
+    : (
+      <svg width={size} height={size} viewBox="0 0 36 36" fill="none" style={{ flexShrink: 0 }}>
+        <rect width="36" height="36" rx="7" fill="var(--c-accent, #C8885A)" />
+        <text x="18" y="25" textAnchor="middle" fill="#0D0D0D"
+          fontFamily="Helvetica Neue, Helvetica, Arial, sans-serif"
+          fontSize="15" fontWeight="800" letterSpacing="0.5">CF</text>
+      </svg>
+    )
 const Card = ({ children, accent, style = {} }: { children: React.ReactNode; accent?: string; style?: React.CSSProperties }) => (
   <div style={{
     background: C.gray1, borderRadius: 4,
@@ -109,12 +117,15 @@ const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.d82', '.d83', '.p81',
 
 export default function CraftFlow() {
   const { canUse: planCanUse } = usePlan()
-  const [screen, setScreen] = useState<'start' | 'app' | 'pdf'>('start')
+  const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [brandAccent, setBrandAccent] = useState(C.copper)
   const [brandPrimary, setBrandPrimary] = useState(C.black)
   const [profilFirmaName, setProfilFirmaName] = useState<string | null>(null)
+  const [profilLogoUrl, setProfilLogoUrl] = useState<string | null>(null)
+  const [nummernPrefix, setNummernPrefix] = useState('AN')
+  const [nummernNaechste, setNummernNaechste] = useState(1)
   const [gaebDetected, setGaebDetected] = useState(false)
   const [gaebFileName, setGaebFileName] = useState('')
 
@@ -133,8 +144,11 @@ export default function CraftFlow() {
             }
             const name: string = p.firma_name ?? ''
             setProfilFirmaName(name)
+            setProfilLogoUrl(p.logo_url ?? null)
             setBrandAccent(p.farbe_akzent || C.copper)
             setBrandPrimary(p.farbe_primaer || C.black)
+            setNummernPrefix(p.angebotsnummer_prefix ?? 'AN')
+            setNummernNaechste(p.angebotsnummer_naechste ?? 1)
           })
           .catch(() => {})
       }
@@ -170,11 +184,21 @@ export default function CraftFlow() {
       }
       const row = await res.json()
       if (!res.ok) throw new Error(row.error)
-      if (!currentProjectId) setCurrentProjectId(row.id)
+      const isNew = !currentProjectId
+      if (isNew) setCurrentProjectId(row.id)
       setProjects(prev => {
         const exists = prev.find(p => p.id === row.id)
         return exists ? prev.map(p => p.id === row.id ? row : p) : [row, ...prev]
       })
+      if (isNew) {
+        const next = nummernNaechste + 1
+        setNummernNaechste(next)
+        fetch('/api/settings/betriebsprofil', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ angebotsnummer_naechste: next }),
+        }).catch(() => {})
+      }
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 3000)
       // Outcome-Tracking initialisieren
@@ -225,9 +249,9 @@ export default function CraftFlow() {
 
   const [tab, setTab] = useState('kunde')
   const [pos, setPos] = useState<Angebotsposition[]>([defaultAngebotspos(Date.now())])
-  const [docNr, setDocNr] = useState('AB-264')
-  const [docTyp, setDocTyp] = useState('Auftragsbestätigung')
-  const [anschr, setAnschr] = useState('herzlichen Dank für Ihren Auftrag, den wir hiermit gerne bestätigen:')
+  const [docNr, setDocNr] = useState('AN-1')
+  const [docTyp, setDocTyp] = useState('Angebot')
+  const [anschr, setAnschr] = useState('vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
   const [widerruf, setWiderruf] = useState(true)
   const [pdfHTML, setPdfHTML] = useState('')
 
@@ -479,9 +503,9 @@ export default function CraftFlow() {
     setMicStatus('idle')
     setKunde({ name: '', zusatz: '', strasse: '', ort: '', projekt: '' })
     setPos([defaultAngebotspos(Date.now())])
-    setDocNr('AB-264')
-    setDocTyp('Auftragsbestätigung')
-    setAnschr('herzlichen Dank für Ihren Auftrag, den wir hiermit gerne bestätigen:')
+    setDocNr(`${nummernPrefix}-${nummernNaechste}`)
+    setDocTyp('Angebot')
+    setAnschr('vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
     setWiderruf(true)
     setSaveCustomerStatus('idle')
     setSaveCustomerMsg('')
@@ -986,6 +1010,77 @@ export default function CraftFlow() {
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
   ══════════════════════════════════════════════════ */
+  if (screen === 'projekte') {
+    const statusColors: Record<string, { color: string; label: string }> = {
+      gewonnen:   { color: '#5ABE6A', label: 'Gewonnen' },
+      verhandelt: { color: brandAccent, label: 'Verhandelt' },
+      verloren:   { color: '#E05A5A', label: 'Verloren' },
+      offen:      { color: C.textMid, label: 'Offen' },
+    }
+    return (
+      <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+        {/* Header */}
+        <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <LogoMark size={32} userLogoUrl={profilLogoUrl} />
+            <div style={{ color: brandAccent, fontSize: 14, fontWeight: 800, letterSpacing: 3 }}>MEINE PROJEKTE</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={resetAll}
+              style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.3 }}
+            >+ Neu</button>
+            <button onClick={() => setScreen('start')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>↩</button>
+          </div>
+        </div>
+
+        {/* Liste */}
+        <div style={{ maxWidth: 700, margin: '0 auto', padding: '28px 16px' }}>
+          {projects.length === 0 ? (
+            <div style={{ textAlign: 'center', paddingTop: 80, color: C.textMid }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>📋</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: C.white }}>Noch keine Projekte</div>
+              <div style={{ fontSize: 12 }}>Erstelle ein neues Angebot und speichere es.</div>
+              <button
+                onClick={resetAll}
+                style={{ marginTop: 24, background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '11px 22px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800 }}
+              >+ Neues Projekt</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {projects.map(p => {
+                const sc = statusColors[p.status] ?? statusColors['offen']
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => loadProject(p.id)}
+                    style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</div>
+                      <div style={{ fontSize: 11, color: C.textMid }}>
+                        {new Date(p.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: sc.color, background: sc.color + '18', padding: '3px 10px', borderRadius: 20, border: `1px solid ${sc.color}44`, whiteSpace: 'nowrap' }}>
+                        {sc.label}
+                      </span>
+                      <button
+                        onClick={e => { e.stopPropagation(); loadProject(p.id) }}
+                        style={{ background: C.gray2, color: C.white, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, whiteSpace: 'nowrap' }}
+                      >Öffnen →</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (screen === 'pdf') {
     return (
       <div style={{ fontFamily: 'Helvetica Neue,sans-serif', background: C.black, minHeight: '100vh' }}>
@@ -1030,13 +1125,19 @@ export default function CraftFlow() {
         {/* Header */}
         <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
-            {profilFirmaName && <LogoMark size={34} />}
+            <LogoMark size={34} userLogoUrl={profilLogoUrl} />
             <div style={{ minWidth: 0 }}>
               <div style={{ color: brandAccent, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
               {profilFirmaName && <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{profilFirmaName.toUpperCase()}</div>}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <button
+              onClick={() => setScreen('projekte')}
+              style={{ background: 'transparent', color: C.white, border: `1px solid ${C.border}`, borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, whiteSpace: 'nowrap', letterSpacing: 0.2 }}
+            >
+              Meine Projekte
+            </button>
             <button
               onClick={resetAll}
               style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.3, whiteSpace: 'nowrap' }}
@@ -1289,57 +1390,6 @@ export default function CraftFlow() {
           </div>
         </div>
 
-        {/* ── Meine Projekte ── */}
-        <div style={{ padding: '0 16px 48px', maxWidth: 500, margin: '0 auto' }}>
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 28, marginBottom: 14 }}>
-            <div style={{ color: C.textMid, fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
-              Meine Projekte
-            </div>
-            {projects.length === 0 ? (
-              <div style={{ color: C.textMid, fontSize: 12, fontStyle: 'italic', padding: '8px 0' }}>
-                Noch keine Projekte gespeichert. Erstelle eine Kalkulation und tippe auf „Projekt speichern".
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {projects.map(p => (
-                  <div key={p.id} style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '11px 14px', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }} onClick={() => loadProject(p.id)}>
-                      <button onClick={() => loadProject(p.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', flex: 1 }}>
-                        <div style={{ color: C.white, fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{p.title}</div>
-                        <div style={{ color: C.textMid, fontSize: 10 }}>
-                          {new Date(p.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        </div>
-                      </button>
-                    </div>
-                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                      {(['gewonnen', 'verhandelt', 'verloren'] as const).map(s => {
-                        const colors: Record<string, { bg: string; border: string; color: string }> = {
-                          gewonnen:  { bg: p.status === 'gewonnen'  ? '#1a3a1a' : 'transparent', border: '#3a6a3a', color: '#90EE90' },
-                          verhandelt:{ bg: p.status === 'verhandelt' ? '#0d1520' : 'transparent', border: C.copper + '66', color: C.copper },
-                          verloren:  { bg: p.status === 'verloren'  ? '#2a0d0d' : 'transparent', border: '#6a2a2a', color: '#ff9999' },
-                        };
-                        const c = colors[s];
-                        const label = s === 'gewonnen' ? '✓ Won' : s === 'verhandelt' ? '↔ Deal' : '✕ Lost';
-                        return (
-                          <button key={s} onClick={async (e) => {
-                            e.stopPropagation();
-                            const newStatus = p.status === s ? 'offen' : s;
-                            await fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'status_set', projectId: p.id, data: { status: newStatus } }) });
-                            setProjects(prev => prev.map(x => x.id === p.id ? { ...x, status: newStatus } : x));
-                          }} style={{ padding: '4px 9px', borderRadius: 20, fontSize: 10, border: `1px solid ${c.border}`, background: p.status === s ? c.bg : 'transparent', color: c.color, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: p.status === s ? 700 : 400, whiteSpace: 'nowrap' }}>
-                            {label}
-                          </button>
-                        );
-                      })}
-                      {p.status === 'offen' && <span style={{ fontSize: 10, color: C.textMid, alignSelf: 'center' }}>offen</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
       </div>
     )
   }
@@ -1360,7 +1410,7 @@ export default function CraftFlow() {
       {/* Header */}
       <div style={{ background: C.darkbg, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 }}>
-          {profilFirmaName && <LogoMark size={30} />}
+          <LogoMark size={30} userLogoUrl={profilLogoUrl} />
           <div style={{ minWidth: 0 }}>
             <div style={{ color: brandAccent, fontSize: 13, fontWeight: 800, letterSpacing: 2, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
             {profilFirmaName && <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 1, whiteSpace: 'nowrap' }}>{profilFirmaName.toUpperCase()}</div>}

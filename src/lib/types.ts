@@ -143,9 +143,9 @@ export const FIRMA = {
 
 // ── CI Farben ────────────────────────────────────────
 export const C = {
-  black: '#0D0D0D',
+  black: 'var(--c-primary, #0D0D0D)',
   darkbg: '#141414',
-  copper: '#C8885A',
+  copper: 'var(--c-accent, #C8885A)',
   white: '#F5F2EE',
   gray1: '#1E1E1E',
   gray2: '#2A2A2A',
