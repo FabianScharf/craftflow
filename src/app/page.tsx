@@ -1237,21 +1237,30 @@ export default function CraftFlow() {
               style={{ display: 'none' }}
             />
             <button
-              onClick={() => startFileRef.current?.click()}
+              onClick={() => {
+                if (!planCanUse('starter')) {
+                  window.location.href = '/settings#plan'
+                  return
+                }
+                startFileRef.current?.click()
+              }}
               disabled={uploadingCount > 0}
               style={{
                 width: '100%', padding: '16px',
-                background: uploadedFiles.length > 0 ? `${C.copper}18` : C.gray1,
-                border: `2px dashed ${uploadedFiles.length > 0 ? C.copper : C.border}`,
+                background: !planCanUse('starter') ? C.gray1 : uploadedFiles.length > 0 ? `${C.copper}18` : C.gray1,
+                border: `2px dashed ${!planCanUse('starter') ? C.border : uploadedFiles.length > 0 ? C.copper : C.border}`,
                 borderRadius: 10, cursor: uploadingCount > 0 ? 'wait' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                opacity: !planCanUse('starter') ? 0.6 : 1,
               }}
             >
               <span style={{ fontSize: 28 }}>
-                {uploadingCount > 0 ? '⟳' : uploadedFiles.length > 0 ? '✓' : '📷'}
+                {!planCanUse('starter') ? '🔒' : uploadingCount > 0 ? '⟳' : uploadedFiles.length > 0 ? '✓' : '📷'}
               </span>
-              <span style={{ color: uploadedFiles.length > 0 ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                {uploadingCount > 0
+              <span style={{ color: !planCanUse('starter') ? C.textMid : uploadedFiles.length > 0 ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                {!planCanUse('starter')
+                  ? 'Bilder & PDFs hochladen — ab Starter'
+                  : uploadingCount > 0
                   ? 'Wird verarbeitet…'
                   : uploadedFiles.length > 0
                   ? `${uploadedFiles.length} Datei${uploadedFiles.length > 1 ? 'en' : ''} – weitere hinzufügen`
@@ -1542,27 +1551,34 @@ export default function CraftFlow() {
             {/* Feature 3+4: Top action buttons */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
               <button
-                onClick={startAllInquiry}
+                onClick={() => {
+                  if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }
+                  startAllInquiry()
+                }}
                 disabled={allInquiryStatus === 'loading'}
                 style={{
                   flex: 1, minWidth: 160,
                   background: allInquiryStatus === 'done' ? '#1a3a1a' : 'transparent',
-                  color: allInquiryStatus === 'done' ? '#90EE90' : allInquiryStatus === 'loading' ? C.textMid : C.copper,
-                  border: `1px solid ${allInquiryStatus === 'done' ? '#3a6a3a' : allInquiryStatus === 'error' ? '#8b2222' : C.copper}`,
+                  color: !planCanUse('starter') ? C.textMid : allInquiryStatus === 'done' ? '#90EE90' : allInquiryStatus === 'loading' ? C.textMid : C.copper,
+                  border: `1px solid ${!planCanUse('starter') ? C.border : allInquiryStatus === 'done' ? '#3a6a3a' : allInquiryStatus === 'error' ? '#8b2222' : C.copper}`,
                   borderRadius: 3, padding: '8px 12px',
                   cursor: allInquiryStatus === 'loading' ? 'wait' : 'pointer',
                   fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
+                  opacity: !planCanUse('starter') ? 0.6 : 1,
                 }}
               >
-                {allInquiryStatus === 'loading' ? '⟳ Anfragen werden erstellt…' : allInquiryStatus === 'done' ? '✓ Drafts erstellt' : '✉ Alle Materialien anfragen'}
+                {!planCanUse('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Anfragen werden erstellt…' : allInquiryStatus === 'done' ? '✓ Drafts erstellt' : '✉ Alle Materialien anfragen'}
               </button>
               {/* Export Dropdown */}
               <div style={{ position: 'relative' }}>
                 <button
-                  onClick={() => setExportMenuOpen(o => !o)}
-                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap' }}
+                  onClick={() => {
+                    if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }
+                    setExportMenuOpen(o => !o)
+                  }}
+                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: planCanUse('starter') ? C.textMid : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap', opacity: planCanUse('starter') ? 1 : 0.6 }}
                 >
-                  ↓ Export {exportMenuOpen ? '▲' : '▼'}
+                  {planCanUse('starter') ? `↓ Export ${exportMenuOpen ? '▲' : '▼'}` : '🔒 Export'}
                 </button>
                 {exportMenuOpen && (
                   <>

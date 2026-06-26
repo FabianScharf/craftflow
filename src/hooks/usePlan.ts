@@ -8,6 +8,23 @@ const PLAN_RANK: Record<Plan, number> = {
   solo: 1, starter: 2, pro: 3, enterprise: 4,
 }
 
+export const PLAN_LIMITS_ANGEBOTE: Record<Plan, number | null> = {
+  solo: 3, starter: 15, pro: 50, enterprise: null,
+}
+
+export const PLAN_FEATURES = {
+  spracheingabe:       { minPlan: 'solo'       as Plan, label: 'Spracheingabe' },
+  bildUpload:          { minPlan: 'starter'     as Plan, label: 'Bilder & PDFs hochladen' },
+  kalkulationsexport:  { minPlan: 'starter'     as Plan, label: 'Kalkulationsexport (CSV/Excel)' },
+  lieferantenAnfrage:  { minPlan: 'starter'     as Plan, label: 'Lieferantenanfrage über CraftFlow' },
+  multiUser:           { minPlan: 'starter'     as Plan, label: 'Bis zu 3 Benutzer' },
+  eigeneEmail:         { minPlan: 'pro'         as Plan, label: 'Lieferantenanfrage über eigene E-Mail' },
+  gaebImport:          { minPlan: 'enterprise'  as Plan, label: 'GAEB-Import & Kalkulation' },
+  prioritaetsSupport:  { minPlan: 'enterprise'  as Plan, label: 'Priorisierter Support' },
+} as const
+
+export type FeatureKey = keyof typeof PLAN_FEATURES
+
 export interface UsageInfo {
   count: number
   limit: number | null

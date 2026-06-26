@@ -58,11 +58,11 @@ type Materialgruppe = {
 
 const GRUPPEN_ORDER = ['Verwaltung','Planung','Konstruktion','Produktion','Montage','Lieferung']
 
-const PLANS: { id: Plan; name: string; price: number; priceId: string; features: string[] }[] = [
-  { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1TmSblRvozvhvO9J3EKljmMh', features: ['Angebote & Kalkulation','PDF-Export','1 Nutzer','Kostenstellen-Editor'] },
-  { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1TmScDRvozvhvO9J9tvsywrG', features: ['Alles aus Solo','Lieferanten-Verwaltung','E-Mail-Versand','Mehr Projekte'] },
-  { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1TmScSRvozvhvO9J0RF42acJ', features: ['Alles aus Starter','Analysen & Benchmarks','Preisempfehlungen','API-Zugang'] },
-  { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1TmSchRvozvhvO9JOduoM8KU', features: ['Alles aus Pro','Persönliches Onboarding','Dedizierter Support','SLA-Garantie'] },
+const PLANS: { id: Plan; name: string; price: number; priceId: string; angebote: string; features: string[] }[] = [
+  { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1TmSblRvozvhvO9J3EKljmMh', angebote: '3 / Monat',         features: ['Spracheingabe & KI-Kalkulation','PDF-Angebot erstellen','1 Benutzer'] },
+  { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1TmScDRvozvhvO9J9tvsywrG', angebote: '15 / Monat',        features: ['Alles aus Solo','Bilder & PDFs hochladen','Kalkulationsexport (CSV/Excel)','Lieferantenanfrage über CraftFlow','Bis zu 3 Benutzer'] },
+  { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1TmScSRvozvhvO9J0RF42acJ', angebote: '50 / Monat',        features: ['Alles aus Starter','Lieferantenanfrage über eigene E-Mail (SMTP)'] },
+  { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1TmSchRvozvhvO9JOduoM8KU', angebote: 'Unbegrenzt',        features: ['Alles aus Pro','GAEB-Import & Kalkulation','Priorisierter Support'] },
 ]
 
 function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]> {
@@ -832,6 +832,9 @@ export default function SettingsPage() {
                           <div style={{ fontSize: 16, fontWeight: 700, color: C.white, marginBottom: 2 }}>{plan.name}</div>
                           <div style={{ fontSize: 26, fontWeight: 800, color: isCurrent ? C.copper : C.white, lineHeight: 1 }}>
                             {plan.price} €<span style={{ fontSize: 13, fontWeight: 400, color: C.textMid }}> / Monat</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>
+                            📄 {plan.angebote}
                           </div>
                         </div>
                       </div>
