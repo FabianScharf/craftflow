@@ -77,6 +77,15 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 
 export default function SettingsPage() {
   const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan'>('firma')
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileShowContent, setMobileShowContent] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [loadingPortal, setLoadingPortal] = useState(false)
   const [stripeMsg, setStripeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -330,57 +339,71 @@ export default function SettingsPage() {
     <div style={{ background: C.black, minHeight: '100vh', fontFamily: 'Helvetica Neue,sans-serif', color: C.white }}>
 
       {/* Top bar */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 52, gap: 12 }}>
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 52, gap: 12, position: 'sticky', top: 0, zIndex: 10, background: C.black }}>
         <button
-          onClick={() => window.history.back()}
+          onClick={() => {
+            if (isMobile && mobileShowContent) { setMobileShowContent(false) }
+            else { window.history.back() }
+          }}
           style={{ background: 'none', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}
         >←</button>
-        <span style={{ color: C.copper, fontWeight: 800, letterSpacing: 2, fontSize: 13 }}>EINSTELLUNGEN</span>
+        <span style={{ color: C.copper, fontWeight: 800, letterSpacing: 2, fontSize: 13 }}>
+          {isMobile && mobileShowContent
+            ? navItems.find(n => n.id === section)?.label ?? 'EINSTELLUNGEN'
+            : 'EINSTELLUNGEN'}
+        </span>
       </div>
 
       <div style={{ display: 'flex', maxWidth: 960, margin: '0 auto' }}>
 
-        {/* Desktop sidebar */}
-        <div style={{
-          width: 210, flexShrink: 0, borderRight: `1px solid ${C.border}`,
-          minHeight: 'calc(100vh - 52px)', padding: '16px 0',
-          display: 'flex', flexDirection: 'column',
-        }}>
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setSection(item.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                width: '100%', padding: '11px 20px', border: 'none', cursor: 'pointer',
-                background: section === item.id ? C.gray2 : 'transparent',
-                color: section === item.id ? C.white : C.textMid,
-                fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left',
-                borderLeft: section === item.id ? `3px solid ${C.copper}` : '3px solid transparent',
-              }}
-            >
-              <span style={{ fontSize: 15 }}>{item.icon}</span>
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {item.minPlan && userPlan === 'solo' && (
-                <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${C.copper}50`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0 }}>
-                  Starter
-                </span>
-              )}
-            </button>
-          ))}
+        {/* Sidebar — auf Mobile nur wenn kein Inhalt gezeigt */}
+        {(!isMobile || !mobileShowContent) && (
+          <div style={{
+            width: isMobile ? '100%' : 210,
+            flexShrink: 0,
+            borderRight: isMobile ? 'none' : `1px solid ${C.border}`,
+            minHeight: 'calc(100vh - 52px)',
+            padding: isMobile ? '8px 0' : '16px 0',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => { setSection(item.id); if (isMobile) setMobileShowContent(true) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: isMobile ? '15px 20px' : '11px 20px', border: 'none', cursor: 'pointer',
+                  background: !isMobile && section === item.id ? C.gray2 : 'transparent',
+                  color: C.white,
+                  fontSize: isMobile ? 15 : 13, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left',
+                  borderLeft: !isMobile && section === item.id ? `3px solid ${C.copper}` : isMobile ? 'none' : '3px solid transparent',
+                  borderBottom: isMobile ? `1px solid ${C.border}` : 'none',
+                }}
+              >
+                <span style={{ fontSize: isMobile ? 20 : 15 }}>{item.icon}</span>
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {item.minPlan && userPlan === 'solo' && (
+                  <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${C.copper}50`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0 }}>
+                    Starter
+                  </span>
+                )}
+                {isMobile && <span style={{ color: C.textMid, fontSize: 16 }}>›</span>}
+              </button>
+            ))}
 
-          <div style={{ marginTop: 'auto', padding: '24px 20px 16px', borderTop: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6, wordBreak: 'break-all' }}>{userEmail}</div>
-            <button
-              onClick={logout}
-              style={{ background: 'none', border: 'none', color: C.err, fontSize: 12, cursor: 'pointer', padding: 0 }}
-            >Abmelden</button>
+            <div style={{ marginTop: 'auto', padding: '24px 20px 16px', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 12, color: C.textMid, marginBottom: 8, wordBreak: 'break-all' }}>{userEmail}</div>
+              <button
+                onClick={logout}
+                style={{ background: 'none', border: 'none', color: C.err, fontSize: 13, cursor: 'pointer', padding: 0 }}
+              >Abmelden</button>
+            </div>
           </div>
-        </div>
+        )}
 
-
-        {/* Main content */}
-        <div style={{ flex: 1, padding: '24px 20px', maxWidth: 680, minWidth: 0 }}>
+        {/* Main content — auf Mobile nur wenn Inhalt gewählt */}
+        {(!isMobile || mobileShowContent) && (
+        <div style={{ flex: 1, padding: isMobile ? '20px 16px' : '24px 20px', maxWidth: 680, minWidth: 0, width: '100%' }}>
 
           {/* BEREICH 1 — FIRMENDATEN */}
           {section === 'firma' && (
@@ -394,7 +417,7 @@ export default function SettingsPage() {
                 <Divider />
 
                 <Field label="Straße & Hausnummer" value={profil.strasse ?? ''} onChange={v => setP('strasse', v)} />
-                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '90px 1fr' : '100px 1fr', gap: 10 }}>
                   <Field label="PLZ" value={profil.plz ?? ''} onChange={v => setP('plz', v)} />
                   <Field label="Ort" value={profil.ort ?? ''} onChange={v => setP('ort', v)} />
                 </div>
@@ -559,7 +582,7 @@ export default function SettingsPage() {
 
               {showNewKs ? (
                 <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14, marginTop: 12 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 10 }}>
                     <Field label="Code (z.B. 07_Sonstiges)" value={newKs.code} onChange={v => setNewKs(p => ({ ...p, code: v }))} />
                     <Field label="Bezeichnung" value={newKs.bezeichnung} onChange={v => setNewKs(p => ({ ...p, bezeichnung: v }))} />
                     <Field label="Stundensatz (€/h)" value={String(newKs.stundensatz)} onChange={v => setNewKs(p => ({ ...p, stundensatz: parseFloat(v) || 0 }))} type="number" />
@@ -646,14 +669,14 @@ export default function SettingsPage() {
                 <Divider label="Bankverbindung" />
 
                 <Field label="IBAN" value={profil.iban ?? ''} onChange={v => setP('iban', v)} placeholder="DE00 0000 0000 0000 0000 00" />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
                   <Field label="BIC" value={profil.bic ?? ''} onChange={v => setP('bic', v)} />
                   <Field label="Bank" value={profil.bank_name ?? ''} onChange={v => setP('bank_name', v)} />
                 </div>
 
                 <Divider label="Angebotsnummern" />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
                   <div>
                     <label style={lbl}>Präfix</label>
                     <input
@@ -760,7 +783,7 @@ export default function SettingsPage() {
           )}
 
           {/* BEREICH — AUSWERTUNG */}
-          {section === 'auswertung' && <AuswertungSection />}
+          {section === 'auswertung' && <AuswertungSection isMobile={isMobile} />}
 
           {/* BEREICH 7 — MEIN PLAN */}
           {section === 'plan' && (
@@ -781,7 +804,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
                 {PLANS.map(plan => {
                   const isCurrent = plan.id === userPlan
                   const isLoading = checkoutLoading === plan.priceId
@@ -859,6 +882,7 @@ export default function SettingsPage() {
           )}
 
         </div>
+        )}
       </div>
 
     </div>
@@ -970,7 +994,7 @@ function monatLabel(key: string) {
   return new Date(Number(y), Number(m) - 1).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' })
 }
 
-function AuswertungSection() {
+function AuswertungSection({ isMobile = false }: { isMobile?: boolean }) {
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [zeitraum, setZeitraum] = useState<Zeitraum>('monat')
@@ -1032,7 +1056,7 @@ function AuswertungSection() {
       </div>
 
       {/* KPI-Karten */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 10, marginBottom: 28 }}>
         {kpiCard('Angebote', String(stats?.anzahl ?? 0))}
         {kpiCard('Gesamtvolumen', eur2(stats?.volumen ?? 0), 'netto')}
         {kpiCard('Ø Angebotswert', eur2(stats?.durchschnitt ?? 0), 'netto')}
@@ -1048,13 +1072,13 @@ function AuswertungSection() {
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {entries.map(([key, v]) => (
-                <div key={key} style={{ display: 'grid', gridTemplateColumns: '52px 1fr 80px 44px', gap: 8, alignItems: 'center' }}>
+                <div key={key} style={{ display: 'grid', gridTemplateColumns: isMobile ? '44px 1fr 72px' : '52px 1fr 80px 44px', gap: 8, alignItems: 'center' }}>
                   <div style={{ fontSize: 11, color: C.textMid }}>{monatLabel(key)}</div>
                   <div style={{ height: 6, borderRadius: 3, background: C.gray2, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${(v.volumen / maxVol) * 100}%`, background: C.copper, borderRadius: 3, transition: 'width .3s' }} />
                   </div>
                   <div style={{ fontSize: 11, color: C.white, textAlign: 'right' }}>{eur2(v.volumen)}</div>
-                  <div style={{ fontSize: 11, color: C.textMid, textAlign: 'right' }}>{v.anzahl} Stk.</div>
+                  {!isMobile && <div style={{ fontSize: 11, color: C.textMid, textAlign: 'right' }}>{v.anzahl} Stk.</div>}
                 </div>
               ))}
             </div>
