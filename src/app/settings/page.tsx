@@ -898,6 +898,42 @@ export default function SettingsPage() {
               <p style={{ fontSize: 11, color: C.textMid }}>
                 Du hast einen BETA-Gutschein? Klicke auf Auswählen und gib ihn im Checkout ein.
               </p>
+
+              {/* ── Dev-Panel: nur für Owner ── */}
+              {userEmail === 'l.m.p.1@gmx.de' && (
+                <div style={{ marginTop: 32, borderTop: `1px dashed ${C.border}`, paddingTop: 20 }}>
+                  <div style={{ fontSize: 10, letterSpacing: 2, color: '#555', textTransform: 'uppercase', marginBottom: 12 }}>
+                    🛠 Entwickler — Plan-Override
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {(['solo', 'starter', 'pro', 'enterprise'] as const).map(p => (
+                      <button
+                        key={p}
+                        onClick={async () => {
+                          await fetch('/api/settings/betriebsprofil', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ plan: p }),
+                          })
+                          setProfil(prev => ({ ...prev, plan: p }))
+                        }}
+                        style={{
+                          padding: '8px 16px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif',
+                          background: profil.plan === p ? C.copper : C.gray2,
+                          color: profil.plan === p ? C.black : C.textMid,
+                          border: `1px solid ${profil.plan === p ? C.copper : C.border}`,
+                        }}
+                      >
+                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#444', marginTop: 8 }}>
+                    Wechselt sofort — kein Stripe, kein Reload nötig.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
