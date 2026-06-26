@@ -2115,8 +2115,13 @@ export default function CraftFlow() {
               <div style={{ padding: '12px 16px' }}>
                 <Lbl>Dokumenttyp & Nummer</Lbl>
                 <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
-                  {['Angebot', 'Auftragsbestätigung', 'Rechnung'].map(t => (
-                    <button key={t} onClick={() => setDocTyp(t)} style={{ flex: 1, padding: '8px 2px', fontSize: 10, background: docTyp === t ? C.copper : C.gray2, color: docTyp === t ? C.black : C.textMid, border: 'none', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: docTyp === t ? 700 : 400 }}>{t}</button>
+                  {(['Angebot', 'Auftragsbestätigung', 'Rechnung'] as const).map(t => (
+                    <button key={t} onClick={() => {
+                      const prefixMap: Record<string, string> = { 'Angebot': 'AN', 'Auftragsbestätigung': 'AB', 'Rechnung': 'RE' }
+                      const counter = docNr.replace(/^[A-Z]+-/, '')
+                      setDocTyp(t)
+                      setDocNr(`${prefixMap[t]}-${counter}`)
+                    }} style={{ flex: 1, padding: '8px 2px', fontSize: 10, background: docTyp === t ? C.copper : C.gray2, color: docTyp === t ? C.black : C.textMid, border: 'none', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: docTyp === t ? 700 : 400 }}>{t}</button>
                   ))}
                 </div>
                 <TxtInput value={docNr} onChange={setDocNr} />
