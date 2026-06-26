@@ -337,7 +337,7 @@ export default function SettingsPage() {
   const allGruppen = [...new Set([...GRUPPEN_ORDER, ...Object.keys(groups)])]
 
   return (
-    <div style={{ background: C.black, minHeight: '100vh', fontFamily: 'Helvetica Neue,sans-serif', color: C.white }}>
+    <div suppressHydrationWarning style={{ background: C.black, minHeight: '100vh', fontFamily: 'Helvetica Neue,sans-serif', color: C.white }}>
 
       {/* Top bar */}
       <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 52, gap: 12, position: 'sticky', top: 0, zIndex: 10, background: C.black }}>
