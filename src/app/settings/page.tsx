@@ -392,6 +392,17 @@ export default function SettingsPage() {
               </button>
             ))}
 
+            {isInTrial && (
+              <div
+                onClick={() => { setSection('plan'); if (isMobile) setMobileShowContent(true) }}
+                style={{ margin: '12px 12px 0', background: `${C.copper}15`, border: `1px solid ${C.copper}44`, borderRadius: 8, padding: '10px 12px', cursor: 'pointer' }}
+              >
+                <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: C.copper, marginBottom: 3 }}>🎁 Testversion</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'} verbleiben</div>
+                <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>Plan wählen →</div>
+              </div>
+            )}
+
             <div style={{ marginTop: 'auto', padding: '24px 20px 16px', borderTop: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 12, color: C.textMid, marginBottom: 8, wordBreak: 'break-all' }}>{userEmail}</div>
               <button
