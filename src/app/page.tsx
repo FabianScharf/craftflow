@@ -116,7 +116,7 @@ const defaultAngebotspos = (id: number): Angebotsposition => ({
 const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.d82', '.d83', '.p81', '.p82', '.p83']
 
 export default function CraftFlow() {
-  const { canUse: planCanUse } = usePlan()
+  const { canUse: planCanUse, usage, incrementUsage } = usePlan()
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -2171,7 +2171,23 @@ export default function CraftFlow() {
               {saveStatus === 'saving' ? '…' : saveStatus === 'saved' ? '✓ Gespeichert' : saveStatus === 'error' ? '✗ Fehler beim Speichern' : currentProjectId ? '💾 Projekt aktualisieren' : '💾 Projekt speichern'}
             </button>
 
-            <button onClick={() => {
+            {usage.remaining !== null && usage.remaining <= 3 && (
+              <div style={{ textAlign: 'center', fontSize: 11, color: usage.remaining === 0 ? '#E05A5A' : '#C8885A', marginBottom: 8 }}>
+                {usage.remaining === 0
+                  ? `Limit erreicht (${usage.count}/${usage.limit} Angebote diesen Monat)`
+                  : `Noch ${usage.remaining} von ${usage.limit} Angeboten diesen Monat`}
+              </div>
+            )}
+            <button onClick={async () => {
+              if (!usage.erlaubt) {
+                alert(`Du hast dein monatliches Limit von ${usage.limit} Angeboten erreicht. Bitte upgrade deinen Plan.`)
+                return
+              }
+              const ok = await incrementUsage()
+              if (!ok) {
+                alert('Limit erreicht. Bitte upgrade deinen Plan unter Einstellungen → Mein Plan.')
+                return
+              }
               setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, {
                 anredeVorlage: dokAnrede || undefined,
                 nachtext: dokNachtext || undefined,
@@ -2183,7 +2199,7 @@ export default function CraftFlow() {
               if (currentProjectId) {
                 fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'pdf_export', projectId: currentProjectId, data: { preis_netto: totals.net } }) })
               }
-            }} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: 'pointer' }}>
+            }} disabled={!usage.erlaubt} style={{ width: '100%', background: usage.erlaubt ? C.copper : '#3a2a1a', color: usage.erlaubt ? C.black : '#6a4a2a', border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: usage.erlaubt ? 'pointer' : 'not-allowed' }}>
               ▶ DOKUMENT ALS PDF ANZEIGEN
             </button>
           </div>
