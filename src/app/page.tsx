@@ -648,16 +648,6 @@ export default function CraftFlow() {
 
       if (data.anschreiben) setAnschr(data.anschreiben)
 
-      if (textToUse) {
-        const t = textToUse.toLowerCase()
-        if (t.includes('rechnung')) {
-          setDocTyp('Rechnung')
-          setDocNr(prev => 'RE-' + prev.replace(/^[A-Z]+-/, ''))
-        } else if (t.includes('angebot')) {
-          setDocTyp('Angebot')
-          setDocNr(prev => 'AN-' + prev.replace(/^[A-Z]+-/, ''))
-        }
-      }
 
       // Kein fragen → direkt zum App-Screen
       if (!data.fragen?.length) {
@@ -2113,17 +2103,7 @@ export default function CraftFlow() {
           <div>
             <Card accent={C.copper}>
               <div style={{ padding: '12px 16px' }}>
-                <Lbl>Dokumenttyp & Nummer</Lbl>
-                <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
-                  {(['Angebot', 'Auftragsbestätigung', 'Rechnung'] as const).map(t => (
-                    <button key={t} onClick={() => {
-                      const prefixMap: Record<string, string> = { 'Angebot': 'AN', 'Auftragsbestätigung': 'AB', 'Rechnung': 'RE' }
-                      const counter = docNr.replace(/^[A-Z]+-/, '')
-                      setDocTyp(t)
-                      setDocNr(`${prefixMap[t]}-${counter}`)
-                    }} style={{ flex: 1, padding: '8px 2px', fontSize: 10, background: docTyp === t ? C.copper : C.gray2, color: docTyp === t ? C.black : C.textMid, border: 'none', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: docTyp === t ? 700 : 400 }}>{t}</button>
-                  ))}
-                </div>
+                <Lbl>Angebotsnummer</Lbl>
                 <TxtInput value={docNr} onChange={setDocNr} />
               </div>
             </Card>
