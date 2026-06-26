@@ -828,13 +828,30 @@ export default function SettingsPage() {
                         }}>AKTIV</div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 16, fontWeight: 700, color: C.white, marginBottom: 2 }}>{plan.name}</div>
                           <div style={{ fontSize: 26, fontWeight: 800, color: isCurrent ? C.copper : C.white, lineHeight: 1 }}>
                             {plan.price} €<span style={{ fontSize: 13, fontWeight: 400, color: C.textMid }}> / Monat</span>
                           </div>
-                          <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>
-                            📄 {plan.angebote}
+                          {/* Angebots-Highlight */}
+                          <div style={{
+                            marginTop: 10,
+                            display: 'inline-flex', alignItems: 'baseline', gap: 5,
+                            background: plan.id === 'enterprise' ? `${C.copper}22` : plan.id === 'pro' ? `${C.copper}15` : 'transparent',
+                            border: plan.id === 'enterprise' || plan.id === 'pro' ? `1px solid ${C.copper}55` : 'none',
+                            borderRadius: 6, padding: plan.id === 'enterprise' || plan.id === 'pro' ? '5px 10px' : '0',
+                          }}>
+                            <span style={{
+                              fontSize: plan.id === 'enterprise' ? 22 : plan.id === 'pro' ? 20 : 15,
+                              fontWeight: 800,
+                              color: plan.id === 'enterprise' || plan.id === 'pro' ? C.copper : C.textMid,
+                              lineHeight: 1,
+                            }}>
+                              {plan.id === 'enterprise' ? '∞' : plan.angebote.split(' ')[0]}
+                            </span>
+                            <span style={{ fontSize: 11, color: C.textMid }}>
+                              {plan.id === 'enterprise' ? 'Angebote – unbegrenzt' : plan.id === 'pro' ? 'Angebote / Monat' : `Angebote / Monat`}
+                            </span>
                           </div>
                         </div>
                       </div>
