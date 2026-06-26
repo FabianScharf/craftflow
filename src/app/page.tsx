@@ -184,6 +184,13 @@ export default function CraftFlow() {
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [statusDropdown, setStatusDropdown] = useState<string | null>(null)
+
+  const updateProjectStatus = useCallback(async (id: string, status: string) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, status } : p))
+    setStatusDropdown(null)
+    await fetch(`/api/projects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+  }, [])
 
   useEffect(() => {
     fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) })
@@ -1071,9 +1078,32 @@ export default function CraftFlow() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: sc.color, background: sc.color + '18', padding: '3px 10px', borderRadius: 20, border: `1px solid ${sc.color}44`, whiteSpace: 'nowrap' }}>
-                        {sc.label}
-                      </span>
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); setStatusDropdown(statusDropdown === p.id ? null : p.id) }}
+                          style={{ fontSize: 11, fontWeight: 700, color: sc.color, background: sc.color + '18', padding: '4px 10px', borderRadius: 20, border: `1px solid ${sc.color}44`, whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                        >
+                          {sc.label} ▾
+                        </button>
+                        {statusDropdown === p.id && (
+                          <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={e => { e.stopPropagation(); setStatusDropdown(null) }} />
+                            <div style={{ position: 'absolute', top: '110%', right: 0, background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', zIndex: 50, minWidth: 150, boxShadow: '0 4px 20px rgba(0,0,0,.6)' }}>
+                              {Object.entries(statusColors).map(([key, val]) => (
+                                <button
+                                  key={key}
+                                  onClick={e => { e.stopPropagation(); updateProjectStatus(p.id, key) }}
+                                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: p.status === key ? C.gray2 : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left' as const }}
+                                >
+                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: val.color, flexShrink: 0 }} />
+                                  <span style={{ fontSize: 13, color: p.status === key ? C.white : C.textMid, fontWeight: p.status === key ? 700 : 400 }}>{val.label}</span>
+                                  {p.status === key && <span style={{ marginLeft: 'auto', color: val.color, fontSize: 12 }}>✓</span>}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
                       <button
                         onClick={e => { e.stopPropagation(); loadProject(p.id) }}
                         style={{ background: C.gray2, color: C.white, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, whiteSpace: 'nowrap' }}
