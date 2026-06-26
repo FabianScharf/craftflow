@@ -1440,13 +1440,13 @@ export default function CraftFlow() {
           <div style={{ color: C.textMid, fontSize: 9, whiteSpace: 'nowrap' }}>{docNr}</div>
           <button
             onClick={() => setScreen('start')}
-            style={{ background: C.gray1, color: brandAccent, border: `1px solid ${brandAccent}`, borderRadius: 6, padding: '9px 12px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, whiteSpace: 'nowrap' }}
+            style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 16px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, whiteSpace: 'nowrap', letterSpacing: 0.3 }}
           >
             ← Zurück
           </button>
           {userEmail && (
-            <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>
-              ↩
+            <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">
+              🚪
             </button>
           )}
         </div>
