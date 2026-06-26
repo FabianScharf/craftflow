@@ -118,6 +118,7 @@ const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.d82', '.d83', '.p81',
 export default function CraftFlow() {
   const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft } = usePlan()
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'projekte'>('start')
+  const [previousScreen, setPreviousScreen] = useState<'start' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [brandAccent, setBrandAccent] = useState(C.copper)
@@ -253,7 +254,7 @@ export default function CraftFlow() {
     }
   }
 
-  async function loadProject(id: string) {
+  async function loadProject(id: string, from: 'start' | 'projekte' = 'projekte') {
     const res = await fetch(`/api/projects/${id}`)
     if (!res.ok) return
     const row = await res.json()
@@ -265,6 +266,7 @@ export default function CraftFlow() {
     if (d.anschr) setAnschr(d.anschr)
     if (typeof d.widerruf === 'boolean') setWiderruf(d.widerruf)
     setCurrentProjectId(id)
+    setPreviousScreen(from)
     setScreen('app')
     setTab('kalkulation')
   }
@@ -1477,7 +1479,7 @@ export default function CraftFlow() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <div style={{ color: C.textMid, fontSize: 9, whiteSpace: 'nowrap' }}>{docNr}</div>
           <button
-            onClick={() => setScreen('start')}
+            onClick={() => setScreen(previousScreen)}
             style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 16px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, whiteSpace: 'nowrap', letterSpacing: 0.3 }}
           >
             ← Zurück
