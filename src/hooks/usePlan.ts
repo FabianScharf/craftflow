@@ -35,7 +35,7 @@ export interface UsageInfo {
 export function usePlan() {
   const [plan, setPlan] = useState<Plan>('solo')
   const [loading, setLoading] = useState(true)
-  const [usage, setUsage] = useState<UsageInfo>({ count: 0, limit: 3, remaining: 3, erlaubt: true })
+  const [usage, setUsage] = useState<UsageInfo | null>(null)
 
   const loadUsage = useCallback(async () => {
     const res = await fetch('/api/usage')

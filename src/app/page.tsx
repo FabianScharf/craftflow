@@ -1026,7 +1026,7 @@ export default function CraftFlow() {
       offen:      { color: C.textMid, label: 'Offen' },
     }
     return (
-      <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+      <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {/* Header */}
         <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1091,7 +1091,7 @@ export default function CraftFlow() {
 
   if (screen === 'pdf') {
     return (
-      <div style={{ fontFamily: 'Helvetica Neue,sans-serif', background: C.black, minHeight: '100vh' }}>
+      <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,sans-serif', background: C.black, minHeight: '100vh' }}>
         <div style={{ background: C.darkbg, padding: '13px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${C.copper}` }}>
           <div style={{ color: C.copper, fontSize: 14, fontWeight: 700, letterSpacing: 2 }}>PDF VORSCHAU</div>
           <button onClick={() => setScreen('app')} style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 3, padding: '6px 16px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>← Zurück</button>
@@ -1117,7 +1117,7 @@ export default function CraftFlow() {
     const isTranscribing = micStatus === 'transcribing'
 
     return (
-      <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+      <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {OnboardingModal}
         <style>{`
           @keyframes cfpulse {
@@ -2187,7 +2187,7 @@ export default function CraftFlow() {
               {saveStatus === 'saving' ? '…' : saveStatus === 'saved' ? '✓ Gespeichert' : saveStatus === 'error' ? '✗ Fehler beim Speichern' : currentProjectId ? '💾 Projekt aktualisieren' : '💾 Projekt speichern'}
             </button>
 
-            {usage.remaining !== null && usage.remaining <= 3 && (
+            {usage !== null && usage.remaining !== null && usage.remaining <= 3 && (
               <div style={{ textAlign: 'center', fontSize: 11, color: usage.remaining === 0 ? '#E05A5A' : '#C8885A', marginBottom: 8 }}>
                 {usage.remaining === 0
                   ? `Limit erreicht (${usage.count}/${usage.limit} Angebote diesen Monat)`
@@ -2195,7 +2195,7 @@ export default function CraftFlow() {
               </div>
             )}
             <button onClick={async () => {
-              if (!usage.erlaubt) {
+              if (usage !== null && !usage.erlaubt) {
                 alert(`Du hast dein monatliches Limit von ${usage.limit} Angeboten erreicht. Bitte upgrade deinen Plan.`)
                 return
               }
@@ -2215,7 +2215,7 @@ export default function CraftFlow() {
               if (currentProjectId) {
                 fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'pdf_export', projectId: currentProjectId, data: { preis_netto: totals.net } }) })
               }
-            }} disabled={!usage.erlaubt} style={{ width: '100%', background: usage.erlaubt ? C.copper : '#3a2a1a', color: usage.erlaubt ? C.black : '#6a4a2a', border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: usage.erlaubt ? 'pointer' : 'not-allowed' }}>
+            }} disabled={usage !== null && !usage.erlaubt} style={{ width: '100%', background: usage !== null && !usage.erlaubt ? '#3a2a1a' : C.copper, color: usage !== null && !usage.erlaubt ? '#6a4a2a' : C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: usage !== null && !usage.erlaubt ? 'not-allowed' : 'pointer' }}>
               ▶ DOKUMENT ALS PDF ANZEIGEN
             </button>
           </div>
