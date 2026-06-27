@@ -113,8 +113,80 @@ const defaultAngebotspos = (id: number): Angebotsposition => ({
   id, titel: 'Neue Position', beschreibung: '', material: [], arbeitszeit: [],
 })
 
+/* ── GAEB Parser (client-side) ─────────────────────── */
+const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.x84', '.x86', '.d81', '.d82', '.d83', '.d84', '.d86', '.p81', '.p82', '.p83', '.p84', '.p86']
+
+function xmlEscape(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function getTagText(parent: Element, tag: string): string {
+  return parent.getElementsByTagName(tag)[0]?.textContent?.trim() ?? ''
+}
+
+function parseGaebXML(xmlText: string): { positions: import('@/lib/types').Angebotsposition[]; projektName: string } {
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml')
+  const projektName = getTagText(doc.documentElement, 'Name') || getTagText(doc.documentElement, 'LblBoQ') || 'GAEB-Import'
+  const positions: import('@/lib/types').Angebotsposition[] = []
+  const items = Array.from(doc.getElementsByTagName('Item'))
+  items.forEach((item, i) => {
+    const shortText = getTagText(item, 'ShortText')
+    const detailText = getTagText(item, 'Text')
+    const qty = parseFloat(getTagText(item, 'Qty').replace(',', '.')) || 1
+    const unit = getTagText(item, 'QU') || 'Psch'
+    const up = parseFloat(getTagText(item, 'UP').replace(',', '.')) || 0
+    const rno = item.getAttribute('RNoPart') ?? String((i + 1) * 10).padStart(4, '0')
+    const titel = shortText || `Position ${rno}`
+    const beschreibung = detailText || ''
+    positions.push({
+      id: Date.now() + i * 3,
+      titel,
+      beschreibung,
+      material: up > 0
+        ? [{ id: Date.now() + i * 3 + 1, bezeichnung: titel, menge: qty, einheit: unit, ekPreis: up, aufschlag: 0 }]
+        : [],
+      arbeitszeit: [],
+    })
+  })
+  return { positions, projektName }
+}
+
+function parseGaebText(text: string): { positions: import('@/lib/types').Angebotsposition[]; projektName: string } {
+  const lines = text.split(/\r?\n/)
+  const positions: import('@/lib/types').Angebotsposition[] = []
+  let current: import('@/lib/types').Angebotsposition | null = null
+  let ltLines: string[] = []
+  let projektName = 'GAEB-Import'
+  for (const line of lines) {
+    const code = line.substring(0, 2)
+    if (code === 'T8') {
+      const titleMatch = line.match(/\s{3,}(.+?)\s*$/)
+      if (titleMatch) projektName = titleMatch[1].trim()
+    } else if (code === 'P0') {
+      if (current) { current.beschreibung = ltLines.join('\n'); positions.push(current); ltLines = [] }
+      const rest = line.substring(3).trim()
+      const parts = rest.split(/\s+/)
+      const posNr = parts[0] ?? ''
+      const einheit = parts[1] ?? 'Stk'
+      const menge = parseFloat((parts[2] ?? '1').replace(',', '.')) || 1
+      const kurztext = parts.slice(3).join(' ').trim() || `Position ${posNr}`
+      current = {
+        id: Date.now() + positions.length * 3,
+        titel: kurztext,
+        beschreibung: '',
+        material: [{ id: Date.now() + positions.length * 3 + 1, bezeichnung: kurztext, menge, einheit, ekPreis: 0, aufschlag: 0 }],
+        arbeitszeit: [],
+      }
+    } else if ((code === 'L1' || code === 'L2') && current) {
+      const t = line.substring(2).trim()
+      if (t) ltLines.push(t)
+    }
+  }
+  if (current) { current.beschreibung = ltLines.join('\n'); positions.push(current) }
+  return { positions, projektName }
+}
+
 /* ── Haupt-Komponente ─────────────────────────────── */
-const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.d82', '.d83', '.p81', '.p82', '.p83']
 
 export default function CraftFlow() {
   const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft, isBlocked } = usePlan()
@@ -138,6 +210,8 @@ export default function CraftFlow() {
   const [isMobile, setIsMobile] = useState(false)
   const [gaebDetected, setGaebDetected] = useState(false)
   const [gaebFileName, setGaebFileName] = useState('')
+  const [gaebImportPositionen, setGaebImportPositionen] = useState<Angebotsposition[] | null>(null)
+  const [gaebImporting, setGaebImporting] = useState(false)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640)
@@ -494,6 +568,22 @@ export default function CraftFlow() {
     }
 
     setUploadingCount(prev => prev - 1)
+  }, [])
+
+  const handleGaebFile = useCallback(async (file: File) => {
+    setGaebDetected(true)
+    setGaebFileName(file.name)
+    setGaebImporting(true)
+    setGaebImportPositionen(null)
+    try {
+      const text = await file.text()
+      const isXML = text.trimStart().startsWith('<') || text.includes('<GAEB') || text.includes('<BoQ')
+      const { positions } = isXML ? parseGaebXML(text) : parseGaebText(text)
+      setGaebImportPositionen(positions.length > 0 ? positions : null)
+    } catch (e) {
+      console.error('[gaeb-parse]', e)
+    }
+    setGaebImporting(false)
   }, [])
 
   // ── Mikrofon Aufnahme ────────────────────────────────
@@ -1023,6 +1113,42 @@ export default function CraftFlow() {
     XLSX.writeFile(wb, filename)
   }, [pos, kunde, totals])
 
+  const exportGAEB = useCallback(() => {
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const projektName = [kunde.name, kunde.projekt].filter(Boolean).join(' – ') || 'Angebot'
+    let itemsXml = ''
+    pos.forEach((p, i) => {
+      const gesamt = calcAngebotspos(p)
+      const rno = String((i + 1) * 10).padStart(4, '0')
+      const menge = p.material[0]?.menge ?? 1
+      const einheit = p.material[0]?.einheit ?? 'Psch'
+      const up = menge > 0 ? gesamt / menge : gesamt
+      itemsXml += `
+          <Item RNoPart="${rno}">
+            <Qty>${menge.toFixed(3)}</Qty>
+            <QU>${xmlEscape(einheit)}</QU>
+            <Description>
+              <ShortText>${xmlEscape(p.titel)}</ShortText>
+              <CompleteText>
+                <DetailTxt>
+                  <Text><p>${xmlEscape(p.beschreibung || p.titel)}</p></Text>
+                </DetailTxt>
+              </CompleteText>
+            </Description>
+            <UP>${up.toFixed(2)}</UP>
+            <T>${gesamt.toFixed(2)}</T>
+          </Item>`
+    })
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<GAEB xmlns="http://www.gaeb.de/GAEB_DA_XML/3.2">\n  <GAEBInfo>\n    <FileName>${xmlEscape(docNr)}.X84</FileName>\n    <Date>${dateStr}</Date>\n    <Conversion>false</Conversion>\n  </GAEBInfo>\n  <Award>\n    <DP>DA84</DP>\n  </Award>\n  <BoQ>\n    <BoQInfo>\n      <Name>${xmlEscape(projektName)}</Name>\n      <LblBoQ>Angebot</LblBoQ>\n    </BoQInfo>\n    <BoQBody>\n      <BoQCtgy RNoPart="01">\n        <LblTx><p>${xmlEscape(projektName)}</p></LblTx>\n        <BoQBody>\n          <Itemlist>${itemsXml}\n          </Itemlist>\n        </BoQBody>\n      </BoQCtgy>\n    </BoQBody>\n  </BoQ>\n</GAEB>`
+    const blob = new Blob([xml], { type: 'application/xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${docNr}_${dateStr}.X84`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [pos, kunde, docNr])
+
   const copyToClipboard = useCallback(async () => {
     const date = today()
     const lines: string[] = [
@@ -1431,7 +1557,7 @@ export default function CraftFlow() {
               ref={startFileRef}
               type="file"
               accept={planCanUse('enterprise')
-                ? 'image/*,application/pdf,.x81,.x82,.x83,.d81,.d82,.d83,.p81,.p82,.p83'
+                ? 'image/*,application/pdf,' + GAEB_EXTENSIONS.join(',')
                 : 'image/*,application/pdf'}
               multiple
               onChange={e => {
@@ -1441,8 +1567,7 @@ export default function CraftFlow() {
                   const nameLc = f.name.toLowerCase()
                   const isGaeb = GAEB_EXTENSIONS.some(ext => nameLc.endsWith(ext))
                   if (isGaeb) {
-                    setGaebDetected(true)
-                    setGaebFileName(f.name)
+                    handleGaebFile(f)
                   } else {
                     const isPdf = f.type === 'application/pdf' || nameLc.endsWith('.pdf')
                     if (isPdf) handlePdfUpload(f)
@@ -1504,17 +1629,50 @@ export default function CraftFlow() {
               </div>
             )}
             {gaebDetected && (
-              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${C.copper}40`, background: `${C.copper}08`, padding: '10px 14px' }}>
-                <div style={{ fontSize: 13, color: C.copper, marginBottom: 2 }}>
-                  GAEB-Datei erkannt: <strong>{gaebFileName}</strong>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: C.textMid }}>GAEB-Analyse folgt in einem kommenden Update.</span>
+              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${C.copper}55`, background: `${C.copper}0A`, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ fontSize: 12, color: C.copper, fontWeight: 700 }}>
+                    GAEB-Datei erkannt: <span style={{ fontWeight: 400, color: C.white }}>{gaebFileName}</span>
+                  </div>
                   <button
-                    onClick={() => { setGaebDetected(false); setGaebFileName('') }}
-                    style={{ background: 'none', border: 'none', color: C.textMid, fontSize: 14, cursor: 'pointer', padding: 0 }}
+                    onClick={() => { setGaebDetected(false); setGaebFileName(''); setGaebImportPositionen(null) }}
+                    style={{ background: 'none', border: 'none', color: C.textMid, fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}
                   >×</button>
                 </div>
+                {gaebImporting && (
+                  <div style={{ fontSize: 11, color: C.textMid }}>⟳ Datei wird eingelesen…</div>
+                )}
+                {!gaebImporting && gaebImportPositionen === null && (
+                  <div style={{ fontSize: 11, color: '#ff9999' }}>Positionen konnten nicht ausgelesen werden. Bitte GAEB DA-XML-Datei verwenden.</div>
+                )}
+                {!gaebImporting && gaebImportPositionen && gaebImportPositionen.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: C.textMid, marginBottom: 8 }}>
+                      {gaebImportPositionen.length} Position{gaebImportPositionen.length !== 1 ? 'en' : ''} gefunden – als Kalkulation übernehmen?
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => {
+                          setPos(gaebImportPositionen)
+                          setGaebDetected(false)
+                          setGaebFileName('')
+                          setGaebImportPositionen(null)
+                          setScreen('app')
+                          setTab('kalkulation')
+                        }}
+                        style={{ flex: 1, background: C.copper, color: C.black, border: 'none', borderRadius: 6, padding: '9px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                      >
+                        ✓ {gaebImportPositionen.length} Positionen importieren
+                      </button>
+                      <button
+                        onClick={() => { setGaebDetected(false); setGaebFileName(''); setGaebImportPositionen(null) }}
+                        style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: '9px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1809,11 +1967,15 @@ export default function CraftFlow() {
                         { label: '{ } JSON', action: () => { exportJSON(); setExportMenuOpen(false) } },
                         { label: '⬛ CSV', action: () => { exportCSV(); setExportMenuOpen(false) } },
                         { label: '📊 Excel (.xlsx)', action: () => { exportXLSX(); setExportMenuOpen(false) } },
+                        {
+                          label: planCanUse('enterprise') ? '🏗 GAEB DA84 (.X84)' : '🔒 GAEB DA84 — Enterprise',
+                          action: () => { if (planCanUse('enterprise')) { exportGAEB(); setExportMenuOpen(false) } else { window.location.href = '/settings#plan' } },
+                        },
                       ].map(item => (
                         <button
                           key={item.label}
                           onClick={item.action}
-                          style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.white, fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left', cursor: 'pointer', minHeight: 44 }}
+                          style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, color: planCanUse('enterprise') || !item.label.includes('GAEB') ? C.white : C.textMid, fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left', cursor: 'pointer', minHeight: 44 }}
                           onMouseEnter={e => (e.currentTarget.style.background = C.gray2)}
                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
