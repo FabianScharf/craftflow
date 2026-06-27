@@ -211,6 +211,9 @@ export default function CraftFlow() {
   const [gaebDetected, setGaebDetected] = useState(false)
   const [gaebFileName, setGaebFileName] = useState('')
   const [gaebImporting, setGaebImporting] = useState(false)
+  const [gaebPrompt, setGaebPrompt] = useState<string | null>(null)
+  const [gaebProjektName, setGaebProjektName] = useState('')
+  const [gaebPositionenCount, setGaebPositionenCount] = useState(0)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640)
@@ -598,6 +601,8 @@ export default function CraftFlow() {
     setGaebDetected(true)
     setGaebFileName(file.name)
     setGaebImporting(true)
+    setGaebPrompt(null)
+    setGaebPositionenCount(0)
     try {
       const text = await file.text()
       const isXML = text.trimStart().startsWith('<') || text.includes('<GAEB') || text.includes('<BoQ')
@@ -605,11 +610,10 @@ export default function CraftFlow() {
 
       if (positions.length === 0) { setGaebImporting(false); return }
 
-      // Prompt aus GAEB-Positionen bauen
+      // KI-Prompt aus Positionen bauen — wird beim Klick auf Generieren verwendet
       const prompt =
         `GAEB-Leistungsverzeichnis: ${projektName}\n\n` +
-        `Bitte kalkuliere folgende Positionen vollständig mit realistischer Material- und Arbeitszeitschätzung. ` +
-        `Jede Position soll eine eigene Kalkulation erhalten.\n\n` +
+        `Kalkuliere folgende Positionen vollständig mit realistischer Material- und Arbeitszeitschätzung.\n\n` +
         positions.map((p, i) => {
           const mat = p.material[0]
           const mengeZeile = mat ? `Menge: ${mat.menge} ${mat.einheit}` : ''
@@ -620,70 +624,14 @@ export default function CraftFlow() {
           ].filter(Boolean).join('\n')
         }).join('\n\n')
 
-      // Projektname aus GAEB übernehmen
-      setKunde(prev => ({ ...prev, projekt: projektName }))
-
-      // KI-Analyse starten (wie startAnalyse)
-      setStartStatus('loading')
-      setProgressIdx(0)
-      if (progressTimerRef.current) clearInterval(progressTimerRef.current)
-      progressTimerRef.current = setInterval(() => setProgressIdx(i => i + 1), 1500)
-
-      const data = await callAI(prompt, [])
-
-      if (data.fragen?.length > 0) {
-        setStartStatus('fragen')
-        setStartMsg((data.fragen as string[]).join('\n'))
-      }
-      if (data.kunde) {
-        setKunde(prev => ({
-          ...prev,
-          name: data.kunde.name || prev.name,
-          zusatz: data.kunde.zusatz || prev.zusatz,
-          strasse: data.kunde.strasse || prev.strasse,
-          ort: data.kunde.ort || prev.ort,
-          projekt: data.kunde.projekt || projektName,
-        }))
-      }
-      type AIMatRow = { bezeichnung?: string; menge?: number; einheit?: string; ekPreis?: number; aufschlag?: number }
-      type AIArbRow = { kostenstelle?: string; minuten?: number; vkStunde?: number }
-      if (data.positionen?.length > 0) {
-        setPos(data.positionen.map((p: Record<string, unknown>, i: number) => ({
-          id: Date.now() + i,
-          titel: (p.titel as string) || 'Position',
-          beschreibung: (p.beschreibung as string) || '',
-          material: ((p.material as AIMatRow[]) || []).map((m, mi) => ({
-            id: Date.now() + i * 100 + mi,
-            bezeichnung: m.bezeichnung || '',
-            menge: m.menge || 1,
-            einheit: m.einheit || 'Stk',
-            ekPreis: m.ekPreis || 0,
-            aufschlag: m.aufschlag ?? 0.3,
-          })),
-          arbeitszeit: ((p.arbeitszeit as AIArbRow[]) || []).map((a, ai) => ({
-            id: Date.now() + i * 100 + 50 + ai,
-            kostenstelle: (a.kostenstelle as KostenstelleId) || 'Produktion',
-            minuten: a.minuten || 60,
-            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['Produktion'],
-          })),
-        })))
-      }
-      if (data.anschreiben) setAnschr(data.anschreiben)
-
-      if (!data.fragen?.length) {
-        setStartStatus('idle')
-        setScreen('app')
-        setTab('kalkulation')
-      }
-    } catch (e: unknown) {
-      setStartStatus('error')
-      setStartMsg(`GAEB-Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
-    } finally {
-      if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
-      setGaebImporting(false)
-      setGaebDetected(false)
+      setGaebPrompt(prompt)
+      setGaebProjektName(projektName)
+      setGaebPositionenCount(positions.length)
+    } catch (e) {
+      console.error('[gaeb-parse]', e)
     }
-  }, [callAI])
+    setGaebImporting(false)
+  }, [])
 
   // ── Mikrofon Aufnahme ────────────────────────────────
   const startRecording = useCallback(async () => {
@@ -831,9 +779,15 @@ export default function CraftFlow() {
   ]
 
   const startAnalyse = useCallback(async (overrideText?: string) => {
-    const textToUse = overrideText ?? startText
+    const basePart = overrideText ?? startText
+    // GAEB-Prompt + optionaler Zusatztext kombinieren
+    const textToUse = gaebPrompt
+      ? gaebPrompt + (basePart.trim() ? '\n\nZusätzliche Informationen:\n' + basePart : '')
+      : basePart
     const imageB64s = uploadedFiles.filter(f => f.type === 'image' && f.b64).map(f => f.b64!)
     if (!textToUse.trim() && imageB64s.length === 0) return
+    // Projektname aus GAEB vorbelegen
+    if (gaebPrompt && gaebProjektName) setKunde(prev => ({ ...prev, projekt: prev.projekt || gaebProjektName }))
     setStartStatus('loading')
     setStartMsg('')
     setProgressIdx(0)
@@ -889,7 +843,12 @@ export default function CraftFlow() {
       if (!data.fragen?.length) {
         setStartStatus('idle')
         setScreen('app')
-        setTab('kunde')
+        setTab(gaebPrompt ? 'kalkulation' : 'kunde')
+        // GAEB-State zurücksetzen
+        setGaebDetected(false)
+        setGaebPrompt(null)
+        setGaebProjektName('')
+        setGaebPositionenCount(0)
       }
     } catch (e: unknown) {
       setStartStatus('error')
@@ -897,7 +856,7 @@ export default function CraftFlow() {
     } finally {
       if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
     }
-  }, [startText, uploadedFiles, callAI])
+  }, [startText, uploadedFiles, callAI, gaebPrompt, gaebProjektName])
 
   async function startFragenMic() {
     if (fragenMicStatus !== 'idle') { fragenMediaRecorderRef.current?.stop(); return }
@@ -1512,8 +1471,8 @@ export default function CraftFlow() {
      SCREEN: START
   ══════════════════════════════════════════════════ */
   if (screen === 'start') {
-    const canGenerate = !!(startText.trim() || uploadedFiles.some(f => f.type === 'image' && f.b64))
-    const loading = startStatus === 'loading' || gaebImporting
+    const canGenerate = !!(startText.trim() || uploadedFiles.some(f => f.type === 'image' && f.b64) || gaebPrompt)
+    const loading = startStatus === 'loading'
     const isRecording = micStatus === 'recording'
     const isTranscribing = micStatus === 'transcribing'
 
@@ -1714,14 +1673,31 @@ export default function CraftFlow() {
               </div>
             )}
             {gaebDetected && (
-              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${C.copper}55`, background: `${C.copper}0A`, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 16 }}>🏗</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, color: C.copper, fontWeight: 700 }}>{gaebFileName}</div>
-                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>
-                    {gaebImporting ? '⟳ KI kalkuliert Positionen…' : 'GAEB wird verarbeitet…'}
+              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${C.copper}55`, background: `${C.copper}0A`, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>🏗</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, color: C.copper, fontWeight: 700 }}>{gaebFileName}</div>
+                    <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>
+                      {gaebImporting
+                        ? '⟳ Datei wird eingelesen…'
+                        : gaebPrompt
+                        ? `${gaebPositionenCount} Position${gaebPositionenCount !== 1 ? 'en' : ''} erkannt`
+                        : 'Keine Positionen gefunden – bitte GAEB DA-XML verwenden'}
+                    </div>
                   </div>
+                  {!gaebImporting && (
+                    <button
+                      onClick={() => { setGaebDetected(false); setGaebPrompt(null); setGaebFileName(''); setGaebPositionenCount(0) }}
+                      style={{ background: 'none', border: 'none', color: C.textMid, fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}
+                    >×</button>
+                  )}
                 </div>
+                {gaebPrompt && (
+                  <div style={{ marginTop: 8, fontSize: 11, color: C.textMid, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                    Ergänze bei Bedarf weitere Informationen im Textfeld unten — dann auf <strong style={{ color: C.copper }}>Kalkulation generieren</strong> klicken.
+                  </div>
+                )}
               </div>
             )}
           </div>
