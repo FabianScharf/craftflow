@@ -1597,17 +1597,25 @@ export default function CraftFlow() {
           <>
             <style>{`
               .cf-optim-panel {
-                width: 300px; min-width: 300px;
-                border-left: 1px solid #2E2E2E;
+                width: 340px; min-width: 340px;
+                border-left: 2px solid #C8885A44;
                 display: flex; flex-direction: column;
                 flex-shrink: 0; overflow: hidden;
-                background: #141414;
+                background: #111;
+                height: calc(100vh - 116px);
+                position: sticky; top: 0;
               }
+              .cf-optim-panel .chat-area {
+                flex: 1; overflow-y: auto; padding: 14px;
+                display: flex; flex-direction: column; gap: 10px;
+              }
+              .cf-optim-panel .chat-area::-webkit-scrollbar { width: 4px; }
+              .cf-optim-panel .chat-area::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
               @media (max-width: 640px) {
                 .cf-optim-panel {
                   position: fixed; bottom: 0; left: 0; right: 0;
-                  width: 100% !important; min-width: 0; height: 65vh;
-                  border-left: none; border-top: 2px solid #C8885A; z-index: 100;
+                  width: 100% !important; min-width: 0; height: 70vh;
+                  border-left: none; border-top: 2px solid #C8885A; z-index: 200;
                 }
               }
             `}</style>
@@ -2088,33 +2096,43 @@ export default function CraftFlow() {
             ) : (
               <div className="cf-optim-panel">
                 {/* Header */}
-                <div style={{ padding: '12px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                  <span style={{ color: C.copper, fontWeight: 700, fontSize: 13, letterSpacing: 1 }}>OPTIMIERUNG</span>
-                  <button onClick={() => setOptimPanelOpen(false)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 9px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>×</button>
+                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.copper}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: `${C.copper}0A` }}>
+                  <div>
+                    <div style={{ color: C.copper, fontWeight: 800, fontSize: 12, letterSpacing: 1.5 }}>✨ KI-OPTIMIERUNG</div>
+                    <div style={{ color: C.textMid, fontSize: 10, marginTop: 1 }}>Frage stellen oder Änderung beschreiben</div>
+                  </div>
+                  <button onClick={() => setOptimPanelOpen(false)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }}>×</button>
                 </div>
 
                 {/* Chat */}
-                <div ref={optimChatRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div ref={optimChatRef} className="chat-area">
                   {optimMessages.length === 0 && !optimLoading && (
-                    <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6 }}>
-                      KI analysiert gleich das Angebot…
+                    <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, padding: '8px 0' }}>
+                      KI analysiert das Angebot…
                     </div>
                   )}
                   {optimMessages.map((msg, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                      <div style={{ fontSize: 9, color: C.textMid, marginBottom: 3, letterSpacing: 0.5 }}>
+                        {msg.role === 'user' ? 'DU' : 'KI'}
+                      </div>
                       <div style={{
-                        maxWidth: '88%', padding: '8px 12px', borderRadius: 8,
-                        fontSize: 12, lineHeight: 1.55,
+                        maxWidth: '92%', padding: '9px 13px', borderRadius: msg.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+                        fontSize: 12, lineHeight: 1.6,
                         background: msg.role === 'user' ? C.copper : C.gray1,
                         color: msg.role === 'user' ? C.black : C.white,
                         whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                        border: msg.role === 'assistant' ? `1px solid ${C.border}` : 'none',
                       }}>
                         {msg.content}
                       </div>
                     </div>
                   ))}
                   {optimLoading && (
-                    <div style={{ color: C.textMid, fontSize: 12 }}>⟳ KI denkt…</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.copper, opacity: 0.8 }} />
+                      <span style={{ color: C.textMid, fontSize: 11 }}>KI denkt…</span>
+                    </div>
                   )}
                 </div>
 
@@ -2148,30 +2166,33 @@ export default function CraftFlow() {
                 )}
 
                 {/* Eingabebereich */}
-                <div style={{ padding: '10px 14px', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+                <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.copper}33`, flexShrink: 0, background: `${C.copper}05` }}>
+                  <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: 0.5 }}>
+                    Antworte auf die Analyse oder beschreibe eine Änderung:
+                  </div>
                   <textarea
                     value={optimInput}
                     onChange={e => setOptimInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendOptimMessage() } }}
-                    placeholder="Nachricht… (Enter = Senden)"
-                    rows={2}
+                    placeholder='z.B. "Holzart ist Eiche massiv" oder "Maße: 240×220×60 cm"'
+                    rows={3}
                     disabled={optimLoading}
-                    style={{ width: '100%', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 4, padding: '8px 10px', fontSize: 12, lineHeight: 1.5, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
+                    style={{ width: '100%', background: C.gray2, border: `1px solid ${C.copper}44`, borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
                   />
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     <button
                       onClick={optimToggleRecording}
                       disabled={optimMicStatus === 'transcribing' || optimLoading}
-                      style={{ background: optimMicStatus === 'recording' ? '#cc2222' : C.gray2, color: optimMicStatus === 'recording' ? '#fff' : C.textMid, border: `1px solid ${optimMicStatus === 'recording' ? '#cc2222' : C.border}`, borderRadius: 3, padding: '6px 10px', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}
+                      style={{ background: optimMicStatus === 'recording' ? '#cc2222' : C.gray2, color: optimMicStatus === 'recording' ? '#fff' : C.textMid, border: `1px solid ${optimMicStatus === 'recording' ? '#cc2222' : C.border}`, borderRadius: 5, padding: '8px 12px', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
                     >
                       {optimMicStatus === 'transcribing' ? '⟳' : '🎤'}
                     </button>
                     <button
                       onClick={sendOptimMessage}
                       disabled={!optimInput.trim() || optimLoading}
-                      style={{ flex: 1, background: (!optimInput.trim() || optimLoading) ? C.gray2 : C.copper, color: (!optimInput.trim() || optimLoading) ? C.textMid : C.black, border: 'none', borderRadius: 3, padding: '6px 12px', cursor: (!optimInput.trim() || optimLoading) ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}
+                      style={{ flex: 1, background: (!optimInput.trim() || optimLoading) ? C.gray2 : C.copper, color: (!optimInput.trim() || optimLoading) ? C.textMid : C.black, border: 'none', borderRadius: 5, padding: '8px 14px', cursor: (!optimInput.trim() || optimLoading) ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800 }}
                     >
-                      Senden
+                      {optimLoading ? '…' : 'Senden →'}
                     </button>
                   </div>
                 </div>
