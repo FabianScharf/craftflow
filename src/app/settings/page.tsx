@@ -90,6 +90,9 @@ export default function SettingsPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [loadingPortal, setLoadingPortal] = useState(false)
   const [stripeMsg, setStripeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [gutscheinCode, setGutscheinCode] = useState('')
+  const [gutscheinLoading, setGutscheinLoading] = useState(false)
+  const [gutscheinMsg, setGutscheinMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const [profil, setProfil] = useState<Profil>({})
   const [profilSaving, setProfilSaving] = useState(false)
@@ -296,6 +299,31 @@ export default function SettingsPage() {
     } catch {
       setStripeMsg({ type: 'err', text: 'Fehler beim Öffnen des Checkouts.' })
       setCheckoutLoading(null)
+    }
+  }
+
+  async function redeemGutschein() {
+    if (!gutscheinCode.trim()) return
+    setGutscheinLoading(true)
+    setGutscheinMsg(null)
+    try {
+      const res = await fetch('/api/gutschein', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: gutscheinCode.trim() }),
+      })
+      const d = await res.json()
+      if (!res.ok || !d.ok) {
+        setGutscheinMsg({ type: 'err', text: d.error ?? 'Ungültiger Code' })
+      } else {
+        setGutscheinMsg({ type: 'ok', text: `Gutschein eingelöst! Du hast jetzt Enterprise-Zugang.` })
+        setProfil(prev => ({ ...prev, plan: d.plan }))
+        setGutscheinCode('')
+      }
+    } catch {
+      setGutscheinMsg({ type: 'err', text: 'Serverfehler – bitte erneut versuchen.' })
+    } finally {
+      setGutscheinLoading(false)
     }
   }
 
@@ -934,9 +962,45 @@ export default function SettingsPage() {
                 >{loadingPortal ? '…' : 'Abonnement verwalten'}</button>
               )}
 
-              <p style={{ fontSize: 11, color: C.textMid }}>
-                Du hast einen BETA-Gutschein? Klicke auf Auswählen und gib ihn im Checkout ein.
-              </p>
+              {/* Gutscheincode */}
+              {!profil.gutschein_code ? (
+                <div style={{ marginTop: 20, padding: '16px', background: C.gray1, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.white, marginBottom: 8 }}>Gutscheincode einlösen</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="text"
+                      placeholder="Code eingeben …"
+                      value={gutscheinCode}
+                      onChange={e => setGutscheinCode(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && redeemGutschein()}
+                      style={{ ...inp(), flex: 1 }}
+                    />
+                    <button
+                      onClick={redeemGutschein}
+                      disabled={gutscheinLoading || !gutscheinCode.trim()}
+                      style={{
+                        background: C.copper, color: C.black, border: 'none',
+                        borderRadius: 4, padding: '9px 16px', fontSize: 13,
+                        fontWeight: 700, cursor: gutscheinLoading ? 'not-allowed' : 'pointer',
+                        fontFamily: 'Helvetica Neue, sans-serif', whiteSpace: 'nowrap' as const,
+                        opacity: gutscheinLoading ? 0.6 : 1,
+                      }}
+                    >{gutscheinLoading ? '…' : 'Einlösen'}</button>
+                  </div>
+                  {gutscheinMsg && (
+                    <div style={{
+                      marginTop: 8, padding: '8px 10px', borderRadius: 4, fontSize: 12,
+                      background: gutscheinMsg.type === 'ok' ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)',
+                      color: gutscheinMsg.type === 'ok' ? '#5ABE6A' : C.err,
+                      border: `1px solid ${gutscheinMsg.type === 'ok' ? '#5ABE6A44' : '#E05A5A44'}`,
+                    }}>{gutscheinMsg.text}</div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(90,190,106,.08)', borderRadius: 8, border: '1px solid #5ABE6A44', fontSize: 12, color: '#5ABE6A' }}>
+                  ✓ Gutschein <strong>{profil.gutschein_code}</strong> aktiv
+                </div>
+              )}
 
               {/* ── Dev-Panel: nur für Owner ── */}
               {userEmail === 'l.m.p.1@gmx.de' && (
