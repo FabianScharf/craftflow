@@ -118,6 +118,8 @@ const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.d82', '.d83', '.p81',
 
 export default function CraftFlow() {
   const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft, isBlocked } = usePlan()
+  const [pwLoading, setPwLoading] = useState<string | null>(null)
+  const [pwError, setPwError] = useState<string | null>(null)
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'projekte'>('start')
   const [previousScreen, setPreviousScreen] = useState<'start' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -1095,8 +1097,6 @@ export default function CraftFlow() {
       { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1TmScSRvozvhvO9J0RF42acJ', highlight: 'Wachstum',    features: ['50 Angebote / Monat', 'Eigene E-Mail (SMTP)', 'Bis zu 3 Nutzer'] },
       { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1TmSchRvozvhvO9JOduoM8KU', highlight: 'Vollzugang',  features: ['Unbegrenzt Angebote', 'GAEB-Import', 'Priorisierter Support'] },
     ]
-    const [pwLoading, setPwLoading] = useState<string | null>(null)
-    const [pwError, setPwError] = useState<string | null>(null)
 
     async function startCheckout(priceId: string) {
       setPwLoading(priceId)
