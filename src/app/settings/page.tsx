@@ -428,7 +428,7 @@ export default function SettingsPage() {
         <button
           onClick={() => {
             if (isMobile && mobileShowContent) { setMobileShowContent(false) }
-            else { window.history.back() }
+            else { window.location.href = '/' }
           }}
           style={{ background: 'none', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}
         >←</button>
