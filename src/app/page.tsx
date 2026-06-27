@@ -1513,7 +1513,7 @@ export default function CraftFlow() {
   ══════════════════════════════════════════════════ */
   if (screen === 'start') {
     const canGenerate = !!(startText.trim() || uploadedFiles.some(f => f.type === 'image' && f.b64))
-    const loading = startStatus === 'loading'
+    const loading = startStatus === 'loading' || gaebImporting
     const isRecording = micStatus === 'recording'
     const isTranscribing = micStatus === 'transcribing'
 
@@ -1742,19 +1742,20 @@ export default function CraftFlow() {
 
           {/* Generieren Button */}
           <button
-            onClick={() => startAnalyse()}
-            disabled={!canGenerate || loading}
+            onClick={() => { if (!loading) startAnalyse() }}
+            disabled={!canGenerate && !loading}
             style={{
               width: '100%', marginTop: 14,
-              background: (!canGenerate || loading) ? C.gray2 : C.copper,
-              color: (!canGenerate || loading) ? C.textMid : C.black,
+              background: loading ? C.copper : !canGenerate ? C.gray2 : C.copper,
+              color: !canGenerate && !loading ? C.textMid : C.black,
               border: 'none', borderRadius: 10, padding: '18px 0',
-              cursor: (!canGenerate || loading) ? 'not-allowed' : 'pointer',
+              cursor: loading ? 'wait' : !canGenerate ? 'not-allowed' : 'pointer',
               fontSize: 17, fontFamily: 'Helvetica Neue,sans-serif',
               fontWeight: 800, letterSpacing: 2,
+              opacity: loading ? 0.85 : 1,
             }}
           >
-            {loading ? '⟳ KI erstellt Kalkulation…' : '⚡ KALKULATION GENERIEREN'}
+            {loading ? '⟳  KI erstellt Kalkulation…' : '⚡ KALKULATION GENERIEREN'}
           </button>
 
           {/* Fortschritts-Indikator während Loading */}
