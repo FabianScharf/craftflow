@@ -313,6 +313,10 @@ export default function CraftFlow() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const noSleepRef = useRef<NoSleep | null>(null)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
+  const [recSeconds, setRecSeconds] = useState(0)
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const MAX_REC_SECONDS = 300 // 5 Minuten
 
   // ── Optimierungs-Panel ──────────────────────────────
   const [optimPanelOpen, setOptimPanelOpen] = useState(false)
@@ -469,8 +473,9 @@ export default function CraftFlow() {
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
-        noSleepRef.current?.disable()
-        noSleepRef.current = null
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null }
+        wakeLockRef.current?.release(); wakeLockRef.current = null
+        noSleepRef.current?.disable(); noSleepRef.current = null
         setMicStatus('transcribing')
         try {
           const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
@@ -492,7 +497,19 @@ export default function CraftFlow() {
       mr.start()
       mediaRecorderRef.current = mr
       setMicStatus('recording')
-      // Screen-on: Wake Lock API (modern) + iOS Safari Video-Fallback (via NoSleep.js)
+      setRecSeconds(0)
+      recTimerRef.current = setInterval(() => {
+        setRecSeconds(s => {
+          if (s + 1 >= MAX_REC_SECONDS) {
+            mediaRecorderRef.current?.stop()
+          }
+          return s + 1
+        })
+      }, 1000)
+      // Wake Lock: native API (Android/Desktop) + NoSleep.js Fallback (iOS Safari)
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request('screen')
+      } catch { /* nicht unterstützt */ }
       try {
         if (!noSleepRef.current) noSleepRef.current = new NoSleep()
         await noSleepRef.current.enable()
@@ -1246,7 +1263,13 @@ export default function CraftFlow() {
               letterSpacing: isRecording ? 1 : 0,
             }}>
               {micStatus === 'idle' && 'Tippen zum Aufnehmen'}
-              {micStatus === 'recording' && '● Aufnahme läuft – erneut tippen zum Stoppen'}
+              {micStatus === 'recording' && (
+                <span>
+                  {'● '}
+                  {String(Math.floor(recSeconds / 60)).padStart(2, '0')}:{String(recSeconds % 60).padStart(2, '0')}
+                  {recSeconds >= MAX_REC_SECONDS - 30 ? <span style={{ color: '#ff4444', marginLeft: 8 }}>⚠ Max. 5 Min.</span> : ' – zum Stoppen tippen'}
+                </span>
+              )}
               {micStatus === 'transcribing' && 'Wird transkribiert…'}
             </div>
           </div>
