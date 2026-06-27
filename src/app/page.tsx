@@ -16,9 +16,9 @@ import {
 import { buildPDF } from '@/lib/pdf'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
-type InquiryDraft = { supplierName: string; email: string; draftId: string | null; materialCount: number }
-type InquirySuggestion = { category: string; mats: string[]; aiName: string; aiEmail: string }
-type InquiryResult = { drafts: InquiryDraft[]; suggestions: InquirySuggestion[]; uncategorized: string[] }
+type InquiryDraft = { supplierId: string; supplierName: string; email: string; phone: string | null; website: string | null; subject: string; body: string; materialCount: number }
+type InquiryMissingGroup = { gruppe: string; mats: string[] }
+type InquiryResult = { drafts: InquiryDraft[]; missingGroups: InquiryMissingGroup[]; uncategorized: string[] }
 
 type OptimChatMsg = { role: 'user' | 'assistant'; content: string }
 type OfferVersion = { id: string; version_number: number; created_at: string; description: string | null }
@@ -2027,16 +2027,29 @@ export default function CraftFlow() {
             {allInquiryStatus === 'done' && allInquiryResult && (
               <div style={{ background: C.black, border: `1px solid ${C.border}`, borderRadius: 4, padding: '10px 12px', marginBottom: 14 }}>
                 {allInquiryResult.drafts.map((d, i) => (
-                  <div key={i} style={{ fontSize: 12, color: '#90EE90', marginBottom: 4 }}>
-                    ✓ Draft an <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
-                    <a href="https://mail.google.com/mail/#drafts" target="_blank" rel="noreferrer" style={{ color: C.copper, textDecoration: 'none', fontSize: 11, marginLeft: 8 }}>In Gmail →</a>
+                  <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < allInquiryResult.drafts.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                    <div style={{ fontSize: 12, color: '#90EE90', marginBottom: 4 }}>
+                      ✓ <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+                      <a href={`mailto:${d.email}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`}
+                        style={{ color: C.copper, fontSize: 11, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px' }}>
+                        ✉ E-Mail öffnen
+                      </a>
+                      {d.phone && <span style={{ fontSize: 11, color: C.textMid }}>{d.phone}</span>}
+                    </div>
                   </div>
                 ))}
+                {(allInquiryResult.missingGroups?.length ?? 0) > 0 && (
+                  <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
+                    Kein Lieferant für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')} — in Einstellungen → Lieferanten ergänzen.
+                  </div>
+                )}
                 {allInquiryResult.uncategorized?.length > 0 && (
                   <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Nicht kategorisiert: {allInquiryResult.uncategorized.join(', ')}</div>
                 )}
                 {allInquiryResult.drafts.length === 0 && (
-                  <div style={{ fontSize: 12, color: C.textMid }}>Keine bekannten Lieferanten – KI-Vorschläge in den Positionen prüfen.</div>
+                  <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten gefunden — bitte in Einstellungen → Lieferanten hinterlegen und Kategorien zuweisen.</div>
                 )}
                 <button onClick={() => { setAllInquiryStatus('idle'); setAllInquiryResult(null) }} style={{ marginTop: 8, background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline', padding: 0 }}>
                   Schließen
@@ -2239,41 +2252,31 @@ export default function CraftFlow() {
                             {ist === 'done' && res && (
                               <div style={{ marginTop: 4, background: C.black, border: `1px solid ${C.border}`, borderRadius: 4, padding: '10px 12px' }}>
                                 {res.drafts.map((d, i) => (
-                                  <div key={i} style={{ fontSize: 12, color: '#90EE90', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                    ✓ Draft an <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
-                                    <a href="https://mail.google.com/mail/#drafts" target="_blank" rel="noreferrer"
-                                      style={{ color: C.copper, textDecoration: 'none', fontSize: 11 }}>
-                                      In Gmail öffnen →
-                                    </a>
-                                  </div>
-                                ))}
-                                {res.suggestions?.map((s, i) => (
-                                  <div key={i} style={{ marginTop: 8, background: '#0d1520', border: `1px solid ${C.copper}44`, borderRadius: 3, padding: '8px 10px' }}>
-                                    <div style={{ color: C.copper, fontWeight: 700, fontSize: 11, marginBottom: 3 }}>
-                                      KI-Vorschlag für „{s.category}":
+                                  <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < res.drafts.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                                    <div style={{ fontSize: 12, color: '#90EE90', marginBottom: 4 }}>
+                                      ✓ <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
                                     </div>
-                                    <div style={{ color: C.white, fontSize: 12 }}>{s.aiName}{s.aiEmail && ` · ${s.aiEmail}`}</div>
-                                    <div style={{ color: C.textMid, fontSize: 11, marginTop: 2, marginBottom: 6 }}>{s.mats.join(', ')}</div>
-                                    {savedSuggestions[s.category] ? (
-                                      <div style={{ color: '#90EE90', fontSize: 11 }}>✓ In Datenbank gespeichert</div>
-                                    ) : (
-                                      <div style={{ display: 'flex', gap: 8 }}>
-                                        <button onClick={() => saveSuggestion(s.category, s.aiName, s.aiEmail)}
-                                          style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
-                                          Ja, aufnehmen
-                                        </button>
-                                        <button onClick={() => setSavedSuggestions(prev => ({ ...prev, [s.category]: true }))}
-                                          style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                                          Nein
-                                        </button>
-                                      </div>
-                                    )}
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
+                                      <a href={`mailto:${d.email}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`}
+                                        style={{ color: C.copper, fontSize: 11, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px' }}>
+                                        ✉ E-Mail öffnen
+                                      </a>
+                                      {d.phone && <span style={{ fontSize: 11, color: C.textMid }}>{d.phone}</span>}
+                                    </div>
                                   </div>
                                 ))}
+                                {(res.missingGroups?.length ?? 0) > 0 && (
+                                  <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
+                                    Kein Lieferant für: {res.missingGroups.map(g => g.gruppe).join(', ')}
+                                  </div>
+                                )}
                                 {res.uncategorized?.length > 0 && (
-                                  <div style={{ marginTop: 8, fontSize: 11, color: C.textMid }}>
+                                  <div style={{ marginTop: 6, fontSize: 11, color: C.textMid }}>
                                     Nicht kategorisiert: {res.uncategorized.join(', ')}
                                   </div>
+                                )}
+                                {res.drafts.length === 0 && (
+                                  <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten — bitte in Einstellungen → Lieferanten ergänzen.</div>
                                 )}
                                 <button onClick={() => setInquiryStatus(prev => ({ ...prev, [p.id]: 'idle' }))}
                                   style={{ marginTop: 8, background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline', padding: 0 }}>

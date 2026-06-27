@@ -19,9 +19,9 @@ const lbl: React.CSSProperties = {
   color: C.textMid, marginBottom: 4, display: 'block',
 }
 
-const KATEGORIEN_OPTIONS = [
-  'Massivholz', 'Plattenwerkstoffe', 'Beschläge',
-  'Oberflächenmaterialien', 'Montagematerial', 'Sonstiges',
+const KATEGORIEN_FALLBACK = [
+  'Massivholz', 'Spanplatte / MDF', 'Beschläge',
+  'Furnier / HPL', 'Oberfläche / Lack', 'Sonstiges',
 ]
 
 type Supplier = {
@@ -85,6 +85,7 @@ export function LieferantenSettings() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [kategorienOptions, setKategorienOptions] = useState<string[]>(KATEGORIEN_FALLBACK)
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [editing, setEditing] = useState<Supplier | null>(null)
@@ -99,7 +100,16 @@ export function LieferantenSettings() {
   const [csvMsg, setCsvMsg] = useState('')
   const csvRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { loadSuppliers() }, [])
+  useEffect(() => {
+    loadSuppliers()
+    fetch('/api/settings/materialgruppen')
+      .then(r => r.json())
+      .then(d => {
+        const names = (d?.materialgruppen ?? []).map((g: { name: string }) => g.name).filter(Boolean)
+        if (names.length) setKategorienOptions(names)
+      })
+      .catch(() => {})
+  }, [])
 
   async function loadSuppliers() {
     setLoading(true)
@@ -357,7 +367,7 @@ export function LieferantenSettings() {
             <div>
               <label style={lbl}>Kategorien</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {KATEGORIEN_OPTIONS.map(kat => {
+                {kategorienOptions.map(kat => {
                   const active = (form.kategorien ?? []).includes(kat)
                   return (
                     <button
