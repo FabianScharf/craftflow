@@ -1092,10 +1092,10 @@ export default function CraftFlow() {
   ══════════════════════════════════════════════════ */
   if (isBlocked) {
     const PAYWALL_PLANS = [
-      { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1TmSblRvozvhvO9J3EKljmMh', highlight: 'Einstieg',    features: ['3 Angebote / Monat', 'KI-Kalkulation', 'PDF-Angebot'] },
-      { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1TmScDRvozvhvO9J9tvsywrG', highlight: 'Beliebt',     features: ['15 Angebote / Monat', 'Bilder & PDFs', 'CSV-Export', 'Lieferantenanfrage'] },
-      { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1TmScSRvozvhvO9J0RF42acJ', highlight: 'Wachstum',    features: ['50 Angebote / Monat', 'Eigene E-Mail (SMTP)', 'Bis zu 3 Nutzer'] },
-      { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1TmSchRvozvhvO9JOduoM8KU', highlight: 'Vollzugang',  features: ['Unbegrenzt Angebote', 'GAEB-Import', 'Priorisierter Support'] },
+      { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1Tn1xzRvozvhvO9JJ3og0R3w', highlight: 'Einstieg',    features: ['3 Angebote / Monat', 'KI-Kalkulation', 'PDF-Angebot'] },
+      { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1Tn1y0RvozvhvO9JK7pRRRht', highlight: 'Beliebt',     features: ['15 Angebote / Monat', 'Bilder & PDFs', 'CSV-Export', 'Lieferantenanfrage'] },
+      { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1Tn1y0RvozvhvO9J4QXMCzje', highlight: 'Wachstum',    features: ['50 Angebote / Monat', 'Eigene E-Mail (SMTP)', 'Bis zu 3 Nutzer'] },
+      { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1Tn1y1RvozvhvO9JYlX8lp4z', highlight: 'Vollzugang',  features: ['Unbegrenzt Angebote', 'GAEB-Import', 'Priorisierter Support'] },
     ]
 
     async function startCheckout(priceId: string) {

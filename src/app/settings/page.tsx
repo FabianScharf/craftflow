@@ -59,10 +59,10 @@ type Materialgruppe = {
 const GRUPPEN_ORDER = ['Verwaltung','Planung','Konstruktion','Produktion','Montage','Lieferung']
 
 const PLANS: { id: Plan; name: string; price: number; priceId: string; angebote: string; features: string[] }[] = [
-  { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1TmSblRvozvhvO9J3EKljmMh', angebote: '3 / Monat',         features: ['Spracheingabe & KI-Kalkulation','PDF-Angebot erstellen','1 Benutzer'] },
-  { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1TmScDRvozvhvO9J9tvsywrG', angebote: '15 / Monat',        features: ['Alles aus Solo','Bilder & PDFs hochladen','Kalkulationsexport (CSV/Excel)','Lieferantenanfrage über CraftFlow','Bis zu 3 Benutzer'] },
-  { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1TmScSRvozvhvO9J0RF42acJ', angebote: '50 / Monat',        features: ['Alles aus Starter','Lieferantenanfrage über eigene E-Mail (SMTP)'] },
-  { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1TmSchRvozvhvO9JOduoM8KU', angebote: 'Unbegrenzt',        features: ['Alles aus Pro','GAEB-Import & Kalkulation','Priorisierter Support'] },
+  { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1Tn1xzRvozvhvO9JJ3og0R3w', angebote: '3 / Monat',         features: ['Spracheingabe & KI-Kalkulation','PDF-Angebot erstellen','1 Benutzer'] },
+  { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1Tn1y0RvozvhvO9JK7pRRRht', angebote: '15 / Monat',        features: ['Alles aus Solo','Bilder & PDFs hochladen','Kalkulationsexport (CSV/Excel)','Lieferantenanfrage über CraftFlow','Bis zu 3 Benutzer'] },
+  { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1Tn1y0RvozvhvO9J4QXMCzje', angebote: '50 / Monat',        features: ['Alles aus Starter','Lieferantenanfrage über eigene E-Mail (SMTP)'] },
+  { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1Tn1y1RvozvhvO9JYlX8lp4z', angebote: 'Unbegrenzt',        features: ['Alles aus Pro','GAEB-Import & Kalkulation','Priorisierter Support'] },
 ]
 
 function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]> {
