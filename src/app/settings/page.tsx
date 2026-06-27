@@ -324,7 +324,7 @@ export default function SettingsPage() {
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
     { id: 'buchhaltung',      label: 'Buchhaltung',     icon: '🧾' },
     { id: 'dokumente',        label: 'Dokumente',       icon: '📝' },
-    { id: 'auswertung',       label: 'Auswertung',      icon: '📊' },
+    { id: 'auswertung',       label: 'Auswertung',      icon: '📊', minPlan: 'pro' as Plan },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
@@ -795,7 +795,11 @@ export default function SettingsPage() {
           )}
 
           {/* BEREICH — AUSWERTUNG */}
-          {section === 'auswertung' && <AuswertungSection isMobile={isMobile} />}
+          {section === 'auswertung' && (
+            <PlanGate minPlan="pro">
+              <AuswertungSection isMobile={isMobile} />
+            </PlanGate>
+          )}
 
           {/* BEREICH 7 — MEIN PLAN */}
           {section === 'plan' && (
