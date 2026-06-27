@@ -16,10 +16,11 @@ import {
 import { buildPDF } from '@/lib/pdf'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
-type InquiryDraft = { supplierId: string; supplierName: string; email: string; phone: string | null; website: string | null; subject: string; body: string; materialCount: number }
+type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
+type InquiryGroup = { gruppe: string; materialien: string[]; candidates: InquiryCandidate[] }
 type InquiryMissingGroup = { gruppe: string; mats: string[] }
 type SuggestedSupplier = { name: string; website: string | null; email: string | null; phone: string | null; gruppe: string; materialien: string[] }
-type InquiryResult = { drafts: InquiryDraft[]; missingGroups: InquiryMissingGroup[]; uncategorized: string[]; suggestedSuppliers?: SuggestedSupplier[] }
+type InquiryResult = { groups: InquiryGroup[]; missingGroups: InquiryMissingGroup[]; uncategorized: string[]; suggestedSuppliers?: SuggestedSupplier[] }
 
 type OptimChatMsg = { role: 'user' | 'assistant'; content: string }
 type OfferVersion = { id: string; version_number: number; created_at: string; description: string | null }
@@ -425,6 +426,8 @@ export default function CraftFlow() {
   const [allInquiryResult, setAllInquiryResult] = useState<InquiryResult | null>(null)
   const [sendingEmail, setSendingEmail] = useState<string | null>(null) // key = `${to}__${subject}`
   const [sentEmails, setSentEmails] = useState<Set<string>>(new Set())
+  // Ausgewählte Kandidaten: { [resultKey]: Set<supplierId> }
+  const [selectedCandidates, setSelectedCandidates] = useState<Record<string, Set<string>>>({})
   const [copiedFeedback, setCopiedFeedback] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
@@ -916,9 +919,10 @@ export default function CraftFlow() {
           materials: selected.map(m => ({ id: m.id, bezeichnung: m.bezeichnung, menge: m.menge, einheit: m.einheit })),
         }),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      setInquiryResult(prev => ({ ...prev, [posId]: json as InquiryResult }))
+      const json = await res.json() as InquiryResult
+      if (!res.ok) throw new Error((json as unknown as { error?: string }).error)
+      setInquiryResult(prev => ({ ...prev, [posId]: json }))
+      initSelections(json, `pos-${posId}`)
       setInquiryStatus(prev => ({ ...prev, [posId]: 'done' }))
     } catch {
       setInquiryStatus(prev => ({ ...prev, [posId]: 'error' }))
@@ -1061,14 +1065,34 @@ export default function CraftFlow() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ positionTitel: 'Gesamtanfrage', materials: allMats }),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      setAllInquiryResult(json as InquiryResult)
+      const json = await res.json() as InquiryResult
+      if (!res.ok) throw new Error((json as unknown as { error?: string }).error)
+      setAllInquiryResult(json)
+      initSelections(json, 'all')
       setAllInquiryStatus('done')
     } catch {
       setAllInquiryStatus('error')
     }
   }, [pos, selectedMats])
+
+  // ── Kandidaten-Auswahl initialisieren ───────────────
+  function initSelections(result: InquiryResult, key: string) {
+    const sel: Record<string, Set<string>> = {}
+    for (const g of result.groups) {
+      const favs = g.candidates.filter(c => c.ist_favorit).map(c => c.supplierId)
+      sel[`${key}__${g.gruppe}`] = new Set(favs.length ? favs : g.candidates.slice(0, 1).map(c => c.supplierId))
+    }
+    setSelectedCandidates(prev => ({ ...prev, ...sel }))
+  }
+
+  function toggleCandidate(key: string, gruppe: string, supplierId: string) {
+    const selKey = `${key}__${gruppe}`
+    setSelectedCandidates(prev => {
+      const cur = new Set(prev[selKey] ?? [])
+      if (cur.has(supplierId)) { cur.delete(supplierId) } else { cur.add(supplierId) }
+      return { ...prev, [selKey]: cur }
+    })
+  }
 
   // ── Pro: E-Mail direkt versenden ────────────────────
   const sendInquiryEmail = useCallback(async (to: string, subject: string, body: string) => {
@@ -2049,47 +2073,46 @@ export default function CraftFlow() {
 
             {allInquiryStatus === 'done' && allInquiryResult && (
               <div style={{ background: C.black, border: `1px solid ${C.border}`, borderRadius: 4, padding: '10px 12px', marginBottom: 14 }}>
-                {allInquiryResult.drafts.map((d, i) => {
-                  const emailKey = `${d.email}__${d.subject}`
-                  const isSending = sendingEmail === emailKey
-                  const isSent = sentEmails.has(emailKey)
-                  return (
-                  <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < allInquiryResult.drafts.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                    <div style={{ fontSize: 12, color: '#90EE90', marginBottom: 4 }}>
-                      ✓ <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
-                      {!planCanUse('pro') && (
-                        <a href={`mailto:${d.email}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`}
-                          style={{ color: C.copper, fontSize: 11, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px' }}>
-                          ✉ E-Mail öffnen
-                        </a>
-                      )}
-                      {planCanUse('pro') && (
-                        isSent ? (
-                          <span style={{ fontSize: 11, color: '#90EE90' }}>✓ Gesendet</span>
-                        ) : (
-                          <button
-                            onClick={() => sendInquiryEmail(d.email, d.subject, d.body)}
-                            disabled={isSending}
-                            style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '3px 10px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
-                            {isSending ? '⟳ Wird gesendet…' : '✉ Direkt senden'}
-                          </button>
-                        )
-                      )}
-                      {d.phone && <span style={{ fontSize: 11, color: C.textMid }}>{d.phone}</span>}
-                    </div>
+                {allInquiryResult.groups.map((g, gi) => (
+                  <div key={gi} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: gi < allInquiryResult.groups.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                    <div style={{ fontSize: 10, letterSpacing: 1.5, color: C.textMid, textTransform: 'uppercase', marginBottom: 4 }}>{g.gruppe}</div>
+                    <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>{g.materialien.slice(0, 2).join(' · ')}{g.materialien.length > 2 ? ` +${g.materialien.length - 2}` : ''}</div>
+                    {g.candidates.map((c) => {
+                      const selKey = `all__${g.gruppe}`
+                      const isSelected = (selectedCandidates[selKey] ?? new Set()).has(c.supplierId)
+                      const emailKey = `${c.email}__${c.subject}`
+                      const isSending = sendingEmail === emailKey
+                      const isSent = sentEmails.has(emailKey)
+                      return (
+                        <div key={c.supplierId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '5px 8px', borderRadius: 4, background: isSelected ? `${C.copper}10` : C.gray1, border: `1px solid ${isSelected ? C.copper + '44' : C.border}` }}>
+                          <input type="checkbox" checked={isSelected} onChange={() => toggleCandidate('all', g.gruppe, c.supplierId)} style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }} />
+                          <span style={{ fontSize: 11, color: c.ist_favorit ? '#F5C518' : C.textMid, flexShrink: 0 }}>★</span>
+                          <span style={{ fontSize: 12, color: C.white, flex: 1 }}>{c.supplierName}</span>
+                          {c.phone && <span style={{ fontSize: 11, color: C.textMid }}>{c.phone}</span>}
+                          {isSelected && (
+                            planCanUse('pro') ? (
+                              isSent ? <span style={{ fontSize: 11, color: '#90EE90' }}>✓ Gesendet</span> : (
+                                <button onClick={() => sendInquiryEmail(c.email, c.subject, c.body)} disabled={isSending}
+                                  style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '2px 8px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, flexShrink: 0 }}>
+                                  {isSending ? '⟳…' : '✉ Senden'}
+                                </button>
+                              )
+                            ) : (
+                              <a href={`mailto:${c.email}?subject=${encodeURIComponent(c.subject)}&body=${encodeURIComponent(c.body)}`}
+                                style={{ fontSize: 11, color: C.copper, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px', flexShrink: 0 }}>
+                                ✉ E-Mail öffnen
+                              </a>
+                            )
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-                  )
-                })}
+                ))}
                 {(allInquiryResult.missingGroups?.length ?? 0) > 0 && (
                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
-                    Kein Lieferant hinterlegt für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')}
-                    {!planCanUse('enterprise') && (
-                      <span style={{ marginLeft: 8, color: C.textMid }}>
-                        — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: automatische Händlersuche im Internet</a>
-                      </span>
-                    )}
+                    Kein Lieferant für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')}
+                    {!planCanUse('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
                   </div>
                 )}
                 {(allInquiryResult.suggestedSuppliers?.length ?? 0) > 0 && (
@@ -2101,9 +2124,7 @@ export default function CraftFlow() {
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
                           {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.copper, textDecoration: 'none' }}>{s.website.replace(/^https?:\/\//, '')}</a>}
                           {s.email && <span style={{ fontSize: 11, color: C.textMid }}>{s.email}</span>}
-                          {s.phone && <span style={{ fontSize: 11, color: C.textMid }}>{s.phone}</span>}
-                          <button
-                            onClick={() => { window.location.href = `/settings?tab=lieferanten&prefill=${encodeURIComponent(JSON.stringify({ company_name: s.name, website: s.website, general_email: s.email, phone: s.phone, kategorien: [s.gruppe] }))}` }}
+                          <button onClick={() => { window.location.href = `/settings?tab=lieferanten&prefill=${encodeURIComponent(JSON.stringify({ company_name: s.name, website: s.website, general_email: s.email, phone: s.phone, kategorien: [s.gruppe] }))}` }}
                             style={{ fontSize: 10, color: C.copper, background: 'transparent', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '1px 7px', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
                             + Hinzufügen
                           </button>
@@ -2115,13 +2136,8 @@ export default function CraftFlow() {
                 {allInquiryResult.uncategorized?.length > 0 && (
                   <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Nicht kategorisiert: {allInquiryResult.uncategorized.join(', ')}</div>
                 )}
-                {allInquiryResult.drafts.length === 0 && (allInquiryResult.suggestedSuppliers?.length ?? 0) === 0 && (
-                  <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten gefunden — bitte in Einstellungen → Lieferanten hinterlegen und Kategorien zuweisen.</div>
-                )}
-                {allInquiryResult.drafts.length > 0 && !planCanUse('pro') && (
-                  <div style={{ marginTop: 8, fontSize: 11, color: C.textMid, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
-                    🔒 <strong>Pro:</strong> E-Mails direkt aus der App senden — ohne E-Mail-Programm. <a href="/settings#plan" style={{ color: C.copper, textDecoration: 'none' }}>Upgrade →</a>
-                  </div>
+                {allInquiryResult.groups.length === 0 && (allInquiryResult.suggestedSuppliers?.length ?? 0) === 0 && (
+                  <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten gefunden — bitte in Einstellungen → Lieferanten hinterlegen.</div>
                 )}
                 <button onClick={() => { setAllInquiryStatus('idle'); setAllInquiryResult(null) }} style={{ marginTop: 8, background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline', padding: 0 }}>
                   Schließen
@@ -2327,61 +2343,57 @@ export default function CraftFlow() {
                             )}
                             {ist === 'done' && res && (
                               <div style={{ marginTop: 4, background: C.black, border: `1px solid ${C.border}`, borderRadius: 4, padding: '10px 12px' }}>
-                                {res.drafts.map((d, i) => {
-                                  const emailKey = `${d.email}__${d.subject}`
-                                  const isSending = sendingEmail === emailKey
-                                  const isSent = sentEmails.has(emailKey)
-                                  return (
-                                  <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < res.drafts.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                                    <div style={{ fontSize: 12, color: '#90EE90', marginBottom: 4 }}>
-                                      ✓ <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
-                                      {!planCanUse('pro') && (
-                                        <a href={`mailto:${d.email}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`}
-                                          style={{ color: C.copper, fontSize: 11, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px' }}>
-                                          ✉ E-Mail öffnen
-                                        </a>
-                                      )}
-                                      {planCanUse('pro') && (
-                                        isSent ? (
-                                          <span style={{ fontSize: 11, color: '#90EE90' }}>✓ Gesendet</span>
-                                        ) : (
-                                          <button
-                                            onClick={() => sendInquiryEmail(d.email, d.subject, d.body)}
-                                            disabled={isSending}
-                                            style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '3px 10px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
-                                            {isSending ? '⟳ Wird gesendet…' : '✉ Direkt senden'}
-                                          </button>
-                                        )
-                                      )}
-                                      {d.phone && <span style={{ fontSize: 11, color: C.textMid }}>{d.phone}</span>}
-                                    </div>
+                                {res.groups.map((g, gi) => (
+                                  <div key={gi} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: gi < res.groups.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                                    <div style={{ fontSize: 10, letterSpacing: 1.5, color: C.textMid, textTransform: 'uppercase', marginBottom: 4 }}>{g.gruppe}</div>
+                                    <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>{g.materialien.slice(0, 2).join(' · ')}{g.materialien.length > 2 ? ` +${g.materialien.length - 2}` : ''}</div>
+                                    {g.candidates.map((c) => {
+                                      const selKey = `pos-${p.id}__${g.gruppe}`
+                                      const isSelected = (selectedCandidates[selKey] ?? new Set()).has(c.supplierId)
+                                      const emailKey = `${c.email}__${c.subject}`
+                                      const isSending = sendingEmail === emailKey
+                                      const isSent = sentEmails.has(emailKey)
+                                      return (
+                                        <div key={c.supplierId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '5px 8px', borderRadius: 4, background: isSelected ? `${C.copper}10` : C.gray1, border: `1px solid ${isSelected ? C.copper + '44' : C.border}` }}>
+                                          <input type="checkbox" checked={isSelected} onChange={() => toggleCandidate(`pos-${p.id}`, g.gruppe, c.supplierId)} style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }} />
+                                          <span style={{ fontSize: 11, color: c.ist_favorit ? '#F5C518' : C.textMid, flexShrink: 0 }}>★</span>
+                                          <span style={{ fontSize: 12, color: C.white, flex: 1 }}>{c.supplierName}</span>
+                                          {c.phone && <span style={{ fontSize: 11, color: C.textMid }}>{c.phone}</span>}
+                                          {isSelected && (
+                                            planCanUse('pro') ? (
+                                              isSent ? <span style={{ fontSize: 11, color: '#90EE90' }}>✓ Gesendet</span> : (
+                                                <button onClick={() => sendInquiryEmail(c.email, c.subject, c.body)} disabled={isSending}
+                                                  style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '2px 8px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, flexShrink: 0 }}>
+                                                  {isSending ? '⟳…' : '✉ Senden'}
+                                                </button>
+                                              )
+                                            ) : (
+                                              <a href={`mailto:${c.email}?subject=${encodeURIComponent(c.subject)}&body=${encodeURIComponent(c.body)}`}
+                                                style={{ fontSize: 11, color: C.copper, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px', flexShrink: 0 }}>
+                                                ✉ E-Mail öffnen
+                                              </a>
+                                            )
+                                          )}
+                                        </div>
+                                      )
+                                    })}
                                   </div>
-                                  )
-                                })}
+                                ))}
                                 {(res.missingGroups?.length ?? 0) > 0 && (
                                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
-                                    Kein Lieferant hinterlegt für: {res.missingGroups.map(g => g.gruppe).join(', ')}
-                                    {!planCanUse('enterprise') && (
-                                      <span style={{ marginLeft: 8, color: C.textMid }}>
-                                        — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: automatische Händlersuche im Internet</a>
-                                      </span>
-                                    )}
+                                    Kein Lieferant für: {res.missingGroups.map(g => g.gruppe).join(', ')}
+                                    {!planCanUse('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
                                   </div>
                                 )}
                                 {(res.suggestedSuppliers?.length ?? 0) > 0 && (
                                   <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
                                     <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6, fontWeight: 700, letterSpacing: 1 }}>IM INTERNET GEFUNDEN</div>
                                     {res.suggestedSuppliers!.map((s, i) => (
-                                      <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < res.suggestedSuppliers!.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                                        <div style={{ fontSize: 12, color: C.white, marginBottom: 2 }}><strong>{s.name}</strong> <span style={{ fontSize: 10, color: C.textMid }}>({s.gruppe})</span></div>
-                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
+                                      <div key={i} style={{ marginBottom: 8 }}>
+                                        <div style={{ fontSize: 12, color: C.white }}><strong>{s.name}</strong> <span style={{ fontSize: 10, color: C.textMid }}>({s.gruppe})</span></div>
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 3 }}>
                                           {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.copper, textDecoration: 'none' }}>{s.website.replace(/^https?:\/\//, '')}</a>}
-                                          {s.email && <span style={{ fontSize: 11, color: C.textMid }}>{s.email}</span>}
-                                          {s.phone && <span style={{ fontSize: 11, color: C.textMid }}>{s.phone}</span>}
-                                          <button
-                                            onClick={() => { window.location.href = `/settings?tab=lieferanten&prefill=${encodeURIComponent(JSON.stringify({ company_name: s.name, website: s.website, general_email: s.email, phone: s.phone, kategorien: [s.gruppe] }))}` }}
+                                          <button onClick={() => { window.location.href = `/settings?tab=lieferanten&prefill=${encodeURIComponent(JSON.stringify({ company_name: s.name, website: s.website, general_email: s.email, phone: s.phone, kategorien: [s.gruppe] }))}` }}
                                             style={{ fontSize: 10, color: C.copper, background: 'transparent', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '1px 7px', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
                                             + Hinzufügen
                                           </button>
@@ -2391,17 +2403,10 @@ export default function CraftFlow() {
                                   </div>
                                 )}
                                 {res.uncategorized?.length > 0 && (
-                                  <div style={{ marginTop: 6, fontSize: 11, color: C.textMid }}>
-                                    Nicht kategorisiert: {res.uncategorized.join(', ')}
-                                  </div>
+                                  <div style={{ marginTop: 6, fontSize: 11, color: C.textMid }}>Nicht kategorisiert: {res.uncategorized.join(', ')}</div>
                                 )}
-                                {res.drafts.length === 0 && (res.suggestedSuppliers?.length ?? 0) === 0 && (
+                                {res.groups.length === 0 && (res.suggestedSuppliers?.length ?? 0) === 0 && (
                                   <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten — bitte in Einstellungen → Lieferanten ergänzen.</div>
-                                )}
-                                {res.drafts.length > 0 && !planCanUse('pro') && (
-                                  <div style={{ marginTop: 8, fontSize: 11, color: C.textMid, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
-                                    🔒 <strong>Pro:</strong> E-Mails direkt aus der App senden — ohne E-Mail-Programm. <a href="/settings#plan" style={{ color: C.copper, textDecoration: 'none' }}>Upgrade →</a>
-                                  </div>
                                 )}
                                 <button onClick={() => setInquiryStatus(prev => ({ ...prev, [p.id]: 'idle' }))}
                                   style={{ marginTop: 8, background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline', padding: 0 }}>

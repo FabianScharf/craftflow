@@ -35,6 +35,7 @@ type Supplier = {
   kategorien: string[] | null
   notes: string | null
   aktiv: boolean
+  ist_favorit: boolean
   street: string | null
   zip: string | null
   city: string | null
@@ -50,6 +51,7 @@ const emptyForm = () => ({
   kategorien: [] as string[],
   notes: null as string | null,
   aktiv: true,
+  ist_favorit: false,
   street: null as string | null,
   zip: null as string | null,
   city: null as string | null,
@@ -138,6 +140,7 @@ export function LieferantenSettings() {
       kategorien: s.kategorien ?? [],
       notes: s.notes,
       aktiv: s.aktiv,
+      ist_favorit: s.ist_favorit ?? false,
       street: s.street,
       zip: s.zip,
       city: s.city,
@@ -281,8 +284,8 @@ export function LieferantenSettings() {
         </div>
       ) : (
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 160px 70px 36px', padding: '7px 10px', background: C.gray2, borderBottom: `1px solid ${C.border}` }}>
-            {['Firma', 'Ansprechpartner', 'E-Mail', 'Status', ''].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 140px 160px 70px 36px', padding: '7px 10px', background: C.gray2, borderBottom: `1px solid ${C.border}` }}>
+            {['', 'Firma', 'Ansprechpartner', 'E-Mail', 'Status', ''].map((h, i) => (
               <div key={i} style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: C.textMid }}>{h}</div>
             ))}
           </div>
@@ -291,7 +294,7 @@ export function LieferantenSettings() {
               key={s.id}
               onClick={() => openEdit(s)}
               style={{
-                display: 'grid', gridTemplateColumns: '1fr 140px 160px 70px 36px',
+                display: 'grid', gridTemplateColumns: '24px 1fr 140px 160px 70px 36px',
                 padding: '10px 10px', alignItems: 'center',
                 cursor: 'pointer',
                 borderBottom: idx < filtered.length - 1 ? `1px solid ${C.border}` : 'none',
@@ -299,6 +302,7 @@ export function LieferantenSettings() {
               onMouseEnter={e => (e.currentTarget.style.background = C.gray1)}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
+              <div style={{ fontSize: 14, color: s.ist_favorit ? '#F5C518' : C.border, lineHeight: 1 }} title={s.ist_favorit ? 'Favorit' : ''}>★</div>
               <div>
                 <div style={{ fontSize: 13, color: C.white }}>{s.company_name}</div>
                 {s.lieferant_nr && <div style={{ fontSize: 10, color: C.textMid }}>Nr. {s.lieferant_nr}</div>}
@@ -396,7 +400,7 @@ export function LieferantenSettings() {
               />
             </div>
 
-            <div>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => setF('aktiv', !form.aktiv)}
                 style={{
@@ -407,6 +411,17 @@ export function LieferantenSettings() {
                   cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
                 }}
               >{form.aktiv ? '✓ Aktiv' : '○ Inaktiv'}</button>
+              <button
+                onClick={() => setF('ist_favorit', !form.ist_favorit)}
+                title="Als Favorit-Lieferant markieren — wird bei Materialanfragen vorausgewählt"
+                style={{
+                  background: form.ist_favorit ? 'rgba(245,197,24,.12)' : C.gray2,
+                  border: `1px solid ${form.ist_favorit ? '#F5C518' : C.border}`,
+                  color: form.ist_favorit ? '#F5C518' : C.textMid,
+                  borderRadius: 4, padding: '6px 14px', fontSize: 12,
+                  cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
+                }}
+              >{form.ist_favorit ? '★ Favorit' : '☆ Favorit'}</button>
             </div>
 
             {saveMsg && (

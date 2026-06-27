@@ -11,6 +11,23 @@ type SupplierRow = {
   phone: string | null
   website: string | null
   kategorien: string[] | null
+  ist_favorit: boolean
+}
+
+export type InquiryCandidate = {
+  supplierId: string
+  supplierName: string
+  email: string
+  phone: string | null
+  ist_favorit: boolean
+  subject: string
+  body: string
+}
+
+export type InquiryGroup = {
+  gruppe: string
+  materialien: string[]
+  candidates: InquiryCandidate[]
 }
 
 export type SuggestedSupplier = {
@@ -160,7 +177,7 @@ export async function POST(req: NextRequest) {
     // Alle aktiven Supplier laden
     const { data: allSuppliers } = await supabase
       .from('suppliers')
-      .select('id, company_name, general_email, ansprechpartner, phone, website, kategorien')
+      .select('id, company_name, general_email, ansprechpartner, phone, website, kategorien, ist_favorit')
       .eq('user_id', user.id)
       .eq('aktiv', true)
 
@@ -199,8 +216,8 @@ Antworte NUR mit JSON: { "results": [{ "id": <number>, "gruppe": "<gruppenname o
       }
     }
 
-    // Gruppen → Supplier matchen (suppliers.kategorien[] enthält Gruppe)
-    const supplierMatsMap = new Map<string, { supplier: SupplierRow; mats: ReqMaterial[]; gruppen: string[] }>()
+    // Gruppen → alle passenden Supplier finden (nicht nur ersten)
+    const groups: InquiryGroup[] = []
     const missing: { gruppe: string; mats: ReqMaterial[] }[] = []
 
     for (const [gruppe, mats] of gruppeToMats) {
@@ -209,39 +226,15 @@ Antworte NUR mit JSON: { "results": [{ "id": <number>, "gruppe": "<gruppenname o
         missing.push({ gruppe, mats })
         continue
       }
-      const supplier = matched[0]
-      const existing = supplierMatsMap.get(supplier.id)
-      if (existing) {
-        existing.mats.push(...mats)
-        if (!existing.gruppen.includes(gruppe)) existing.gruppen.push(gruppe)
-      } else {
-        supplierMatsMap.set(supplier.id, { supplier, mats: [...mats], gruppen: [gruppe] })
-      }
-    }
-
-    // E-Mail-Entwürfe (als Text) erstellen
-    const drafts: {
-      supplierId: string
-      supplierName: string
-      email: string
-      phone: string | null
-      website: string | null
-      subject: string
-      body: string
-      materialCount: number
-    }[] = []
-
-    for (const { supplier, mats } of supplierMatsMap.values()) {
-      const toEmail = supplier.general_email
-      if (!toEmail) continue
 
       const artikelListe = mats.map(m => `• ${m.bezeichnung}: ${m.menge} ${m.einheit}`).join('\n')
-      const anrede = supplier.ansprechpartner
-        ? `Guten Tag ${supplier.ansprechpartner},`
-        : `Guten Tag,`
-
       const subject = `Materialanfrage – ${positionTitel}`
-      const body = `${anrede}
+
+      const candidates: InquiryCandidate[] = matched
+        .filter(s => s.general_email)
+        .map(s => {
+          const anrede = s.ansprechpartner ? `Guten Tag ${s.ansprechpartner},` : `Guten Tag,`
+          const body = `${anrede}
 
 wir benötigen für unser Projekt "${positionTitel}" folgende Materialien:
 
@@ -250,17 +243,26 @@ ${artikelListe}
 Bitte senden Sie uns ein Angebot mit Preisen und Lieferzeiten.
 
 Mit freundlichen Grüßen`
+          return {
+            supplierId: s.id,
+            supplierName: s.company_name,
+            email: s.general_email!,
+            phone: s.phone,
+            ist_favorit: s.ist_favorit ?? false,
+            subject,
+            body,
+          }
+        })
+        // Favoriten zuerst
+        .sort((a, b) => (b.ist_favorit ? 1 : 0) - (a.ist_favorit ? 1 : 0))
 
-      drafts.push({
-        supplierId: supplier.id,
-        supplierName: supplier.company_name,
-        email: toEmail,
-        phone: supplier.phone,
-        website: supplier.website,
-        subject,
-        body,
-        materialCount: mats.length,
-      })
+      if (candidates.length) {
+        groups.push({
+          gruppe,
+          materialien: mats.map(m => `${m.bezeichnung} (${m.menge} ${m.einheit})`),
+          candidates,
+        })
+      }
     }
 
     // Fehlende Gruppen (kein Supplier vorhanden)
@@ -281,7 +283,7 @@ Mit freundlichen Grüßen`
       suggestedSuppliers = searchResults.flat()
     }
 
-    return NextResponse.json({ drafts, missingGroups, uncategorized, suggestedSuppliers })
+    return NextResponse.json({ groups, missingGroups, uncategorized, suggestedSuppliers })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     console.error('[inquiry] unhandled error:', msg)
