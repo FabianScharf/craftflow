@@ -843,7 +843,7 @@ export default function SettingsPage() {
                         border: `2px solid ${isCurrent ? C.copper : C.border}`,
                         borderRadius: 10, padding: '22px 20px',
                         display: 'flex', flexDirection: 'column', gap: 14,
-                        position: 'relative', overflow: 'hidden',
+                        position: 'relative',
                         opacity: isCurrent ? 1 : 0.45,
                       }}
                     >
@@ -856,11 +856,10 @@ export default function SettingsPage() {
                       )}
                       {isTrialEnterprise && (
                         <div style={{
-                          position: 'absolute', top: 18, right: -28,
-                          background: C.copper, color: C.black, fontSize: 9, fontWeight: 800,
-                          letterSpacing: 0.8, padding: '5px 36px',
-                          transform: 'rotate(35deg)', whiteSpace: 'nowrap',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                          position: 'absolute', top: 14, right: 14,
+                          background: C.copper, color: C.black, fontSize: 10, fontWeight: 800,
+                          letterSpacing: 0.5, padding: '4px 10px', borderRadius: 20,
+                          whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
                         }}>🎁 {trialDaysLeft} Tage</div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
