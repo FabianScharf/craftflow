@@ -43,6 +43,7 @@ function calcTrialDaysLeft(trialStartsAt: string | null): number {
 export function usePlan() {
   const [plan, setPlan] = useState<Plan>('solo')
   const [trialDaysLeft, setTrialDaysLeft] = useState(0)
+  const [trialStartsAt, setTrialStartsAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [usage, setUsage] = useState<UsageInfo | null>(null)
 
@@ -62,6 +63,7 @@ export function usePlan() {
         .eq('user_id', user.id)
         .single()
       if (data?.plan) setPlan(data.plan as Plan)
+      setTrialStartsAt(data?.trial_starts_at ?? null)
       setTrialDaysLeft(calcTrialDaysLeft(data?.trial_starts_at ?? null))
       setLoading(false)
     })()
@@ -72,6 +74,10 @@ export function usePlan() {
   // Während Trial hat jeder Enterprise-Zugriff
   const effectivePlan: Plan = isInTrial ? 'enterprise' : plan
 
+  // Trial abgelaufen + kein bezahlter Plan = gesperrt
+  const trialExpired = trialStartsAt !== null && trialDaysLeft === 0
+  const isBlocked = trialExpired && plan === 'solo'
+
   const canUse = (minPlan: Plan) => PLAN_RANK[effectivePlan] >= PLAN_RANK[minPlan]
 
   const incrementUsage = useCallback(async (): Promise<boolean> => {
@@ -81,5 +87,5 @@ export function usePlan() {
     return true
   }, [loadUsage])
 
-  return { plan, effectivePlan, isInTrial, trialDaysLeft, loading, canUse, usage, incrementUsage }
+  return { plan, effectivePlan, isInTrial, trialDaysLeft, loading, canUse, usage, incrementUsage, isBlocked, trialExpired }
 }

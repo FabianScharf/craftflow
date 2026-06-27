@@ -117,7 +117,7 @@ const defaultAngebotspos = (id: number): Angebotsposition => ({
 const GAEB_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.d82', '.d83', '.p81', '.p82', '.p83']
 
 export default function CraftFlow() {
-  const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft } = usePlan()
+  const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft, isBlocked } = usePlan()
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'projekte'>('start')
   const [previousScreen, setPreviousScreen] = useState<'start' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -1084,6 +1084,35 @@ export default function CraftFlow() {
       </div>
     </div>
   ) : null
+
+  /* ══════════════════════════════════════════════════
+     PAYWALL: Trial abgelaufen, kein aktiver Plan
+  ══════════════════════════════════════════════════ */
+  if (isBlocked) {
+    return (
+      <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <div style={{ fontSize: 56, marginBottom: 20 }}>🔒</div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.white, marginBottom: 10, textAlign: 'center' }}>
+          Testzeitraum abgelaufen
+        </h1>
+        <p style={{ fontSize: 14, color: C.textMid, textAlign: 'center', maxWidth: 400, lineHeight: 1.6, marginBottom: 32 }}>
+          Deine 14-tägige Testversion ist abgelaufen. Wähle einen Plan um CraftFlow weiterzunutzen — oder löse einen Gutscheincode ein.
+        </p>
+        <button
+          onClick={() => window.location.href = '/settings'}
+          style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 6, padding: '13px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: 1, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 16 }}
+        >
+          Plan wählen / Code einlösen
+        </button>
+        <button
+          onClick={() => window.location.href = '/settings'}
+          style={{ background: 'transparent', color: C.textMid, border: 'none', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline' }}
+        >
+          Zu den Einstellungen →
+        </button>
+      </div>
+    )
+  }
 
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
