@@ -493,6 +493,29 @@ function parseLaufmeter(text: string): number {
   return 0
 }
 
+// Maps AI-generated label variants to the canonical kostenstelle ID
+const LABEL_TO_ID: Record<string, string> = {
+  'Besprechung': '00_Meeting', 'Meeting': '00_Meeting',
+  'Planung': '01_02_Planung', 'Planung ohne Auftrag': '01_02_Planung',
+  'Konstruktion': '02_01_Konstruktion',
+  'Arbeitsvorbereitung': '02_02_Arbeitsvorbereitung', 'AV': '02_02_Arbeitsvorbereitung',
+  'Produktion': '03_00_Produktion',
+  'Warenhandling': '03_01_Warenhandling',
+  'Zuschnitt': '03_02_Zuschnitt',
+  'Bekantung': '03_03_Bekantung', 'Kante': '03_03_Bekantung',
+  'CNC': '03_04_CNC',
+  'Oberfläche': '03_05_Oberflaechenbehandlung', 'Oberflächenbehandlung': '03_05_Oberflaechenbehandlung', 'Lackierung': '03_05_Oberflaechenbehandlung',
+  'Zusammenbau': '03_06_Zusammenbau', 'Montage Werkstatt': '03_06_Zusammenbau',
+  'Verpacken': '03_07_Verpacken',
+  'Azubi': '03_08_Azubi', 'Helfer': '03_08_Azubi',
+  'Montage': '05_01_Montage', 'Montage vor Ort': '05_01_Montage',
+  'Lieferung': '06_01_Lieferung', 'Transport': '06_01_Lieferung',
+}
+
+function normalizeKostenstelle(ks: string): string {
+  return LABEL_TO_ID[ks] ?? ks
+}
+
 function validateAndFix(data: Record<string, unknown>, originalInput = ''): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
@@ -502,7 +525,9 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
 
   data.positionen = positionen.map((raw: unknown) => {
     const pos = raw as Pos
-    const az: AZ[] = Array.isArray(pos.arbeitszeit) ? pos.arbeitszeit.map(a => ({ ...a })) : []
+    const az: AZ[] = Array.isArray(pos.arbeitszeit)
+      ? pos.arbeitszeit.map(a => ({ ...a, kostenstelle: normalizeKostenstelle(a.kostenstelle) }))
+      : []
     const massiv = isMassivholz(pos)
 
     // 1. Correct all vkStunde to exact FS Crafted rates
@@ -597,7 +622,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage zu groß – bitte weniger oder kleinere Bilder verwenden.' }, { status: 413 })
     }
 
-    const { text, imageBase64 } = await req.json()
+    let { text, imageBase64 } = await req.json()
     const rawImages: string[] = Array.isArray(imageBase64)
       ? imageBase64.filter(Boolean)
       : imageBase64
@@ -621,6 +646,12 @@ export async function POST(req: NextRequest) {
 
     if (!text && images.length === 0) {
       return NextResponse.json({ error: 'Kein Text oder Bild' }, { status: 400 })
+    }
+
+    const MAX_TEXT_CHARS = 10000
+    if (text && text.length > MAX_TEXT_CHARS) {
+      console.log('[analyze] text truncated from', text.length, 'to', MAX_TEXT_CHARS, 'chars')
+      text = text.slice(0, MAX_TEXT_CHARS)
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY

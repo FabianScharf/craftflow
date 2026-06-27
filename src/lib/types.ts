@@ -54,6 +54,7 @@ export type KostenstelleId =
   | '03_03_Bekantung'
   | '03_04_CNC'
   | '03_05_Oberflaechenbehandlung'
+  | '03_06_Zusammenbau'
   | '03_07_Verpacken'
   | '03_08_Azubi'
   | '05_01_Montage'
@@ -70,6 +71,7 @@ export const DEFAULT_STUNDENSAETZE: Record<KostenstelleId, number> = {
   '03_03_Bekantung':             100,
   '03_04_CNC':                   120,
   '03_05_Oberflaechenbehandlung': 72,
+  '03_06_Zusammenbau':            65,
   '03_07_Verpacken':              65,
   '03_08_Azubi':                  52,
   '05_01_Montage':                65,
@@ -79,7 +81,7 @@ export const DEFAULT_STUNDENSAETZE: Record<KostenstelleId, number> = {
 export const KOSTENSTELLEN_GRUPPEN: Record<string, KostenstelleId[]> = {
   'Planung':       ['00_Meeting', '01_02_Planung', '02_01_Konstruktion', '02_02_Arbeitsvorbereitung'],
   'Maschinenraum': ['03_02_Zuschnitt', '03_03_Bekantung', '03_04_CNC', '03_05_Oberflaechenbehandlung'],
-  'Bankraum':      ['03_00_Produktion', '03_01_Warenhandling', '03_07_Verpacken', '03_08_Azubi'],
+  'Bankraum':      ['03_00_Produktion', '03_01_Warenhandling', '03_06_Zusammenbau', '03_07_Verpacken', '03_08_Azubi'],
   'Montage':       ['05_01_Montage', '06_01_Lieferung'],
 }
 export const KOSTENSTELLEN_GRUPPEN_ORDER = ['Planung', 'Maschinenraum', 'Bankraum', 'Montage'] as const
@@ -226,6 +228,7 @@ export const KOSTENSTELLEN_LABELS: Record<KostenstelleId, string> = {
   '03_03_Bekantung':              'Kantenanleimen',
   '03_04_CNC':                    'CNC',
   '03_05_Oberflaechenbehandlung': 'Oberflächenbehandlung',
+  '03_06_Zusammenbau':            'Zusammenbau',
   '03_07_Verpacken':              'Verpackung',
   '03_08_Azubi':                  'Lehrling',
   '05_01_Montage':                'Montage',
