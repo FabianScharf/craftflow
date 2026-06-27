@@ -1089,27 +1089,104 @@ export default function CraftFlow() {
      PAYWALL: Trial abgelaufen, kein aktiver Plan
   ══════════════════════════════════════════════════ */
   if (isBlocked) {
+    const PAYWALL_PLANS = [
+      { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1TmSblRvozvhvO9J3EKljmMh', highlight: 'Einstieg',    features: ['3 Angebote / Monat', 'KI-Kalkulation', 'PDF-Angebot'] },
+      { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1TmScDRvozvhvO9J9tvsywrG', highlight: 'Beliebt',     features: ['15 Angebote / Monat', 'Bilder & PDFs', 'CSV-Export', 'Lieferantenanfrage'] },
+      { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1TmScSRvozvhvO9J0RF42acJ', highlight: 'Wachstum',    features: ['50 Angebote / Monat', 'Eigene E-Mail (SMTP)', 'Bis zu 3 Nutzer'] },
+      { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1TmSchRvozvhvO9JOduoM8KU', highlight: 'Vollzugang',  features: ['Unbegrenzt Angebote', 'GAEB-Import', 'Priorisierter Support'] },
+    ]
+    const [pwLoading, setPwLoading] = useState<string | null>(null)
+    const [pwError, setPwError] = useState<string | null>(null)
+
+    async function startCheckout(priceId: string) {
+      setPwLoading(priceId)
+      setPwError(null)
+      try {
+        const res = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ priceId }),
+        })
+        const { url, error } = await res.json()
+        if (error || !url) { setPwError('Fehler beim Öffnen des Checkouts.'); setPwLoading(null); return }
+        window.location.href = url
+      } catch {
+        setPwError('Netzwerkfehler – bitte erneut versuchen.')
+        setPwLoading(null)
+      }
+    }
+
     return (
-      <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-        <div style={{ fontSize: 56, marginBottom: 20 }}>🔒</div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.white, marginBottom: 10, textAlign: 'center' }}>
+      <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px 64px' }}>
+        {/* Header */}
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.white, marginBottom: 8, textAlign: 'center' }}>
           Testzeitraum abgelaufen
         </h1>
-        <p style={{ fontSize: 14, color: C.textMid, textAlign: 'center', maxWidth: 400, lineHeight: 1.6, marginBottom: 32 }}>
-          Deine 14-tägige Testversion ist abgelaufen. Wähle einen Plan um CraftFlow weiterzunutzen — oder löse einen Gutscheincode ein.
+        <p style={{ fontSize: 14, color: C.textMid, textAlign: 'center', maxWidth: 420, lineHeight: 1.6, marginBottom: 8 }}>
+          Deine 14-tägige Testversion ist abgelaufen. Wähle einen Plan um weiterzumachen — alle Pläne sind monatlich kündbar.
         </p>
-        <button
-          onClick={() => window.location.href = '/settings'}
-          style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 6, padding: '13px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: 1, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 16 }}
-        >
-          Plan wählen / Code einlösen
-        </button>
-        <button
-          onClick={() => window.location.href = '/settings'}
-          style={{ background: 'transparent', color: C.textMid, border: 'none', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline' }}
-        >
-          Zu den Einstellungen →
-        </button>
+        <p style={{ fontSize: 12, color: C.textMid, marginBottom: 36, textAlign: 'center' }}>
+          Gutscheincode? <span onClick={() => window.location.href = '/settings'} style={{ color: C.copper, cursor: 'pointer', textDecoration: 'underline' }}>Hier einlösen →</span>
+        </p>
+
+        {pwError && (
+          <div style={{ background: 'rgba(224,90,90,.1)', border: '1px solid #E05A5A', borderRadius: 6, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#E05A5A' }}>
+            {pwError}
+          </div>
+        )}
+
+        {/* Plan-Karten */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16, width: '100%', maxWidth: 720 }}>
+          {PAYWALL_PLANS.map(plan => {
+            const isLoading = pwLoading === plan.priceId
+            const isEnterprise = plan.id === 'enterprise'
+            return (
+              <div key={plan.id} style={{
+                background: isEnterprise ? '#1a1510' : C.gray1,
+                border: `2px solid ${isEnterprise ? C.copper : C.border}`,
+                borderRadius: 10, padding: '22px 20px',
+                display: 'flex', flexDirection: 'column', gap: 14, position: 'relative',
+              }}>
+                <div style={{ position: 'absolute', top: -10, left: 16, background: isEnterprise ? C.copper : C.gray2, color: isEnterprise ? C.black : C.textMid, fontSize: 9, fontWeight: 800, letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20 }}>
+                  {plan.highlight.toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{plan.name}</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: isEnterprise ? C.copper : C.white, lineHeight: 1.1, marginTop: 2 }}>
+                    {plan.price} €<span style={{ fontSize: 13, fontWeight: 400, color: C.textMid }}> / Monat</span>
+                  </div>
+                </div>
+                <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                  {plan.features.map(f => (
+                    <li key={f} style={{ fontSize: 12, color: C.textMid, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <span style={{ color: C.copper, flexShrink: 0, fontWeight: 700 }}>✓</span>{f}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => startCheckout(plan.priceId)}
+                  disabled={!!pwLoading}
+                  style={{
+                    background: isEnterprise ? C.copper : C.gray2,
+                    color: isEnterprise ? C.black : C.white,
+                    border: `1px solid ${isEnterprise ? C.copper : C.border}`,
+                    borderRadius: 6, padding: '11px 0', fontSize: 13, fontWeight: 700,
+                    cursor: pwLoading ? 'not-allowed' : 'pointer',
+                    fontFamily: 'Helvetica Neue, sans-serif', width: '100%',
+                    opacity: pwLoading && !isLoading ? 0.5 : 1,
+                  }}
+                >
+                  {isLoading ? '…' : `${plan.name} abonnieren`}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        <p style={{ marginTop: 24, fontSize: 12, color: C.textMid, textAlign: 'center' }}>
+          Alle Preise netto zzgl. MwSt. · Monatlich kündbar · Sichere Zahlung via Stripe
+        </p>
       </div>
     )
   }
