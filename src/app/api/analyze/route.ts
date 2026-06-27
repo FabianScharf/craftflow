@@ -423,13 +423,13 @@ Antworte NUR mit gültigem JSON, keine Backticks, kein Markdown:
         }
       ],
       "arbeitszeit": [
-        { "kostenstelle": "00_Meeting",                "minuten": 20,  "vkStunde": 65 },
-        { "kostenstelle": "01_02_Planung",             "minuten": 30,  "vkStunde": 85 },
-        { "kostenstelle": "02_01_Konstruktion",        "minuten": 45,  "vkStunde": 75 },
-        { "kostenstelle": "02_02_Arbeitsvorbereitung", "minuten": 30,  "vkStunde": 75 },
-        { "kostenstelle": "03_02_Zuschnitt",           "minuten": 60,  "vkStunde": 72 },
-        { "kostenstelle": "03_06_Zusammenbau",         "minuten": 120, "vkStunde": 65 },
-        { "kostenstelle": "05_01_Montage",             "minuten": 60,  "vkStunde": 65 }
+        { "kostenstelle": "Besprechung",        "minuten": 20,  "vkStunde": 65 },
+        { "kostenstelle": "Planung",            "minuten": 30,  "vkStunde": 85 },
+        { "kostenstelle": "Konstruktion",       "minuten": 45,  "vkStunde": 75 },
+        { "kostenstelle": "Arbeitsvorbereitung","minuten": 30,  "vkStunde": 75 },
+        { "kostenstelle": "Zuschnitt",          "minuten": 60,  "vkStunde": 72 },
+        { "kostenstelle": "Zusammenbau",        "minuten": 120, "vkStunde": 65 },
+        { "kostenstelle": "Montage",            "minuten": 60,  "vkStunde": 65 }
       ]
     }
   ]
@@ -511,9 +511,11 @@ function normalizeKostenstelle(ks: string): string {
   return KS_ALIASES[ks] ?? normalizeKsId(ks)
 }
 
-function validateAndFix(data: Record<string, unknown>, originalInput = ''): Record<string, unknown> {
+function validateAndFix(data: Record<string, unknown>, originalInput = '', customSaetze: Record<string, number> = {}): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
+
+  const activeSaetze = { ...STUNDENSAETZE, ...customSaetze }
 
   // Parse lm from original user input once — AI output may omit measurements.
   const inputLm = parseLaufmeter(originalInput)
@@ -527,7 +529,7 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
 
     // 1. Correct all vkStunde to exact FS Crafted rates
     for (const a of az) {
-      if (a.kostenstelle in STUNDENSAETZE) a.vkStunde = STUNDENSAETZE[a.kostenstelle]
+      if (a.kostenstelle in activeSaetze) a.vkStunde = activeSaetze[a.kostenstelle]
     }
 
     // 2. Fixkosten: enforce presence and minimum minutes
@@ -536,7 +538,7 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
       if (existing) {
         existing.minuten = Math.max(existing.minuten, minMin)
       } else {
-        az.push({ kostenstelle: ks, minuten: minMin, vkStunde: STUNDENSAETZE[ks] })
+        az.push({ kostenstelle: ks, minuten: minMin, vkStunde: activeSaetze[ks] })
       }
     }
 
@@ -617,7 +619,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage zu groß – bitte weniger oder kleinere Bilder verwenden.' }, { status: 413 })
     }
 
-    let { text, imageBase64 } = await req.json()
+    let { text, imageBase64, userKostenstellen } = await req.json()
+    const customKs = Array.isArray(userKostenstellen)
+      ? (userKostenstellen as Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>)
+      : []
+    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.code, k.stundensatz]))
+
     const rawImages: string[] = Array.isArray(imageBase64)
       ? imageBase64.filter(Boolean)
       : imageBase64
@@ -672,12 +679,18 @@ export async function POST(req: NextRequest) {
       userContent.push({ type: 'text', text: `Beschreibung: "${text}"` })
     }
 
+    let systemPrompt = SYSTEM_PROMPT
+    if (customKs.length > 0) {
+      const lines = customKs.map(k => `${k.code}  → ${k.stundensatz} €/h${k.gruppe ? ' [Gruppe: ' + k.gruppe + ']' : ''}`)
+      systemPrompt += '\n\n## ZUSÄTZLICHE KOSTENSTELLEN DIESES NUTZERS (müssen verwendet werden wenn passend):\n' + lines.join('\n')
+    }
+
     const model = 'claude-sonnet-4-6'
     const reqBody = JSON.stringify({
       model,
       max_tokens: 8000,
       temperature: 0.2,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
     })
     console.log('[analyze] calling Claude model:', model, '— body size:', Math.round(reqBody.length / 1024), 'KB')
@@ -708,7 +721,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const parsed = JSON.parse(clean)
-      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '')
+      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze)
       return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))

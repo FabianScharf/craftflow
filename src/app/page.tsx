@@ -11,6 +11,7 @@ import {
   DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS, KOSTENSTELLEN_GRUPPEN, KOSTENSTELLEN_GRUPPEN_ORDER,
   type Kunde, type KundeDB,
   type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
+  type DbKostenstelle,
 } from '@/lib/types'
 import { buildPDF } from '@/lib/pdf'
 
@@ -148,6 +149,10 @@ export default function CraftFlow() {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? null)
       if (data.user) {
+        fetch('/api/settings/kostenstellen')
+          .then(r => r.json())
+          .then(d => { setUserKs(d.kostenstellen ?? []) })
+          .catch(() => {})
         fetch('/api/settings/betriebsprofil')
           .then(r => r.json())
           .then(d => {
@@ -310,6 +315,9 @@ export default function CraftFlow() {
   const [saveCustomerStatus, setSaveCustomerStatus] = useState<'idle' | 'saving' | 'saved' | 'duplicate' | 'error'>('idle')
   const [saveCustomerMsg, setSaveCustomerMsg] = useState('')
 
+  // Nutzer-Kostenstellen (aus Einstellungen)
+  const [userKs, setUserKs] = useState<DbKostenstelle[]>([])
+
   // Mikrofon State
   const [micStatus, setMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -366,12 +374,33 @@ export default function CraftFlow() {
       : p))
   const addArbRow = (posId: number) =>
     setPos(prev => prev.map(p => p.id === posId
-      ? { ...p, arbeitszeit: [...p.arbeitszeit, { id: Date.now(), kostenstelle: 'Produktion' as KostenstelleId, minuten: 60, vkStunde: DEFAULT_STUNDENSAETZE['Produktion'] }] }
+      ? { ...p, arbeitszeit: [...p.arbeitszeit, { id: Date.now(), kostenstelle: 'Produktion', minuten: 60, vkStunde: DEFAULT_STUNDENSAETZE['Produktion'] }] }
       : p))
   const delArbRow = (posId: number, rowId: number) =>
     setPos(prev => prev.map(p => p.id === posId
       ? { ...p, arbeitszeit: p.arbeitszeit.filter(a => a.id !== rowId) }
       : p))
+
+  // ── Kostenstellen-Helfer (built-in + nutzer-spezifisch) ───
+  const userKsMap = Object.fromEntries(userKs.map(k => [k.code, k]))
+  const getKsLabel = (ks: string): string =>
+    userKsMap[ks]?.bezeichnung ?? KOSTENSTELLEN_LABELS[ks as KostenstelleId] ?? ks
+  const getKsGruppe = (ks: string): string | null => {
+    for (const [g, members] of Object.entries(KOSTENSTELLEN_GRUPPEN)) {
+      if ((members as string[]).includes(ks)) return g
+    }
+    return userKsMap[ks]?.gruppe ?? null
+  }
+  const customGroupNames = [...new Set(
+    userKs.filter(k => k.aktiv && k.gruppe && !(KOSTENSTELLEN_GRUPPEN_ORDER as readonly string[]).includes(k.gruppe))
+      .map(k => k.gruppe!)
+  )]
+  const allGroupsOrder = [...KOSTENSTELLEN_GRUPPEN_ORDER, ...customGroupNames] as string[]
+  // All Kostenstellen options for dropdowns
+  const allKsOptions = [
+    ...(Object.keys(DEFAULT_STUNDENSAETZE) as KostenstelleId[]).map(ks => ({ code: ks, label: KOSTENSTELLEN_LABELS[ks] })),
+    ...userKs.filter(k => k.aktiv && !k.ist_standard).map(k => ({ code: k.code, label: k.bezeichnung })),
+  ]
 
   const totals = pos.reduce((a, p) => ({ net: a.net + calcAngebotspos(p) }), { net: 0 })
   const vat = totals.net * 0.19
@@ -608,7 +637,13 @@ export default function CraftFlow() {
     const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, imageBase64: imageB64s }),
+      body: JSON.stringify({
+        text,
+        imageBase64: imageB64s,
+        userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
+          code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz, gruppe: k.gruppe,
+        })),
+      }),
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let json: { success?: boolean; error?: string; data?: any }
@@ -924,7 +959,7 @@ export default function CraftFlow() {
       })
       p.arbeitszeit.forEach(a => {
         const vk = (a.minuten / 60) * a.vkStunde
-        rows.push([String(pi + 1), 'Arbeitszeit', KOSTENSTELLEN_LABELS[a.kostenstelle] ?? a.kostenstelle, String(Math.round(a.minuten / 60 * 100) / 100), 'h', String(a.vkStunde), '', String(Math.round(vk * 100) / 100)])
+        rows.push([String(pi + 1), 'Arbeitszeit', getKsLabel(a.kostenstelle), String(Math.round(a.minuten / 60 * 100) / 100), 'h', String(a.vkStunde), '', String(Math.round(vk * 100) / 100)])
       })
     })
     rows.push([])
@@ -966,7 +1001,7 @@ export default function CraftFlow() {
       })
       p.arbeitszeit.forEach(a => {
         const vk = (a.minuten / 60) * a.vkStunde
-        tableRows.push(['', 'Arbeitszeit', KOSTENSTELLEN_LABELS[a.kostenstelle] ?? a.kostenstelle, Math.round(a.minuten / 60 * 100) / 100, 'h', a.vkStunde, '', Math.round(vk * 100) / 100])
+        tableRows.push(['', 'Arbeitszeit', getKsLabel(a.kostenstelle), Math.round(a.minuten / 60 * 100) / 100, 'h', a.vkStunde, '', Math.round(vk * 100) / 100])
       })
     })
 
@@ -1966,9 +2001,9 @@ export default function CraftFlow() {
                         </div>
                       </div>
 
-                      {/* Gruppierte Kostenstellen */}
-                      {KOSTENSTELLEN_GRUPPEN_ORDER.map(gruppe => {
-                        const eintraege = p.arbeitszeit.filter(a => (KOSTENSTELLEN_GRUPPEN[gruppe] as readonly string[]).includes(a.kostenstelle))
+                      {/* Gruppierte Kostenstellen (built-in + custom) */}
+                      {allGroupsOrder.map(gruppe => {
+                        const eintraege = p.arbeitszeit.filter(a => getKsGruppe(a.kostenstelle) === gruppe)
                         if (eintraege.length === 0) return null
                         const gruppeMin = eintraege.reduce((s, a) => s + a.minuten, 0)
                         const gh = Math.floor(gruppeMin / 60)
@@ -1984,7 +2019,7 @@ export default function CraftFlow() {
                                 {eintraege.map(a => (
                                   <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
                                     <td style={{ ...tdStyle, width: isMobile ? '50%' : '36%', color: C.white, fontSize: 12 }}>
-                                      {KOSTENSTELLEN_LABELS[a.kostenstelle as KostenstelleId] ?? a.kostenstelle}
+                                      {getKsLabel(a.kostenstelle)}
                                     </td>
                                     {!isMobile && <td style={{ ...tdStyle, width: '14%', fontSize: 10, color: C.textMid, whiteSpace: 'nowrap' as const }}>
                                       {a.vkStunde} €/h
@@ -2013,8 +2048,7 @@ export default function CraftFlow() {
 
                       {/* Einträge ohne bekannte Gruppe (Fallback) */}
                       {(() => {
-                        const allGrouped = Object.values(KOSTENSTELLEN_GRUPPEN).flat() as string[]
-                        const ungrouped = p.arbeitszeit.filter(a => !allGrouped.includes(a.kostenstelle))
+                        const ungrouped = p.arbeitszeit.filter(a => getKsGruppe(a.kostenstelle) === null)
                         if (ungrouped.length === 0) return null
                         return (
                           <div style={{ marginBottom: 10 }}>
@@ -2024,9 +2058,9 @@ export default function CraftFlow() {
                                 {ungrouped.map(a => (
                                   <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
                                     <td style={tdStyle}>
-                                      <select value={a.kostenstelle} onChange={e => updArbRow(p.id, a.id, 'kostenstelle', e.target.value as KostenstelleId)} style={{ ...cellInput, minWidth: 148 }}>
-                                        {(Object.keys(DEFAULT_STUNDENSAETZE) as KostenstelleId[]).map(ks => (
-                                          <option key={ks} value={ks}>{KOSTENSTELLEN_LABELS[ks]}</option>
+                                      <select value={a.kostenstelle} onChange={e => updArbRow(p.id, a.id, 'kostenstelle', e.target.value)} style={{ ...cellInput, minWidth: 148 }}>
+                                        {allKsOptions.map(opt => (
+                                          <option key={opt.code} value={opt.code}>{opt.label}</option>
                                         ))}
                                       </select>
                                     </td>

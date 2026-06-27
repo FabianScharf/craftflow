@@ -138,9 +138,20 @@ export interface MaterialPosten {
   aufschlag: number
 }
 
+export interface DbKostenstelle {
+  id: string
+  code: string
+  bezeichnung: string
+  stundensatz: number
+  aktiv: boolean
+  gruppe: string | null
+  reihenfolge: number
+  ist_standard: boolean
+}
+
 export interface ArbeitsPosten {
   id: number
-  kostenstelle: KostenstelleId
+  kostenstelle: string
   minuten: number
   vkStunde: number
 }
