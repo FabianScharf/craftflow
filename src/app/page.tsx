@@ -1042,12 +1042,13 @@ export default function CraftFlow() {
             <LogoMark size={32} userLogoUrl={profilLogoUrl} />
             <div style={{ color: brandAccent, fontSize: 14, fontWeight: 800, letterSpacing: 3 }}>MEINE PROJEKTE</div>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={resetAll}
-              style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 14px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 0.3 }}
-            >+ Neu</button>
-            <button onClick={() => setScreen('start')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '9px 11px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>↩</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
+            <button onClick={resetAll} style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }} title="Neues Angebot">✏️</button>
+            <button onClick={() => setScreen('projekte')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">📋</button>
+            <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">⚙️</button>
+            {userEmail && (
+              <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">🚪</button>
+            )}
           </div>
         </div>
 
@@ -1476,18 +1477,12 @@ export default function CraftFlow() {
             {kunde.name || '–'}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <div style={{ color: C.textMid, fontSize: 9, whiteSpace: 'nowrap' }}>{docNr}</div>
-          <button
-            onClick={() => setScreen(previousScreen)}
-            style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '9px 16px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, whiteSpace: 'nowrap', letterSpacing: 0.3 }}
-          >
-            ← Zurück
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
+          <button onClick={resetAll} style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }} title="Neues Angebot">✏️</button>
+          <button onClick={() => setScreen(previousScreen)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">📋</button>
+          <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">⚙️</button>
           {userEmail && (
-            <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">
-              🚪
-            </button>
+            <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">🚪</button>
           )}
         </div>
       </div>
