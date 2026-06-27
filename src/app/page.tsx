@@ -2051,6 +2051,11 @@ export default function CraftFlow() {
                 {allInquiryResult.drafts.length === 0 && (
                   <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten gefunden — bitte in Einstellungen → Lieferanten hinterlegen und Kategorien zuweisen.</div>
                 )}
+                {allInquiryResult.drafts.length > 0 && !planCanUse('pro') && (
+                  <div style={{ marginTop: 8, fontSize: 11, color: C.textMid, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                    🔒 <strong>Pro:</strong> E-Mails direkt aus der App senden — ohne E-Mail-Programm. <a href="/settings#plan" style={{ color: C.copper, textDecoration: 'none' }}>Upgrade →</a>
+                  </div>
+                )}
                 <button onClick={() => { setAllInquiryStatus('idle'); setAllInquiryResult(null) }} style={{ marginTop: 8, background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline', padding: 0 }}>
                   Schließen
                 </button>
@@ -2219,21 +2224,25 @@ export default function CraftFlow() {
                         const selCount = p.material.filter(m => isMatSelected(m.id)).length
                         const ist = inquiryStatus[p.id]
                         const res = inquiryResult[p.id]
+                        const canInquire = planCanUse('starter')
                         return (
                           <div style={{ marginTop: 10 }}>
                             {ist !== 'loading' && ist !== 'done' && (
                               <button
-                                onClick={() => startInquiry(p.id, p.titel, p.material)}
-                                disabled={selCount === 0}
+                                onClick={() => {
+                                  if (!canInquire) { window.location.href = '/settings#plan'; return }
+                                  startInquiry(p.id, p.titel, p.material)
+                                }}
+                                disabled={canInquire && selCount === 0}
                                 style={{
-                                  background: selCount === 0 ? C.gray2 : 'transparent',
-                                  color: selCount === 0 ? C.textMid : C.copper,
-                                  border: `1px solid ${selCount === 0 ? C.border : C.copper}`,
-                                  borderRadius: 3, padding: '6px 14px', cursor: selCount === 0 ? 'not-allowed' : 'pointer',
+                                  background: (!canInquire || selCount === 0) ? C.gray2 : 'transparent',
+                                  color: (!canInquire || selCount === 0) ? C.textMid : C.copper,
+                                  border: `1px solid ${(!canInquire || selCount === 0) ? C.border : C.copper}`,
+                                  borderRadius: 3, padding: '6px 14px', cursor: (!canInquire || selCount === 0) ? 'not-allowed' : 'pointer',
                                   fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
                                 }}
                               >
-                                ✉ Ausgewählte Preise anfragen ({selCount}/{p.material.length})
+                                {!canInquire ? '🔒 Preise anfragen — ab Starter' : `✉ Ausgewählte Preise anfragen (${selCount}/${p.material.length})`}
                               </button>
                             )}
                             {ist === 'loading' && (
@@ -2277,6 +2286,11 @@ export default function CraftFlow() {
                                 )}
                                 {res.drafts.length === 0 && (
                                   <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten — bitte in Einstellungen → Lieferanten ergänzen.</div>
+                                )}
+                                {res.drafts.length > 0 && !planCanUse('pro') && (
+                                  <div style={{ marginTop: 8, fontSize: 11, color: C.textMid, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                                    🔒 <strong>Pro:</strong> E-Mails direkt aus der App senden — ohne E-Mail-Programm. <a href="/settings#plan" style={{ color: C.copper, textDecoration: 'none' }}>Upgrade →</a>
+                                  </div>
                                 )}
                                 <button onClick={() => setInquiryStatus(prev => ({ ...prev, [p.id]: 'idle' }))}
                                   style={{ marginTop: 8, background: 'transparent', color: C.textMid, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', textDecoration: 'underline', padding: 0 }}>
