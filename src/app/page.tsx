@@ -1976,7 +1976,7 @@ export default function CraftFlow() {
                   opacity: !planCanUse('starter') ? 0.6 : 1,
                 }}
               >
-                {!planCanUse('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Anfragen werden erstellt…' : allInquiryStatus === 'done' ? '✓ Drafts erstellt' : '✉ Alle Materialien anfragen'}
+                {!planCanUse('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Anfragen werden erstellt…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
               </button>
               {/* Export Dropdown */}
               <div style={{ position: 'relative' }}>
@@ -2243,7 +2243,7 @@ export default function CraftFlow() {
                             )}
                             {ist === 'error' && (
                               <div style={{ fontSize: 12, color: '#ff9999', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                Fehler beim Erstellen der Drafts.
+                                Fehler beim Erstellen der Anfragen.
                                 <button onClick={() => startInquiry(p.id, p.titel, p.material)} style={{ background: 'transparent', color: C.copper, border: 'none', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', fontFamily: 'Helvetica Neue,sans-serif', padding: 0 }}>
                                   Erneut versuchen
                                 </button>
