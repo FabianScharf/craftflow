@@ -36,10 +36,10 @@ const lbl: React.CSSProperties = {
 }
 
 const STANDARD_CODES = [
-  '00_Meeting','01_02_Planung','02_01_Konstruktion','02_02_Arbeitsvorbereitung',
-  '03_00_Produktion','03_01_Warenhandling','03_02_Zuschnitt','03_03_Bekantung',
-  '03_04_CNC','03_05_Oberflaechenbehandlung','03_06_Zusammenbau','03_07_Verpacken',
-  '03_08_Azubi','05_01_Montage','06_01_Lieferung',
+  'Besprechung','Planung','Konstruktion','Arbeitsvorbereitung',
+  'Produktion','Warenhandling','Zuschnitt','Bekantung',
+  'CNC','Oberfläche','Zusammenbau','Verpacken',
+  'Azubi','Montage','Lieferung',
 ]
 
 const DEFAULT_MATERIALGRUPPEN = [

@@ -24,7 +24,7 @@ PFLICHTREGELN:
 - updatedOffer: IMMER alle Positionen zurückgeben (nicht nur geänderte)
 - IDs beibehalten: id, material[].id, arbeitszeit[].id
 - Holzart: in beschreibung UND material[].bezeichnung eintragen
-- Kostenstellen-IDs: 00_Meeting, 01_02_Planung, 02_01_Konstruktion, 02_02_Arbeitsvorbereitung, 03_00_Produktion, 03_01_Warenhandling, 03_02_Zuschnitt, 03_03_Bekantung, 03_04_CNC, 03_05_Oberflaechenbehandlung, 03_06_Zusammenbau, 03_07_Verpacken, 03_08_Azubi, 05_01_Montage, 06_01_Lieferung`
+- Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung`
 
 function extractJSON(text: string): { message: string; updatedOffer: unknown } | null {
   const clean = text.replace(/```json\n?|```/g, '').trim()

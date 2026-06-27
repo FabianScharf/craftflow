@@ -44,45 +44,67 @@ export interface KalkResult {
 
 // ── Kostenstellen ────────────────────────────────────
 export type KostenstelleId =
-  | '00_Meeting'
-  | '01_02_Planung'
-  | '02_01_Konstruktion'
-  | '02_02_Arbeitsvorbereitung'
-  | '03_00_Produktion'
-  | '03_01_Warenhandling'
-  | '03_02_Zuschnitt'
-  | '03_03_Bekantung'
-  | '03_04_CNC'
-  | '03_05_Oberflaechenbehandlung'
-  | '03_06_Zusammenbau'
-  | '03_07_Verpacken'
-  | '03_08_Azubi'
-  | '05_01_Montage'
-  | '06_01_Lieferung'
+  | 'Besprechung'
+  | 'Planung'
+  | 'Konstruktion'
+  | 'Arbeitsvorbereitung'
+  | 'Produktion'
+  | 'Warenhandling'
+  | 'Zuschnitt'
+  | 'Bekantung'
+  | 'CNC'
+  | 'Oberfläche'
+  | 'Zusammenbau'
+  | 'Verpacken'
+  | 'Azubi'
+  | 'Montage'
+  | 'Lieferung'
+
+// Converts legacy numeric-prefix IDs from saved projects to clean names
+export const LEGACY_KS_MAP: Record<string, KostenstelleId> = {
+  '00_Meeting':                   'Besprechung',
+  '01_02_Planung':                'Planung',
+  '02_01_Konstruktion':           'Konstruktion',
+  '02_02_Arbeitsvorbereitung':    'Arbeitsvorbereitung',
+  '03_00_Produktion':             'Produktion',
+  '03_01_Warenhandling':          'Warenhandling',
+  '03_02_Zuschnitt':              'Zuschnitt',
+  '03_03_Bekantung':              'Bekantung',
+  '03_04_CNC':                    'CNC',
+  '03_05_Oberflaechenbehandlung': 'Oberfläche',
+  '03_06_Zusammenbau':            'Zusammenbau',
+  '03_07_Verpacken':              'Verpacken',
+  '03_08_Azubi':                  'Azubi',
+  '05_01_Montage':                'Montage',
+  '06_01_Lieferung':              'Lieferung',
+}
+export function normalizeKsId(ks: string): KostenstelleId {
+  return (LEGACY_KS_MAP[ks] ?? ks) as KostenstelleId
+}
 
 export const DEFAULT_STUNDENSAETZE: Record<KostenstelleId, number> = {
-  '00_Meeting':                   65,
-  '01_02_Planung':                85,
-  '02_01_Konstruktion':           75,
-  '02_02_Arbeitsvorbereitung':    75,
-  '03_00_Produktion':             65,
-  '03_01_Warenhandling':          65,
-  '03_02_Zuschnitt':              72,
-  '03_03_Bekantung':             100,
-  '03_04_CNC':                   120,
-  '03_05_Oberflaechenbehandlung': 72,
-  '03_06_Zusammenbau':            65,
-  '03_07_Verpacken':              65,
-  '03_08_Azubi':                  52,
-  '05_01_Montage':                65,
-  '06_01_Lieferung':              65,
+  'Besprechung':       65,
+  'Planung':           85,
+  'Konstruktion':      75,
+  'Arbeitsvorbereitung': 75,
+  'Produktion':        65,
+  'Warenhandling':     65,
+  'Zuschnitt':         72,
+  'Bekantung':        100,
+  'CNC':              120,
+  'Oberfläche':        72,
+  'Zusammenbau':       65,
+  'Verpacken':         65,
+  'Azubi':             52,
+  'Montage':           65,
+  'Lieferung':         65,
 }
 
 export const KOSTENSTELLEN_GRUPPEN: Record<string, KostenstelleId[]> = {
-  'Planung':       ['00_Meeting', '01_02_Planung', '02_01_Konstruktion', '02_02_Arbeitsvorbereitung'],
-  'Maschinenraum': ['03_02_Zuschnitt', '03_03_Bekantung', '03_04_CNC', '03_05_Oberflaechenbehandlung'],
-  'Bankraum':      ['03_00_Produktion', '03_01_Warenhandling', '03_06_Zusammenbau', '03_07_Verpacken', '03_08_Azubi'],
-  'Montage':       ['05_01_Montage', '06_01_Lieferung'],
+  'Planung':       ['Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung'],
+  'Maschinenraum': ['Zuschnitt', 'Bekantung', 'CNC', 'Oberfläche'],
+  'Bankraum':      ['Produktion', 'Warenhandling', 'Zusammenbau', 'Verpacken', 'Azubi'],
+  'Montage':       ['Montage', 'Lieferung'],
 }
 export const KOSTENSTELLEN_GRUPPEN_ORDER = ['Planung', 'Maschinenraum', 'Bankraum', 'Montage'] as const
 
@@ -218,21 +240,21 @@ export const inDays = (d: number, from?: Date) => new Date((from ?? new Date()).
 
 // ── Kostenstellen Labels ─────────────────────────────
 export const KOSTENSTELLEN_LABELS: Record<KostenstelleId, string> = {
-  '00_Meeting':                   'Besprechung',
-  '01_02_Planung':                'Planung',
-  '02_01_Konstruktion':           'Konstruktion',
-  '02_02_Arbeitsvorbereitung':    'Arbeitsvorbereitung',
-  '03_00_Produktion':             'Produktion',
-  '03_01_Warenhandling':          'Warenwirtschaft',
-  '03_02_Zuschnitt':              'Zuschnitt',
-  '03_03_Bekantung':              'Kantenanleimen',
-  '03_04_CNC':                    'CNC',
-  '03_05_Oberflaechenbehandlung': 'Oberflächenbehandlung',
-  '03_06_Zusammenbau':            'Zusammenbau',
-  '03_07_Verpacken':              'Verpackung',
-  '03_08_Azubi':                  'Lehrling',
-  '05_01_Montage':                'Montage',
-  '06_01_Lieferung':              'Lieferung und Fahrtzeiten',
+  'Besprechung':       'Besprechung',
+  'Planung':           'Planung',
+  'Konstruktion':      'Konstruktion',
+  'Arbeitsvorbereitung': 'Arbeitsvorbereitung',
+  'Produktion':        'Produktion',
+  'Warenhandling':     'Warenhandling',
+  'Zuschnitt':         'Zuschnitt',
+  'Bekantung':         'Kantenanleimen',
+  'CNC':               'CNC',
+  'Oberfläche':        'Oberflächenbehandlung',
+  'Zusammenbau':       'Zusammenbau',
+  'Verpacken':         'Verpacken',
+  'Azubi':             'Azubi/Helfer',
+  'Montage':           'Montage vor Ort',
+  'Lieferung':         'Lieferung & Fahrt',
 }
 
 export function calcAngebotspos(p: Angebotsposition): number {

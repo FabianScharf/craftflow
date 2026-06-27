@@ -366,7 +366,7 @@ export default function CraftFlow() {
       : p))
   const addArbRow = (posId: number) =>
     setPos(prev => prev.map(p => p.id === posId
-      ? { ...p, arbeitszeit: [...p.arbeitszeit, { id: Date.now(), kostenstelle: '03_00_Produktion' as KostenstelleId, minuten: 60, vkStunde: DEFAULT_STUNDENSAETZE['03_00_Produktion'] }] }
+      ? { ...p, arbeitszeit: [...p.arbeitszeit, { id: Date.now(), kostenstelle: 'Produktion' as KostenstelleId, minuten: 60, vkStunde: DEFAULT_STUNDENSAETZE['Produktion'] }] }
       : p))
   const delArbRow = (posId: number, rowId: number) =>
     setPos(prev => prev.map(p => p.id === posId
@@ -674,9 +674,9 @@ export default function CraftFlow() {
           })),
           arbeitszeit: ((p.arbeitszeit as AIArbRow[]) || []).map((a, ai) => ({
             id: Date.now() + i * 100 + 50 + ai,
-            kostenstelle: (a.kostenstelle as KostenstelleId) || '03_00_Produktion',
+            kostenstelle: (a.kostenstelle as KostenstelleId) || 'Produktion',
             minuten: a.minuten || 60,
-            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['03_00_Produktion'],
+            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['Produktion'],
           })),
         })))
       }

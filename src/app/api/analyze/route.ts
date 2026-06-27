@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { normalizeKsId } from '@/lib/types'
 
 export const maxDuration = 60
 
@@ -54,22 +55,22 @@ Verkaufspreis (netto) = Materialkosten (EK) + Materialgemeinkosten (30 % Aufschl
 
 ## KOSTENSTELLEN UND STUNDENSÄTZE (FS Crafted 2024–2026)
 
-Nur diese IDs verwenden:
-00_Meeting                    → 65 €/h
-01_02_Planung                 → 85 €/h
-02_01_Konstruktion            → 75 €/h
-02_02_Arbeitsvorbereitung     → 75 €/h
-03_00_Produktion              → 65 €/h
-03_01_Warenhandling           → 65 €/h
-03_02_Zuschnitt               → 72 €/h
-03_03_Bekantung               → 100 €/h
-03_04_CNC                     → 120 €/h
-03_05_Oberflaechenbehandlung  → 72 €/h
-03_06_Zusammenbau             → 65 €/h
-03_07_Verpacken               → 65 €/h
-03_08_Azubi                   → 52 €/h
-05_01_Montage                 → 65 €/h
-06_01_Lieferung               → 65 €/h
+Nur diese exakten IDs verwenden – Schreibweise genau einhalten:
+Besprechung          → 65 €/h
+Planung              → 85 €/h
+Konstruktion         → 75 €/h
+Arbeitsvorbereitung  → 75 €/h
+Produktion           → 65 €/h
+Warenhandling        → 65 €/h
+Zuschnitt            → 72 €/h
+Bekantung            → 100 €/h
+CNC                  → 120 €/h
+Oberfläche           → 72 €/h
+Zusammenbau          → 65 €/h
+Verpacken            → 65 €/h
+Azubi                → 52 €/h
+Montage              → 65 €/h
+Lieferung            → 65 €/h
 
 Fixkosten – IMMER in jeder Position, NIEMALS 0 min:
 00_Meeting                → Minimum 15 min (auch bei kleinen Aufträgen)
@@ -440,19 +441,19 @@ Antworte NUR mit gültigem JSON, keine Backticks, kein Markdown:
 // ---------------------------------------------------------------------------
 
 const STUNDENSAETZE: Record<string, number> = {
-  '00_Meeting': 65, '01_02_Planung': 85, '02_01_Konstruktion': 75,
-  '02_02_Arbeitsvorbereitung': 75, '03_00_Produktion': 65, '03_01_Warenhandling': 65,
-  '03_02_Zuschnitt': 72, '03_03_Bekantung': 100, '03_04_CNC': 120,
-  '03_05_Oberflaechenbehandlung': 72, '03_06_Zusammenbau': 65, '03_07_Verpacken': 65,
-  '03_08_Azubi': 52, '05_01_Montage': 65, '06_01_Lieferung': 65,
+  'Besprechung': 65, 'Planung': 85, 'Konstruktion': 75,
+  'Arbeitsvorbereitung': 75, 'Produktion': 65, 'Warenhandling': 65,
+  'Zuschnitt': 72, 'Bekantung': 100, 'CNC': 120,
+  'Oberfläche': 72, 'Zusammenbau': 65, 'Verpacken': 65,
+  'Azubi': 52, 'Montage': 65, 'Lieferung': 65,
 }
 
 // Fixkosten that must appear in every position with at least these minutes.
 const FIXKOSTEN_MINIMA: Record<string, number> = {
-  '00_Meeting': 15,
-  '01_02_Planung': 20,
-  '02_01_Konstruktion': 30,
-  '02_02_Arbeitsvorbereitung': 20,
+  'Besprechung': 15,
+  'Planung': 20,
+  'Konstruktion': 30,
+  'Arbeitsvorbereitung': 20,
 }
 
 const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
@@ -493,27 +494,21 @@ function parseLaufmeter(text: string): number {
   return 0
 }
 
-// Maps AI-generated label variants to the canonical kostenstelle ID
-const LABEL_TO_ID: Record<string, string> = {
-  'Besprechung': '00_Meeting', 'Meeting': '00_Meeting',
-  'Planung': '01_02_Planung', 'Planung ohne Auftrag': '01_02_Planung',
-  'Konstruktion': '02_01_Konstruktion',
-  'Arbeitsvorbereitung': '02_02_Arbeitsvorbereitung', 'AV': '02_02_Arbeitsvorbereitung',
-  'Produktion': '03_00_Produktion',
-  'Warenhandling': '03_01_Warenhandling',
-  'Zuschnitt': '03_02_Zuschnitt',
-  'Bekantung': '03_03_Bekantung', 'Kante': '03_03_Bekantung',
-  'CNC': '03_04_CNC',
-  'Oberfläche': '03_05_Oberflaechenbehandlung', 'Oberflächenbehandlung': '03_05_Oberflaechenbehandlung', 'Lackierung': '03_05_Oberflaechenbehandlung',
-  'Zusammenbau': '03_06_Zusammenbau', 'Montage Werkstatt': '03_06_Zusammenbau',
-  'Verpacken': '03_07_Verpacken',
-  'Azubi': '03_08_Azubi', 'Helfer': '03_08_Azubi',
-  'Montage': '05_01_Montage', 'Montage vor Ort': '05_01_Montage',
-  'Lieferung': '06_01_Lieferung', 'Transport': '06_01_Lieferung',
+// Maps legacy numeric IDs and AI label variants to canonical clean IDs
+const KS_ALIASES: Record<string, string> = {
+  'Meeting': 'Besprechung',
+  'Planung ohne Auftrag': 'Planung',
+  'AV': 'Arbeitsvorbereitung',
+  'Kante': 'Bekantung', 'Kantenanleimen': 'Bekantung',
+  'Oberflächenbehandlung': 'Oberfläche', 'Lackierung': 'Oberfläche', 'Ölen': 'Oberfläche',
+  'Montage Werkstatt': 'Zusammenbau',
+  'Helfer': 'Azubi',
+  'Montage vor Ort': 'Montage',
+  'Transport': 'Lieferung',
 }
 
 function normalizeKostenstelle(ks: string): string {
-  return LABEL_TO_ID[ks] ?? ks
+  return KS_ALIASES[ks] ?? normalizeKsId(ks)
 }
 
 function validateAndFix(data: Record<string, unknown>, originalInput = ''): Record<string, unknown> {
@@ -547,7 +542,7 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
 
     // 3. Massivholz: Bekantung must be 0 (solid wood has no glued ABS edges)
     if (massiv) {
-      const b = az.find(a => a.kostenstelle === '03_03_Bekantung')
+      const b = az.find(a => a.kostenstelle === 'Bekantung')
       if (b) b.minuten = 0
     }
 
@@ -559,20 +554,20 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
     if (lm > 0) {
       const hPerLm = massiv ? 5 : 4.5
       const minWorkshopMin = Math.round(lm * hPerLm * 60)
-      const zsItem = az.find(a => a.kostenstelle === '03_02_Zuschnitt')
-      const zbItem = az.find(a => a.kostenstelle === '03_06_Zusammenbau')
+      const zsItem = az.find(a => a.kostenstelle === 'Zuschnitt')
+      const zbItem = az.find(a => a.kostenstelle === 'Zusammenbau')
       const currentWorkshop = (zsItem?.minuten ?? 0) + (zbItem?.minuten ?? 0)
       if (currentWorkshop < minWorkshopMin) {
         const scale = minWorkshopMin / Math.max(currentWorkshop, 1)
         if (zsItem) {
           zsItem.minuten = Math.round(zsItem.minuten * scale)
         } else {
-          az.push({ kostenstelle: '03_02_Zuschnitt', minuten: Math.round(minWorkshopMin * 0.4), vkStunde: 72 })
+          az.push({ kostenstelle: 'Zuschnitt', minuten: Math.round(minWorkshopMin * 0.4), vkStunde: 72 })
         }
         if (zbItem) {
           zbItem.minuten = Math.round(zbItem.minuten * scale)
         } else {
-          az.push({ kostenstelle: '03_06_Zusammenbau', minuten: Math.round(minWorkshopMin * 0.6), vkStunde: 65 })
+          az.push({ kostenstelle: 'Zusammenbau', minuten: Math.round(minWorkshopMin * 0.6), vkStunde: 65 })
         }
       }
     }
@@ -585,18 +580,18 @@ function validateAndFix(data: Record<string, unknown>, originalInput = ''): Reco
       + hw.klappen * 35
       + hw.schubladen * 30
 
-    const zb = az.find(a => a.kostenstelle === '03_06_Zusammenbau')
+    const zb = az.find(a => a.kostenstelle === 'Zusammenbau')
     if (zb) {
       zb.minuten = Math.max(zb.minuten, minZusammenbau)
     } else {
-      az.push({ kostenstelle: '03_06_Zusammenbau', minuten: minZusammenbau, vkStunde: 65 })
+      az.push({ kostenstelle: 'Zusammenbau', minuten: minZusammenbau, vkStunde: 65 })
     }
 
     // 6. Montage: enforce minimum only when 05_01_Montage already present
     //    (absence means Selbstabholung / kein Einbau — don't add it)
     //    Prefer lm from original input; fall back to AI description.
     //    Minimum = total lm × 90 min/lfm (1.5 h/lfm, Neubau lower bound)
-    const montage = az.find(a => a.kostenstelle === '05_01_Montage')
+    const montage = az.find(a => a.kostenstelle === 'Montage')
     if (montage && lm > 0) {
       montage.minuten = Math.max(montage.minuten, Math.round(lm * 90))
     }

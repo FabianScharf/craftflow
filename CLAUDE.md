@@ -107,14 +107,14 @@ Der Kunde sieht nur: Titel, Beschreibung, Gesamtpreis.
 
 ## Oberflächenregel
 
-- Massivholz: Kostenstelle 03_05 Oberflächenbehandlung IMMER einplanen, zeitintensiver.
-  Dafür entfällt 03_03 Prod. Bekantung.
-- Dekormöbel: 03_05 Oberflächenbehandlung kaum bis gar nicht.
-  Dafür 03_03 Prod. Bekantung IMMER einplanen.
+- Massivholz: Kostenstelle "Oberfläche" IMMER einplanen, zeitintensiver.
+  Dafür entfällt "Bekantung".
+- Dekormöbel: "Oberfläche" kaum bis gar nicht.
+  Dafür "Bekantung" IMMER einplanen.
 
 ## Sonderteile-Regel
 
-Folgende Ausstattungen erhöhen immer 02_01 Konstruktion:
+Folgende Ausstattungen erhöhen immer "Konstruktion":
 - Klappen mit Akustikstoff
 - Laden aus Massivholz
 - LED-Beleuchtung
@@ -123,30 +123,30 @@ Folgende Ausstattungen erhöhen immer 02_01 Konstruktion:
 ## Fixkosten pro Position (anteilig immer dabei)
 
 Diese Kostenstellen fallen immer an, anteilig auf die gesamte Position:
-- 00_Meeting
-- 01_02_Planung ohne Auftrag
-- 02_01_Konstruktion
-- 02_02_Arbeitsvorbereitung
+- Besprechung
+- Planung
+- Konstruktion
+- Arbeitsvorbereitung
 
 ## Kostenstellen und Stundensätze
 
-| Kostenstelle                    | €/h |
-|---------------------------------|-----|
-| 00_Meeting                      |  65 |
-| 01_02_Planung ohne Auftrag      |  85 |
-| 02_01_Konstruktion              |  75 |
-| 02_02_Arbeitsvorbereitung       |  75 |
-| 03_00_Produktion                |  65 |
-| 03_01_Warenhandling             |  65 |
-| 03_02_Prod. Zuschnitt           |  72 |
-| 03_03_Prod. Bekantung           | 100 |
-| 03_04_Prod. CNC                 | 120 |
-| 03_05_Prod. Oberflächenbehandlung|  72 |
-| 03_06_Prod. Zusammenbau         |  65 |
-| 03_07_Verpacken für Montage     |  65 |
-| 03_08_Prod. Azubi/Helfer        |  52 |
-| 05_01_Montage vorOrt            |  65 |
-| 06_01_Lieferung                 |  65 |
+| Kostenstelle        | €/h |
+|---------------------|-----|
+| Besprechung         |  65 |
+| Planung             |  85 |
+| Konstruktion        |  75 |
+| Arbeitsvorbereitung |  75 |
+| Produktion          |  65 |
+| Warenhandling       |  65 |
+| Zuschnitt           |  72 |
+| Bekantung           | 100 |
+| CNC                 | 120 |
+| Oberfläche          |  72 |
+| Zusammenbau         |  65 |
+| Verpacken           |  65 |
+| Azubi               |  52 |
+| Montage             |  65 |
+| Lieferung           |  65 |
 
 ## Pflichtfragen der KI vor jeder Kalkulation
 
