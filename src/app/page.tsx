@@ -552,7 +552,7 @@ export default function CraftFlow() {
     if (pagesRes.status === 'fulfilled' && pagesRes.value.length > 0) {
       setUploadedFiles(prev => prev.filter(f => f.id !== pdfId))
       for (const { b64, name } of pagesRes.value) {
-        const imgId = Date.now() + Math.round(Math.random() * 1000)
+        const imgId = Date.now() * 1000 + Math.round(Math.random() * 999)
         setUploadedFiles(prev => [
           ...prev,
           { id: imgId, name, type: 'image', previewUrl: `data:image/jpeg;base64,${b64}`, b64 },
@@ -683,7 +683,8 @@ export default function CraftFlow() {
         await noSleepRef.current.enable()
       } catch { /* ignorieren */ }
     } catch {
-      alert('Mikrofon nicht verfügbar. Bitte Zugriff erlauben.')
+      setStartStatus('error')
+      setStartMsg('Mikrofon nicht verfügbar – bitte Zugriff in den Browser-Einstellungen erlauben.')
     }
   }, [])
 
@@ -738,8 +739,15 @@ export default function CraftFlow() {
     setAllInquiryStatus('idle')
     setAllInquiryResult(null)
     setCopiedFeedback(false)
+    // GAEB-States zurücksetzen
+    setGaebDetected(false)
+    setGaebFileName('')
+    setGaebImporting(false)
+    setGaebPrompt(null)
+    setGaebProjektName('')
+    setGaebPositionenCount(0)
     setScreen('start')
-  }, [])
+  }, [nummernPrefix, nummernNaechste, dokEinleitung])
 
   const saveCustomerToDb = useCallback(async () => {
     setSaveCustomerStatus('saving')
@@ -869,9 +877,10 @@ export default function CraftFlow() {
         stream.getTracks().forEach(t => t.stop())
         setFragenMicStatus('transcribing')
         try {
-          const blob = new Blob(fragenAudioChunksRef.current, { type: 'audio/webm' })
+          const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+          const blob = new Blob(fragenAudioChunksRef.current, { type: mimeType })
           const form = new FormData()
-          form.append('audio', blob, 'fragen.webm')
+          form.append('audio', blob, mimeType === 'audio/webm' ? 'fragen.webm' : 'fragen.mp4')
           const res = await fetch('/api/transcribe', { method: 'POST', body: form })
           const json = await res.json()
           if (json.text) setFragenInput(prev => prev ? prev + ' ' + json.text : json.text)
@@ -948,7 +957,7 @@ export default function CraftFlow() {
       optimMediaRecorderRef.current = mr
       setOptimMicStatus('recording')
     } catch {
-      alert('Mikrofon nicht verfügbar. Bitte Zugriff erlauben.')
+      setOptimMessages(prev => [...prev, { role: 'assistant', content: 'Mikrofon nicht verfügbar – bitte Zugriff in den Browser-Einstellungen erlauben.' }])
     }
   }, [])
 
@@ -1598,6 +1607,7 @@ export default function CraftFlow() {
                   const nameLc = f.name.toLowerCase()
                   const isGaeb = GAEB_EXTENSIONS.some(ext => nameLc.endsWith(ext))
                   if (isGaeb) {
+                    if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }
                     handleGaebFile(f)
                   } else {
                     const isPdf = f.type === 'application/pdf' || nameLc.endsWith('.pdf')
@@ -1716,11 +1726,11 @@ export default function CraftFlow() {
 
           {/* Generieren Button */}
           <button
-            onClick={() => { if (!loading) startAnalyse() }}
-            disabled={!canGenerate && !loading}
+            onClick={() => { if (!loading && canGenerate) startAnalyse() }}
+            disabled={!canGenerate || loading}
             style={{
               width: '100%', marginTop: 14,
-              background: loading ? C.copper : !canGenerate ? C.gray2 : C.copper,
+              background: !canGenerate && !loading ? C.gray2 : C.copper,
               color: !canGenerate && !loading ? C.textMid : C.black,
               border: 'none', borderRadius: 10, padding: '18px 0',
               cursor: loading ? 'wait' : !canGenerate ? 'not-allowed' : 'pointer',
@@ -1828,7 +1838,6 @@ export default function CraftFlow() {
             <div style={{ color: brandAccent, fontSize: 13, fontWeight: 800, letterSpacing: 2, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
             {profilFirmaName && <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 1, whiteSpace: 'nowrap' }}>{profilFirmaName.toUpperCase()}</div>}
           </div>
-          <div style={{ display: 'none' }} />
           <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 6 }}>
             {kunde.name || '–'}
           </div>
@@ -2545,7 +2554,7 @@ export default function CraftFlow() {
                 <Lbl>Empfänger</Lbl>
                 <div style={{ background: C.black, borderRadius: 3, padding: '10px 12px', border: `1px solid ${C.border}` }}>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{kunde.name || '–'}</div>
-                  <div style={{ color: C.textMid, fontSize: 11, marginTop: 2 }}>{kunde.strasse} · {kunde.ort}</div>
+                  {(kunde.strasse || kunde.ort) && <div style={{ color: C.textMid, fontSize: 11, marginTop: 2 }}>{[kunde.strasse, kunde.ort].filter(Boolean).join(' · ')}</div>}
                   <div style={{ color: C.copper, fontSize: 11, marginTop: 2 }}>{kunde.projekt}</div>
                 </div>
               </div>
