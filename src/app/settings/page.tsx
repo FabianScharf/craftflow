@@ -832,7 +832,8 @@ export default function SettingsPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
                 {PLANS.map(plan => {
-                  const isCurrent = plan.id === userPlan
+                  const isCurrent = isInTrial ? plan.id === 'enterprise' : plan.id === userPlan
+                  const isTrialEnterprise = isInTrial && plan.id === 'enterprise'
                   const isLoading = checkoutLoading === plan.priceId
                   return (
                     <div
@@ -842,7 +843,7 @@ export default function SettingsPage() {
                         border: `2px solid ${isCurrent ? C.copper : C.border}`,
                         borderRadius: 10, padding: '22px 20px',
                         display: 'flex', flexDirection: 'column', gap: 14,
-                        position: 'relative',
+                        position: 'relative', overflow: 'hidden',
                         opacity: isCurrent ? 1 : 0.45,
                       }}
                     >
@@ -852,6 +853,15 @@ export default function SettingsPage() {
                           background: C.copper, color: C.black, fontSize: 9, fontWeight: 800,
                           letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap',
                         }}>AKTIV</div>
+                      )}
+                      {isTrialEnterprise && (
+                        <div style={{
+                          position: 'absolute', top: 18, right: -28,
+                          background: C.copper, color: C.black, fontSize: 9, fontWeight: 800,
+                          letterSpacing: 0.8, padding: '5px 36px',
+                          transform: 'rotate(35deg)', whiteSpace: 'nowrap',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                        }}>🎁 {trialDaysLeft} Tage</div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1 }}>
@@ -901,7 +911,7 @@ export default function SettingsPage() {
                           opacity: checkoutLoading && !isLoading ? 0.4 : 1,
                         }}
                       >
-                        {isLoading ? '…' : isCurrent ? 'Aktueller Plan' : 'Auswählen'}
+                        {isLoading ? '…' : isTrialEnterprise ? 'Testversion aktiv' : isCurrent ? 'Aktueller Plan' : 'Auswählen'}
                       </button>
                     </div>
                   )
