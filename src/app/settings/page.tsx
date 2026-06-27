@@ -77,7 +77,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 
 export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse } = usePlan()
-  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin'>('firma')
   const [isMobile, setIsMobile] = useState(false)
   const [mobileShowContent, setMobileShowContent] = useState(false)
 
@@ -93,6 +93,16 @@ export default function SettingsPage() {
   const [gutscheinCode, setGutscheinCode] = useState('')
   const [gutscheinLoading, setGutscheinLoading] = useState(false)
   const [gutscheinMsg, setGutscheinMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  // Admin-Panel: Gutscheincodes
+  type GutscheinCode = { code: string; plan: string; max_uses: number | null; used_count: number; valid_until: string | null; beschreibung: string | null; created_at: string }
+  const [adminCodes, setAdminCodes] = useState<GutscheinCode[]>([])
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [adminMsg, setAdminMsg] = useState('')
+  const [editingCode, setEditingCode] = useState<string | null>(null)
+  const [editValues, setEditValues] = useState<{ max_uses: string; valid_until: string; beschreibung: string }>({ max_uses: '', valid_until: '', beschreibung: '' })
+  const [newCode, setNewCode] = useState({ code: '', plan: 'enterprise', max_uses: '', valid_until: '', beschreibung: '' })
+  const [showNewCode, setShowNewCode] = useState(false)
 
   const [profil, setProfil] = useState<Profil>({})
   const [profilSaving, setProfilSaving] = useState(false)
@@ -302,6 +312,51 @@ export default function SettingsPage() {
     }
   }
 
+  async function loadAdminCodes() {
+    setAdminLoading(true)
+    const res = await fetch('/api/admin/gutscheincodes').then(r => r.json()).catch(() => ({}))
+    setAdminCodes(res.codes ?? [])
+    setAdminLoading(false)
+  }
+
+  async function saveEditCode(code: string) {
+    const patch: Record<string, unknown> = { code }
+    patch.max_uses = editValues.max_uses === '' ? null : parseInt(editValues.max_uses)
+    patch.valid_until = editValues.valid_until || null
+    patch.beschreibung = editValues.beschreibung || null
+    const res = await fetch('/api/admin/gutscheincodes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+    if (res.ok) {
+      setAdminCodes(prev => prev.map(c => c.code === code ? { ...c, ...patch } as GutscheinCode : c))
+      setEditingCode(null)
+      setAdminMsg('Gespeichert.')
+    } else { setAdminMsg('Fehler beim Speichern.') }
+    setTimeout(() => setAdminMsg(''), 3000)
+  }
+
+  async function deleteCode(code: string) {
+    if (!confirm(`Code "${code}" wirklich löschen? Bestehende Zugänge bleiben erhalten.`)) return
+    const res = await fetch('/api/admin/gutscheincodes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+    if (res.ok) setAdminCodes(prev => prev.filter(c => c.code !== code))
+  }
+
+  async function createCode() {
+    if (!newCode.code.trim()) return
+    const body = {
+      code: newCode.code.trim(),
+      plan: newCode.plan,
+      max_uses: newCode.max_uses === '' ? null : parseInt(newCode.max_uses),
+      valid_until: newCode.valid_until || null,
+      beschreibung: newCode.beschreibung || null,
+    }
+    const res = await fetch('/api/admin/gutscheincodes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const d = await res.json()
+    if (d.code) {
+      setAdminCodes(prev => [d.code, ...prev])
+      setNewCode({ code: '', plan: 'enterprise', max_uses: '', valid_until: '', beschreibung: '' })
+      setShowNewCode(false)
+    }
+  }
+
   async function redeemGutschein() {
     if (!gutscheinCode.trim()) return
     setGutscheinLoading(true)
@@ -359,6 +414,7 @@ export default function SettingsPage() {
     { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' as Plan },
     { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'pro'     as Plan },
     { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
+    ...(userEmail === 'l.m.p.1@gmx.de' ? [{ id: 'admin' as typeof section, label: 'Admin', icon: '🛠' }] : []),
   ]
 
   const groups = groupKostenstellen(kostenstellen)
@@ -398,7 +454,7 @@ export default function SettingsPage() {
             {navItems.map(item => (
               <button
                 key={item.id}
-                onClick={() => { setSection(item.id); if (isMobile) setMobileShowContent(true) }}
+                onClick={() => { setSection(item.id); if (isMobile) setMobileShowContent(true); if (item.id === 'admin') loadAdminCodes() }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
                   width: '100%', padding: isMobile ? '15px 20px' : '11px 20px', border: 'none', cursor: 'pointer',
@@ -1035,6 +1091,117 @@ export default function SettingsPage() {
                   <div style={{ fontSize: 11, color: '#444', marginTop: 8 }}>
                     Wechselt sofort — kein Stripe, kein Reload nötig.
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Admin Panel ─────────────────────────────── */}
+          {section === 'admin' && userEmail === 'l.m.p.1@gmx.de' && (
+            <div style={{ padding: '24px 20px', maxWidth: 720 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – Gutscheincodes</h2>
+              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 20 }}>Codes erstellen, bearbeiten und deaktivieren. Bestehende Zugänge bleiben bei Code-Löschung erhalten.</p>
+
+              {adminMsg && <div style={{ padding: '8px 12px', borderRadius: 4, fontSize: 12, marginBottom: 12, background: 'rgba(90,190,106,.1)', color: '#5ABE6A', border: '1px solid #5ABE6A44' }}>{adminMsg}</div>}
+
+              {/* Neue Code anlegen */}
+              <button onClick={() => setShowNewCode(v => !v)} style={{ marginBottom: 16, background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                {showNewCode ? 'Abbrechen' : '+ Neuer Code'}
+              </button>
+
+              {showNewCode && (
+                <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <div style={lbl}>Code *</div>
+                      <input value={newCode.code} onChange={e => setNewCode(p => ({ ...p, code: e.target.value }))} placeholder="z.B. Beta27" style={inp()} />
+                    </div>
+                    <div>
+                      <div style={lbl}>Plan</div>
+                      <select value={newCode.plan} onChange={e => setNewCode(p => ({ ...p, plan: e.target.value }))} style={inp()}>
+                        <option value="enterprise">Enterprise</option>
+                        <option value="pro">Pro</option>
+                        <option value="starter">Starter</option>
+                      </select>
+                    </div>
+                    <div>
+                      <div style={lbl}>Max. Nutzungen (leer = unbegrenzt)</div>
+                      <input type="number" value={newCode.max_uses} onChange={e => setNewCode(p => ({ ...p, max_uses: e.target.value }))} placeholder="unbegrenzt" style={inp()} />
+                    </div>
+                    <div>
+                      <div style={lbl}>Gültig bis (leer = kein Ablauf)</div>
+                      <input type="date" value={newCode.valid_until} onChange={e => setNewCode(p => ({ ...p, valid_until: e.target.value }))} style={inp()} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <div style={lbl}>Beschreibung</div>
+                      <input value={newCode.beschreibung} onChange={e => setNewCode(p => ({ ...p, beschreibung: e.target.value }))} placeholder="z.B. Beta-Tester Welle 2" style={inp()} />
+                    </div>
+                  </div>
+                  <button onClick={createCode} style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                    Code erstellen
+                  </button>
+                </div>
+              )}
+
+              {/* Code-Liste */}
+              {adminLoading ? (
+                <div style={{ color: C.textMid, fontSize: 13 }}>Lade…</div>
+              ) : adminCodes.length === 0 ? (
+                <div style={{ color: C.textMid, fontSize: 13 }}>Keine Codes gefunden.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {adminCodes.map(c => (
+                    <div key={c.code} style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <div>
+                          <span style={{ fontSize: 15, fontWeight: 700, color: C.white, fontFamily: 'monospace' }}>{c.code}</span>
+                          <span style={{ marginLeft: 10, fontSize: 11, background: C.copper + '22', color: C.copper, borderRadius: 3, padding: '2px 7px', fontWeight: 700 }}>{c.plan.toUpperCase()}</span>
+                          {c.beschreibung && <span style={{ marginLeft: 10, fontSize: 11, color: C.textMid }}>{c.beschreibung}</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => { setEditingCode(editingCode === c.code ? null : c.code); setEditValues({ max_uses: c.max_uses?.toString() ?? '', valid_until: c.valid_until ? c.valid_until.split('T')[0] : '', beschreibung: c.beschreibung ?? '' }) }}
+                            style={{ background: C.gray2, color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                            {editingCode === c.code ? 'Schließen' : 'Bearbeiten'}
+                          </button>
+                          <button onClick={() => deleteCode(c.code)}
+                            style={{ background: 'rgba(224,90,90,.1)', color: C.err, border: `1px solid ${C.err}44`, borderRadius: 4, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                            Löschen
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Statistik */}
+                      <div style={{ display: 'flex', gap: 20, fontSize: 11, color: C.textMid }}>
+                        <span>Eingelöst: <strong style={{ color: C.white }}>{c.used_count}</strong>{c.max_uses != null ? ` / ${c.max_uses}` : ' (unbegrenzt)'}</span>
+                        <span>Gültig bis: <strong style={{ color: c.valid_until && new Date(c.valid_until) < new Date() ? C.err : C.white }}>{c.valid_until ? new Date(c.valid_until).toLocaleDateString('de-DE') : 'kein Ablauf'}</strong></span>
+                        <span>Erstellt: {new Date(c.created_at).toLocaleDateString('de-DE')}</span>
+                      </div>
+
+                      {/* Inline-Edit */}
+                      {editingCode === c.code && (
+                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 10, alignItems: 'end' }}>
+                          <div>
+                            <div style={lbl}>Max. Nutzungen</div>
+                            <input type="number" value={editValues.max_uses} onChange={e => setEditValues(p => ({ ...p, max_uses: e.target.value }))} placeholder="unbegrenzt" style={inp({ fontSize: 12, padding: '7px 9px' })} />
+                          </div>
+                          <div>
+                            <div style={lbl}>Gültig bis</div>
+                            <input type="date" value={editValues.valid_until} onChange={e => setEditValues(p => ({ ...p, valid_until: e.target.value }))} style={inp({ fontSize: 12, padding: '7px 9px' })} />
+                          </div>
+                          <div>
+                            <div style={lbl}>Beschreibung</div>
+                            <input value={editValues.beschreibung} onChange={e => setEditValues(p => ({ ...p, beschreibung: e.target.value }))} style={inp({ fontSize: 12, padding: '7px 9px' })} />
+                          </div>
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <button onClick={() => saveEditCode(c.code)}
+                              style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                              Speichern
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
