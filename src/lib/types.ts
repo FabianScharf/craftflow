@@ -212,7 +212,7 @@ export const eur = (v: number) =>
   v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
 export const today = () => new Date().toLocaleDateString('de-DE')
-export const inDays = (d: number) => new Date(Date.now() + d * 864e5).toLocaleDateString('de-DE')
+export const inDays = (d: number, from?: Date) => new Date((from ?? new Date()).getTime() + d * 864e5).toLocaleDateString('de-DE')
 
 // ── Kostenstellen Labels ─────────────────────────────
 export const KOSTENSTELLEN_LABELS: Record<KostenstelleId, string> = {

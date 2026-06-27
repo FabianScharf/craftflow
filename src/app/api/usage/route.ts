@@ -34,7 +34,7 @@ export async function GET() {
 
   const inTrial = isInTrial(profil?.trial_starts_at ?? null)
   const plan = inTrial ? 'enterprise' : (profil?.plan ?? 'solo') as string
-  const limit = PLAN_LIMITS[plan] ?? 3
+  const limit: number | null = plan in PLAN_LIMITS ? PLAN_LIMITS[plan]! : 3
   const monat = currentMonat()
 
   const { data: usage } = await supabase
@@ -69,7 +69,7 @@ export async function POST() {
 
   const inTrial = isInTrial(profil?.trial_starts_at ?? null)
   const plan = inTrial ? 'enterprise' : (profil?.plan ?? 'solo') as string
-  const limit = PLAN_LIMITS[plan] ?? 3
+  const limit: number | null = plan in PLAN_LIMITS ? PLAN_LIMITS[plan]! : 3
   const monat = currentMonat()
 
   const { data: usage } = await supabase

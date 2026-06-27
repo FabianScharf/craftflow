@@ -200,7 +200,7 @@ export default function CraftFlow() {
   async function saveProject() {
     setSaveStatus('saving')
     const title = [kunde.name.trim(), kunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
-    const payload = { kunde, pos, docNr, docTyp, anschr, widerruf }
+    const payload = { kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum: angebotsdatum || today() }
     try {
       let res: Response
       if (currentProjectId) {
@@ -265,6 +265,7 @@ export default function CraftFlow() {
     if (d.docTyp) setDocTyp(d.docTyp)
     if (d.anschr) setAnschr(d.anschr)
     if (typeof d.widerruf === 'boolean') setWiderruf(d.widerruf)
+    if (d.angebotsdatum) setAngebotsdatum(d.angebotsdatum)
     setCurrentProjectId(id)
     setPreviousScreen(from)
     setScreen('app')
@@ -278,6 +279,7 @@ export default function CraftFlow() {
   const [pos, setPos] = useState<Angebotsposition[]>([defaultAngebotspos(Date.now())])
   const [docNr, setDocNr] = useState('AN-1')
   const [docTyp, setDocTyp] = useState('Angebot')
+  const [angebotsdatum, setAngebotsdatum] = useState('')
   const [anschr, setAnschr] = useState('vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
   const [widerruf, setWiderruf] = useState(true)
   const [pdfHTML, setPdfHTML] = useState('')
@@ -608,7 +610,13 @@ export default function CraftFlow() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, imageBase64: imageB64s }),
     })
-    const json = await res.json()
+    let json: { success?: boolean; error?: string; data?: unknown }
+    try {
+      json = await res.json()
+    } catch {
+      if (res.status === 504) throw new Error('Zeitüberschreitung – bitte Text kürzen oder erneut versuchen.')
+      throw new Error(`Server Fehler (${res.status}) – bitte erneut versuchen.`)
+    }
     if (!res.ok || !json.success) throw new Error(json.error || `API Fehler: ${res.status}`)
     return json.data
   }, [])
@@ -2263,12 +2271,15 @@ export default function CraftFlow() {
                 alert('Limit erreicht. Bitte upgrade deinen Plan unter Einstellungen → Mein Plan.')
                 return
               }
+              const datum = angebotsdatum || today()
+              if (!angebotsdatum) setAngebotsdatum(datum)
               setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, {
                 anredeVorlage: dokAnrede || undefined,
                 nachtext: dokNachtext || undefined,
                 widerrufText: dokWiderruf || undefined,
                 zahlungText: dokZahlung || undefined,
                 logoUrl: profilLogoUrl || undefined,
+                angebotsdatum: datum,
               }))
               setScreen('pdf')
               if (currentProjectId) {

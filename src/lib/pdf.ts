@@ -6,6 +6,7 @@ export interface PDFTextOpts {
   widerrufText?: string
   zahlungText?: string
   logoUrl?: string
+  angebotsdatum?: string
 }
 
 export function buildPDF(
@@ -17,6 +18,9 @@ export function buildPDF(
   mitWiderruf: boolean,
   textOpts: PDFTextOpts = {}
 ): string {
+  const { angebotsdatum: savedDatum, ...restOpts } = textOpts
+  void restOpts
+  const datumStr = savedDatum || today()
   const net = pos.reduce((s, p) => s + calcAngebotspos(p), 0)
   const vat = net * 0.19
   const gross = net + vat
@@ -150,10 +154,10 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:16px;padding-bottom:2px}
   </div>
   <table class="meta-t">
     <tr><td>${docTyp}-Nr.</td><td><strong>${docNr}</strong></td></tr>
-    <tr><td>Datum</td><td>${today()}</td></tr>
+    <tr><td>Datum</td><td>${datumStr}</td></tr>
     <tr><td>Ansprechpartner</td><td>${FIRMA.inhaber}</td></tr>
     <tr><td>E-Mail</td><td>${FIRMA.email}</td></tr>
-    ${docTyp !== 'Rechnung' ? `<tr><td>Gültig bis</td><td>${inDays(30)}</td></tr>` : ''}
+    ${docTyp !== 'Rechnung' ? `<tr><td>Gültig bis</td><td>${savedDatum ? inDays(30, new Date(savedDatum.split('.').reverse().join('-'))) : inDays(30)}</td></tr>` : ''}
   </table>
 </div>
 
