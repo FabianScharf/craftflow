@@ -1156,6 +1156,7 @@ export default function CraftFlow() {
                   <div style={{ fontSize: 28, fontWeight: 800, color: isEnterprise ? C.copper : C.white, lineHeight: 1.1, marginTop: 2 }}>
                     {plan.price} €<span style={{ fontSize: 13, fontWeight: 400, color: C.textMid }}> / Monat</span>
                   </div>
+                  <div style={{ fontSize: 10, color: C.textMid, marginTop: 2, letterSpacing: 0.3 }}>zzgl. gesetzl. MwSt.</div>
                 </div>
                 <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
                   {plan.features.map(f => (
@@ -1185,7 +1186,7 @@ export default function CraftFlow() {
         </div>
 
         <p style={{ marginTop: 24, fontSize: 12, color: C.textMid, textAlign: 'center' }}>
-          Alle Preise netto zzgl. MwSt. · Monatlich kündbar · Sichere Zahlung via Stripe
+          Alle Preise in Euro, netto zzgl. gesetzlicher MwSt. · Monatlich kündbar · Nur für Unternehmen (B2B) · Sichere Zahlung via Stripe
         </p>
       </div>
     )

@@ -889,7 +889,8 @@ export default function SettingsPage() {
           {section === 'plan' && (
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Mein Plan</h2>
-              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 16 }}>Aktuelles Abonnement und Upgrade-Optionen.</p>
+              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 8 }}>Aktuelles Abonnement und Upgrade-Optionen.</p>
+              <p style={{ fontSize: 11, color: C.textMid, marginBottom: 16 }}>Alle Preise in Euro, netto zzgl. gesetzlicher MwSt. · Angebot richtet sich ausschließlich an Unternehmen (B2B).</p>
 
               {isInTrial && (
                 <div style={{ background: `${C.copper}15`, border: `1px solid ${C.copper}55`, borderRadius: 8, padding: '14px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -956,6 +957,7 @@ export default function SettingsPage() {
                           <div style={{ fontSize: 26, fontWeight: 800, color: isCurrent ? C.copper : C.white, lineHeight: 1 }}>
                             {plan.price} €<span style={{ fontSize: 13, fontWeight: 400, color: C.textMid }}> / Monat</span>
                           </div>
+                          <div style={{ fontSize: 10, color: C.textMid, marginTop: 2, letterSpacing: 0.3 }}>zzgl. gesetzl. MwSt.</div>
                           {/* Angebots-Highlight */}
                           <div style={{
                             marginTop: 10,
