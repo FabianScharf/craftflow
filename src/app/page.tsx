@@ -210,7 +210,6 @@ export default function CraftFlow() {
   const [isMobile, setIsMobile] = useState(false)
   const [gaebDetected, setGaebDetected] = useState(false)
   const [gaebFileName, setGaebFileName] = useState('')
-  const [gaebImportPositionen, setGaebImportPositionen] = useState<Angebotsposition[] | null>(null)
   const [gaebImporting, setGaebImporting] = useState(false)
 
   useEffect(() => {
@@ -570,21 +569,121 @@ export default function CraftFlow() {
     setUploadingCount(prev => prev - 1)
   }, [])
 
+  // ── KI Analyse ─────────────────────────────────────
+  const callAI = useCallback(async (text: string, imageB64s: string[]) => {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        imageBase64: imageB64s,
+        userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
+          code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz, gruppe: k.gruppe,
+        })),
+      }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let json: { success?: boolean; error?: string; data?: any }
+    try {
+      json = await res.json()
+    } catch {
+      if (res.status === 504) throw new Error('Zeitüberschreitung – bitte Text kürzen oder erneut versuchen.')
+      throw new Error(`Server Fehler (${res.status}) – bitte erneut versuchen.`)
+    }
+    if (!res.ok || !json.success) throw new Error(json.error || `API Fehler: ${res.status}`)
+    return json.data
+  }, [userKs])
+
   const handleGaebFile = useCallback(async (file: File) => {
     setGaebDetected(true)
     setGaebFileName(file.name)
     setGaebImporting(true)
-    setGaebImportPositionen(null)
     try {
       const text = await file.text()
       const isXML = text.trimStart().startsWith('<') || text.includes('<GAEB') || text.includes('<BoQ')
-      const { positions } = isXML ? parseGaebXML(text) : parseGaebText(text)
-      setGaebImportPositionen(positions.length > 0 ? positions : null)
-    } catch (e) {
-      console.error('[gaeb-parse]', e)
+      const { positions, projektName } = isXML ? parseGaebXML(text) : parseGaebText(text)
+
+      if (positions.length === 0) { setGaebImporting(false); return }
+
+      // Prompt aus GAEB-Positionen bauen
+      const prompt =
+        `GAEB-Leistungsverzeichnis: ${projektName}\n\n` +
+        `Bitte kalkuliere folgende Positionen vollständig mit realistischer Material- und Arbeitszeitschätzung. ` +
+        `Jede Position soll eine eigene Kalkulation erhalten.\n\n` +
+        positions.map((p, i) => {
+          const mat = p.material[0]
+          const mengeZeile = mat ? `Menge: ${mat.menge} ${mat.einheit}` : ''
+          return [
+            `Position ${i + 1}: ${p.titel}`,
+            mengeZeile,
+            p.beschreibung ? `Beschreibung: ${p.beschreibung}` : '',
+          ].filter(Boolean).join('\n')
+        }).join('\n\n')
+
+      // Projektname aus GAEB übernehmen
+      setKunde(prev => ({ ...prev, projekt: projektName }))
+
+      // KI-Analyse starten (wie startAnalyse)
+      setStartStatus('loading')
+      setProgressIdx(0)
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current)
+      progressTimerRef.current = setInterval(() => setProgressIdx(i => i + 1), 1500)
+
+      const data = await callAI(prompt, [])
+
+      if (data.fragen?.length > 0) {
+        setStartStatus('fragen')
+        setStartMsg((data.fragen as string[]).join('\n'))
+      }
+      if (data.kunde) {
+        setKunde(prev => ({
+          ...prev,
+          name: data.kunde.name || prev.name,
+          zusatz: data.kunde.zusatz || prev.zusatz,
+          strasse: data.kunde.strasse || prev.strasse,
+          ort: data.kunde.ort || prev.ort,
+          projekt: data.kunde.projekt || projektName,
+        }))
+      }
+      type AIMatRow = { bezeichnung?: string; menge?: number; einheit?: string; ekPreis?: number; aufschlag?: number }
+      type AIArbRow = { kostenstelle?: string; minuten?: number; vkStunde?: number }
+      if (data.positionen?.length > 0) {
+        setPos(data.positionen.map((p: Record<string, unknown>, i: number) => ({
+          id: Date.now() + i,
+          titel: (p.titel as string) || 'Position',
+          beschreibung: (p.beschreibung as string) || '',
+          material: ((p.material as AIMatRow[]) || []).map((m, mi) => ({
+            id: Date.now() + i * 100 + mi,
+            bezeichnung: m.bezeichnung || '',
+            menge: m.menge || 1,
+            einheit: m.einheit || 'Stk',
+            ekPreis: m.ekPreis || 0,
+            aufschlag: m.aufschlag ?? 0.3,
+          })),
+          arbeitszeit: ((p.arbeitszeit as AIArbRow[]) || []).map((a, ai) => ({
+            id: Date.now() + i * 100 + 50 + ai,
+            kostenstelle: (a.kostenstelle as KostenstelleId) || 'Produktion',
+            minuten: a.minuten || 60,
+            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['Produktion'],
+          })),
+        })))
+      }
+      if (data.anschreiben) setAnschr(data.anschreiben)
+
+      if (!data.fragen?.length) {
+        setStartStatus('idle')
+        setScreen('app')
+        setTab('kalkulation')
+      }
+    } catch (e: unknown) {
+      setStartStatus('error')
+      setStartMsg(`GAEB-Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
+    } finally {
+      if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
+      setGaebImporting(false)
+      setGaebDetected(false)
     }
-    setGaebImporting(false)
-  }, [])
+  }, [callAI])
 
   // ── Mikrofon Aufnahme ────────────────────────────────
   const startRecording = useCallback(async () => {
@@ -723,31 +822,6 @@ export default function CraftFlow() {
       setSaveCustomerMsg('Verbindungsfehler.')
     }
   }, [kunde])
-
-  // ── KI Analyse ─────────────────────────────────────
-  const callAI = useCallback(async (text: string, imageB64s: string[]) => {
-    const res = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        imageBase64: imageB64s,
-        userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
-          code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz, gruppe: k.gruppe,
-        })),
-      }),
-    })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let json: { success?: boolean; error?: string; data?: any }
-    try {
-      json = await res.json()
-    } catch {
-      if (res.status === 504) throw new Error('Zeitüberschreitung – bitte Text kürzen oder erneut versuchen.')
-      throw new Error(`Server Fehler (${res.status}) – bitte erneut versuchen.`)
-    }
-    if (!res.ok || !json.success) throw new Error(json.error || `API Fehler: ${res.status}`)
-    return json.data
-  }, [])
 
   const PROGRESS_MSGS = [
     'Analysiere Projektbeschreibung…',
@@ -1640,50 +1714,14 @@ export default function CraftFlow() {
               </div>
             )}
             {gaebDetected && (
-              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${C.copper}55`, background: `${C.copper}0A`, padding: '12px 14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ fontSize: 12, color: C.copper, fontWeight: 700 }}>
-                    GAEB-Datei erkannt: <span style={{ fontWeight: 400, color: C.white }}>{gaebFileName}</span>
+              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${C.copper}55`, background: `${C.copper}0A`, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 16 }}>🏗</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: C.copper, fontWeight: 700 }}>{gaebFileName}</div>
+                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>
+                    {gaebImporting ? '⟳ KI kalkuliert Positionen…' : 'GAEB wird verarbeitet…'}
                   </div>
-                  <button
-                    onClick={() => { setGaebDetected(false); setGaebFileName(''); setGaebImportPositionen(null) }}
-                    style={{ background: 'none', border: 'none', color: C.textMid, fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                  >×</button>
                 </div>
-                {gaebImporting && (
-                  <div style={{ fontSize: 11, color: C.textMid }}>⟳ Datei wird eingelesen…</div>
-                )}
-                {!gaebImporting && gaebImportPositionen === null && (
-                  <div style={{ fontSize: 11, color: '#ff9999' }}>Positionen konnten nicht ausgelesen werden. Bitte GAEB DA-XML-Datei verwenden.</div>
-                )}
-                {!gaebImporting && gaebImportPositionen && gaebImportPositionen.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 11, color: C.textMid, marginBottom: 8 }}>
-                      {gaebImportPositionen.length} Position{gaebImportPositionen.length !== 1 ? 'en' : ''} gefunden – als Kalkulation übernehmen?
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={() => {
-                          setPos(gaebImportPositionen)
-                          setGaebDetected(false)
-                          setGaebFileName('')
-                          setGaebImportPositionen(null)
-                          setScreen('app')
-                          setTab('kalkulation')
-                        }}
-                        style={{ flex: 1, background: C.copper, color: C.black, border: 'none', borderRadius: 6, padding: '9px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
-                      >
-                        ✓ {gaebImportPositionen.length} Positionen importieren
-                      </button>
-                      <button
-                        onClick={() => { setGaebDetected(false); setGaebFileName(''); setGaebImportPositionen(null) }}
-                        style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: '9px 14px', fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
-                      >
-                        Abbrechen
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>
