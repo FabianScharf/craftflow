@@ -76,7 +76,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const { isInTrial, trialDaysLeft } = usePlan()
+  const { isInTrial, trialDaysLeft, canUse } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan'>('firma')
   const [isMobile, setIsMobile] = useState(false)
   const [mobileShowContent, setMobileShowContent] = useState(false)
@@ -328,8 +328,8 @@ export default function SettingsPage() {
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
-    { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' },
-    { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'starter' },
+    { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' as Plan },
+    { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'pro'     as Plan },
     { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
   ]
 
@@ -383,9 +383,9 @@ export default function SettingsPage() {
               >
                 <span style={{ fontSize: isMobile ? 20 : 15 }}>{item.icon}</span>
                 <span style={{ flex: 1 }}>{item.label}</span>
-                {item.minPlan && userPlan === 'solo' && (
-                  <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${C.copper}50`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0 }}>
-                    Starter
+                {item.minPlan && !canUse(item.minPlan) && (
+                  <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${C.copper}50`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0, textTransform: 'capitalize' }}>
+                    {item.minPlan.charAt(0).toUpperCase() + item.minPlan.slice(1)}
                   </span>
                 )}
                 {isMobile && <span style={{ color: C.textMid, fontSize: 16 }}>›</span>}
