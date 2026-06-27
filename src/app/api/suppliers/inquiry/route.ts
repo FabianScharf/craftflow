@@ -139,6 +139,14 @@ export async function POST(req: NextRequest) {
 
     if (!materials?.length) return NextResponse.json({ error: 'Keine Materialien übergeben' }, { status: 400 })
 
+    // Plan laden (für Internetrecherche-Feature)
+    const { data: profileData } = await supabase
+      .from('betriebsprofil')
+      .select('plan')
+      .eq('user_id', user.id)
+      .single()
+    const userPlan = (profileData as { plan?: string } | null)?.plan ?? 'solo'
+
     // Materialgruppen für diesen User laden
     const { data: matGruppen } = await supabase
       .from('materialgruppen')
@@ -264,9 +272,9 @@ Mit freundlichen Grüßen`
     // Nicht kategorisierte Materialien
     const uncategorized = ungrouped.map(m => m.bezeichnung)
 
-    // Internetrecherche für fehlende Lieferanten (parallel, non-blocking)
+    // Internetrecherche — nur für Enterprise
     let suggestedSuppliers: SuggestedSupplier[] = []
-    if (missing.length > 0) {
+    if (missing.length > 0 && userPlan === 'enterprise') {
       const searchResults = await Promise.all(
         missing.map(m => findSuppliersOnline(m.gruppe, m.mats.map(mat => mat.bezeichnung)))
       )

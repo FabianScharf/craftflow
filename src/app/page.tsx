@@ -2085,6 +2085,11 @@ export default function CraftFlow() {
                 {(allInquiryResult.missingGroups?.length ?? 0) > 0 && (
                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                     Kein Lieferant hinterlegt für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')}
+                    {!planCanUse('enterprise') && (
+                      <span style={{ marginLeft: 8, color: C.textMid }}>
+                        — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: automatische Händlersuche im Internet</a>
+                      </span>
+                    )}
                   </div>
                 )}
                 {(allInquiryResult.suggestedSuppliers?.length ?? 0) > 0 && (
@@ -2309,7 +2314,7 @@ export default function CraftFlow() {
                             )}
                             {ist === 'loading' && (
                               <div style={{ fontSize: 12, color: C.textMid, padding: '6px 0' }}>
-                                ⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…
+                                {planCanUse('enterprise') ? '⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…' : '⟳ Suche passende Lieferanten…'}
                               </div>
                             )}
                             {ist === 'error' && (
@@ -2358,6 +2363,11 @@ export default function CraftFlow() {
                                 {(res.missingGroups?.length ?? 0) > 0 && (
                                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                                     Kein Lieferant hinterlegt für: {res.missingGroups.map(g => g.gruppe).join(', ')}
+                                    {!planCanUse('enterprise') && (
+                                      <span style={{ marginLeft: 8, color: C.textMid }}>
+                                        — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: automatische Händlersuche im Internet</a>
+                                      </span>
+                                    )}
                                   </div>
                                 )}
                                 {(res.suggestedSuppliers?.length ?? 0) > 0 && (
