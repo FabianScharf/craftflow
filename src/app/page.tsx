@@ -590,7 +590,7 @@ export default function CraftFlow() {
     try {
       json = await res.json()
     } catch {
-      if (res.status === 504) throw new Error('Zeitüberschreitung – bitte Text kürzen oder erneut versuchen.')
+      if (res.status === 504) throw new Error('Die KI braucht länger – bitte nochmal versuchen.')
       throw new Error(`Server Fehler (${res.status}) – bitte erneut versuchen.`)
     }
     if (!res.ok || !json.success) throw new Error(json.error || `API Fehler: ${res.status}`)

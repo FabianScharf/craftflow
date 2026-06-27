@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId } from '@/lib/types'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 // FS Crafted knowledge base – embedded as system prompt so every calculation
 // uses real-world benchmarks instead of generic AI estimates.
