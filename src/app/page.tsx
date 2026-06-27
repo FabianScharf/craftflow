@@ -18,7 +18,8 @@ import { buildPDF } from '@/lib/pdf'
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryDraft = { supplierId: string; supplierName: string; email: string; phone: string | null; website: string | null; subject: string; body: string; materialCount: number }
 type InquiryMissingGroup = { gruppe: string; mats: string[] }
-type InquiryResult = { drafts: InquiryDraft[]; missingGroups: InquiryMissingGroup[]; uncategorized: string[] }
+type SuggestedSupplier = { name: string; website: string | null; email: string | null; phone: string | null; gruppe: string; materialien: string[] }
+type InquiryResult = { drafts: InquiryDraft[]; missingGroups: InquiryMissingGroup[]; uncategorized: string[]; suggestedSuppliers?: SuggestedSupplier[] }
 
 type OptimChatMsg = { role: 'user' | 'assistant'; content: string }
 type OfferVersion = { id: string; version_number: number; created_at: string; description: string | null }
@@ -1976,7 +1977,7 @@ export default function CraftFlow() {
                   opacity: !planCanUse('starter') ? 0.6 : 1,
                 }}
               >
-                {!planCanUse('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Anfragen werden erstellt…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
+                {!planCanUse('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Suche Lieferanten…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
               </button>
               {/* Export Dropdown */}
               <div style={{ position: 'relative' }}>
@@ -2042,13 +2043,33 @@ export default function CraftFlow() {
                 ))}
                 {(allInquiryResult.missingGroups?.length ?? 0) > 0 && (
                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
-                    Kein Lieferant für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')} — in Einstellungen → Lieferanten ergänzen.
+                    Kein Lieferant hinterlegt für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')}
+                  </div>
+                )}
+                {(allInquiryResult.suggestedSuppliers?.length ?? 0) > 0 && (
+                  <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                    <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6, fontWeight: 700, letterSpacing: 1 }}>IM INTERNET GEFUNDEN</div>
+                    {allInquiryResult.suggestedSuppliers!.map((s, i) => (
+                      <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < allInquiryResult.suggestedSuppliers!.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                        <div style={{ fontSize: 12, color: C.white, marginBottom: 2 }}><strong>{s.name}</strong> <span style={{ fontSize: 10, color: C.textMid }}>({s.gruppe})</span></div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
+                          {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.copper, textDecoration: 'none' }}>{s.website.replace(/^https?:\/\//, '')}</a>}
+                          {s.email && <span style={{ fontSize: 11, color: C.textMid }}>{s.email}</span>}
+                          {s.phone && <span style={{ fontSize: 11, color: C.textMid }}>{s.phone}</span>}
+                          <button
+                            onClick={() => { window.location.href = `/settings?tab=lieferanten&prefill=${encodeURIComponent(JSON.stringify({ company_name: s.name, website: s.website, general_email: s.email, phone: s.phone, kategorien: [s.gruppe] }))}` }}
+                            style={{ fontSize: 10, color: C.copper, background: 'transparent', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '1px 7px', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
+                            + Hinzufügen
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
                 {allInquiryResult.uncategorized?.length > 0 && (
                   <div style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Nicht kategorisiert: {allInquiryResult.uncategorized.join(', ')}</div>
                 )}
-                {allInquiryResult.drafts.length === 0 && (
+                {allInquiryResult.drafts.length === 0 && (allInquiryResult.suggestedSuppliers?.length ?? 0) === 0 && (
                   <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten gefunden — bitte in Einstellungen → Lieferanten hinterlegen und Kategorien zuweisen.</div>
                 )}
                 {allInquiryResult.drafts.length > 0 && !planCanUse('pro') && (
@@ -2247,7 +2268,7 @@ export default function CraftFlow() {
                             )}
                             {ist === 'loading' && (
                               <div style={{ fontSize: 12, color: C.textMid, padding: '6px 0' }}>
-                                ⟳ Analysiere Materialien und suche Lieferanten…
+                                ⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…
                               </div>
                             )}
                             {ist === 'error' && (
@@ -2276,7 +2297,27 @@ export default function CraftFlow() {
                                 ))}
                                 {(res.missingGroups?.length ?? 0) > 0 && (
                                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
-                                    Kein Lieferant für: {res.missingGroups.map(g => g.gruppe).join(', ')}
+                                    Kein Lieferant hinterlegt für: {res.missingGroups.map(g => g.gruppe).join(', ')}
+                                  </div>
+                                )}
+                                {(res.suggestedSuppliers?.length ?? 0) > 0 && (
+                                  <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                                    <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6, fontWeight: 700, letterSpacing: 1 }}>IM INTERNET GEFUNDEN</div>
+                                    {res.suggestedSuppliers!.map((s, i) => (
+                                      <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < res.suggestedSuppliers!.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                                        <div style={{ fontSize: 12, color: C.white, marginBottom: 2 }}><strong>{s.name}</strong> <span style={{ fontSize: 10, color: C.textMid }}>({s.gruppe})</span></div>
+                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
+                                          {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.copper, textDecoration: 'none' }}>{s.website.replace(/^https?:\/\//, '')}</a>}
+                                          {s.email && <span style={{ fontSize: 11, color: C.textMid }}>{s.email}</span>}
+                                          {s.phone && <span style={{ fontSize: 11, color: C.textMid }}>{s.phone}</span>}
+                                          <button
+                                            onClick={() => { window.location.href = `/settings?tab=lieferanten&prefill=${encodeURIComponent(JSON.stringify({ company_name: s.name, website: s.website, general_email: s.email, phone: s.phone, kategorien: [s.gruppe] }))}` }}
+                                            style={{ fontSize: 10, color: C.copper, background: 'transparent', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '1px 7px', cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
+                                            + Hinzufügen
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                                 {res.uncategorized?.length > 0 && (
@@ -2284,7 +2325,7 @@ export default function CraftFlow() {
                                     Nicht kategorisiert: {res.uncategorized.join(', ')}
                                   </div>
                                 )}
-                                {res.drafts.length === 0 && (
+                                {res.drafts.length === 0 && (res.suggestedSuppliers?.length ?? 0) === 0 && (
                                   <div style={{ fontSize: 12, color: C.textMid }}>Keine Lieferanten — bitte in Einstellungen → Lieferanten ergänzen.</div>
                                 )}
                                 {res.drafts.length > 0 && !planCanUse('pro') && (

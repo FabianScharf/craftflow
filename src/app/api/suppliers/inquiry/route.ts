@@ -13,6 +13,15 @@ type SupplierRow = {
   kategorien: string[] | null
 }
 
+export type SuggestedSupplier = {
+  name: string
+  website: string | null
+  email: string | null
+  phone: string | null
+  gruppe: string
+  materialien: string[]
+}
+
 async function callAnthropic(prompt: string, maxTokens = 600): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY fehlt')
@@ -24,7 +33,7 @@ async function callAnthropic(prompt: string, maxTokens = 600): Promise<string> {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: maxTokens,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -33,6 +42,88 @@ async function callAnthropic(prompt: string, maxTokens = 600): Promise<string> {
   if (!res.ok) throw new Error(`Claude ${res.status}: ${(data as { error?: { message?: string } }).error?.message ?? 'Fehler'}`)
   const content = (data as { content?: Array<{ text?: string }> }).content?.[0]?.text
   return (content ?? '').replace(/```json\n?|```/g, '').trim()
+}
+
+type AnthropicContent = { type: string; id?: string; text?: string; name?: string; input?: unknown }
+type AnthropicResponse = { stop_reason: string; content: AnthropicContent[] }
+
+async function callAnthropicWithWebSearch(prompt: string): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return ''
+
+  const messages: Array<{ role: string; content: unknown }> = [
+    { role: 'user', content: prompt }
+  ]
+
+  // Tool-use-Loop: max 4 Iterationen (Suche → Ergebnis → Antwort)
+  for (let i = 0; i < 4; i++) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages,
+      }),
+    })
+
+    if (!res.ok) return ''
+    const data = await res.json() as AnthropicResponse
+
+    if (data.stop_reason === 'end_turn') {
+      return data.content.find(c => c.type === 'text')?.text ?? ''
+    }
+
+    if (data.stop_reason === 'tool_use') {
+      messages.push({ role: 'assistant', content: data.content })
+      // Server-side tools: Anthropic führt die Suche aus, wir bestätigen nur
+      const toolResults = data.content
+        .filter(c => c.type === 'tool_use')
+        .map(c => ({
+          type: 'tool_result' as const,
+          tool_use_id: c.id!,
+          content: '',
+        }))
+      if (toolResults.length) {
+        messages.push({ role: 'user', content: toolResults })
+      }
+    }
+  }
+
+  return ''
+}
+
+async function findSuppliersOnline(gruppe: string, matNames: string[]): Promise<SuggestedSupplier[]> {
+  try {
+    const text = await callAnthropicWithWebSearch(
+      `Suche im Internet nach 2-3 deutschen Händlern oder Großhändlern für folgende Materialien aus dem Bereich "${gruppe}":
+${matNames.slice(0, 4).join(', ')}
+
+Antworte NUR mit JSON (kein weiterer Text):
+{"suppliers": [{"name": "Firmenname", "website": "https://...", "email": "email@firma.de oder null", "phone": "Telefon oder null"}]}`
+    )
+
+    if (!text) return []
+    const cleaned = text.replace(/```json\n?|```/g, '').trim()
+    const jsonStart = cleaned.indexOf('{')
+    if (jsonStart === -1) return []
+    const parsed = JSON.parse(cleaned.slice(jsonStart)) as { suppliers: Array<{ name: string; website: string | null; email: string | null; phone: string | null }> }
+    return (parsed.suppliers ?? []).slice(0, 3).map(s => ({
+      name: s.name ?? '',
+      website: s.website ?? null,
+      email: s.email ?? null,
+      phone: s.phone ?? null,
+      gruppe,
+      materialien: matNames.slice(0, 3),
+    })).filter(s => s.name)
+  } catch {
+    return []
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -132,7 +223,7 @@ Antworte NUR mit JSON: { "results": [{ "id": <number>, "gruppe": "<gruppenname o
       materialCount: number
     }[] = []
 
-    for (const { supplier, mats, gruppen } of supplierMatsMap.values()) {
+    for (const { supplier, mats } of supplierMatsMap.values()) {
       const toEmail = supplier.general_email
       if (!toEmail) continue
 
@@ -173,7 +264,16 @@ Mit freundlichen Grüßen`
     // Nicht kategorisierte Materialien
     const uncategorized = ungrouped.map(m => m.bezeichnung)
 
-    return NextResponse.json({ drafts, missingGroups, uncategorized })
+    // Internetrecherche für fehlende Lieferanten (parallel, non-blocking)
+    let suggestedSuppliers: SuggestedSupplier[] = []
+    if (missing.length > 0) {
+      const searchResults = await Promise.all(
+        missing.map(m => findSuppliersOnline(m.gruppe, m.mats.map(mat => mat.bezeichnung)))
+      )
+      suggestedSuppliers = searchResults.flat()
+    }
+
+    return NextResponse.json({ drafts, missingGroups, uncategorized, suggestedSuppliers })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     console.error('[inquiry] unhandled error:', msg)
