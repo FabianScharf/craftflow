@@ -610,7 +610,8 @@ export default function CraftFlow() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, imageBase64: imageB64s }),
     })
-    let json: { success?: boolean; error?: string; data?: unknown }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let json: { success?: boolean; error?: string; data?: any }
     try {
       json = await res.json()
     } catch {
