@@ -1577,37 +1577,48 @@ export default function CraftFlow() {
               }}
               style={{ display: 'none' }}
             />
-            <button
+            {/* Upload-Fläche – plan-basiert */}
+            <div
               onClick={() => {
-                if (!planCanUse('starter')) {
-                  window.location.href = '/settings#plan'
-                  return
-                }
-                startFileRef.current?.click()
+                if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }
+                if (uploadingCount === 0) startFileRef.current?.click()
               }}
-              disabled={uploadingCount > 0}
               style={{
-                width: '100%', padding: '16px',
-                background: !planCanUse('starter') ? C.gray1 : uploadedFiles.length > 0 ? `${C.copper}18` : C.gray1,
-                border: `2px dashed ${!planCanUse('starter') ? C.border : uploadedFiles.length > 0 ? C.copper : C.border}`,
-                borderRadius: 10, cursor: uploadingCount > 0 ? 'wait' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                opacity: !planCanUse('starter') ? 0.6 : 1,
+                width: '100%', borderRadius: 10, cursor: uploadingCount > 0 ? 'wait' : 'pointer',
+                border: `2px dashed ${uploadedFiles.length > 0 ? C.copper : C.border}`,
+                background: uploadedFiles.length > 0 ? `${C.copper}10` : C.gray1,
+                overflow: 'hidden',
               }}
             >
-              <span style={{ fontSize: 28 }}>
-                {!planCanUse('starter') ? '🔒' : uploadingCount > 0 ? '⟳' : uploadedFiles.length > 0 ? '✓' : '📷'}
-              </span>
-              <span style={{ color: !planCanUse('starter') ? C.textMid : uploadedFiles.length > 0 ? C.copper : C.textMid, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                {!planCanUse('starter')
-                  ? 'Bilder & PDFs hochladen — ab Starter'
-                  : uploadingCount > 0
-                  ? 'Wird verarbeitet…'
-                  : uploadedFiles.length > 0
-                  ? `${uploadedFiles.length} Datei${uploadedFiles.length > 1 ? 'en' : ''} – weitere hinzufügen`
-                  : 'Fotos oder PDFs hochladen (mehrere möglich)'}
-              </span>
-            </button>
+              {/* Kopfzeile */}
+              <div style={{ padding: '12px 14px 10px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${C.border}` }}>
+                <span style={{ fontSize: 18 }}>{uploadingCount > 0 ? '⟳' : uploadedFiles.length > 0 ? '✓' : '📎'}</span>
+                <span style={{ fontSize: 12, color: uploadedFiles.length > 0 ? C.copper : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>
+                  {uploadingCount > 0 ? 'Wird verarbeitet…' : uploadedFiles.length > 0 ? `${uploadedFiles.length} Datei${uploadedFiles.length > 1 ? 'en' : ''} hochgeladen – weitere hinzufügen` : 'Dateien hochladen'}
+                </span>
+              </div>
+              {/* Feature-Chips */}
+              <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {/* Fotos – ab Starter */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5 }}>
+                  <span style={{ fontSize: 13 }}>{planCanUse('starter') ? '📷' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: planCanUse('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
+                  {!planCanUse('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
+                </div>
+                {/* PDFs – ab Starter */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5 }}>
+                  <span style={{ fontSize: 13 }}>{planCanUse('starter') ? '📄' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: planCanUse('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
+                  {!planCanUse('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
+                </div>
+                {/* GAEB – ab Enterprise */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('enterprise') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('enterprise') ? C.copper + '55' : C.border}`, opacity: planCanUse('enterprise') ? 1 : 0.5 }}>
+                  <span style={{ fontSize: 13 }}>{planCanUse('enterprise') ? '🏗' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: planCanUse('enterprise') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
+                  {!planCanUse('enterprise') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB ENTERPRISE</span>}
+                </div>
+              </div>
+            </div>
             {uploadedFiles.length > 0 && (
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {uploadedFiles.map(f => (
