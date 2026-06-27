@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const maxDuration = 60
+
 // FS Crafted knowledge base – embedded as system prompt so every calculation
 // uses real-world benchmarks instead of generic AI estimates.
 const SYSTEM_PROMPT = `Du bist ein erfahrener Schreinermeister und kalkulierst Angebote für FS Crafted in Rodenbach (Main-Kinzig). Du kennst die Praxiswerte des Betriebs auswendig und rechnest damit – niemals mit generischen Schätzungen.
@@ -647,7 +649,7 @@ export async function POST(req: NextRequest) {
     const model = 'claude-sonnet-4-6'
     const reqBody = JSON.stringify({
       model,
-      max_tokens: 3000,
+      max_tokens: 8000,
       temperature: 0.2,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userContent }],
