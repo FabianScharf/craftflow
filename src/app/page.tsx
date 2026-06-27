@@ -613,16 +613,14 @@ export default function CraftFlow() {
       // KI-Prompt aus Positionen bauen — wird beim Klick auf Generieren verwendet
       const prompt =
         `GAEB-Leistungsverzeichnis: ${projektName}\n\n` +
-        `Kalkuliere folgende Positionen vollständig mit realistischer Material- und Arbeitszeitschätzung.\n\n` +
+        `Kalkuliere folgende Positionen mit Material- und Arbeitszeitschätzung:\n\n` +
         positions.map((p, i) => {
           const mat = p.material[0]
-          const mengeZeile = mat ? `Menge: ${mat.menge} ${mat.einheit}` : ''
-          return [
-            `Position ${i + 1}: ${p.titel}`,
-            mengeZeile,
-            p.beschreibung ? `Beschreibung: ${p.beschreibung}` : '',
-          ].filter(Boolean).join('\n')
-        }).join('\n\n')
+          const mengeZeile = mat ? `${mat.menge} ${mat.einheit}` : ''
+          // Beschreibung auf 200 Zeichen kürzen um Prompt-Länge zu begrenzen
+          const beschr = p.beschreibung ? p.beschreibung.slice(0, 200) : ''
+          return `${i + 1}. ${p.titel}${mengeZeile ? ' · ' + mengeZeile : ''}${beschr ? ' — ' + beschr : ''}`
+        }).join('\n')
 
       setGaebPrompt(prompt)
       setGaebProjektName(projektName)
