@@ -821,7 +821,7 @@ export default function CraftFlow() {
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
           chatHistory: [],
-          message: 'Analysiere mein Angebot und liste auf, was noch fehlt oder unklar ist (Holzart, Maße, Oberfläche, Montageort etc.). Sei präzise und konkret.',
+          message: 'Prüfe das Angebot. Liste NUR die Angaben auf, die für eine präzise Kalkulation noch fehlen. Format: eine Zeile pro Punkt mit → davor. Maximal 6 Punkte, kein erklärender Text.',
         }),
       })
       const json = await res.json()
