@@ -423,6 +423,8 @@ export default function CraftFlow() {
   // ── Zentrale Materialanfrage + Export ───────────────
   const [allInquiryStatus, setAllInquiryStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [allInquiryResult, setAllInquiryResult] = useState<InquiryResult | null>(null)
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null) // key = `${to}__${subject}`
+  const [sentEmails, setSentEmails] = useState<Set<string>>(new Set())
   const [copiedFeedback, setCopiedFeedback] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
@@ -1067,6 +1069,26 @@ export default function CraftFlow() {
       setAllInquiryStatus('error')
     }
   }, [pos, selectedMats])
+
+  // ── Pro: E-Mail direkt versenden ────────────────────
+  const sendInquiryEmail = useCallback(async (to: string, subject: string, body: string) => {
+    const key = `${to}__${subject}`
+    setSendingEmail(key)
+    try {
+      const res = await fetch('/api/suppliers/inquiry/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, body }),
+      })
+      const json = await res.json() as { success?: boolean; error?: string }
+      if (!res.ok) throw new Error(json.error ?? 'Fehler')
+      setSentEmails(prev => new Set([...prev, key]))
+    } catch (err: unknown) {
+      alert(`E-Mail konnte nicht gesendet werden: ${err instanceof Error ? err.message : 'Unbekannter Fehler'}`)
+    } finally {
+      setSendingEmail(null)
+    }
+  }, [])
 
   // ── Feature 4: Export ────────────────────────────────
   const exportJSON = useCallback(() => {
@@ -2027,20 +2049,39 @@ export default function CraftFlow() {
 
             {allInquiryStatus === 'done' && allInquiryResult && (
               <div style={{ background: C.black, border: `1px solid ${C.border}`, borderRadius: 4, padding: '10px 12px', marginBottom: 14 }}>
-                {allInquiryResult.drafts.map((d, i) => (
+                {allInquiryResult.drafts.map((d, i) => {
+                  const emailKey = `${d.email}__${d.subject}`
+                  const isSending = sendingEmail === emailKey
+                  const isSent = sentEmails.has(emailKey)
+                  return (
                   <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < allInquiryResult.drafts.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                     <div style={{ fontSize: 12, color: '#90EE90', marginBottom: 4 }}>
                       ✓ <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
                     </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
-                      <a href={`mailto:${d.email}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`}
-                        style={{ color: C.copper, fontSize: 11, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px' }}>
-                        ✉ E-Mail öffnen
-                      </a>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
+                      {!planCanUse('pro') && (
+                        <a href={`mailto:${d.email}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`}
+                          style={{ color: C.copper, fontSize: 11, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px' }}>
+                          ✉ E-Mail öffnen
+                        </a>
+                      )}
+                      {planCanUse('pro') && (
+                        isSent ? (
+                          <span style={{ fontSize: 11, color: '#90EE90' }}>✓ Gesendet</span>
+                        ) : (
+                          <button
+                            onClick={() => sendInquiryEmail(d.email, d.subject, d.body)}
+                            disabled={isSending}
+                            style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '3px 10px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
+                            {isSending ? '⟳ Wird gesendet…' : '✉ Direkt senden'}
+                          </button>
+                        )
+                      )}
                       {d.phone && <span style={{ fontSize: 11, color: C.textMid }}>{d.phone}</span>}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 {(allInquiryResult.missingGroups?.length ?? 0) > 0 && (
                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                     Kein Lieferant hinterlegt für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')}
@@ -2281,20 +2322,39 @@ export default function CraftFlow() {
                             )}
                             {ist === 'done' && res && (
                               <div style={{ marginTop: 4, background: C.black, border: `1px solid ${C.border}`, borderRadius: 4, padding: '10px 12px' }}>
-                                {res.drafts.map((d, i) => (
+                                {res.drafts.map((d, i) => {
+                                  const emailKey = `${d.email}__${d.subject}`
+                                  const isSending = sendingEmail === emailKey
+                                  const isSent = sentEmails.has(emailKey)
+                                  return (
                                   <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < res.drafts.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                                     <div style={{ fontSize: 12, color: '#90EE90', marginBottom: 4 }}>
                                       ✓ <strong>{d.supplierName}</strong> ({d.materialCount} Artikel)
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
-                                      <a href={`mailto:${d.email}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`}
-                                        style={{ color: C.copper, fontSize: 11, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px' }}>
-                                        ✉ E-Mail öffnen
-                                      </a>
+                                      {!planCanUse('pro') && (
+                                        <a href={`mailto:${d.email}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`}
+                                          style={{ color: C.copper, fontSize: 11, textDecoration: 'none', border: `1px solid ${C.copper}`, borderRadius: 3, padding: '2px 8px' }}>
+                                          ✉ E-Mail öffnen
+                                        </a>
+                                      )}
+                                      {planCanUse('pro') && (
+                                        isSent ? (
+                                          <span style={{ fontSize: 11, color: '#90EE90' }}>✓ Gesendet</span>
+                                        ) : (
+                                          <button
+                                            onClick={() => sendInquiryEmail(d.email, d.subject, d.body)}
+                                            disabled={isSending}
+                                            style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '3px 10px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>
+                                            {isSending ? '⟳ Wird gesendet…' : '✉ Direkt senden'}
+                                          </button>
+                                        )
+                                      )}
                                       {d.phone && <span style={{ fontSize: 11, color: C.textMid }}>{d.phone}</span>}
                                     </div>
                                   </div>
-                                ))}
+                                  )
+                                })}
                                 {(res.missingGroups?.length ?? 0) > 0 && (
                                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                                     Kein Lieferant hinterlegt für: {res.missingGroups.map(g => g.gruppe).join(', ')}
