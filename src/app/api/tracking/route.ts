@@ -25,16 +25,27 @@ export async function POST(req: NextRequest) {
         .maybeSingle()
 
       if (!existing) {
+        // Benchmark-Zustimmung aus Nutzerprofil lesen
+        const { data: bp } = await supabase
+          .from('betriebsprofil')
+          .select('benchmark_zustimmung')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        // PLZ auf anonymen 2-stelligen Prefix kürzen (z.B. "63517" → "63xxx")
+        const plzRaw = String(data.plz ?? '').replace(/\D/g, '').slice(0, 2)
+        const region = plzRaw.length === 2 ? `${plzRaw}xxx` : ''
+
         await supabase.from('angebot_outcomes').insert({
-          project_id:       projectId,
-          user_id:          user.id,
-          moebel_typ:       data.moebel_typ ?? '',
-          material:         data.material ?? '',
-          ist_massivholz:   data.ist_massivholz ?? false,
-          preis_kalkuliert: data.preis_kalkuliert ?? 0,
-          region:           data.plz ?? '',
-          status:           'offen',
-          include_in_benchmark: true,
+          project_id:           projectId,
+          user_id:              user.id,
+          moebel_typ:           data.moebel_typ ?? '',
+          material:             data.material ?? '',
+          ist_massivholz:       data.ist_massivholz ?? false,
+          preis_kalkuliert:     data.preis_kalkuliert ?? 0,
+          region,
+          status:               'offen',
+          include_in_benchmark: bp?.benchmark_zustimmung ?? false,
         })
       }
       return NextResponse.json({ ok: true })
