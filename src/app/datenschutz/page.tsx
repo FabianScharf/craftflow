@@ -158,7 +158,55 @@ export default function Datenschutz() {
 
         {/* 7 */}
         <div style={st.section}>
-          <p style={st.h2}>7. Kundendaten Dritter und Auftragsverarbeitung</p>
+          <p style={st.h2}>7. Transaktionale E-Mails — Supabase Auth</p>
+          <p style={st.p}>
+            CraftFlow versendet über die Authentifizierungsinfrastruktur von Supabase
+            automatische System-E-Mails an Nutzer:
+          </p>
+          <p style={st.p}>
+            — <Hi>Bestätigungs-E-Mail</Hi> bei der Registrierung (Aktivierungslink)<br />
+            — <Hi>Passwort-Reset-E-Mail</Hi> auf Nutzeranfrage
+          </p>
+          <p style={st.p}>
+            Dabei wird ausschließlich die E-Mail-Adresse des Nutzers verarbeitet.
+            Der E-Mail-Versand erfolgt über die Server-Infrastruktur von Supabase Inc.
+            (EU-Region Frankfurt). Es gelten die Datenschutzhinweise unter Abschnitt 4.
+          </p>
+          <p style={st.p}>
+            Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung).
+            Speicherdauer: Versandzeitpunkt wird bis zur Konto-Löschung gespeichert.
+          </p>
+        </div>
+
+        <div style={st.divider} />
+
+        {/* 8 */}
+        <div style={st.section}>
+          <p style={st.h2}>8. Kontaktaufnahme per E-Mail</p>
+          <p style={st.p}>
+            Wenn Sie uns per E-Mail kontaktieren (anfrage@fscrafted.de), verarbeiten wir
+            die von Ihnen übermittelten Daten — insbesondere Ihre <Hi>E-Mail-Adresse</Hi>
+            {' '}und den <Hi>Inhalt Ihrer Nachricht</Hi> — ausschließlich zur Bearbeitung
+            Ihres Anliegens.
+          </p>
+          <p style={st.p}>
+            Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (vorvertragliche Maßnahmen oder
+            Vertragserfüllung) bzw. Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse
+            an der Beantwortung von Anfragen). Speicherdauer: bis zur abschließenden
+            Bearbeitung des Anliegens, danach nach gesetzlichen Aufbewahrungsfristen
+            (in der Regel 3 Jahre).
+          </p>
+          <p style={st.p}>
+            Eine Weitergabe an Dritte erfolgt nicht. E-Mails werden über den
+            E-Mail-Dienst des Anbieters (GMX, Deutschland) verarbeitet.
+          </p>
+        </div>
+
+        <div style={st.divider} />
+
+        {/* 9 */}
+        <div style={st.section}>
+          <p style={st.h2}>9. Kundendaten Dritter und Auftragsverarbeitung</p>
           <p style={st.p}>
             Nutzer können im Rahmen der Angebotserstellung Kontaktdaten ihrer eigenen Kunden
             (Name, Adresse, E-Mail) eingeben. In diesem Verhältnis gilt:
@@ -183,9 +231,9 @@ export default function Datenschutz() {
 
         <div style={st.divider} />
 
-        {/* 8 */}
+        {/* 10 */}
         <div style={st.section}>
-          <p style={st.h2}>8. Nutzungsdaten und Produktverbesserung</p>
+          <p style={st.h2}>10. Nutzungsdaten und Produktverbesserung</p>
           <p style={st.p}>
             Zur Verbesserung von CraftFlow erfassen wir automatisch bestimmte Nutzungsdaten:
           </p>
@@ -208,9 +256,9 @@ export default function Datenschutz() {
 
         <div style={st.divider} />
 
-        {/* 9 */}
+        {/* 11 */}
         <div style={st.section}>
-          <p style={st.h2}>9. Benchmarking und regionale Preisrichtwerte (Opt-in)</p>
+          <p style={st.h2}>11. Benchmarking und regionale Preisrichtwerte (Opt-in)</p>
           <p style={st.p}>
             Wenn Nutzer <Hi>ausdrücklich zustimmen</Hi> (Opt-in in Einstellungen → Firmendaten),
             verwenden wir anonymisierte Kalkulationsdaten für die Entwicklung regionaler
@@ -235,9 +283,9 @@ export default function Datenschutz() {
 
         <div style={st.divider} />
 
-        {/* 10 */}
+        {/* 12 */}
         <div style={st.section}>
-          <p style={st.h2}>10. Zahlungsabwicklung — Stripe</p>
+          <p style={st.h2}>12. Zahlungsabwicklung — Stripe</p>
           <p style={st.p}>
             Die Abwicklung kostenpflichtiger Pläne erfolgt über <Hi>Stripe Inc.</Hi>,
             510 Townsend Street, San Francisco, CA 94103, USA. CraftFlow speichert
@@ -253,9 +301,9 @@ export default function Datenschutz() {
 
         <div style={st.divider} />
 
-        {/* 11 */}
+        {/* 13 */}
         <div style={st.section}>
-          <p style={st.h2}>11. Cookies</p>
+          <p style={st.h2}>13. Cookies</p>
           <p style={st.p}>
             CraftFlow verwendet ausschließlich <Hi>technisch notwendige Cookies</Hi> zur
             Aufrechterhaltung der Anmeldesitzung (Session-Token). Diese Cookies sind für
@@ -270,9 +318,9 @@ export default function Datenschutz() {
 
         <div style={st.divider} />
 
-        {/* 12 */}
+        {/* 14 */}
         <div style={st.section}>
-          <p style={st.h2}>12. Speicherdauer</p>
+          <p style={st.h2}>14. Speicherdauer</p>
           <table style={st.table}>
             <thead>
               <tr>
@@ -287,6 +335,7 @@ export default function Datenschutz() {
                 ['Nutzungsdaten (Tracking)', '36 Monate'],
                 ['Anonyme Benchmark-Daten', 'Unbegrenzt (kein Personenbezug)'],
                 ['Rechnungsdaten', '10 Jahre (gesetzliche Aufbewahrungspflicht)'],
+                ['E-Mail-Kontaktanfragen', 'Bis Bearbeitung abgeschlossen + 3 Jahre'],
               ].map(([kat, dauer]) => (
                 <tr key={kat}>
                   <td style={st.td}>{kat}</td>
@@ -299,9 +348,9 @@ export default function Datenschutz() {
 
         <div style={st.divider} />
 
-        {/* 13 */}
+        {/* 15 */}
         <div style={st.section}>
-          <p style={st.h2}>13. Ihre Rechte als betroffene Person</p>
+          <p style={st.h2}>15. Ihre Rechte als betroffene Person</p>
           <p style={st.p}>
             Gemäß DSGVO haben Sie folgende Rechte:
           </p>
@@ -322,9 +371,9 @@ export default function Datenschutz() {
 
         <div style={st.divider} />
 
-        {/* 14 */}
+        {/* 16 */}
         <div style={st.section}>
-          <p style={st.h2}>14. Beschwerderecht</p>
+          <p style={st.h2}>16. Beschwerderecht</p>
           <p style={st.p}>
             Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren.
             Zuständig für FS Crafted in Hessen ist:
@@ -338,9 +387,9 @@ export default function Datenschutz() {
 
         <div style={st.divider} />
 
-        {/* 15 */}
+        {/* 17 */}
         <div style={st.section}>
-          <p style={st.h2}>15. Änderungen dieser Datenschutzerklärung</p>
+          <p style={st.h2}>17. Änderungen dieser Datenschutzerklärung</p>
           <p style={st.p}>
             Wir behalten uns vor, diese Datenschutzerklärung bei Änderungen des Dienstes
             oder der Rechtslage anzupassen. Die jeweils aktuelle Version ist stets unter{' '}
