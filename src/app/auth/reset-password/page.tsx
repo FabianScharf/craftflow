@@ -6,6 +6,24 @@ import { createClient } from '@/utils/supabase/client'
 
 const C = { black: '#0D0D0D', dark: '#141414', copper: '#C8885A', white: '#F5F2EE', gray: '#8A8A8A', border: '#2E2E2E', err: '#E05A5A', ok: '#5ABE6A' }
 
+function checkPassword(pw: string) {
+  return {
+    length:  pw.length >= 8,
+    upper:   /[A-Z]/.test(pw),
+    lower:   /[a-z]/.test(pw),
+    digit:   /[0-9]/.test(pw),
+    special: /[^A-Za-z0-9]/.test(pw),
+  }
+}
+
+const CRITERIA_LABELS = [
+  { key: 'length',  label: 'Mindestens 8 Zeichen' },
+  { key: 'upper',   label: 'Mindestens ein Großbuchstabe' },
+  { key: 'lower',   label: 'Mindestens ein Kleinbuchstabe' },
+  { key: 'digit',   label: 'Mindestens eine Zahl' },
+  { key: 'special', label: 'Mindestens ein Sonderzeichen (!@#$%^&* …)' },
+] as const
+
 export default function ResetPasswordPage() {
   const router = useRouter()
   const [ready, setReady]         = useState(false)
@@ -14,6 +32,9 @@ export default function ResetPasswordPage() {
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [done, setDone]           = useState(false)
+
+  const criteria = checkPassword(password)
+  const allValid = Object.values(criteria).every(Boolean)
 
   useEffect(() => {
     const supabase = createClient()
@@ -26,8 +47,8 @@ export default function ResetPasswordPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    if (!allValid)              { setError('Das Passwort erfüllt nicht alle Anforderungen.'); return }
     if (password !== password2) { setError('Die Passwörter stimmen nicht überein.'); return }
-    if (password.length < 8)    { setError('Das Passwort muss mindestens 8 Zeichen lang sein.'); return }
     setLoading(true)
     const supabase = createClient()
     const { error } = await supabase.auth.updateUser({ password })
@@ -62,7 +83,7 @@ export default function ResetPasswordPage() {
           <>
             <h1 style={{ color: C.white, fontSize: 18, fontWeight: 700, marginBottom: 8, letterSpacing: -0.3 }}>Neues Passwort setzen</h1>
             <p style={{ color: C.gray, fontSize: 13, marginBottom: 24, lineHeight: 1.55 }}>
-              Mindestens 8 Zeichen.
+              Wähle ein sicheres Passwort für dein CraftFlow-Konto.
             </p>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -76,6 +97,19 @@ export default function ResetPasswordPage() {
                   onChange={e => setPassword(e.target.value)}
                   style={{ background: C.black, border: `1px solid ${C.border}`, borderRadius: 7, padding: '11px 13px', color: C.white, fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
                 />
+                {password.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 4, padding: '10px 12px', background: '#0D0D0D', borderRadius: 6, border: `1px solid ${C.border}` }}>
+                    {CRITERIA_LABELS.map(({ key, label }) => {
+                      const ok = criteria[key]
+                      return (
+                        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 13, color: ok ? C.ok : C.err, lineHeight: 1, flexShrink: 0 }}>{ok ? '✓' : '○'}</span>
+                          <span style={{ fontSize: 12, color: ok ? C.ok : C.gray }}>{label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
