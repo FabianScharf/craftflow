@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Auftragsverarbeitungsvertrag — CraftFlow' }
 
-const VERSION = '2026-06'
+const VERSION = '2026-07'
 
 const st = {
   page:    { background: '#0D0D0D', color: '#F5F2EE', fontFamily: 'system-ui, sans-serif', minHeight: '100vh', lineHeight: 1.65 } as React.CSSProperties,
