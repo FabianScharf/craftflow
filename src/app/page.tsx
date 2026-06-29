@@ -37,7 +37,7 @@ type UploadedFile = {
 /* ── PDF-Seiten → JPEG (client-seitig, browser canvas) ── */
 async function renderPdfPages(
   file: File,
-  maxPages = 4
+  maxPages = 10
 ): Promise<Array<{ b64: string; name: string }>> {
   const pdfjsLib = await import('pdfjs-dist')
   // Lokale Worker-Datei statt externem CDN (verhindert Ausfälle bei Netzwerkproblemen)
