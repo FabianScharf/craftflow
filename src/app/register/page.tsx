@@ -30,6 +30,7 @@ export default function RegisterPage() {
   const [password, setPassword]   = useState('')
   const [password2, setPassword2] = useState('')
   const [agb, setAgb]             = useState(false)
+  const [avv, setAvv]             = useState(false)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState(false)
   const [loading, setLoading]     = useState(false)
@@ -42,7 +43,8 @@ export default function RegisterPage() {
     setError('')
     if (!allValid)              { setError('Das Passwort erfüllt nicht alle Anforderungen.'); return }
     if (password !== password2) { setError('Die Passwörter stimmen nicht überein.'); return }
-    if (!agb)                   { setError('Bitte akzeptiere die AGB.'); return }
+    if (!agb)                   { setError('Bitte akzeptiere die Datenschutzerklärung und AGB.'); return }
+    if (!avv)                   { setError('Bitte akzeptiere den Auftragsverarbeitungsvertrag (AVV).'); return }
 
     setLoading(true)
     const supabase = createClient()
@@ -56,6 +58,18 @@ export default function RegisterPage() {
       setLoading(false)
       return
     }
+    // Zustimmungen protokollieren (fire & forget — Nutzer ist ggf. noch nicht eingeloggt,
+    // daher kurz warten bis Session gesetzt ist)
+    setTimeout(() => {
+      fetch('/api/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consents: ['agb', 'datenschutz', 'avv'],
+          versions: { agb: '2026-07', datenschutz: '2026-07', avv: '2026-07' },
+        }),
+      }).catch(() => {})
+    }, 2000)
     fetch('/api/notify-signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -169,6 +183,21 @@ export default function RegisterPage() {
                   <a href="/agb" target="_blank" style={{ color: C.copper, textDecoration: 'none' }}>AGB</a>
                   {' '}und die{' '}
                   <a href="/datenschutz" target="_blank" style={{ color: C.copper, textDecoration: 'none' }}>Datenschutzerklärung</a>.
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={avv}
+                  onChange={e => setAvv(e.target.checked)}
+                  style={{ marginTop: 2, accentColor: C.copper, width: 15, height: 15, flexShrink: 0 }}
+                />
+                <span style={{ color: C.gray, fontSize: 12, lineHeight: 1.55 }}>
+                  Ich stimme dem{' '}
+                  <a href="/avv" target="_blank" style={{ color: C.copper, textDecoration: 'none' }}>Auftragsverarbeitungsvertrag (AVV)</a>
+                  {' '}gemäß Art. 28 DSGVO zu. Als Nutzer von CraftFlow verarbeite ich
+                  personenbezogene Daten meiner Kunden und benötige diesen Vertrag.
                 </span>
               </label>
 
