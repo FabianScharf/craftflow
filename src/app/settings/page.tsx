@@ -521,6 +521,25 @@ export default function SettingsPage() {
                 <Field label="E-Mail" value={profil.email ?? ''} onChange={v => setP('email', v)} type="email" />
                 <Field label="Website" value={profil.website ?? ''} onChange={v => setP('website', v)} />
 
+                <Divider />
+
+                <div>
+                  <label style={{ ...lbl, marginBottom: 6, display: 'block' }}>Datenschutz &amp; Benchmarking</label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={profil.benchmark_zustimmung === 'true' || profil.benchmark_zustimmung === true as unknown as string}
+                      onChange={e => setP('benchmark_zustimmung', e.target.checked ? 'true' : 'false')}
+                      style={{ marginTop: 3, accentColor: C.copper, width: 16, height: 16, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 12, color: C.textMid, lineHeight: 1.5 }}>
+                      Ich stimme zu, dass anonymisierte Kalkulationsdaten (Möbeltyp, Preis, PLZ-Bereich ohne Personenbezug)
+                      zur Verbesserung von CraftFlow und für regionale Preisrichtwerte verwendet werden dürfen.
+                      Eine Abmeldung ist jederzeit möglich. Weitere Informationen in der Datenschutzerklärung.
+                    </span>
+                  </label>
+                </div>
+
               </div>
               <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
             </div>
