@@ -1335,6 +1335,222 @@ export default function CraftFlow() {
     URL.revokeObjectURL(url)
   }, [pos, kunde, docNr])
 
+  const exportFullCSV = useCallback(() => {
+    const BOM = '﻿'
+    const dl = (v: string | number | null | undefined) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const num = (v: number) => String(Math.round(v * 100) / 100)
+    const now = new Date()
+    const dateStr = now.toLocaleDateString('de-DE')
+    const projektTitel = [kunde.name, kunde.projekt].filter(Boolean).join(' – ') || 'Angebot'
+
+    const rows: string[] = [
+      dl('CRAFTFLOW EXPORT') + ';' + dl(projektTitel),
+      dl('Exportiert am') + ';' + dl(dateStr),
+      '',
+      // ── Projektkopf ──────────────────────────────────
+      dl('[PROJEKT]'),
+      [dl('Feld'), dl('Wert')].join(';'),
+      [dl('Angebotsnummer'), dl(docNr)].join(';'),
+      [dl('Projekttitel'), dl(projektTitel)].join(';'),
+      [dl('Kundename'), dl(kunde.name)].join(';'),
+      [dl('Anschriftszusatz'), dl(kunde.zusatz)].join(';'),
+      [dl('Strasse'), dl(kunde.strasse)].join(';'),
+      [dl('Ort'), dl(kunde.ort)].join(';'),
+      [dl('Angebotsdatum'), dl(angebotsdatum || today())].join(';'),
+      '',
+      // ── Positionen ───────────────────────────────────
+      dl('[POSITIONEN]'),
+      [dl('Pos-Nr'), dl('Titel'), dl('Beschreibung'), dl('Gesamt Netto EUR')].join(';'),
+      ...pos.map((p, pi) => [
+        dl(pi + 1), dl(p.titel), dl(p.beschreibung), dl(num(calcAngebotspos(p))),
+      ].join(';')),
+      '',
+      // ── Material ─────────────────────────────────────
+      dl('[MATERIAL]'),
+      [dl('Pos-Nr'), dl('Position'), dl('Nr'), dl('Bezeichnung'), dl('Menge'), dl('Einheit'), dl('EK EUR'), dl('Aufschlag %'), dl('VK Einzel EUR'), dl('VK Gesamt EUR')].join(';'),
+      ...pos.flatMap((p, pi) =>
+        p.material.map((m, mi) => {
+          const vkEinzel = m.ekPreis * (1 + m.aufschlag)
+          const vkGesamt = m.menge * vkEinzel
+          return [dl(pi + 1), dl(p.titel), dl(mi + 1), dl(m.bezeichnung), dl(m.menge), dl(m.einheit), dl(m.ekPreis), dl(Math.round(m.aufschlag * 100)), dl(num(vkEinzel)), dl(num(vkGesamt))].join(';')
+        })
+      ),
+      '',
+      // ── Arbeitszeit ──────────────────────────────────
+      dl('[ARBEITSZEIT]'),
+      [dl('Pos-Nr'), dl('Position'), dl('Nr'), dl('Kostenstelle'), dl('Bezeichnung'), dl('Minuten'), dl('Stunden'), dl('Stundensatz EUR'), dl('Gesamt EUR')].join(';'),
+      ...pos.flatMap((p, pi) =>
+        p.arbeitszeit.map((a, ai) => {
+          const std = Math.round(a.minuten / 60 * 100) / 100
+          const gesamt = std * a.vkStunde
+          return [dl(pi + 1), dl(p.titel), dl(ai + 1), dl(a.kostenstelle), dl(getKsLabel(a.kostenstelle)), dl(a.minuten), dl(std), dl(a.vkStunde), dl(num(gesamt))].join(';')
+        })
+      ),
+      '',
+      // ── Zusammenfassung ──────────────────────────────
+      dl('[ZUSAMMENFASSUNG]'),
+      [dl('Position'), dl('Titel'), dl('Netto EUR')].join(';'),
+      ...pos.map((p, pi) => [dl(pi + 1), dl(p.titel), dl(num(calcAngebotspos(p)))].join(';')),
+      '',
+      [dl(''), dl('Netto gesamt EUR'), dl(num(totals.net))].join(';'),
+      [dl(''), dl('MwSt. 19 %'), dl(num(totals.net * 0.19))].join(';'),
+      [dl(''), dl('Brutto EUR'), dl(num(totals.net * 1.19))].join(';'),
+    ]
+
+    const csv = BOM + rows.join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `kalkulation_vollstaendig_${(kunde.name.trim().split(/\s+/).pop() || 'export')}_${now.toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [pos, kunde, docNr, angebotsdatum, totals])
+
+  const exportSQL = useCallback(() => {
+    const sq = (v: string | number | null | undefined) => `'${String(v ?? '').replace(/'/g, "''")}'`
+    const num = (v: number) => String(Math.round(v * 100) / 100)
+    const now = new Date()
+    const timestamp = now.toISOString()
+    const projektTitel = [kunde.name, kunde.projekt].filter(Boolean).join(' – ') || 'Angebot'
+    const netto = totals.net
+    const projId = `proj_${now.getTime().toString(36)}`
+
+    const lines: string[] = [
+      '-- ============================================================',
+      `-- CraftFlow SQL Export`,
+      `-- Projekt: ${projektTitel}`,
+      `-- Angebotsnr.: ${docNr}`,
+      `-- Exportiert: ${timestamp}`,
+      '-- Kompatibel mit: SQLite, MySQL, PostgreSQL, MSSQL',
+      '-- ============================================================',
+      '',
+      '-- TABELLE: projekt',
+      'CREATE TABLE IF NOT EXISTS projekt (',
+      '  id          TEXT PRIMARY KEY,',
+      '  angebotsnummer TEXT,',
+      '  titel       TEXT,',
+      '  kunde_name  TEXT,',
+      '  kunde_zusatz TEXT,',
+      '  kunde_strasse TEXT,',
+      '  kunde_ort   TEXT,',
+      '  angebotsdatum TEXT,',
+      '  netto       REAL,',
+      '  mwst_prozent REAL,',
+      '  mwst        REAL,',
+      '  brutto      REAL,',
+      '  exportiert_am TEXT',
+      ');',
+      '',
+      'INSERT INTO projekt (id, angebotsnummer, titel, kunde_name, kunde_zusatz, kunde_strasse, kunde_ort, angebotsdatum, netto, mwst_prozent, mwst, brutto, exportiert_am) VALUES (',
+      `  ${sq(projId)}, ${sq(docNr)}, ${sq(projektTitel)}, ${sq(kunde.name)}, ${sq(kunde.zusatz)}, ${sq(kunde.strasse)}, ${sq(kunde.ort)},`,
+      `  ${sq(angebotsdatum || today())}, ${num(netto)}, 19.0, ${num(netto * 0.19)}, ${num(netto * 1.19)}, ${sq(timestamp)}`,
+      ');',
+      '',
+      '-- TABELLE: angebotsposition',
+      'CREATE TABLE IF NOT EXISTS angebotsposition (',
+      '  id              TEXT PRIMARY KEY,',
+      '  projekt_id      TEXT,',
+      '  positionsnummer INTEGER,',
+      '  titel           TEXT,',
+      '  beschreibung    TEXT,',
+      '  gesamt_netto    REAL,',
+      '  FOREIGN KEY (projekt_id) REFERENCES projekt(id)',
+      ');',
+      '',
+    ]
+
+    pos.forEach((p, pi) => {
+      const posId = `pos_${pi + 1}`
+      lines.push(
+        `INSERT INTO angebotsposition (id, projekt_id, positionsnummer, titel, beschreibung, gesamt_netto) VALUES (`,
+        `  ${sq(posId)}, ${sq(projId)}, ${pi + 1}, ${sq(p.titel)}, ${sq(p.beschreibung)}, ${num(calcAngebotspos(p))}`,
+        `);`,
+      )
+    })
+
+    lines.push(
+      '',
+      '-- TABELLE: material',
+      'CREATE TABLE IF NOT EXISTS material (',
+      '  id               TEXT PRIMARY KEY,',
+      '  position_id      TEXT,',
+      '  positionsnummer  INTEGER,',
+      '  bezeichnung      TEXT,',
+      '  menge            REAL,',
+      '  einheit          TEXT,',
+      '  ek_preis         REAL,',
+      '  aufschlag_prozent REAL,',
+      '  vk_einzel        REAL,',
+      '  vk_gesamt        REAL,',
+      '  FOREIGN KEY (position_id) REFERENCES angebotsposition(id)',
+      ');',
+      '',
+    )
+
+    pos.forEach((p, pi) => {
+      const posId = `pos_${pi + 1}`
+      p.material.forEach((m, mi) => {
+        const vkEinzel = m.ekPreis * (1 + m.aufschlag)
+        lines.push(
+          `INSERT INTO material (id, position_id, positionsnummer, bezeichnung, menge, einheit, ek_preis, aufschlag_prozent, vk_einzel, vk_gesamt) VALUES (`,
+          `  ${sq(`mat_${pi + 1}_${mi + 1}`)}, ${sq(posId)}, ${pi + 1}, ${sq(m.bezeichnung)}, ${m.menge}, ${sq(m.einheit)}, ${m.ekPreis}, ${num(m.aufschlag * 100)}, ${num(vkEinzel)}, ${num(m.menge * vkEinzel)}`,
+          `);`,
+        )
+      })
+    })
+
+    lines.push(
+      '',
+      '-- TABELLE: arbeitszeit',
+      'CREATE TABLE IF NOT EXISTS arbeitszeit (',
+      '  id                      TEXT PRIMARY KEY,',
+      '  position_id             TEXT,',
+      '  positionsnummer         INTEGER,',
+      '  kostenstelle            TEXT,',
+      '  kostenstelle_bezeichnung TEXT,',
+      '  minuten                 REAL,',
+      '  stunden                 REAL,',
+      '  stundensatz             REAL,',
+      '  gesamt                  REAL,',
+      '  FOREIGN KEY (position_id) REFERENCES angebotsposition(id)',
+      ');',
+      '',
+    )
+
+    pos.forEach((p, pi) => {
+      const posId = `pos_${pi + 1}`
+      p.arbeitszeit.forEach((a, ai) => {
+        const std = Math.round(a.minuten / 60 * 100) / 100
+        lines.push(
+          `INSERT INTO arbeitszeit (id, position_id, positionsnummer, kostenstelle, kostenstelle_bezeichnung, minuten, stunden, stundensatz, gesamt) VALUES (`,
+          `  ${sq(`az_${pi + 1}_${ai + 1}`)}, ${sq(posId)}, ${pi + 1}, ${sq(a.kostenstelle)}, ${sq(getKsLabel(a.kostenstelle))}, ${a.minuten}, ${std}, ${a.vkStunde}, ${num(std * a.vkStunde)}`,
+          `);`,
+        )
+      })
+    })
+
+    lines.push(
+      '',
+      '-- ============================================================',
+      '-- ZUSAMMENFASSUNG',
+      '-- ============================================================',
+      `-- Positionen:  ${pos.length}`,
+      `-- Netto:       ${num(netto)} EUR`,
+      `-- MwSt. 19%:  ${num(netto * 0.19)} EUR`,
+      `-- Brutto:      ${num(netto * 1.19)} EUR`,
+      '',
+    )
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `kalkulation_${(kunde.name.trim().split(/\s+/).pop() || 'export')}_${now.toISOString().slice(0, 10)}.sql`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [pos, kunde, docNr, angebotsdatum, totals])
+
   const copyToClipboard = useCallback(async () => {
     const date = today()
     const lines: string[] = [
@@ -2264,9 +2480,11 @@ export default function CraftFlow() {
                     />
                     <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#1E1E1E', border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden', zIndex: 50, minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
                       {[
-                        { label: '{ } JSON', action: () => { exportJSON(); setExportMenuOpen(false) } },
-                        { label: '⬛ CSV', action: () => { exportCSV(); setExportMenuOpen(false) } },
+                        { label: '📋 CSV – Vollexport', action: () => { exportFullCSV(); setExportMenuOpen(false) } },
+                        { label: '🗄 SQL (.sql)', action: () => { exportSQL(); setExportMenuOpen(false) } },
                         { label: '📊 Excel (.xlsx)', action: () => { exportXLSX(); setExportMenuOpen(false) } },
+                        { label: '⬛ CSV – Übersicht', action: () => { exportCSV(); setExportMenuOpen(false) } },
+                        { label: '{ } JSON', action: () => { exportJSON(); setExportMenuOpen(false) } },
                         {
                           label: planCanUse('enterprise') ? '🏗 GAEB DA84 (.X84)' : '🔒 GAEB DA84 — Enterprise',
                           action: () => { if (planCanUse('enterprise')) { exportGAEB(); setExportMenuOpen(false) } else { window.location.href = '/settings#plan' } },
