@@ -41,7 +41,7 @@ export default function AVV() {
       <div style={st.wrap}>
         <p style={st.label}>Rechtliches</p>
         <h1 style={st.h1}>Auftragsverarbeitungsvertrag</h1>
-        <p style={st.sub}>Version {VERSION} · gemäß Art. 28 DSGVO · Entwurf — noch nicht rechtsverbindlich</p>
+        <p style={st.sub}>Version {VERSION} · gemäß Art. 28 DSGVO</p>
 
         {/* Parteien */}
         <div style={st.section}>
