@@ -282,6 +282,8 @@ export default function CraftFlow() {
     fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) })
   }, [])
 
+  useEffect(() => { currentProjectIdRef.current = currentProjectId }, [currentProjectId])
+
   async function saveProject() {
     setSaveStatus('saving')
     const title = [kunde.name.trim(), kunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
@@ -406,6 +408,8 @@ export default function CraftFlow() {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const [recSeconds, setRecSeconds] = useState(0)
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Ref damit startAnalyse immer den aktuellen currentProjectId sieht (useCallback-Closure-Problem)
+  const currentProjectIdRef = useRef<string | null>(null)
   const MAX_REC_SECONDS = 300 // 5 Minuten
 
   // ── Optimierungs-Panel ──────────────────────────────
@@ -814,20 +818,24 @@ export default function CraftFlow() {
         setStartMsg((data.fragen as string[]).join('\n'))
       }
 
+      // Parsed-Werte in Variablen fassen (für Auto-Save, bevor State-Updates greifen)
+      let parsedKunde = { name: '', zusatz: '', strasse: '', ort: '', projekt: '' }
       if (data.kunde) {
-        setKunde({
+        parsedKunde = {
           name: data.kunde.name || '',
           zusatz: data.kunde.zusatz || '',
           strasse: data.kunde.strasse || '',
           ort: data.kunde.ort || '',
           projekt: data.kunde.projekt || '',
-        })
+        }
+        setKunde(parsedKunde)
       }
 
+      type AIMatRow = { bezeichnung?: string; menge?: number; einheit?: string; ekPreis?: number; aufschlag?: number }
+      type AIArbRow = { kostenstelle?: string; minuten?: number; vkStunde?: number }
+      let parsedPos: Angebotsposition[] = []
       if (data.positionen?.length > 0) {
-        type AIMatRow = { bezeichnung?: string; menge?: number; einheit?: string; ekPreis?: number; aufschlag?: number }
-        type AIArbRow = { kostenstelle?: string; minuten?: number; vkStunde?: number }
-        setPos(data.positionen.map((p: Record<string, unknown>, i: number) => ({
+        parsedPos = data.positionen.map((p: Record<string, unknown>, i: number) => ({
           id: Date.now() + i,
           titel: (p.titel as string) || 'Position',
           beschreibung: (p.beschreibung as string) || '',
@@ -845,13 +853,14 @@ export default function CraftFlow() {
             minuten: a.minuten || 60,
             vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['Produktion'],
           })),
-        })))
+        }))
+        setPos(parsedPos)
       }
 
-      if (data.anschreiben) setAnschr(data.anschreiben)
+      const parsedAnschr = data.anschreiben || anschr
+      if (data.anschreiben) setAnschr(parsedAnschr)
 
-
-      // Kein fragen → direkt zum App-Screen
+      // Kein fragen → direkt zum App-Screen + Auto-Save
       if (!data.fragen?.length) {
         setStartStatus('idle')
         setScreen('app')
@@ -861,6 +870,39 @@ export default function CraftFlow() {
         setGaebPrompt(null)
         setGaebProjektName('')
         setGaebPositionenCount(0)
+
+        // Automatisch speichern (feuere-und-vergiss, kein UI-Feedback nötig)
+        const projectId = currentProjectIdRef.current
+        const title = [parsedKunde.name.trim(), parsedKunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
+        const payload = { kunde: parsedKunde, pos: parsedPos, docNr, docTyp, anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today() }
+        fetch(
+          projectId ? `/api/projects/${projectId}` : '/api/projects',
+          {
+            method: projectId ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, data: payload }),
+          }
+        ).then(async r => {
+          if (!r.ok) return
+          const row = await r.json()
+          const isNew = !projectId
+          if (isNew) {
+            setCurrentProjectId(row.id)
+            currentProjectIdRef.current = row.id
+          }
+          setProjects(prev => {
+            const exists = prev.find(p => p.id === row.id)
+            return exists ? prev.map(p => p.id === row.id ? row : p) : [row, ...prev]
+          })
+          if (isNew) {
+            const next = nummernNaechste + 1
+            setNummernNaechste(next)
+            fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ angebotsnummer_naechste: next }) }).catch(() => {})
+            const gesamtNetto = parsedPos.reduce((a: number, p: Angebotsposition) => a + calcAngebotspos(p), 0)
+            const ersteMaterial = parsedPos.flatMap((p: Angebotsposition) => p.material)[0]?.bezeichnung ?? ''
+            fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'outcome_init', projectId: row.id, data: { moebel_typ: parsedPos[0]?.titel ?? '', material: ersteMaterial, ist_massivholz: /massiv|eiche|buche|nuss|fichte|kiefer/i.test(ersteMaterial), preis_kalkuliert: gesamtNetto, plz: parsedKunde.ort.trim().split(/\s+/)[0] ?? '' } }) }).catch(() => {})
+          }
+        }).catch(() => {})
       }
     } catch (e: unknown) {
       setStartStatus('error')
@@ -1993,8 +2035,8 @@ export default function CraftFlow() {
               .cf-optim-panel .chat-area::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
               @media (max-width: 640px) {
                 .cf-optim-panel {
-                  position: fixed; bottom: 0; left: 0; right: 0;
-                  width: 100% !important; min-width: 0; height: 70vh;
+                  position: fixed; top: 116px; bottom: 0; left: 0; right: 0;
+                  width: 100% !important; min-width: 0; height: auto;
                   border-left: none; border-top: 2px solid #C8885A; z-index: 200;
                 }
               }
@@ -2002,7 +2044,7 @@ export default function CraftFlow() {
             <div style={{ display: 'flex', minHeight: 'calc(100vh - 116px)', alignItems: 'flex-start' }}>
 
             {/* ── LEFT: Kalkulation Content ── */}
-            <div style={{ flex: 1, padding: 14, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 116px)' }}>
+            <div style={{ flex: 1, padding: 14, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 116px)', display: isMobile && optimPanelOpen ? 'none' : undefined }}>
 
             {/* Feature 3+4: Top action buttons */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -2587,13 +2629,26 @@ export default function CraftFlow() {
                       </div>
                       <div style={{
                         maxWidth: '92%', padding: '9px 13px', borderRadius: msg.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
-                        fontSize: 12, lineHeight: 1.6,
+                        fontSize: 13, lineHeight: 1.65,
                         background: msg.role === 'user' ? C.copper : C.gray1,
                         color: msg.role === 'user' ? C.black : C.white,
-                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                        wordBreak: 'break-word',
                         border: msg.role === 'assistant' ? `1px solid ${C.border}` : 'none',
                       }}>
-                        {msg.content}
+                        {msg.content.split('\n').map((line, li) => {
+                          const clean = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/#{1,3}\s*/g, '')
+                          if (clean.startsWith('→ ') || clean.startsWith('- ')) {
+                            const txt = clean.startsWith('→ ') ? clean.slice(2) : clean.slice(2)
+                            return (
+                              <div key={li} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 3 }}>
+                                <span style={{ color: msg.role === 'user' ? C.black : C.copper, flexShrink: 0, fontWeight: 700, fontSize: 13 }}>→</span>
+                                <span>{txt}</span>
+                              </div>
+                            )
+                          }
+                          if (clean === '') return li === 0 ? null : <div key={li} style={{ height: 6 }} />
+                          return <div key={li} style={{ marginBottom: li < msg.content.split('\n').length - 1 ? 2 : 0 }}>{clean}</div>
+                        })}
                       </div>
                     </div>
                   ))}
@@ -2742,7 +2797,7 @@ export default function CraftFlow() {
               disabled={saveStatus === 'saving'}
               style={{ width: '100%', background: saveStatus === 'saved' ? '#1a3a1a' : C.darkbg, color: saveStatus === 'saved' ? '#5ABE6A' : saveStatus === 'error' ? '#E05A5A' : C.textMid, border: `1px solid ${saveStatus === 'saved' ? '#3a6a3a' : saveStatus === 'error' ? '#6a3a3a' : C.border}`, padding: '12px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, letterSpacing: 1, cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer', marginBottom: 8 }}
             >
-              {saveStatus === 'saving' ? '…' : saveStatus === 'saved' ? '✓ Gespeichert' : saveStatus === 'error' ? '✗ Fehler beim Speichern' : currentProjectId ? '💾 Projekt aktualisieren' : '💾 Projekt speichern'}
+              {saveStatus === 'saving' ? '…' : saveStatus === 'saved' ? '✓ Gespeichert' : saveStatus === 'error' ? '✗ Fehler beim Speichern' : '💾 Änderungen speichern'}
             </button>
 
             {usage !== null && usage.remaining !== null && usage.remaining <= 3 && (
