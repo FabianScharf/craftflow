@@ -264,7 +264,7 @@ export default function CraftFlow() {
   }
 
   // ── Projektverwaltung ───────────────────────────────
-  type ProjectMeta = { id: string; title: string; status: string; updated_at: string }
+  type ProjectMeta = { id: string; title: string; status: string; updated_at: string; created_at: string }
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -276,6 +276,19 @@ export default function CraftFlow() {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status } : p))
     setStatusDropdown(null)
     await fetch(`/api/projects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    // Tracking: Status-Änderung + Tage seit Erstellung
+    setProjects(current => {
+      const proj = current.find(p => p.id === id)
+      const tage = proj?.created_at
+        ? Math.round((Date.now() - new Date(proj.created_at).getTime()) / 86_400_000)
+        : null
+      fetch('/api/tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'status_change', projectId: id, data: { status, tage_seit_erstellung: tage } }),
+      }).catch(() => {})
+      return current
+    })
   }, [])
 
   useEffect(() => {
@@ -1062,13 +1075,19 @@ export default function CraftFlow() {
     const userMsg: OptimChatMsg = { role: 'user', content: msg }
     setOptimMessages(prev => [...prev, userMsg])
     setOptimLoading(true)
+
+    // Snapshot VOR der KI-Antwort für Tracking
+    const nettoVorher = totals.net
+    const posVorher   = pos.length
+    const msgNr       = optimMessages.length + 1
+
     try {
       const res = await fetch('/api/optimize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
-          chatHistory: optimMessages.slice(-10), // max 10 Nachrichten um Body-Größe zu begrenzen
+          chatHistory: optimMessages.slice(-10),
           message: msg,
         }),
       })
@@ -1079,7 +1098,11 @@ export default function CraftFlow() {
       }
       if (!res.ok) throw new Error(json.error ?? 'Unbekannter Fehler')
       setOptimMessages(prev => [...prev, { role: 'assistant', content: json.message ?? '' }])
-      if (json.updatedOffer) {
+
+      const hadUpdate = !!json.updatedOffer?.positionen
+      let nettoNachher: number | null = null
+
+      if (hadUpdate) {
         await fetch('/api/offer-versions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1090,12 +1113,37 @@ export default function CraftFlow() {
         const vRes = await fetch(`/api/offer-versions?offerId=${offerId}`)
         const vJson = await vRes.json()
         if (vJson.versions) setVersions(vJson.versions)
+        // Neuen Netto berechnen direkt aus den zurückgegebenen Positionen
+        nettoNachher = json.updatedOffer.positionen.reduce(
+          (sum: number, p: Angebotsposition) => sum + calcAngebotspos(p), 0
+        )
       }
+
+      // Tracking — fire & forget
+      if (currentProjectId) {
+        fetch('/api/tracking', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'optim_message',
+            projectId: currentProjectId,
+            data: {
+              msg_nr:              msgNr,
+              netto_vorher:        nettoVorher,
+              netto_nachher:       nettoNachher,
+              positionen_vorher:   posVorher,
+              positionen_nachher:  hadUpdate ? (json.updatedOffer.positionen?.length ?? posVorher) : posVorher,
+              had_update:          hadUpdate,
+            },
+          }),
+        }).catch(() => {})
+      }
+
     } catch (e: unknown) {
       setOptimMessages(prev => [...prev, { role: 'assistant', content: `Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}` }])
     }
     setOptimLoading(false)
-  }, [optimInput, optimLoading, optimMessages, pos, kunde, offerId])
+  }, [optimInput, optimLoading, optimMessages, pos, kunde, offerId, totals.net, currentProjectId])
 
   const restoreVersion = useCallback(async (versionId: string) => {
     try {
