@@ -33,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer style={{ padding: '14px 24px', borderTop: '1px solid #1E1E1E', display: 'flex', justifyContent: 'center', gap: 24 }}>
           <a href="/impressum"   style={{ fontSize: 11, color: '#4A4A4A', textDecoration: 'none' }}>Impressum</a>
           <a href="/datenschutz" style={{ fontSize: 11, color: '#4A4A4A', textDecoration: 'none' }}>Datenschutz</a>
+          <a href="/agb"         style={{ fontSize: 11, color: '#4A4A4A', textDecoration: 'none' }}>AGB</a>
         </footer>
       </body>
     </html>
