@@ -82,7 +82,7 @@ export default function Impressum() {
           <p style={st.p}>
             Berufsbezeichnung: <Hi>Schreinermeister</Hi><br />
             Berufsbezeichnung verliehen in: <Hi>Deutschland</Hi><br />
-            Zuständige Kammer: <Hi>Handwerkskammer Frankfurt-Rhein-Main</Hi><br />
+            Zuständige Kammer: <Hi>Handwerkskammer Wiesbaden</Hi><br />
             Berufsrechtliche Regelung: Handwerksordnung (HwO)
           </p>
           <p style={st.p}>
