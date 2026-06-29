@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
     const body = await req.json()
-    const { title, status = 'entwurf', data } = body as { title: string; status?: string; data: unknown }
+    const { title, status = 'offen', data } = body as { title: string; status?: string; data: unknown }
 
     if (!title?.trim()) return NextResponse.json({ error: 'Titel fehlt' }, { status: 400 })
     if (!data) return NextResponse.json({ error: 'Daten fehlen' }, { status: 400 })

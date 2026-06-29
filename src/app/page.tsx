@@ -269,6 +269,8 @@ export default function CraftFlow() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [statusDropdown, setStatusDropdown] = useState<string | null>(null)
+  const [projectFilterStatus, setProjectFilterStatus] = useState<string>('alle')
+  const [projectSort, setProjectSort] = useState<'newest' | 'oldest' | 'az'>('newest')
 
   const updateProjectStatus = useCallback(async (id: string, status: string) => {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status } : p))
@@ -1611,8 +1613,38 @@ export default function CraftFlow() {
           </div>
         </div>
 
+        {/* Filter + Sort */}
+        {projects.length > 0 && (
+          <div style={{ maxWidth: 700, margin: '0 auto', padding: '16px 16px 0' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Status-Filter */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(['alle', 'offen', 'gewonnen', 'verhandelt', 'verloren'] as const).map(f => {
+                  const sc = f === 'alle' ? { color: C.textMid, label: 'Alle' } : (statusColors[f] ?? { color: C.textMid, label: f })
+                  const active = projectFilterStatus === f
+                  return (
+                    <button key={f} onClick={() => setProjectFilterStatus(f)}
+                      style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 20, border: `1px solid ${active ? sc.color : C.border}`, background: active ? sc.color + '22' : 'transparent', color: active ? sc.color : C.textMid, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', transition: 'all .15s' }}>
+                      {sc.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Sortierung */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                {([['newest', 'Neueste'], ['oldest', 'Älteste'], ['az', 'A–Z']] as const).map(([val, label]) => (
+                  <button key={val} onClick={() => setProjectSort(val)}
+                    style={{ fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 20, border: `1px solid ${projectSort === val ? brandAccent : C.border}`, background: projectSort === val ? brandAccent + '22' : 'transparent', color: projectSort === val ? brandAccent : C.textMid, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', transition: 'all .15s' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Liste */}
-        <div style={{ maxWidth: 700, margin: '0 auto', padding: '28px 16px' }}>
+        <div style={{ maxWidth: 700, margin: '0 auto', padding: '16px 16px 28px' }}>
           {projects.length === 0 ? (
             <div style={{ textAlign: 'center', paddingTop: 80, color: C.textMid }}>
               <div style={{ fontSize: 40, marginBottom: 16 }}>📋</div>
@@ -1623,9 +1655,28 @@ export default function CraftFlow() {
                 style={{ marginTop: 24, background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: '11px 22px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800 }}
               >+ Neues Projekt</button>
             </div>
-          ) : (
+          ) : (() => {
+            const filtered = projects
+              .filter(p => {
+                if (projectFilterStatus === 'alle') return true
+                if (projectFilterStatus === 'offen') return p.status === 'offen' || p.status === 'entwurf' || !p.status
+                return p.status === projectFilterStatus
+              })
+              .sort((a, b) => {
+                if (projectSort === 'az') return a.title.localeCompare(b.title, 'de')
+                if (projectSort === 'oldest') return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
+                return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+              })
+            if (filtered.length === 0) return (
+              <div style={{ textAlign: 'center', paddingTop: 60, color: C.textMid }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
+                <div style={{ fontSize: 13 }}>Keine Projekte mit diesem Filter.</div>
+                <button onClick={() => setProjectFilterStatus('alle')} style={{ marginTop: 16, background: 'transparent', color: brandAccent, border: `1px solid ${brandAccent}`, borderRadius: 6, padding: '8px 18px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>Filter zurücksetzen</button>
+              </div>
+            )
+            return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {projects.map(p => {
+              {filtered.map(p => {
                 const sc = statusColors[p.status] ?? statusColors['offen']
                 return (
                   <div
@@ -1675,7 +1726,8 @@ export default function CraftFlow() {
                 )
               })}
             </div>
-          )}
+            )
+          })()}
         </div>
       {HelpWidget}
       </div>
