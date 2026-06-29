@@ -15,8 +15,11 @@ const st = {
   section: { marginBottom: 32 } as React.CSSProperties,
   h2:      { fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#C8885A', marginBottom: 10 },
   p:       { fontSize: 14, color: '#8A8A8A', lineHeight: 1.75, marginBottom: 8 } as React.CSSProperties,
+  hi:      { color: '#F5F2EE', fontWeight: 600 } as React.CSSProperties,
   divider: { height: 1, background: '#1E1E1E', margin: '32px 0' } as React.CSSProperties,
 }
+
+const Hi = ({ children }: { children: React.ReactNode }) => <span style={st.hi}>{children}</span>
 
 export default function Impressum() {
   return (
@@ -31,52 +34,107 @@ export default function Impressum() {
         <h1 style={st.h1}>Impressum</h1>
         <p style={st.sub}>Angaben gemäß § 5 DDG</p>
 
+        {/* Anbieter */}
         <div style={st.section}>
-          <p style={st.h2}>Verantwortlicher</p>
+          <p style={st.h2}>Anbieter</p>
           <p style={st.p}>
-            Fabian Scharf<br />
+            <Hi>Fabian Scharf</Hi><br />
             FS Crafted<br />
             Fuldaer Straße 15<br />
-            63517 Rodenbach
+            63517 Rodenbach<br />
+            Deutschland
+          </p>
+          <p style={st.p}>
+            Rechtsform: <Hi>Einzelunternehmen</Hi>
           </p>
         </div>
 
         <div style={st.divider} />
 
+        {/* Kontakt */}
         <div style={st.section}>
           <p style={st.h2}>Kontakt</p>
           <p style={st.p}>
-            Telefon: +49 160 4416822<br />
-            E-Mail: anfrage@fscrafted.de
+            Telefon: <Hi>+49 160 4416822</Hi><br />
+            E-Mail:{' '}
+            <a href="mailto:anfrage@fscrafted.de" style={{ color: '#C8885A' }}>
+              anfrage@fscrafted.de
+            </a>
           </p>
         </div>
 
         <div style={st.divider} />
 
+        {/* Steuer */}
         <div style={st.section}>
-          <p style={st.h2}>Umsatzsteuer-ID</p>
+          <p style={st.h2}>Steuerliche Angaben</p>
           <p style={st.p}>
             Umsatzsteuer-Identifikationsnummer gemäß § 27a UStG:<br />
-            DE459348681
+            <Hi>DE459348681</Hi>
           </p>
         </div>
 
         <div style={st.divider} />
 
+        {/* Handwerksrecht */}
         <div style={st.section}>
-          <p style={st.h2}>Streitschlichtung</p>
+          <p style={st.h2}>Berufsrechtliche Angaben</p>
           <p style={st.p}>
-            Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS)
-            bereit:{' '}
-            <a href="https://ec.europa.eu/consumers/odr/" style={{ color: '#C8885A' }}>
-              https://ec.europa.eu/consumers/odr/
+            Berufsbezeichnung: <Hi>Schreinermeister</Hi><br />
+            Berufsbezeichnung verliehen in: <Hi>Deutschland</Hi><br />
+            Zuständige Kammer: <Hi>Handwerkskammer Frankfurt-Rhein-Main</Hi><br />
+            Berufsrechtliche Regelung: Handwerksordnung (HwO)
+          </p>
+          <p style={st.p}>
+            Die berufsrechtlichen Regelungen sind einsehbar unter:{' '}
+            <a href="https://www.gesetze-im-internet.de/hwo/" style={{ color: '#C8885A' }} target="_blank" rel="noopener noreferrer">
+              www.gesetze-im-internet.de/hwo
+            </a>
+          </p>
+        </div>
+
+        <div style={st.divider} />
+
+        {/* Inhaltlich Verantwortlicher */}
+        <div style={st.section}>
+          <p style={st.h2}>Inhaltlich Verantwortlicher</p>
+          <p style={st.p}>
+            Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV:<br />
+            <Hi>Fabian Scharf</Hi><br />
+            Fuldaer Straße 15, 63517 Rodenbach
+          </p>
+        </div>
+
+        <div style={st.divider} />
+
+        {/* Streitschlichtung */}
+        <div style={st.section}>
+          <p style={st.h2}>Online-Streitbeilegung</p>
+          <p style={st.p}>
+            Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung bereit:{' '}
+            <a href="https://ec.europa.eu/consumers/odr/" style={{ color: '#C8885A' }} target="_blank" rel="noopener noreferrer">
+              ec.europa.eu/consumers/odr
             </a>
           </p>
           <p style={st.p}>
-            Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren
-            vor einer Verbraucherschlichtungsstelle teilzunehmen.
+            CraftFlow richtet sich ausschließlich an Unternehmer (B2B). Wir sind nicht
+            verpflichtet und nicht bereit, an Streitbeilegungsverfahren vor einer
+            Verbraucherschlichtungsstelle teilzunehmen.
           </p>
         </div>
+
+        <div style={st.divider} />
+
+        {/* Haftungshinweis */}
+        <div style={st.section}>
+          <p style={st.h2}>Haftungshinweis</p>
+          <p style={st.p}>
+            Trotz sorgfältiger inhaltlicher Kontrolle übernehmen wir keine Haftung für
+            die Inhalte externer Links. Für den Inhalt verlinkter Seiten sind
+            ausschließlich deren Betreiber verantwortlich.
+          </p>
+        </div>
+
       </div>
     </div>
   )
