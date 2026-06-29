@@ -1657,7 +1657,11 @@ export default function CraftFlow() {
             </div>
           ) : (() => {
             const filtered = projects
-              .filter(p => projectFilterStatus === 'alle' || p.status === projectFilterStatus)
+              .filter(p => {
+                if (projectFilterStatus === 'alle') return true
+                if (projectFilterStatus === 'offen') return p.status === 'offen' || p.status === 'entwurf' || !p.status
+                return p.status === projectFilterStatus
+              })
               .sort((a, b) => {
                 if (projectSort === 'az') return a.title.localeCompare(b.title, 'de')
                 if (projectSort === 'oldest') return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
