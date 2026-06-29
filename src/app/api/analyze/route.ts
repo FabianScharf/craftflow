@@ -56,29 +56,63 @@ Verkaufspreis (netto) = Materialkosten (EK) + Materialgemeinkosten (30 % Aufschl
 ## KOSTENSTELLEN UND STUNDENSÄTZE (FS Crafted 2024–2026)
 
 Nur diese exakten IDs verwenden – Schreibweise genau einhalten:
-Besprechung          → 65 €/h
-Planung              → 85 €/h
-Konstruktion         → 75 €/h
-Arbeitsvorbereitung  → 75 €/h
-Produktion           → 65 €/h
-Warenhandling        → 65 €/h
-Zuschnitt            → 72 €/h
-Bekantung            → 100 €/h
-CNC                  → 120 €/h
-Oberfläche           → 72 €/h
-Zusammenbau          → 65 €/h
-Verpacken            → 65 €/h
-Azubi                → 52 €/h
-Montage              → 65 €/h
-Lieferung            → 65 €/h
+
+Besprechung (65 €/h)
+  → Erstgespräch, Aufmaß vor Ort, Kundentelefonate/-mails, Angebotspräsentation, Abnahme
+
+Planung (85 €/h)
+  → Angebotskalkulation, Skizzen, CAD-Zeichnungen, Maß- und Raumplanung, technische Zeichnungen für Fertigung
+
+Konstruktion (75 €/h)
+  → Bauteildetaillierung, Stücklisten erstellen, CNC-/Fräsprogramme erstellen, Beschlagsplanung, Sonderlösungen konstruieren
+
+Arbeitsvorbereitung (75 €/h)
+  → Material bestellen, Bestelllisten erstellen, Liefertermine koordinieren, Arbeitsauftrag für Werkstatt schreiben, Kapazitäts- und Terminplanung
+
+Produktion (65 €/h)
+  → Allgemeine Werkstattarbeit: Bohren, Dübeln, Verbinder einsetzen, Beschläge in der Werkstatt montieren, manuelle Handarbeiten
+
+Warenhandling (65 €/h)
+  → Warenannahme und -prüfung, Einlagern/Auslagern, Platten aus Lager zum Maschinenraum bringen, Reststücke einlagern, Abfallentsorgung
+
+Zuschnitt (72 €/h)
+  → Formatschnitt, Plattenteilung, Längs-/Querschnitt, Zuschnittplan umsetzen, Maschinenrüstung Säge
+
+Bekantung (100 €/h)
+  → Kantenband aufbringen (Kantenmaschine), Fräsen und Abziehen nach Auftrag, Maschinenrüstung Kantenmaschine, Qualitätskontrolle
+
+CNC (120 €/h)
+  → CNC-Fräse betreiben, Maschinenrüstung, Werkzeugwechsel/-vermessung, Programm einlesen, Werkstücke aufspannen und entnehmen
+
+Oberfläche (72 €/h)
+  → Schleifen (Exzenter, Band, Hand), Lackieren/Ölen/Wachsen/Beizen, Grundierung, Zwischenschliff, Abkleben/Maskieren
+
+Zusammenbau (65 €/h)
+  → Korpus in der Werkstatt zusammenbauen, Türen/Schubladen/Beschläge einbauen und vorjustieren, Verleimen und Pressen, Probeaufbau
+
+Verpacken (65 €/h)
+  → Bauteile mit Folie/Karton schützen, auf Palette laden, Ladungssicherung, Lieferschein erstellen
+
+Azubi (52 €/h)
+  → Hilfsarbeiten unter Anleitung bei allen anderen Kostenstellen
+
+Montage (65 €/h)
+  → Aufbau und Installation beim Kunden, Anpassen vor Ort (Kürzen, Einschleifen), Justieren und Einstellen
+
+Lieferung (65 €/h)
+  → Fahrtzeit zum Kunden, Be- und Entladen, Transport
+
+---
 
 Fixkosten – IMMER in jeder Position, NIEMALS 0 min:
-00_Meeting                → Minimum 15 min (auch bei kleinen Aufträgen)
-01_02_Planung             → Minimum 20 min
-02_01_Konstruktion        → Minimum 30 min
-02_02_Arbeitsvorbereitung → Richtwert: 60 min je 1.000 € Netto-Positionswert (Minimum 20 min)
-  Beispiele: Position 1.000 € → 60 min | 2.500 € → 150 min | 5.000 € → 300 min
-  AV umfasst: Material bestellen, Zuschnittsplan, Maschinenrüstung, Werkzeug richten
+Besprechung         → Minimum 15 min (auch bei kleinen Aufträgen)
+Planung             → Minimum 20 min
+Konstruktion        → Minimum 30 min
+Arbeitsvorbereitung → Minimum 20 min
+
+RICHTWERT Konstruktion + Arbeitsvorbereitung zusammen: ~60 min je 1.000 € Netto-Positionswert
+  Beispiele: 1.000 € → je 30 min | 2.500 € → je 75 min | 5.000 € → je 150 min
+  Verteilung zwischen den beiden je nach Komplexität: mehr Konstruktion bei Sonderteilen/CNC, mehr AV bei viel Material und Koordinationsaufwand
 
 ---
 
