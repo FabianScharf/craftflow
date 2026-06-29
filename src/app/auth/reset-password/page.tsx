@@ -38,22 +38,14 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     const supabase = createClient()
-
-    // PKCE flow: Supabase sends ?code=xxx in the URL
-    const code = new URLSearchParams(window.location.search).get('code')
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (!error) setReady(true)
-        else setError('Der Reset-Link ist ungültig oder abgelaufen. Bitte fordere einen neuen an.')
-      })
-      return
-    }
-
-    // Fallback: implicit flow via hash token
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setReady(true)
+    // After server-side callback, session is already set via cookie
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setReady(true)
+      } else {
+        setError('Der Reset-Link ist ungültig oder abgelaufen. Bitte fordere einen neuen an.')
+      }
     })
-    return () => subscription.unsubscribe()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -89,7 +81,16 @@ export default function ResetPasswordPage() {
           </div>
         ) : !ready ? (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ color: C.gray, fontSize: 13 }}>Link wird geprüft …</div>
+            {error ? (
+              <>
+                <div style={{ color: C.err, fontSize: 13, marginBottom: 16 }}>{error}</div>
+                <a href="/auth/forgot-password" style={{ color: C.copper, fontSize: 13, fontWeight: 600 }}>
+                  Neuen Link anfordern →
+                </a>
+              </>
+            ) : (
+              <div style={{ color: C.gray, fontSize: 13 }}>Link wird geprüft …</div>
+            )}
           </div>
         ) : (
           <>
