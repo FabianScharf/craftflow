@@ -1059,11 +1059,15 @@ export default function CraftFlow() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
-          chatHistory: optimMessages,
+          chatHistory: optimMessages.slice(-10), // max 10 Nachrichten um Body-Größe zu begrenzen
           message: msg,
         }),
       })
-      const json = await res.json()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let json: { success?: boolean; message?: string; updatedOffer?: any; error?: string } = {}
+      try { json = await res.json() } catch {
+        throw new Error('Antwort konnte nicht verarbeitet werden. Bitte erneut versuchen.')
+      }
       if (!res.ok) throw new Error(json.error ?? 'Unbekannter Fehler')
       setOptimMessages(prev => [...prev, { role: 'assistant', content: json.message ?? '' }])
       if (json.updatedOffer) {
