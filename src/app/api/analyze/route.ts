@@ -76,7 +76,9 @@ Fixkosten – IMMER in jeder Position, NIEMALS 0 min:
 00_Meeting                → Minimum 15 min (auch bei kleinen Aufträgen)
 01_02_Planung             → Minimum 20 min
 02_01_Konstruktion        → Minimum 30 min
-02_02_Arbeitsvorbereitung → Minimum 20 min
+02_02_Arbeitsvorbereitung → Richtwert: 60 min je 1.000 € Netto-Positionswert (Minimum 20 min)
+  Beispiele: Position 1.000 € → 60 min | 2.500 € → 150 min | 5.000 € → 300 min
+  AV umfasst: Material bestellen, Zuschnittsplan, Maschinenrüstung, Werkzeug richten
 
 ---
 
@@ -195,6 +197,36 @@ PLAUSIBILITÄTSPRÜFUNG – PFLICHT nach jeder Kalkulation:
 Gesamtpreis je Position = Materialkosten (EK × 1,30) + Σ (Minuten / 60 × Stundensatz)
 Mindestpreis je Position: Laufmeter × 800 € netto
 Falls Gesamtpreis unter diesem Mindest → Werkstattzeiten proportional erhöhen bis Preis stimmt.
+
+SELBSTPRÜFUNGS-CHECKLISTE – VOR der JSON-Ausgabe durchgehen:
+
+Schritt 1 – MATERIAL:
+□ Habe ich alle Bauteile (Seiten, Boden, Deckel, Türen, Fronten, Einlegeböden) einzeln berechnet?
+□ Ist der Verschnittaufschlag (+15 %) eingerechnet?
+□ Liegt der EK-Preis im realistischen Bereich? (Dekor beschichtet: 12–19 €/m², Eiche massiv: 80–140 €/m²)
+□ Gibt es Beschläge als eigene Materialposition? (Scharniere, Schubkästen, Griffe)
+
+Schritt 2 – OBERFLÄCHE vs. BEKANTUNG:
+□ Massivholz: Ist 03_05_Oberflaechenbehandlung mit ausreichend Minuten vorhanden? (mind. 90 min/m² Eiche seidenmatt)
+□ Massivholz: Hat Bekantung 0 Minuten (oder fehlt)?
+□ Dekormöbel: Ist Bekantung vorhanden? (mind. Materialmenge m² × 3 lfdm × 4 min/lfdm)
+□ Dekormöbel: Hat Oberfläche maximal 30 Minuten?
+
+Schritt 3 – WERKSTATTZEITEN:
+□ Zuschnitt + Zusammenbau gesamt: mind. lfm × 270 min (Dekor) oder lfm × 390 min (Massivholz Eiche)?
+□ Zusammenbau: Jede Tür +20 min, Schiebetür +45 min, Klappe +35 min, Schublade +30 min, Griff +8 min korrekt addiert?
+□ Sind alle 4 Fixkosten (Besprechung, Planung, Konstruktion, Arbeitsvorbereitung) vorhanden?
+
+Schritt 4 – MONTAGE:
+□ Wenn Montage vorhanden: mindestens lfm × 90 min?
+□ Altbau oder schiefe Wände erwähnt? Dann +25 % Puffer.
+
+Schritt 5 – GESAMTPREIS:
+□ Gesamtpreis ≥ lfm × 800 € (Dekor) oder lfm × 1.200 € (Massivholz Eiche)?
+□ Wenn nicht → Werkstattzeiten erhöhen.
+
+Wenn alle Punkte korrekt: JSON ausgeben.
+Wenn ein Punkt nicht stimmt: erst korrigieren, dann ausgeben.
 
 Zusätzliche Massivholz-Einzelwerte:
 - Verleimen Massivholzplatten (je m² Leimfläche): 30–60 min → in 03_06_Zusammenbau
@@ -688,12 +720,13 @@ export async function POST(req: NextRequest) {
     const model = 'claude-sonnet-4-6'
     const reqBody = JSON.stringify({
       model,
-      max_tokens: 8000,
-      temperature: 0.2,
+      max_tokens: 16000, // thinking (5k) + output (8k) + puffer
+      temperature: 1,    // extended thinking erfordert temperature = 1
+      thinking: { type: 'enabled', budget_tokens: 5000 },
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
     })
-    console.log('[analyze] calling Claude model:', model, '— body size:', Math.round(reqBody.length / 1024), 'KB')
+    console.log('[analyze] calling Claude model:', model, '(extended thinking) — body size:', Math.round(reqBody.length / 1024), 'KB')
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -701,6 +734,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'interleaved-thinking-2025-05-14',
       },
       body: reqBody,
     })
@@ -715,8 +749,10 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json()
-    const rawText = (data as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? ''
-    console.log('[analyze] Claude response length:', rawText.length)
+    // Extended thinking liefert mehrere Content-Blöcke — wir nehmen nur den text-Block
+    const contentBlocks = (data as { content?: Array<{ type: string; text?: string }> }).content ?? []
+    const rawText = contentBlocks.find(b => b.type === 'text')?.text ?? ''
+    console.log('[analyze] Claude response — blocks:', contentBlocks.length, ', text length:', rawText.length)
     const clean = rawText.replace(/```json|```/g, '').trim()
 
     try {
