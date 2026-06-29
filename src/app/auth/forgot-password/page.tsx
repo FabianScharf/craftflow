@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
     setLoading(true)
     const supabase = createClient()
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://craftflow-sable.vercel.app/auth/reset-password',
+      redirectTo: 'https://app.getcraftflow.de/auth/reset-password',
     })
     if (error) { setError(error.message); setLoading(false); return }
     setSent(true)
