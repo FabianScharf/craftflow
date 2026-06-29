@@ -278,7 +278,7 @@ export default function AVV() {
             wird im System protokolliert und dient als Nachweis gemäß Art. 28 Abs. 3 DSGVO.
           </p>
           <p style={st.p}>
-            Es gilt das Recht der Bundesrepublik Deutschland. Gerichtsstand ist Rodenbach,
+            Es gilt das Recht der Bundesrepublik Deutschland. Gerichtsstand ist Hanau,
             soweit gesetzlich zulässig.
           </p>
           <p style={st.p}>
