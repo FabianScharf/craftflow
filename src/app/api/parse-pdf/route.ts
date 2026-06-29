@@ -20,10 +20,9 @@ export async function POST(req: NextRequest) {
     const { text } = await extractText(buffer, { mergePages: true })
 
     if (!text?.trim()) {
-      return NextResponse.json(
-        { error: 'Kein Text im PDF gefunden. Gescannte PDFs (nur Bilder) werden nicht unterstützt.' },
-        { status: 422 }
-      )
+      // Gescannte / handgeschriebene PDFs haben keinen extrahierbaren Text —
+      // kein Fehler, Client rendert die Seiten als Bilder für die KI
+      return NextResponse.json({ text: '' })
     }
 
     return NextResponse.json({ text: text.trim() })

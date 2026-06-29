@@ -37,13 +37,11 @@ type UploadedFile = {
 /* ── PDF-Seiten → JPEG (client-seitig, browser canvas) ── */
 async function renderPdfPages(
   file: File,
-  maxPages = 2
+  maxPages = 4
 ): Promise<Array<{ b64: string; name: string }>> {
   const pdfjsLib = await import('pdfjs-dist')
-  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
-  }
+  // Lokale Worker-Datei statt externem CDN (verhindert Ausfälle bei Netzwerkproblemen)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
   const total = Math.min(pdf.numPages, maxPages)
@@ -571,14 +569,14 @@ export default function CraftFlow() {
         ])
       }
     } else if (pagesRes.status === 'rejected') {
-      // Rendering fehlgeschlagen — PDF-Platzhalter bleibt, Text-Fallback greift
       console.error('[renderPdfPages]', pagesRes.reason)
-      // Wenn auch Text fehlgeschlagen: Fehlermeldung anzeigen
+      // Rendering fehlgeschlagen — nur Fehler zeigen wenn auch kein Text vorhanden
       if (textRes.status === 'rejected' || textRes.value?.error) {
         setUploadedFiles(prev => prev.filter(f => f.id !== pdfId))
         setStartStatus('error')
-        setStartMsg('PDF konnte nicht verarbeitet werden.')
+        setStartMsg('PDF konnte nicht gerendert werden. Bitte als JPG/PNG exportieren und als Foto hochladen.')
       }
+      // Wenn Text vorhanden (getippte PDFs): kein Fehler, Text wurde bereits eingefügt
     }
 
     setUploadingCount(prev => prev - 1)
