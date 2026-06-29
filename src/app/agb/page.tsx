@@ -41,7 +41,7 @@ export default function AGB() {
         <p style={st.label}>Rechtliches</p>
         <h1 style={st.h1}>Allgemeine Geschäftsbedingungen</h1>
         <p style={st.sub}>
-          Version {VERSION} · FS Crafted — Fabian Scharf · Entwurf — noch nicht rechtsverbindlich
+          Version {VERSION} · FS Crafted — Fabian Scharf
         </p>
 
         {/* § 1 */}
