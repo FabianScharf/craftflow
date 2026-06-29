@@ -66,7 +66,7 @@ export default function RegisterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           consents: ['agb', 'datenschutz', 'avv'],
-          versions: { agb: '2026-06', datenschutz: '2026-06', avv: '2026-06' },
+          versions: { agb: '2026-07', datenschutz: '2026-07', avv: '2026-07' },
         }),
       }).catch(() => {})
     }, 2000)

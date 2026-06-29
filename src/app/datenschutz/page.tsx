@@ -39,7 +39,7 @@ export default function Datenschutz() {
       <div style={st.wrap}>
         <p style={st.label}>Rechtliches</p>
         <h1 style={st.h1}>Datenschutzerklärung</h1>
-        <p style={st.sub}>Stand: Juni 2026</p>
+        <p style={st.sub}>Stand: Juli 2026</p>
 
         {/* 1 */}
         <div style={st.section}>
