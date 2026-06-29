@@ -435,7 +435,9 @@ export default function CraftFlow() {
   const [copiedFeedback, setCopiedFeedback] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
-  const startFileRef = useRef<HTMLInputElement>(null)
+  const startPhotoRef = useRef<HTMLInputElement>(null)
+  const startPdfRef = useRef<HTMLInputElement>(null)
+  const startGaebRef = useRef<HTMLInputElement>(null)
 
   const updK = (f: keyof Kunde, v: string) => setKunde(prev => ({ ...prev, [f]: v }))
   const updPosF = (id: number, f: 'titel' | 'beschreibung', v: string) =>
@@ -1682,37 +1684,18 @@ export default function CraftFlow() {
 
           {/* Foto / PDF-Button */}
           <div style={{ marginBottom: 14 }}>
-            <input
-              ref={startFileRef}
-              type="file"
-              accept={planCanUse('enterprise')
-                ? 'image/*,application/pdf,' + GAEB_EXTENSIONS.join(',')
-                : 'image/*,application/pdf'}
-              multiple
-              onChange={e => {
-                const files = Array.from(e.target.files ?? [])
-                e.target.value = ''
-                for (const f of files) {
-                  const nameLc = f.name.toLowerCase()
-                  const isGaeb = GAEB_EXTENSIONS.some(ext => nameLc.endsWith(ext))
-                  if (isGaeb) {
-                    if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }
-                    handleGaebFile(f)
-                  } else {
-                    const isPdf = f.type === 'application/pdf' || nameLc.endsWith('.pdf')
-                    if (isPdf) handlePdfUpload(f)
-                    else loadBild(f)
-                  }
-                }
-              }}
-              style={{ display: 'none' }}
-            />
+            {/* Separate inputs per Dateityp — behebt iOS Multi-Select-Bug bei gemischtem accept */}
+            <input ref={startPhotoRef} type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp,image/*" multiple
+              onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(f => loadBild(f)) }}
+              style={{ display: 'none' }} />
+            <input ref={startPdfRef} type="file" accept="application/pdf,.pdf" multiple
+              onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(f => handlePdfUpload(f)) }}
+              style={{ display: 'none' }} />
+            <input ref={startGaebRef} type="file" accept={GAEB_EXTENSIONS.join(',')}
+              onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(f => { if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; handleGaebFile(f) }) }}
+              style={{ display: 'none' }} />
             {/* Upload-Fläche – plan-basiert */}
             <div
-              onClick={() => {
-                if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }
-                if (uploadingCount === 0) startFileRef.current?.click()
-              }}
               style={{
                 width: '100%', borderRadius: 10, cursor: uploadingCount > 0 ? 'wait' : 'pointer',
                 border: `2px dashed ${uploadedFiles.length > 0 ? C.copper : C.border}`,
@@ -1727,22 +1710,28 @@ export default function CraftFlow() {
                   {uploadingCount > 0 ? 'Wird verarbeitet…' : uploadedFiles.length > 0 ? `${uploadedFiles.length} Datei${uploadedFiles.length > 1 ? 'en' : ''} hochgeladen – weitere hinzufügen` : 'Dateien hochladen'}
                 </span>
               </div>
-              {/* Feature-Chips */}
+              {/* Feature-Chips — jeder öffnet seinen eigenen Picker */}
               <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {/* Fotos – ab Starter */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5 }}>
+                <div
+                  onClick={() => { if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPhotoRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5, cursor: 'pointer' }}>
                   <span style={{ fontSize: 13 }}>{planCanUse('starter') ? '📷' : '🔒'}</span>
                   <span style={{ fontSize: 11, color: planCanUse('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
                   {!planCanUse('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
                 </div>
                 {/* PDFs – ab Starter */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5 }}>
+                <div
+                  onClick={() => { if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPdfRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5, cursor: 'pointer' }}>
                   <span style={{ fontSize: 13 }}>{planCanUse('starter') ? '📄' : '🔒'}</span>
                   <span style={{ fontSize: 11, color: planCanUse('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
                   {!planCanUse('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
                 </div>
                 {/* GAEB – ab Enterprise */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('enterprise') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('enterprise') ? C.copper + '55' : C.border}`, opacity: planCanUse('enterprise') ? 1 : 0.5 }}>
+                <div
+                  onClick={() => { if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startGaebRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('enterprise') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('enterprise') ? C.copper + '55' : C.border}`, opacity: planCanUse('enterprise') ? 1 : 0.5, cursor: 'pointer' }}>
                   <span style={{ fontSize: 13 }}>{planCanUse('enterprise') ? '🏗' : '🔒'}</span>
                   <span style={{ fontSize: 11, color: planCanUse('enterprise') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
                   {!planCanUse('enterprise') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB ENTERPRISE</span>}
