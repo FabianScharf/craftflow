@@ -423,6 +423,13 @@ export default function CraftFlow() {
   const optimAudioChunksRef = useRef<Blob[]>([])
   const optimChatRef = useRef<HTMLDivElement>(null)
 
+  // ── Help-Assistent ──────────────────────────────────
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpMessages, setHelpMessages] = useState<OptimChatMsg[]>([])
+  const [helpInput, setHelpInput] = useState('')
+  const [helpLoading, setHelpLoading] = useState(false)
+  const helpChatRef = useRef<HTMLDivElement>(null)
+
   // ── Zentrale Materialanfrage + Export ───────────────
   const [allInquiryStatus, setAllInquiryStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [allInquiryResult, setAllInquiryResult] = useState<InquiryResult | null>(null)
@@ -1097,6 +1104,50 @@ export default function CraftFlow() {
     } catch (e) { console.error('[restoreVersion]', e) }
   }, [])
 
+  // ── Help-Assistent Callbacks ────────────────────────
+  const openHelp = useCallback(() => {
+    setHelpOpen(true)
+    if (helpMessages.length === 0) {
+      const greeting = screen === 'app' && tab === 'kalkulation'
+        ? 'Hallo! Ich bin dein CraftFlow-Assistent. Du befindest dich gerade in der Kalkulation.\n\n→ Tipp: Die goldene KI-Optimierung-Leiste öffnet einen Chat, in dem du Änderungen direkt per Text eingeben kannst.\n\nWas kann ich dir erklären?'
+        : screen === 'app' && tab === 'angebot'
+        ? 'Hallo! Ich bin dein CraftFlow-Assistent. Du bist im Angebot-Reiter.\n\nHier kannst du das fertige PDF erstellen und Texte für das Angebot anpassen.\n\nHast du eine Frage?'
+        : 'Hallo! Ich bin dein CraftFlow-Assistent.\n\nIch kenne die gesamte App und helfe dir bei Fragen zu Funktionen, Kalkulation oder Bedienung.\n\nWas möchtest du wissen?'
+      setHelpMessages([{ role: 'assistant', content: greeting }])
+    }
+  }, [helpMessages.length, screen, tab])
+
+  const sendHelpMessage = useCallback(async (overrideMsg?: string) => {
+    const msg = (overrideMsg ?? helpInput).trim()
+    if (!msg || helpLoading) return
+    setHelpInput('')
+    const newMsg: OptimChatMsg = { role: 'user', content: msg }
+    setHelpMessages(prev => [...prev, newMsg])
+    setHelpLoading(true)
+    try {
+      const res = await fetch('/api/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatHistory: helpMessages.slice(-8),
+          message: msg,
+          context: { screen, tab, hasProject: pos.length > 0, positionCount: pos.length, optimPanelOpen },
+        }),
+      })
+      let json: { message?: string; error?: string } = {}
+      try { json = await res.json() } catch { throw new Error('Antwort nicht lesbar') }
+      if (!res.ok) throw new Error(json.error ?? 'Fehler')
+      setHelpMessages(prev => [...prev, { role: 'assistant', content: json.message ?? '' }])
+    } catch {
+      setHelpMessages(prev => [...prev, { role: 'assistant', content: 'Entschuldigung, ich konnte die Frage gerade nicht beantworten. Bitte versuche es erneut.' }])
+    }
+    setHelpLoading(false)
+  }, [helpInput, helpLoading, helpMessages, screen, tab, pos.length, optimPanelOpen])
+
+  useEffect(() => {
+    if (helpChatRef.current) helpChatRef.current.scrollTop = helpChatRef.current.scrollHeight
+  }, [helpMessages])
+
   // ── Feature 3: Zentrale Materialanfrage ─────────────
   const startAllInquiry = useCallback(async () => {
     const allMats = pos.flatMap(p =>
@@ -1451,6 +1502,87 @@ export default function CraftFlow() {
     )
   }
 
+  /* ── Help-Widget (alle Screens) ───────────────────── */
+  const HelpWidget = (
+    <>
+      {!helpOpen && (
+        <button onClick={openHelp} title="CraftFlow Assistent" style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 500,
+          width: 52, height: 52, borderRadius: '50%',
+          background: C.copper, border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(200,136,90,0.5)',
+          fontSize: 22, color: C.black, fontWeight: 800,
+        }}>?</button>
+      )}
+      {helpOpen && (
+        <div style={{
+          position: 'fixed', bottom: 0, right: 0, zIndex: 500,
+          width: isMobile ? '100%' : 380,
+          height: isMobile ? '100%' : 560,
+          background: C.darkbg, borderTop: `2px solid ${C.copper}`,
+          borderLeft: isMobile ? 'none' : `2px solid ${C.copper}`,
+          display: 'flex', flexDirection: 'column',
+          fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif',
+        }}>
+          <div style={{ padding: '12px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <div>
+              <div style={{ color: C.copper, fontWeight: 800, fontSize: 13, letterSpacing: 1 }}>✦ CRAFTFLOW ASSISTENT</div>
+              <div style={{ color: C.textMid, fontSize: 10 }}>Fragen · Hilfe · Erste Schritte</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button onClick={() => sendHelpMessage('Zeig mir die Erste Schritte Anleitung')} style={{ background: '#2a1f14', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', letterSpacing: 0.5 }}>
+                ERSTE SCHRITTE
+              </button>
+              <button onClick={() => setHelpOpen(false)} style={{ background: 'transparent', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+            </div>
+          </div>
+          <div ref={helpChatRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {helpMessages.map((msg, i) => (
+              <div key={i} style={{
+                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '88%',
+                background: msg.role === 'user' ? C.copper : '#1e1e1e',
+                color: msg.role === 'user' ? C.black : C.white,
+                borderRadius: msg.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                padding: '9px 12px', fontSize: 12, lineHeight: 1.5,
+              }}>
+                {msg.content.split('\n').map((line, li) => {
+                  if (line.startsWith('→ ')) return (
+                    <div key={li} style={{ display: 'flex', gap: 6, marginBottom: 2 }}>
+                      <span style={{ color: msg.role === 'user' ? C.black : C.copper, fontWeight: 700, flexShrink: 0 }}>→</span>
+                      <span>{line.slice(2)}</span>
+                    </div>
+                  )
+                  if (line === '') return li === 0 ? null : <div key={li} style={{ height: 5 }} />
+                  return <div key={li}>{line}</div>
+                })}
+              </div>
+            ))}
+            {helpLoading && (
+              <div style={{ alignSelf: 'flex-start', background: '#1e1e1e', borderRadius: '12px 12px 12px 2px', padding: '9px 14px', fontSize: 12, color: C.textMid }}>···</div>
+            )}
+          </div>
+          <div style={{ padding: '10px 12px', borderTop: `1px solid ${C.border}`, flexShrink: 0, display: 'flex', gap: 8 }}>
+            <input
+              value={helpInput}
+              onChange={e => setHelpInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendHelpMessage()}
+              placeholder="Frage stellen …"
+              disabled={helpLoading}
+              style={{ flex: 1, background: '#1a1a1a', border: `1px solid ${C.border}`, borderRadius: 6, color: C.white, padding: '8px 10px', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', opacity: helpLoading ? 0.5 : 1 }}
+            />
+            <button
+              onClick={() => sendHelpMessage()}
+              disabled={!helpInput.trim() || helpLoading}
+              style={{ background: helpInput.trim() && !helpLoading ? C.copper : '#3a2a1a', color: helpInput.trim() && !helpLoading ? C.black : '#6a4a2a', border: 'none', borderRadius: 6, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: helpInput.trim() && !helpLoading ? 'pointer' : 'not-allowed' }}
+            >→</button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+
   /* ══════════════════════════════════════════════════
      SCREEN: PDF
   ══════════════════════════════════════════════════ */
@@ -1545,6 +1677,7 @@ export default function CraftFlow() {
             </div>
           )}
         </div>
+      {HelpWidget}
       </div>
     )
   }
@@ -1563,6 +1696,7 @@ export default function CraftFlow() {
           <div style={{ background: '#fff', borderRadius: 4, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,.5)' }}
             dangerouslySetInnerHTML={{ __html: pdfHTML.replace(/<script[\s\S]*?<\/script>/gi, '') }} />
         </div>
+      {HelpWidget}
       </div>
     )
   }
@@ -1893,6 +2027,7 @@ export default function CraftFlow() {
           </div>
         </div>
 
+      {HelpWidget}
       </div>
     )
   }
@@ -2830,6 +2965,8 @@ export default function CraftFlow() {
 
 
       </div>
+
+      {HelpWidget}
     </div>
   )
 }
