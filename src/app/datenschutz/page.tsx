@@ -197,7 +197,7 @@ export default function Datenschutz() {
           </p>
           <p style={st.p}>
             Diese Daten enthalten <Hi>keine Kundennamen, keine vollständigen Adressen und
-            keinen Angebotsinalt</Hi>. Sie dienen ausschließlich der Analyse der App-Qualität
+            keinen Angebotsinhalt</Hi>. Sie dienen ausschließlich der Analyse der App-Qualität
             und der Verbesserung der KI-Ergebnisse.
           </p>
           <p style={st.p}>
