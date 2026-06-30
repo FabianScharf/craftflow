@@ -54,7 +54,14 @@ export async function POST(req: NextRequest) {
   try {
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 })
-    const m = margins ?? { top: 45, bottom: 20, left: 20, right: 20 }
+    const raw = margins ?? { top: 20, bottom: 20, left: 20, right: 20 }
+    // A4: 210×297mm — clamp so content area is never empty (min 30mm each direction)
+    const m = {
+      top:    Math.min(raw.top,    230),
+      bottom: Math.min(raw.bottom, Math.max(0, 267 - Math.min(raw.top, 230))),
+      left:   Math.min(raw.left,   170),
+      right:  Math.min(raw.right,  Math.max(0, 190 - Math.min(raw.left, 170))),
+    }
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,

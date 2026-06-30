@@ -829,7 +829,7 @@ export default function SettingsPage() {
                             <input
                               type="range"
                               min={0}
-                              max={120}
+                              max={80}
                               step={1}
                               value={Number(profil[key] ?? def)}
                               onChange={e => setP(key, e.target.value)}
@@ -838,7 +838,7 @@ export default function SettingsPage() {
                             <input
                               type="number"
                               min={0}
-                              max={120}
+                              max={80}
                               value={Number(profil[key] ?? def)}
                               onChange={e => setP(key, e.target.value)}
                               style={{ ...inp(), width: 58, textAlign: 'center' as const, padding: '6px 8px' }}
