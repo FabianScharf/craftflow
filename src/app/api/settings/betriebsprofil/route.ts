@@ -33,6 +33,7 @@ export async function PATCH(req: NextRequest) {
     'zahlungsziel_tage', 'angebot_einleitung', 'angebot_abschluss',
     'zahlungskonditionen_text', 'mwst_satz', 'onboarding_abgeschlossen',
     'anrede_vorlage', 'widerrufsbelehrung_text', 'agb_text',
+    'pdf_layout', 'pdf_zeige_bic', 'pdf_zeige_telefon', 'pdf_zeige_website', 'pdf_hinweis',
     'plan',
   ]
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
