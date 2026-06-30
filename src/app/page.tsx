@@ -209,6 +209,14 @@ export default function CraftFlow() {
   const [profilUstId, setProfilUstId]       = useState<string>('')
   const [profilIban, setProfilIban]         = useState<string>('')
   const [profilBank, setProfilBank]         = useState<string>('')
+  const [profilBic, setProfilBic]           = useState<string>('')
+  const [profilTelefon, setProfilTelefon]   = useState<string>('')
+  const [profilWebsite, setProfilWebsite]   = useState<string>('')
+  const [profilPdfLayout, setProfilPdfLayout]           = useState<'klassisch' | 'kompakt'>('klassisch')
+  const [profilPdfZeigeBic, setProfilPdfZeigeBic]       = useState(false)
+  const [profilPdfZeigeTelefon, setProfilPdfZeigeTelefon] = useState(false)
+  const [profilPdfZeigeWebsite, setProfilPdfZeigeWebsite] = useState(false)
+  const [profilPdfHinweis, setProfilPdfHinweis]         = useState<string>('')
   const [nummernPrefix, setNummernPrefix] = useState('AN')
   const [nummernNaechste, setNummernNaechste] = useState(1)
   const [dokAnrede, setDokAnrede] = useState('')
@@ -261,6 +269,14 @@ export default function CraftFlow() {
             setProfilUstId(p.ust_id ?? '')
             setProfilIban(p.iban ?? '')
             setProfilBank(p.bank_name ?? '')
+            setProfilBic(p.bic ?? '')
+            setProfilTelefon(p.telefon ?? '')
+            setProfilWebsite(p.website ?? '')
+            setProfilPdfLayout(p.pdf_layout === 'kompakt' ? 'kompakt' : 'klassisch')
+            setProfilPdfZeigeBic(p.pdf_zeige_bic === true)
+            setProfilPdfZeigeTelefon(p.pdf_zeige_telefon === true)
+            setProfilPdfZeigeWebsite(p.pdf_zeige_website === true)
+            setProfilPdfHinweis(p.pdf_hinweis ?? '')
             setBrandAccent(p.farbe_akzent || C.copper)
             setBrandPrimary(p.farbe_primaer || C.black)
             setNummernPrefix(p.angebotsnummer_prefix ?? 'AN')
@@ -3408,15 +3424,24 @@ export default function CraftFlow() {
                 zahlungText: dokZahlung || undefined,
                 logoUrl: profilLogoUrl || undefined,
                 angebotsdatum: datum,
+                hinweis: profilPdfHinweis || undefined,
+                zeigeBic: profilPdfZeigeBic,
+                zeigeTelefon: profilPdfZeigeTelefon,
+                zeigeWebsite: profilPdfZeigeWebsite,
+                layout: profilPdfLayout,
               }, {
-                name:    profilFirmaName || undefined,
-                inhaber: profilInhaber   || undefined,
-                strasse: profilStrasse   || undefined,
-                ort:     profilOrt       || undefined,
-                email:   profilEmail     || undefined,
-                ust:     profilUstId     || undefined,
-                iban:    profilIban      || undefined,
-                bank:    profilBank      || undefined,
+                name:       profilFirmaName || undefined,
+                inhaber:    profilInhaber   || undefined,
+                strasse:    profilStrasse   || undefined,
+                ort:        profilOrt       || undefined,
+                email:      profilEmail     || undefined,
+                ust:        profilUstId     || undefined,
+                iban:       profilIban      || undefined,
+                bank:       profilBank      || undefined,
+                bic:        profilBic       || undefined,
+                telefon:    profilTelefon   || undefined,
+                website:    profilWebsite   || undefined,
+                akzentfarbe: brandAccent    || undefined,
               }))
               setScreen('pdf')
               if (currentProjectId) {
