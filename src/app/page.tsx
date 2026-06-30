@@ -217,6 +217,12 @@ export default function CraftFlow() {
   const [profilPdfZeigeTelefon, setProfilPdfZeigeTelefon] = useState(false)
   const [profilPdfZeigeWebsite, setProfilPdfZeigeWebsite] = useState(false)
   const [profilPdfHinweis, setProfilPdfHinweis]         = useState<string>('')
+  const [profilPdfZeigeMassivholz, setProfilPdfZeigeMassivholz]     = useState(true)
+  const [profilPdfMassivholzText, setProfilPdfMassivholzText]       = useState<string>('')
+  const [profilPdfZeigeUnterschrift, setProfilPdfZeigeUnterschrift] = useState(true)
+  const [profilPdfUnterschriftText, setProfilPdfUnterschriftText]   = useState<string>('')
+  const [profilPdfEigeneBriefpapier, setProfilPdfEigeneBriefpapier] = useState(false)
+  const [profilPdfBriefpapierUrl, setProfilPdfBriefpapierUrl]       = useState<string>('')
   const [nummernPrefix, setNummernPrefix] = useState('AN')
   const [nummernNaechste, setNummernNaechste] = useState(1)
   const [dokAnrede, setDokAnrede] = useState('')
@@ -277,6 +283,12 @@ export default function CraftFlow() {
             setProfilPdfZeigeTelefon(p.pdf_zeige_telefon === true)
             setProfilPdfZeigeWebsite(p.pdf_zeige_website === true)
             setProfilPdfHinweis(p.pdf_hinweis ?? '')
+            setProfilPdfZeigeMassivholz(p.pdf_zeige_massivholz !== false)
+            setProfilPdfMassivholzText(p.pdf_massivholz_text ?? '')
+            setProfilPdfZeigeUnterschrift(p.pdf_zeige_unterschrift !== false)
+            setProfilPdfUnterschriftText(p.pdf_unterschrift_text ?? '')
+            setProfilPdfEigeneBriefpapier(p.pdf_eigenes_briefpapier === true)
+            setProfilPdfBriefpapierUrl(p.pdf_briefpapier_url ?? '')
             setBrandAccent(p.farbe_akzent || C.copper)
             setBrandPrimary(p.farbe_primaer || C.black)
             setNummernPrefix(p.angebotsnummer_prefix ?? 'AN')
@@ -418,6 +430,7 @@ export default function CraftFlow() {
   const [anschr, setAnschr] = useState('vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
   const [widerruf, setWiderruf] = useState(true)
   const [pdfHTML, setPdfHTML] = useState('')
+  const [pdfGenerating, setPdfGenerating] = useState(false)
 
   // Lieferantenanfrage
   const [selectedMats, setSelectedMats] = useState<Record<number, boolean>>({})
@@ -3417,7 +3430,8 @@ export default function CraftFlow() {
               }
               const datum = angebotsdatum || today()
               if (!angebotsdatum) setAngebotsdatum(datum)
-              setPdfHTML(buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, {
+
+              const textOpts = {
                 anredeVorlage: dokAnrede || undefined,
                 nachtext: dokNachtext || undefined,
                 widerrufText: dokWiderruf || undefined,
@@ -3429,7 +3443,13 @@ export default function CraftFlow() {
                 zeigeTelefon: profilPdfZeigeTelefon,
                 zeigeWebsite: profilPdfZeigeWebsite,
                 layout: profilPdfLayout,
-              }, {
+                zeigeMassivholz: profilPdfZeigeMassivholz,
+                massivholzText: profilPdfMassivholzText || undefined,
+                zeigeUnterschrift: profilPdfZeigeUnterschrift,
+                unterschriftText: profilPdfUnterschriftText || undefined,
+                eigeneBriefpapier: profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl,
+              }
+              const firmaOpts = {
                 name:       profilFirmaName || undefined,
                 inhaber:    profilInhaber   || undefined,
                 strasse:    profilStrasse   || undefined,
@@ -3442,13 +3462,47 @@ export default function CraftFlow() {
                 telefon:    profilTelefon   || undefined,
                 website:    profilWebsite   || undefined,
                 akzentfarbe: brandAccent    || undefined,
-              }))
-              setScreen('pdf')
+              }
+              const html = buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, textOpts, firmaOpts)
+
+              // Mit eigenem Briefpapier: echtes PDF über API erzeugen
+              if (profilPdfEigeneBriefpapier && profilPdfBriefpapierUrl) {
+                setPdfGenerating(true)
+                try {
+                  const res = await fetch('/api/generate-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      html,
+                      letterheadUrl: profilPdfBriefpapierUrl,
+                      filename: `${docTyp}_${docNr}`,
+                    }),
+                  })
+                  if (res.ok) {
+                    const blob = await res.blob()
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${docTyp}_${docNr}.pdf`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  } else {
+                    alert('PDF-Erzeugung fehlgeschlagen. Bitte versuche es erneut.')
+                  }
+                } finally {
+                  setPdfGenerating(false)
+                }
+              } else {
+                // Ohne Briefpapier: bisherige HTML-Vorschau
+                setPdfHTML(html)
+                setScreen('pdf')
+              }
+
               if (currentProjectId) {
                 fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'pdf_export', projectId: currentProjectId, data: { preis_netto: totals.net } }) })
               }
-            }} disabled={usage !== null && !usage.erlaubt} style={{ width: '100%', background: usage !== null && !usage.erlaubt ? '#3a2a1a' : C.copper, color: usage !== null && !usage.erlaubt ? '#6a4a2a' : C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: usage !== null && !usage.erlaubt ? 'not-allowed' : 'pointer' }}>
-              ▶ DOKUMENT ALS PDF ANZEIGEN
+            }} disabled={pdfGenerating || (usage !== null && !usage.erlaubt)} style={{ width: '100%', background: pdfGenerating ? '#7a5535' : usage !== null && !usage.erlaubt ? '#3a2a1a' : C.copper, color: pdfGenerating ? '#ccc' : usage !== null && !usage.erlaubt ? '#6a4a2a' : C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: pdfGenerating || (usage !== null && !usage.erlaubt) ? 'not-allowed' : 'pointer' }}>
+              {pdfGenerating ? '⏳ PDF WIRD ERZEUGT…' : '▶ DOKUMENT ALS PDF ANZEIGEN'}
             </button>
           </div>
         )}

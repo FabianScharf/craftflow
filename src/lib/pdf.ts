@@ -12,6 +12,13 @@ export interface PDFTextOpts {
   zeigeTelefon?: boolean
   zeigeWebsite?: boolean
   layout?: 'klassisch' | 'kompakt'
+  zeigeMassivholz?: boolean
+  massivholzText?: string
+  zeigeUnterschrift?: boolean
+  unterschriftText?: string
+  // Wenn true: Header (Logo/Absender) und Footer werden ausgeblendet —
+  // das eigene Briefpapier liefert den Rahmen, CraftFlow nur den Inhalt.
+  eigeneBriefpapier?: boolean
 }
 
 export interface FirmaOpts {
@@ -49,6 +56,7 @@ export function buildPDF(
 
   const accent = (firmaOpts.akzentfarbe || '#1a1a1a')
   const isKompakt = textOpts.layout === 'kompakt'
+  const ownLetterhead = textOpts.eigeneBriefpapier === true
 
   const rows = pos.map((p, i) => {
     const g = calcAngebotspos(p)
@@ -86,9 +94,15 @@ export function buildPDF(
   const nachtextRaw = textOpts.nachtext || `Mit freundlichen Grüßen\n\n${firma.inhaber}\n${firma.name}`
   const nachtextHtml = nachtextRaw.replace(/\n/g, '<br>')
 
-  const signBlock = docTyp !== 'Rechnung'
+  const defaultMassivholz = 'Hinweis: Massivholz ist ein Naturprodukt. Farbliche und strukturelle Abweichungen zwischen einzelnen Teilen sind natürlich und kein Mangel.'
+  const massivholzBlock = textOpts.zeigeMassivholz !== false
+    ? `<div class="holz">${textOpts.massivholzText || defaultMassivholz}</div>`
+    : ''
+
+  const defaultUnterschrift = 'Wir freuen uns auf die Zusammenarbeit und bitten um Unterzeichnung und Rücksendung.'
+  const signBlock = docTyp !== 'Rechnung' && textOpts.zeigeUnterschrift !== false
     ? `<div class="sign-block">
-        <p class="sign-intro">Wir freuen uns auf die Zusammenarbeit und bitten um Unterzeichnung und Rücksendung.</p>
+        <p class="sign-intro">${textOpts.unterschriftText || defaultUnterschrift}</p>
         <div class="sign-lines">
           <div class="sign-line">Ort | Datum</div>
           <div class="sign-line">Unterschrift Auftraggeber</div>
@@ -100,9 +114,14 @@ export function buildPDF(
   const ftrLine3 = `${firma.bank} | IBAN: ${firma.iban}${textOpts.zeigeBic && firma.bic ? ` | BIC: ${firma.bic}` : ''}`
   const ftrLine4 = textOpts.zeigeWebsite && firma.website ? `<br>${firma.website}` : ''
 
-  const pageMargin = isKompakt ? '28mm 15mm 22mm 15mm' : '38mm 15mm 26mm 15mm'
+  // Mit eigenem Briefpapier: kein CraftFlow-Header/Footer, engere Außenränder
+  const pageMargin = ownLetterhead
+    ? (isKompakt ? '28mm 20mm 28mm 20mm' : '38mm 20mm 32mm 20mm')
+    : (isKompakt ? '28mm 15mm 22mm 15mm' : '38mm 15mm 26mm 15mm')
   const baseFontSize = isKompakt ? '11px' : '12px'
-  const pagePadding = isKompakt ? '10mm 15mm 16mm' : '14mm 15mm 20mm'
+  const pagePadding = ownLetterhead
+    ? (isKompakt ? '10mm 20mm 16mm' : '14mm 20mm 20mm')
+    : (isKompakt ? '10mm 15mm 16mm' : '14mm 15mm 20mm')
 
   return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
 <title>${docTyp} ${docNr}</title>
@@ -176,12 +195,12 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:${isKompakt ? '10px' : '16p
 </head><body>
 <div class="page">
 
-<div class="hdr">
+${ownLetterhead ? '' : `<div class="hdr">
   <div class="hdr-sender">${firma.name} | ${firma.strasse} | ${firma.ort}</div>
   <div class="hdr-logo">
     ${textOpts.logoUrl ? `<img src="${textOpts.logoUrl}" alt="Logo">` : ''}
   </div>
-</div>
+</div>`}
 
 <div class="addr-meta">
   <div class="addr">
@@ -218,18 +237,18 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:${isKompakt ? '10px' : '16p
   <div class="st"><span>Gesamtsumme</span><span>${eur(gross)}</span></div>
 </div></div>
 
-<div class="holz">Hinweis: Massivholz ist ein Naturprodukt. Farbliche und strukturelle Abweichungen zwischen einzelnen Teilen sind natürlich und kein Mangel.</div>
+${massivholzBlock}
 <div class="zahlung">Zahlungskondition: ${textOpts.zahlungText || defaultZahlung}</div>
 ${widerrufBlock}
 ${hinweisBlock}
 ${signBlock}
 <div class="gruss">${nachtextHtml}</div>
 
-<div class="ftr">
+${ownLetterhead ? '' : `<div class="ftr">
   <span>${docTyp} ${docNr}</span>
   <span class="ftr-mid">${firma.name} – ${firma.inhaber} | ${firma.strasse} | ${firma.ort}<br>${ftrLine2}<br>${ftrLine3}${ftrLine4}</span>
   <span class="pn">Seite 1</span>
-</div>
+</div>`}
 
 </div>
 </body></html>`
