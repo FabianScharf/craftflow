@@ -1109,6 +1109,14 @@ export default function CraftFlow() {
     } catch { /* ignorieren */ }
     if (optimMessages.length > 0) return
     setOptimLoading(true)
+
+    // Stunden exakt aus den Positionsdaten berechnen
+    const stundenInfo = pos.map(p => {
+      const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
+      const details = p.arbeitszeit.map(a => `${a.kostenstelle}: ${a.minuten} min`).join(', ')
+      return `"${p.titel}": ${totalMin} min gesamt (${(totalMin / 60).toFixed(1)} h) – ${details}`
+    }).join('\n')
+
     try {
       const res = await fetch('/api/optimize', {
         method: 'POST',
@@ -1116,7 +1124,7 @@ export default function CraftFlow() {
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
           chatHistory: [],
-          message: 'Prüfe das Angebot. Liste NUR die Angaben auf, die für eine präzise Kalkulation noch fehlen. Format: eine Zeile pro Punkt mit → davor. Maximal 6 Punkte, kein erklärender Text.',
+          message: `PFLICHTAUFGABE: Zeige dem Nutzer die kalkulierten Arbeitsstunden für dieses Angebot als übersichtliche Liste und frage ihn dann direkt, ob diese Stunden aus seiner Erfahrung realistisch sind. Hier sind die exakten Stundenwerte:\n\n${stundenInfo}\n\nGib zuerst die Stundenübersicht aus (eine Zeile pro Position), dann stelle genau diese Frage: "Stimmen die kalkulierten Stunden so? Falls eine Position nicht passt – sag mir welche und wie viele Stunden sie tatsächlich gedauert hat." Kein weiterer Text, keine andere Analyse.`,
         }),
       })
       const json = await res.json()
