@@ -37,6 +37,7 @@ export async function PATCH(req: NextRequest) {
     'pdf_zeige_massivholz', 'pdf_massivholz_text', 'pdf_zeige_unterschrift', 'pdf_unterschrift_text',
     'pdf_eigenes_briefpapier', 'pdf_briefpapier_url',
     'pdf_margin_top', 'pdf_margin_bottom', 'pdf_margin_left', 'pdf_margin_right',
+    'benchmark_zustimmung',
     'plan',
   ]
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
