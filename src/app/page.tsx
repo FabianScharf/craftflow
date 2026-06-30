@@ -1124,7 +1124,7 @@ export default function CraftFlow() {
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
           chatHistory: [],
-          message: `PFLICHTAUFGABE: Zeige dem Nutzer die kalkulierten Arbeitsstunden für dieses Angebot als übersichtliche Liste und frage ihn dann direkt, ob diese Stunden aus seiner Erfahrung realistisch sind. Hier sind die exakten Stundenwerte:\n\n${stundenInfo}\n\nGib zuerst die Stundenübersicht aus (eine Zeile pro Position), dann stelle genau diese Frage: "Stimmen die kalkulierten Stunden so? Falls eine Position nicht passt – sag mir welche und wie viele Stunden sie tatsächlich gedauert hat." Kein weiterer Text, keine andere Analyse.`,
+          message: `Analysiere das Angebot wie gewohnt. Ergänze danach für jede Position eine kurze Erklärung, warum die KI auf genau diese Stunden gekommen ist – welche Faktoren (Material, Komplexität, Ausstattung, Erfahrungswerte) diese Schätzung begründen. Nutze dazu diese exakten Stundenwerte aus der Kalkulation:\n\n${stundenInfo}\n\nAbschließend stelle die Frage: "Klingen die Stunden aus deiner Praxiserfahrung plausibel – oder hat dich eine Position überrascht?"`,
         }),
       })
       const json = await res.json()
