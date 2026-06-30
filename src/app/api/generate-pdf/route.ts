@@ -23,7 +23,11 @@ async function launchBrowser() {
     const chromium = (await import('@sparticuz/chromium')).default
     const puppeteer = await import('puppeteer-core')
     return puppeteer.default.launch({
-      args: chromium.args as string[],
+      args: [
+        ...(chromium.args as string[]),
+        '--disable-dev-shm-usage', // Vercel hat kein /dev/shm → shared memory im /tmp
+        '--single-process',        // Kein fork() in Vercel Lambdas möglich
+      ],
       executablePath: await chromium.executablePath(),
       headless: true,
     })
@@ -35,10 +39,11 @@ export async function POST(req: NextRequest) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
-  const { html, letterheadUrl, filename } = await req.json() as {
+  const { html, letterheadUrl, filename, margins } = await req.json() as {
     html: string
     letterheadUrl?: string
     filename?: string
+    margins?: { top: number; bottom: number; left: number; right: number }
   }
 
   if (!html) return NextResponse.json({ error: 'Kein HTML' }, { status: 400 })
@@ -49,6 +54,8 @@ export async function POST(req: NextRequest) {
   try {
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 })
+    // Margins are set via @page CSS in the HTML — Puppeteer margin must be 0
+    // to avoid double-applying margins (CSS @page takes precedence over Puppeteer).
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,

@@ -19,6 +19,7 @@ export interface PDFTextOpts {
   // Wenn true: Header (Logo/Absender) und Footer werden ausgeblendet —
   // das eigene Briefpapier liefert den Rahmen, CraftFlow nur den Inhalt.
   eigeneBriefpapier?: boolean
+  margins?: { top: number; bottom: number; left: number; right: number }
 }
 
 export interface FirmaOpts {
@@ -114,10 +115,12 @@ export function buildPDF(
   const ftrLine3 = `${firma.bank} | IBAN: ${firma.iban}${textOpts.zeigeBic && firma.bic ? ` | BIC: ${firma.bic}` : ''}`
   const ftrLine4 = textOpts.zeigeWebsite && firma.website ? `<br>${firma.website}` : ''
 
-  // Mit eigenem Briefpapier: kein CraftFlow-Header/Footer, engere Außenränder
-  const pageMargin = ownLetterhead
-    ? (isKompakt ? '28mm 20mm 28mm 20mm' : '38mm 20mm 32mm 20mm')
-    : (isKompakt ? '28mm 15mm 22mm 15mm' : '38mm 15mm 26mm 15mm')
+  const m = textOpts.margins
+  const pageMargin = m
+    ? `${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm`
+    : ownLetterhead
+      ? (isKompakt ? '28mm 20mm 28mm 20mm' : '38mm 20mm 32mm 20mm')
+      : (isKompakt ? '28mm 15mm 22mm 15mm' : '38mm 15mm 26mm 15mm')
   const baseFontSize = isKompakt ? '11px' : '12px'
   const pagePadding = ownLetterhead
     ? (isKompakt ? '10mm 20mm 16mm' : '14mm 20mm 20mm')

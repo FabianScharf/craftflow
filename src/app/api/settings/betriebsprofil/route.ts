@@ -36,11 +36,31 @@ export async function PATCH(req: NextRequest) {
     'pdf_layout', 'pdf_zeige_bic', 'pdf_zeige_telefon', 'pdf_zeige_website', 'pdf_hinweis',
     'pdf_zeige_massivholz', 'pdf_massivholz_text', 'pdf_zeige_unterschrift', 'pdf_unterschrift_text',
     'pdf_eigenes_briefpapier', 'pdf_briefpapier_url',
+    'pdf_margin_top', 'pdf_margin_bottom', 'pdf_margin_left', 'pdf_margin_right',
+    'benchmark_zustimmung',
     'plan',
   ]
+  const boolFields = new Set([
+    'pdf_eigenes_briefpapier', 'pdf_zeige_bic', 'pdf_zeige_telefon', 'pdf_zeige_website',
+    'pdf_zeige_massivholz', 'pdf_zeige_unterschrift', 'benchmark_zustimmung',
+    'onboarding_abgeschlossen',
+  ])
+  const numFields = new Set([
+    'pdf_margin_top', 'pdf_margin_bottom', 'pdf_margin_left', 'pdf_margin_right',
+    'mwst_satz', 'zahlungsziel_tage', 'angebot_gueltig_tage', 'angebotsnummer_naechste',
+  ])
+
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
-    if (key in body) patch[key] = body[key]
+    if (!(key in body)) continue
+    const v = body[key]
+    if (boolFields.has(key)) {
+      patch[key] = v === true || v === 'true'
+    } else if (numFields.has(key)) {
+      patch[key] = v === '' || v === null || v === undefined ? null : Number(v)
+    } else {
+      patch[key] = v
+    }
   }
 
   const { error } = await supabase

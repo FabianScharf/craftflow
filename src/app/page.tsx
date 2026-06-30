@@ -192,7 +192,7 @@ export default function CraftFlow() {
   const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft, isBlocked } = usePlan()
   const [pwLoading, setPwLoading] = useState<string | null>(null)
   const [pwError, setPwError] = useState<string | null>(null)
-  const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'projekte'>('start')
+  const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'pdf-preview' | 'projekte'>('start')
   const [previousScreen, setPreviousScreen] = useState<'start' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -223,6 +223,11 @@ export default function CraftFlow() {
   const [profilPdfUnterschriftText, setProfilPdfUnterschriftText]   = useState<string>('')
   const [profilPdfEigeneBriefpapier, setProfilPdfEigeneBriefpapier] = useState(false)
   const [profilPdfBriefpapierUrl, setProfilPdfBriefpapierUrl]       = useState<string>('')
+  const [profilPdfMarginTop, setProfilPdfMarginTop]       = useState(45)
+  const [profilPdfMarginBottom, setProfilPdfMarginBottom] = useState(20)
+  const [profilPdfMarginLeft, setProfilPdfMarginLeft]     = useState(20)
+  const [profilPdfMarginRight, setProfilPdfMarginRight]   = useState(20)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string>('')
   const [nummernPrefix, setNummernPrefix] = useState('AN')
   const [nummernNaechste, setNummernNaechste] = useState(1)
   const [dokAnrede, setDokAnrede] = useState('')
@@ -289,6 +294,10 @@ export default function CraftFlow() {
             setProfilPdfUnterschriftText(p.pdf_unterschrift_text ?? '')
             setProfilPdfEigeneBriefpapier(p.pdf_eigenes_briefpapier === true)
             setProfilPdfBriefpapierUrl(p.pdf_briefpapier_url ?? '')
+            setProfilPdfMarginTop(p.pdf_margin_top ?? 45)
+            setProfilPdfMarginBottom(p.pdf_margin_bottom ?? 20)
+            setProfilPdfMarginLeft(p.pdf_margin_left ?? 20)
+            setProfilPdfMarginRight(p.pdf_margin_right ?? 20)
             setBrandAccent(p.farbe_akzent || C.copper)
             setBrandPrimary(p.farbe_primaer || C.black)
             setNummernPrefix(p.angebotsnummer_prefix ?? 'AN')
@@ -2163,6 +2172,46 @@ export default function CraftFlow() {
     )
   }
 
+  /* ══════════════════════════════════════════════════
+     SCREEN: PDF-PREVIEW (Briefpapier-PDF Vorschau)
+  ══════════════════════════════════════════════════ */
+  if (screen === 'pdf-preview') {
+    const filename = `${docTyp}_${docNr}.pdf`
+    return (
+      <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,sans-serif', background: C.black, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{ background: C.darkbg, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${C.copper}`, flexShrink: 0 }}>
+          <div style={{ color: C.copper, fontSize: 13, fontWeight: 700, letterSpacing: 2 }}>PDF VORSCHAU</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <a
+              href={pdfPreviewUrl}
+              download={filename}
+              style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '7px 18px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, letterSpacing: 1, textDecoration: 'none', display: 'inline-block' }}
+            >
+              ↓ HERUNTERLADEN
+            </a>
+            <button
+              onClick={() => {
+                URL.revokeObjectURL(pdfPreviewUrl)
+                setPdfPreviewUrl('')
+                setScreen('app')
+              }}
+              style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 3, padding: '7px 16px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}
+            >
+              ← Zurück
+            </button>
+          </div>
+        </div>
+        {/* PDF iframe */}
+        <iframe
+          src={pdfPreviewUrl}
+          style={{ flex: 1, width: '100%', border: 'none', background: '#525659' }}
+          title="PDF Vorschau"
+        />
+      </div>
+    )
+  }
+
   if (screen === 'pdf') {
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,sans-serif', background: C.black, minHeight: '100vh' }}>
@@ -3448,6 +3497,12 @@ export default function CraftFlow() {
                 zeigeUnterschrift: profilPdfZeigeUnterschrift,
                 unterschriftText: profilPdfUnterschriftText || undefined,
                 eigeneBriefpapier: profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl,
+                margins: {
+                  top: profilPdfMarginTop,
+                  bottom: profilPdfMarginBottom,
+                  left: profilPdfMarginLeft,
+                  right: profilPdfMarginRight,
+                },
               }
               const firmaOpts = {
                 name:       profilFirmaName || undefined,
@@ -3465,45 +3520,37 @@ export default function CraftFlow() {
               }
               const html = buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, textOpts, firmaOpts)
 
-              // Mit eigenem Briefpapier: echtes PDF über API erzeugen
-              if (profilPdfEigeneBriefpapier && profilPdfBriefpapierUrl) {
-                setPdfGenerating(true)
-                try {
-                  const res = await fetch('/api/generate-pdf', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      html,
-                      letterheadUrl: profilPdfBriefpapierUrl,
-                      filename: `${docTyp}_${docNr}`,
-                    }),
-                  })
-                  if (res.ok) {
-                    const blob = await res.blob()
-                    const url = URL.createObjectURL(blob)
-                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-                    if (isIOS) {
-                      // iOS Safari unterstützt a.download nicht — PDF im neuen Tab öffnen
-                      window.open(url, '_blank')
-                      // URL erst nach kurzer Verzögerung freigeben damit der Tab laden kann
-                      setTimeout(() => URL.revokeObjectURL(url), 10000)
-                    } else {
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = `${docTyp}_${docNr}.pdf`
-                      a.click()
-                      URL.revokeObjectURL(url)
-                    }
-                  } else {
-                    alert('PDF-Erzeugung fehlgeschlagen. Bitte versuche es erneut.')
-                  }
-                } finally {
-                  setPdfGenerating(false)
+              // Immer über Puppeteer: so wirken Margins auch ohne eigenes Briefpapier
+              setPdfGenerating(true)
+              try {
+                const res = await fetch('/api/generate-pdf', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    html,
+                    letterheadUrl: profilPdfEigeneBriefpapier && profilPdfBriefpapierUrl
+                      ? profilPdfBriefpapierUrl
+                      : undefined,
+                    filename: `${docTyp}_${docNr}`,
+                    margins: {
+                      top: profilPdfMarginTop,
+                      bottom: profilPdfMarginBottom,
+                      left: profilPdfMarginLeft,
+                      right: profilPdfMarginRight,
+                    },
+                  }),
+                })
+                if (res.ok) {
+                  const blob = await res.blob()
+                  const url = URL.createObjectURL(blob)
+                  if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
+                  setPdfPreviewUrl(url)
+                  setScreen('pdf-preview')
+                } else {
+                  alert('PDF-Erzeugung fehlgeschlagen. Bitte versuche es erneut.')
                 }
-              } else {
-                // Ohne Briefpapier: bisherige HTML-Vorschau
-                setPdfHTML(html)
-                setScreen('pdf')
+              } finally {
+                setPdfGenerating(false)
               }
 
               if (currentProjectId) {
