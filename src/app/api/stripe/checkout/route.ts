@@ -17,11 +17,6 @@ export async function POST(req: NextRequest) {
     line_items: [{ price: priceId, quantity: 1 }],
     customer_email: user.email,
     allow_promotion_codes: true,
-    // Automatische Steuerberechnung (Stripe Tax muss im Dashboard aktiviert sein)
-    automatic_tax: { enabled: true },
-    // USt-ID-Eingabe für EU-Unternehmen (Reverse Charge)
-    tax_id_collection: { enabled: true },
-    // B2B: Rechnungsadresse immer abfragen
     billing_address_collection: 'required',
     success_url: `${origin}/settings?stripe=success`,
     cancel_url: `${origin}/settings?stripe=cancelled`,

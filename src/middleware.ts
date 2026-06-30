@@ -25,7 +25,21 @@ export async function middleware(request: NextRequest) {
   )
 
   // Session refresh — wichtig für SSR-Auth
-  const { data: { user } } = await supabase.auth.getUser()
+  // Abgelaufene Refresh Tokens werfen einen AuthApiError → graceful redirect statt 500
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // Refresh Token abgelaufen oder ungültig — Cookies löschen und zur Login-Seite
+    const loginUrl = new URL('/login', request.url)
+    const res = NextResponse.redirect(loginUrl)
+    // Alle Supabase Auth Cookies entfernen damit kein Retry-Loop entsteht
+    for (const cookie of request.cookies.getAll()) {
+      if (cookie.name.startsWith('sb-')) res.cookies.delete(cookie.name)
+    }
+    return res
+  }
 
   const pathname = request.nextUrl.pathname
 
