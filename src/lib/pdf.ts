@@ -116,11 +116,12 @@ export function buildPDF(
   const ftrLine4 = textOpts.zeigeWebsite && firma.website ? `<br>${firma.website}` : ''
 
   const m = textOpts.margins
-  const pageMargin = m
-    ? `${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm`
-    : ownLetterhead
-      ? (isKompakt ? '28mm 20mm 28mm 20mm' : '38mm 20mm 32mm 20mm')
-      : (isKompakt ? '28mm 15mm 22mm 15mm' : '38mm 15mm 26mm 15mm')
+  // Benutzerdefinierte Margins gelten nur mit eigenem Briefpapier.
+  // Ohne Briefpapier: feste Standardwerte, damit der fixed-positionierte
+  // Header (top:-34mm) korrekt im @page-Randbereich landet.
+  const pageMargin = ownLetterhead
+    ? (m ? `${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm` : isKompakt ? '28mm 20mm 28mm 20mm' : '38mm 20mm 32mm 20mm')
+    : (isKompakt ? '28mm 15mm 22mm 15mm' : '38mm 15mm 26mm 15mm')
   const baseFontSize = isKompakt ? '11px' : '12px'
   const pagePadding = ownLetterhead
     ? (isKompakt ? '10mm 20mm 16mm' : '14mm 20mm 20mm')
