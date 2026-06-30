@@ -2919,36 +2919,31 @@ export default function CraftFlow() {
 
             {/* KI-Optimierung + Kalkulations-Check Buttons */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-              <button
-                onClick={openOptimPanel}
-                style={{
-                  background: optimPanelOpen ? `${C.copper}22` : `${C.copper}15`,
-                  border: `1px solid ${optimPanelOpen ? C.copper : C.copper + '88'}`,
-                  borderRadius: 8, padding: '14px 12px',
-                  cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
-                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
-                  textAlign: 'left' as const,
-                }}
-              >
-                <span style={{ fontSize: 20 }}>✨</span>
-                <div style={{ color: C.copper, fontSize: 13, fontWeight: 800, letterSpacing: 0.3 }}>KI-Optimierung</div>
-                <div style={{ color: C.textMid, fontSize: 10, lineHeight: 1.4 }}>Analysiert dein Angebot und schlägt Verbesserungen vor</div>
-              </button>
-              <button
-                onClick={openCheckPanel}
-                style={{
-                  background: checkPanelOpen ? `${C.copper}22` : `${C.copper}15`,
-                  border: `1px solid ${checkPanelOpen ? C.copper : C.copper + '88'}`,
-                  borderRadius: 8, padding: '14px 12px',
-                  cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
-                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
-                  textAlign: 'left' as const,
-                }}
-              >
-                <span style={{ fontSize: 20 }}>🎯</span>
-                <div style={{ color: C.copper, fontSize: 13, fontWeight: 800, letterSpacing: 0.3 }}>Kalkulations-Check</div>
-                <div style={{ color: C.textMid, fontSize: 10, lineHeight: 1.4 }}>Erklärt warum die KI auf diese Stunden kam</div>
-              </button>
+              {([
+                { label: 'KI-Optimierung', sub: 'Analyse & Verbesserungen', icon: '✨', active: optimPanelOpen, onClick: openOptimPanel },
+                { label: 'Kalkulations-Check', sub: 'Stunden verstehen', icon: '🎯', active: checkPanelOpen, onClick: openCheckPanel },
+              ] as const).map(({ label, sub, icon, active, onClick }) => (
+                <button
+                  key={label}
+                  onClick={onClick}
+                  style={{
+                    background: active ? C.copper : C.gray1,
+                    border: `2px solid ${active ? C.copper : C.copper}`,
+                    borderRadius: 10, padding: '16px 14px',
+                    cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
+                    textAlign: 'left' as const,
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: 22 }}>{icon}</span>
+                  <div style={{ color: active ? C.black : C.white, fontSize: 12, fontWeight: 800, letterSpacing: 0.3, lineHeight: 1.3 }}>{label}</div>
+                  <div style={{ color: active ? C.black + 'cc' : C.textMid, fontSize: 10, lineHeight: 1.4 }}>{sub}</div>
+                  <div style={{ marginTop: 2, fontSize: 10, fontWeight: 700, color: active ? C.black : C.copper, letterSpacing: 0.5 }}>
+                    {active ? '● Geöffnet' : '→ Öffnen'}
+                  </div>
+                </button>
+              ))}
             </div>
 
             {/* Gesamtübersicht oben */}
@@ -3410,6 +3405,7 @@ export default function CraftFlow() {
                     style={{ width: '100%', background: C.gray2, border: `1px solid ${C.copper}44`, borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
                   />
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <div style={{ width: 38, height: 36, flexShrink: 0 }} />
                     <button
                       onClick={sendCheckMessage}
                       disabled={!checkInput.trim() || checkLoading}
