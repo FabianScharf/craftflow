@@ -884,7 +884,7 @@ export default function SettingsPage() {
                       onChange={e => setP('pdf_unterschrift_text', e.target.value)}
                       placeholder="Wir freuen uns auf die Zusammenarbeit und bitten um Unterzeichnung und Rücksendung."
                     />
-                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Wird nur bei Angeboten angezeigt, nicht bei Rechnungen.</p>
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Erscheint im Unterschriftsblock am Ende des Angebots.</p>
                   </div>
 
                   <div>
@@ -1122,7 +1122,7 @@ export default function SettingsPage() {
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: C.white }}>Dokumente</h2>
               <p style={{ fontSize: 12, color: C.textMid, marginBottom: 24 }}>
-                Diese Texte erscheinen in deinen Angeboten und Rechnungen. Du kannst sie hier zentral festlegen.
+                Diese Texte erscheinen in deinen Angeboten. Du kannst sie hier zentral festlegen.
               </p>
               <div style={{ display: 'grid', gap: 20 }}>
 
