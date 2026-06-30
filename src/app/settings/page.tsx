@@ -79,6 +79,9 @@ export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
+  const [bpUploading, setBpUploading] = useState(false)
+  const [bpMsg, setBpMsg] = useState('')
+  const bpFileRef = useRef<HTMLInputElement>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileShowContent, setMobileShowContent] = useState(false)
 
@@ -175,6 +178,23 @@ export default function SettingsPage() {
 
   function setP(key: string, val: string) {
     setProfil(prev => ({ ...prev, [key]: val }))
+  }
+
+  async function uploadBriefpapier(file: File) {
+    setBpUploading(true)
+    setBpMsg('')
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/upload-briefpapier', { method: 'POST', body: fd })
+    const json = await res.json()
+    setBpUploading(false)
+    if (res.ok) {
+      setP('pdf_briefpapier_url', json.url)
+      setBpMsg('Briefpapier hochgeladen.')
+    } else {
+      setBpMsg(json.error || 'Fehler beim Upload.')
+    }
+    setTimeout(() => setBpMsg(''), 4000)
   }
 
   async function saveProfil() {
@@ -722,6 +742,64 @@ export default function SettingsPage() {
                           </div>
                         </label>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Eigenes Briefpapier */}
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 24 }}>
+                    <label style={lbl}>Eigenes Briefpapier (PDF-Upload)</label>
+                    <div style={{ padding: '14px 16px', background: C.gray1, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 14 }}>
+                        <input
+                          type="checkbox"
+                          checked={profil.pdf_eigenes_briefpapier === 'true'}
+                          onChange={e => setP('pdf_eigenes_briefpapier', e.target.checked ? 'true' : 'false')}
+                          style={{ marginTop: 2, accentColor: C.copper, width: 16, height: 16, flexShrink: 0 }}
+                        />
+                        <div>
+                          <div style={{ fontSize: 13, color: C.white, fontWeight: 600 }}>Eigenes Briefpapier verwenden</div>
+                          <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>
+                            Das hochgeladene PDF wird als Hintergrund gedruckt. CraftFlow-Header (Logo, Adresse) und Footer werden ausgeblendet — dein Briefpapier liefert den Rahmen.
+                          </div>
+                        </div>
+                      </label>
+
+                      {profil.pdf_briefpapier_url ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#1a2a1a', border: '1px solid #3a6a3a', borderRadius: 6, marginBottom: 10 }}>
+                          <span style={{ fontSize: 18 }}>📄</span>
+                          <span style={{ fontSize: 12, color: '#90EE90', flex: 1 }}>Briefpapier hochgeladen</span>
+                          <a
+                            href={profil.pdf_briefpapier_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ fontSize: 11, color: C.copper, textDecoration: 'underline' }}
+                          >
+                            Vorschau
+                          </a>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11, color: C.textMid, marginBottom: 10 }}>Noch kein Briefpapier hochgeladen.</div>
+                      )}
+
+                      <input
+                        ref={bpFileRef}
+                        type="file"
+                        accept="application/pdf"
+                        style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadBriefpapier(f); e.target.value = '' }}
+                      />
+                      <button
+                        onClick={() => bpFileRef.current?.click()}
+                        disabled={bpUploading}
+                        style={{ padding: '8px 16px', background: bpUploading ? C.gray2 : C.copper, color: bpUploading ? C.textMid : C.black, border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: bpUploading ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                      >
+                        {bpUploading ? 'Wird hochgeladen…' : profil.pdf_briefpapier_url ? 'PDF ersetzen' : 'PDF hochladen'}
+                      </button>
+                      {bpMsg && <span style={{ marginLeft: 12, fontSize: 12, color: bpMsg.startsWith('Fehler') ? '#E05A5A' : '#90EE90' }}>{bpMsg}</span>}
+
+                      <p style={{ fontSize: 11, color: C.textMid, marginTop: 10 }}>
+                        Seite 1 des PDFs = erste Angebotsseite · Seite 2 (optional) = alle Folgeseiten · Max. 10 MB
+                      </p>
                     </div>
                   </div>
 
