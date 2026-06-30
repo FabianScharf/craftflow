@@ -3481,11 +3481,19 @@ export default function CraftFlow() {
                   if (res.ok) {
                     const blob = await res.blob()
                     const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `${docTyp}_${docNr}.pdf`
-                    a.click()
-                    URL.revokeObjectURL(url)
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+                    if (isIOS) {
+                      // iOS Safari unterstützt a.download nicht — PDF im neuen Tab öffnen
+                      window.open(url, '_blank')
+                      // URL erst nach kurzer Verzögerung freigeben damit der Tab laden kann
+                      setTimeout(() => URL.revokeObjectURL(url), 10000)
+                    } else {
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `${docTyp}_${docNr}.pdf`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }
                   } else {
                     alert('PDF-Erzeugung fehlgeschlagen. Bitte versuche es erneut.')
                   }
