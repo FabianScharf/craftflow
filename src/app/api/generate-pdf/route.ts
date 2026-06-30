@@ -23,7 +23,11 @@ async function launchBrowser() {
     const chromium = (await import('@sparticuz/chromium')).default
     const puppeteer = await import('puppeteer-core')
     return puppeteer.default.launch({
-      args: chromium.args as string[],
+      args: [
+        ...(chromium.args as string[]),
+        '--disable-dev-shm-usage', // Vercel hat kein /dev/shm → shared memory im /tmp
+        '--single-process',        // Kein fork() in Vercel Lambdas möglich
+      ],
       executablePath: await chromium.executablePath(),
       headless: true,
     })
