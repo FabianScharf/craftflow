@@ -500,6 +500,9 @@ export default function CraftFlow() {
   const [checkMessages, setCheckMessages] = useState<OptimChatMsg[]>([])
   const [checkInput, setCheckInput] = useState('')
   const [checkLoading, setCheckLoading] = useState(false)
+  const [checkMicStatus, setCheckMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
+  const checkMediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const checkAudioChunksRef = useRef<Blob[]>([])
   const checkChatRef = useRef<HTMLDivElement>(null)
 
   // ── Help-Assistent ──────────────────────────────────
@@ -810,6 +813,7 @@ export default function CraftFlow() {
   const resetAll = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
     if (optimMediaRecorderRef.current?.state === 'recording') optimMediaRecorderRef.current.stop()
+    if (checkMediaRecorderRef.current?.state === 'recording') checkMediaRecorderRef.current.stop()
     setStartText('')
     setUploadedFiles([])
     setUploadingCount(0)
@@ -1111,6 +1115,46 @@ export default function CraftFlow() {
     if (optimMicStatus === 'recording') optimStopRecording()
     else if (optimMicStatus === 'idle') optimStartRecording()
   }, [optimMicStatus, optimStartRecording, optimStopRecording])
+
+  // ── Kalkulations-Check-Panel: Mic ──────────────────────────
+  const checkStartRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      const mr = new MediaRecorder(stream, { mimeType })
+      checkAudioChunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) checkAudioChunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setCheckMicStatus('transcribing')
+        try {
+          const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
+          const blob = new Blob(checkAudioChunksRef.current, { type: mimeType })
+          const fd = new FormData()
+          fd.append('audio', blob, `audio.${ext}`)
+          const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+          const json = await res.json()
+          if (json.success && json.text) setCheckInput(prev => prev ? prev + ' ' + json.text : json.text)
+        } catch (e) { console.error('[check-mic]', e) }
+        setCheckMicStatus('idle')
+      }
+      mr.start()
+      checkMediaRecorderRef.current = mr
+      setCheckMicStatus('recording')
+    } catch {
+      setCheckMessages(prev => [...prev, { role: 'assistant', content: 'Mikrofon nicht verfügbar – bitte Zugriff in den Browser-Einstellungen erlauben.' }])
+    }
+  }, [])
+
+  const checkStopRecording = useCallback(() => {
+    checkMediaRecorderRef.current?.stop()
+    setCheckMicStatus('transcribing')
+  }, [])
+
+  const checkToggleRecording = useCallback(() => {
+    if (checkMicStatus === 'recording') checkStopRecording()
+    else if (checkMicStatus === 'idle') checkStartRecording()
+  }, [checkMicStatus, checkStartRecording, checkStopRecording])
 
   // ── Optimierung-Panel: Chat + Versionen ─────────────
   const openOptimPanel = useCallback(async () => {
@@ -3389,7 +3433,13 @@ export default function CraftFlow() {
                     style={{ width: '100%', background: C.gray2, border: `1px solid ${C.copper}44`, borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
                   />
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                    <div style={{ width: 38, height: 36, flexShrink: 0 }} />
+                    <button
+                      onClick={checkToggleRecording}
+                      disabled={checkMicStatus === 'transcribing' || checkLoading}
+                      style={{ background: checkMicStatus === 'recording' ? '#cc2222' : C.gray2, color: checkMicStatus === 'recording' ? '#fff' : C.textMid, border: `1px solid ${checkMicStatus === 'recording' ? '#cc2222' : C.border}`, borderRadius: 5, padding: '8px 12px', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+                    >
+                      {checkMicStatus === 'transcribing' ? '⟳' : '🎤'}
+                    </button>
                     <button
                       onClick={sendCheckMessage}
                       disabled={!checkInput.trim() || checkLoading}
