@@ -2930,18 +2930,15 @@ export default function CraftFlow() {
                     background: active ? C.copper : C.gray1,
                     border: `1px solid ${active ? C.copper : C.border}`,
                     borderTop: `2px solid ${C.copper}`,
-                    borderRadius: 6, padding: '10px 10px',
+                    borderRadius: 6, padding: '8px 10px',
                     cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
-                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4,
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3,
                     textAlign: 'left' as const,
                   }}
                 >
                   <span style={{ fontSize: 16 }}>{icon}</span>
                   <div style={{ color: active ? C.black : C.white, fontSize: 11, fontWeight: 800, letterSpacing: 0.2, lineHeight: 1.3 }}>{label}</div>
                   <div style={{ color: active ? '#0D0D0D99' : C.textMid, fontSize: 9, lineHeight: 1.35 }}>{sub}</div>
-                  <div style={{ marginTop: 2, fontSize: 9, fontWeight: 700, color: active ? C.black : C.copper }}>
-                    {active ? '● geöffnet' : '→ öffnen'}
-                  </div>
                 </button>
               ))}
             </div>
