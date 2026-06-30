@@ -196,6 +196,8 @@ export default function CraftFlow() {
   const [previousScreen, setPreviousScreen] = useState<'start' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showGuide, setShowGuide]           = useState(false)
+  const [guideDismiss, setGuideDismiss]     = useState(false)
   const [brandAccent, setBrandAccent] = useState(C.copper)
   const [brandPrimary, setBrandPrimary] = useState(C.black)
   const [profilFirmaName, setProfilFirmaName] = useState<string | null>(null)
@@ -227,6 +229,9 @@ export default function CraftFlow() {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? null)
       if (data.user) {
+        if (localStorage.getItem('cf_guide_dismissed') !== 'true') {
+          setShowGuide(true)
+        }
         fetch('/api/settings/kostenstellen')
           .then(r => r.json())
           .then(d => { setUserKs(d.kostenstellen ?? []) })
@@ -1664,6 +1669,123 @@ export default function CraftFlow() {
   ) : null
 
   /* ══════════════════════════════════════════════════
+     KI-GUIDE MODAL
+  ══════════════════════════════════════════════════ */
+  const GUIDE_STEPS = [
+    {
+      icon: '🪑',
+      title: 'Was wird gebaut?',
+      text: 'Beschreib den Möbeltyp konkret — Typ, Form und grobe Funktion. Je klarer, desto präziser die Kalkulation.',
+      example: '„Einbauschrank raumhoch mit Schiebetüren" statt nur „Schrank"',
+    },
+    {
+      icon: '🌲',
+      title: 'Massivholz oder Dekormöbel?',
+      text: 'Das Material bestimmt Preis und Fertigungsaufwand erheblich. Nenne die Holzart oder das Dekor.',
+      example: '„Massivholz Eiche, geölt" oder „Spanplatte, Dekor Weiß matt"',
+    },
+    {
+      icon: '📐',
+      title: 'Breite × Höhe × Tiefe',
+      text: 'Ohne Maße rechnet die KI nur eine Schätzung. Alle drei Maße in cm oder mm — oder einfach die verfügbare Nische.',
+      example: '„200 cm breit, 240 cm hoch, 60 cm tief"',
+    },
+    {
+      icon: '⚙️',
+      title: 'Was kommt rein?',
+      text: 'Türen, Schubladen, Klappen, Einlegeböden, LED-Beleuchtung, Akustikstoff — jedes Detail wird kalkuliert.',
+      example: '„2 Drehtüren, 3 Schubladen Legrabox, 2 Einlegeböden, LED unten"',
+    },
+    {
+      icon: '📍',
+      title: 'Wo wird eingebaut?',
+      text: 'Nenne die Kundenadresse. Die KI berechnet die Anfahrt ab deinem Standort automatisch und fügt sie als eigene Position ein.',
+      example: '„Kunde: Musterstraße 5, 60311 Frankfurt"',
+    },
+  ]
+  const [guideStep, setGuideStep] = useState(0)
+
+  const GuideModal = showGuide && !showOnboarding ? (() => {
+    const step = GUIDE_STEPS[guideStep]
+    const isLast = guideStep === GUIDE_STEPS.length - 1
+    const isFirst = guideStep === 0
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ background: '#141414', border: `1px solid #2E2E2E`, borderRadius: 14, padding: '32px 28px', width: '100%', maxWidth: 420, fontFamily: 'Helvetica Neue,sans-serif' }}>
+
+          {/* Kopfzeile */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+            <div style={{ color: C.copper, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase' }}>KI-Anleitung</div>
+            <div style={{ color: '#5A5A5A', fontSize: 12 }}>{guideStep + 1} / {GUIDE_STEPS.length}</div>
+          </div>
+
+          {/* Icon */}
+          <div style={{ fontSize: 48, marginBottom: 20, lineHeight: 1 }}>{step.icon}</div>
+
+          {/* Inhalt */}
+          <h2 style={{ color: C.white, fontSize: 20, fontWeight: 800, marginBottom: 10, letterSpacing: -0.3 }}>{step.title}</h2>
+          <p style={{ color: '#8A8A8A', fontSize: 14, lineHeight: 1.7, marginBottom: 16 }}>{step.text}</p>
+          <div style={{ background: '#1A1A1A', borderRadius: 8, padding: '10px 14px', marginBottom: 32 }}>
+            <span style={{ color: '#5A5A5A', fontSize: 11 }}>Beispiel: </span>
+            <span style={{ color: '#A0A0A0', fontSize: 12, fontStyle: 'italic' }}>{step.example}</span>
+          </div>
+
+          {/* Navigation */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <button
+              onClick={() => setGuideStep(s => s - 1)}
+              disabled={isFirst}
+              style={{ width: 44, height: 44, borderRadius: '50%', border: `1px solid ${isFirst ? '#2A2A2A' : '#3E3E3E'}`, background: 'transparent', color: isFirst ? '#3A3A3A' : C.white, fontSize: 18, cursor: isFirst ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            >←</button>
+
+            {/* Punkte */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {GUIDE_STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  onClick={() => setGuideStep(i)}
+                  style={{ width: i === guideStep ? 18 : 6, height: 6, borderRadius: 3, background: i === guideStep ? C.copper : '#3A3A3A', cursor: 'pointer', transition: 'all 0.2s' }}
+                />
+              ))}
+            </div>
+
+            {isLast ? (
+              <button
+                onClick={() => {
+                  if (guideDismiss) localStorage.setItem('cf_guide_dismissed', 'true')
+                  setShowGuide(false)
+                  setGuideStep(0)
+                }}
+                style={{ background: C.copper, color: '#0D0D0D', border: 'none', borderRadius: 22, padding: '11px 20px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', letterSpacing: 0.3, whiteSpace: 'nowrap' }}
+              >
+                Loslegen →
+              </button>
+            ) : (
+              <button
+                onClick={() => setGuideStep(s => s + 1)}
+                style={{ width: 44, height: 44, borderRadius: '50%', border: `1px solid ${C.copper}`, background: 'transparent', color: C.copper, fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >→</button>
+            )}
+          </div>
+
+          {/* Checkbox unten */}
+          {isLast && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 20 }}>
+              <input
+                type="checkbox"
+                checked={guideDismiss}
+                onChange={e => setGuideDismiss(e.target.checked)}
+                style={{ accentColor: C.copper, width: 14, height: 14, flexShrink: 0 }}
+              />
+              <span style={{ color: '#5A5A5A', fontSize: 12 }}>Nicht mehr anzeigen</span>
+            </label>
+          )}
+        </div>
+      </div>
+    )
+  })() : null
+
+  /* ══════════════════════════════════════════════════
      PAYWALL: Trial abgelaufen, kein aktiver Plan
   ══════════════════════════════════════════════════ */
   if (isBlocked) {
@@ -2029,6 +2151,7 @@ export default function CraftFlow() {
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {OnboardingModal}
+        {GuideModal}
         {isInTrial && (
           <div onClick={() => window.location.href = '/settings#plan'} style={{ background: `${C.copper}18`, borderBottom: `1px solid ${C.copper}55`, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer' }}>
             <span style={{ fontSize: 14 }}>🎁</span>
@@ -2360,6 +2483,7 @@ export default function CraftFlow() {
   return (
     <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
       {OnboardingModal}
+      {GuideModal}
 
       {/* Header */}
       <div style={{ background: C.darkbg, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
