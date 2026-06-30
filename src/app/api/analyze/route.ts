@@ -787,7 +787,26 @@ export async function POST(req: NextRequest) {
     const contentBlocks = (data as { content?: Array<{ type: string; text?: string }> }).content ?? []
     const rawText = contentBlocks.find(b => b.type === 'text')?.text ?? ''
     console.log('[analyze] Claude response — blocks:', contentBlocks.length, ', text length:', rawText.length)
-    const clean = rawText.replace(/```json|```/g, '').trim()
+    // Robuste JSON-Extraktion: findet das erste vollständige {...} Objekt auch wenn
+    // die KI Freitext davor/danach schreibt oder doppelte Klammern produziert.
+    function extractJson(raw: string): string {
+      // 1. Backticks und Code-Fences entfernen
+      let s = raw.replace(/```json|```/g, '').trim()
+      // 2. Erstes { suchen
+      const start = s.indexOf('{')
+      if (start === -1) return s
+      s = s.slice(start)
+      // 3. Passendes schließendes } suchen (korrektes Bracket-Matching)
+      let depth = 0
+      let end = -1
+      for (let i = 0; i < s.length; i++) {
+        if (s[i] === '{') depth++
+        else if (s[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+      }
+      return end !== -1 ? s.slice(0, end + 1) : s
+    }
+
+    const clean = extractJson(rawText)
 
     try {
       const parsed = JSON.parse(clean)
