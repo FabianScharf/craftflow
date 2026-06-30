@@ -501,6 +501,7 @@ export default function CraftFlow() {
   const [checkInput, setCheckInput] = useState('')
   const [checkLoading, setCheckLoading] = useState(false)
   const [checkMicStatus, setCheckMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
+  const [expandedPos, setExpandedPos] = useState<Set<number>>(new Set())
   const checkMediaRecorderRef = useRef<MediaRecorder | null>(null)
   const checkAudioChunksRef = useRef<Blob[]>([])
   const checkChatRef = useRef<HTMLDivElement>(null)
@@ -3023,23 +3024,35 @@ export default function CraftFlow() {
               }
               const tdStyle: React.CSSProperties = { padding: '2px 3px', verticalAlign: 'middle' }
 
+              const isExpanded = expandedPos.has(p.id)
+              const toggleExpanded = () => setExpandedPos(prev => {
+                const next = new Set(prev)
+                if (next.has(p.id)) next.delete(p.id); else next.add(p.id)
+                return next
+              })
+
               return (
                 <Card key={p.id} accent={C.copper}>
                   <div style={{ padding: '12px 14px' }}>
 
                     {/* Kopfzeile */}
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }} onClick={toggleExpanded}>
+                      <div style={{ fontSize: 11, color: C.textMid, flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', lineHeight: 1 }}>▶</div>
                       <input
                         value={p.titel}
-                        onChange={e => updPosF(p.id, 'titel', e.target.value)}
-                        style={{ flex: 1, background: 'transparent', border: 'none', fontSize: 14, fontWeight: 700, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', minWidth: 0 }}
+                        onChange={e => { e.stopPropagation(); updPosF(p.id, 'titel', e.target.value) }}
+                        onClick={e => e.stopPropagation()}
+                        style={{ flex: 1, background: 'transparent', border: 'none', fontSize: 14, fontWeight: 700, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', minWidth: 0, cursor: 'text' }}
                       />
                       <div style={{ fontWeight: 800, fontSize: 14, color: C.copper, whiteSpace: 'nowrap' }}>{eur(gesamt)}</div>
-                      <button onClick={() => delPos(p.id)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>✕</button>
+                      <button onClick={e => { e.stopPropagation(); delPos(p.id) }} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>✕</button>
                     </div>
 
+                    {/* Aufklappbarer Inhalt */}
+                    {isExpanded && <>
+
                     {/* Kundentext */}
-                    <div style={{ marginBottom: 12 }}>
+                    <div style={{ marginBottom: 12, marginTop: 10 }}>
                       <Lbl>Kundentext (sichtbar im Angebot)</Lbl>
                       <textarea
                         value={p.beschreibung}
@@ -3349,6 +3362,8 @@ export default function CraftFlow() {
                       <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 2, textTransform: 'uppercase' }}>Positionsgesamt</div>
                       <div style={{ fontSize: 16, fontWeight: 800, color: C.copper }}>{eur(gesamt)}</div>
                     </div>
+
+                    </>}
 
                   </div>
                 </Card>
