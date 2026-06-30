@@ -13,7 +13,7 @@ import {
   type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
   type DbKostenstelle,
 } from '@/lib/types'
-import { buildPDF } from '@/lib/pdf'
+import { buildPDF, type FirmaOpts } from '@/lib/pdf'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -201,7 +201,14 @@ export default function CraftFlow() {
   const [brandAccent, setBrandAccent] = useState(C.copper)
   const [brandPrimary, setBrandPrimary] = useState(C.black)
   const [profilFirmaName, setProfilFirmaName] = useState<string | null>(null)
-  const [profilLogoUrl, setProfilLogoUrl] = useState<string | null>(null)
+  const [profilLogoUrl, setProfilLogoUrl]   = useState<string | null>(null)
+  const [profilInhaber, setProfilInhaber]   = useState<string>('')
+  const [profilStrasse, setProfilStrasse]   = useState<string>('')
+  const [profilOrt, setProfilOrt]           = useState<string>('')
+  const [profilEmail, setProfilEmail]       = useState<string>('')
+  const [profilUstId, setProfilUstId]       = useState<string>('')
+  const [profilIban, setProfilIban]         = useState<string>('')
+  const [profilBank, setProfilBank]         = useState<string>('')
   const [nummernPrefix, setNummernPrefix] = useState('AN')
   const [nummernNaechste, setNummernNaechste] = useState(1)
   const [dokAnrede, setDokAnrede] = useState('')
@@ -247,6 +254,13 @@ export default function CraftFlow() {
             const name: string = p.firma_name ?? ''
             setProfilFirmaName(name)
             setProfilLogoUrl(p.logo_url ?? null)
+            setProfilInhaber(p.inhaber ?? '')
+            setProfilStrasse(p.strasse ?? '')
+            setProfilOrt([p.plz, p.ort].filter(Boolean).join(' '))
+            setProfilEmail(p.email ?? '')
+            setProfilUstId(p.ust_id ?? '')
+            setProfilIban(p.iban ?? '')
+            setProfilBank(p.bank_name ?? '')
             setBrandAccent(p.farbe_akzent || C.copper)
             setBrandPrimary(p.farbe_primaer || C.black)
             setNummernPrefix(p.angebotsnummer_prefix ?? 'AN')
@@ -3394,6 +3408,15 @@ export default function CraftFlow() {
                 zahlungText: dokZahlung || undefined,
                 logoUrl: profilLogoUrl || undefined,
                 angebotsdatum: datum,
+              }, {
+                name:    profilFirmaName || undefined,
+                inhaber: profilInhaber   || undefined,
+                strasse: profilStrasse   || undefined,
+                ort:     profilOrt       || undefined,
+                email:   profilEmail     || undefined,
+                ust:     profilUstId     || undefined,
+                iban:    profilIban      || undefined,
+                bank:    profilBank      || undefined,
               }))
               setScreen('pdf')
               if (currentProjectId) {
