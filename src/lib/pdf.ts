@@ -121,7 +121,7 @@ export function buildPDF(
   // Header (top:-34mm) korrekt im @page-Randbereich landet.
   const pageMargin = ownLetterhead
     ? (m ? `${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm` : isKompakt ? '28mm 20mm 28mm 20mm' : '38mm 20mm 32mm 20mm')
-    : (isKompakt ? '28mm 15mm 22mm 15mm' : '38mm 15mm 26mm 15mm')
+    : (isKompakt ? '12mm 15mm 22mm 15mm' : '16mm 15mm 26mm 15mm')
   const baseFontSize = isKompakt ? '11px' : '12px'
   const pagePadding = ownLetterhead
     ? (isKompakt ? '10mm 20mm 16mm' : '14mm 20mm 20mm')
@@ -135,14 +135,13 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:${baseFon
 
 @page{size:A4;margin:${pageMargin}}
 @media print{
-  .hdr{position:fixed;top:-34mm;left:0;right:0}
   .ftr{position:fixed;bottom:-22mm;left:0;right:0}
   .ftr .pn::after{content:"Seite " counter(page) " / " counter(pages)}
 }
 @media screen{
   body{background:#e8e8e8}
   .page{max-width:210mm;margin:0 auto;background:#fff;padding:${pagePadding};box-shadow:0 4px 24px rgba(0,0,0,.15)}
-  .hdr{padding:10mm 0 7px}
+  .hdr{padding:6px 0 7px}
   .ftr{margin-top:28px}
 }
 
