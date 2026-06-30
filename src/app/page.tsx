@@ -2918,30 +2918,33 @@ export default function CraftFlow() {
             )}
 
             {/* KI-Optimierung + Kalkulations-Check Buttons */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
               {([
-                { label: 'KI-Optimierung', sub: 'Analyse & Verbesserungen', icon: '✨', active: optimPanelOpen, onClick: openOptimPanel },
-                { label: 'Kalkulations-Check', sub: 'Stunden verstehen', icon: '🎯', active: checkPanelOpen, onClick: openCheckPanel },
+                { label: 'KI-Optimierung', sub: 'Analyse & Verbesserungsvorschläge', icon: '✨', active: optimPanelOpen, onClick: openOptimPanel },
+                { label: 'Kalkulations-Check', sub: 'Stunden nachvollziehen & reflektieren', icon: '🎯', active: checkPanelOpen, onClick: openCheckPanel },
               ] as const).map(({ label, sub, icon, active, onClick }) => (
                 <button
                   key={label}
                   onClick={onClick}
                   style={{
+                    width: '100%',
                     background: active ? C.copper : C.gray1,
-                    border: `2px solid ${active ? C.copper : C.copper}`,
-                    borderRadius: 10, padding: '16px 14px',
+                    border: `1px solid ${active ? C.copper : C.border}`,
+                    borderLeft: `3px solid ${C.copper}`,
+                    borderRadius: 6, padding: '10px 12px',
                     cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
-                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
+                    display: 'flex', alignItems: 'center', gap: 10,
                     textAlign: 'left' as const,
-                    transition: 'background 0.15s',
                   }}
                 >
-                  <span style={{ fontSize: 22 }}>{icon}</span>
-                  <div style={{ color: active ? C.black : C.white, fontSize: 12, fontWeight: 800, letterSpacing: 0.3, lineHeight: 1.3 }}>{label}</div>
-                  <div style={{ color: active ? C.black + 'cc' : C.textMid, fontSize: 10, lineHeight: 1.4 }}>{sub}</div>
-                  <div style={{ marginTop: 2, fontSize: 10, fontWeight: 700, color: active ? C.black : C.copper, letterSpacing: 0.5 }}>
-                    {active ? '● Geöffnet' : '→ Öffnen'}
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: active ? C.black : C.white, fontSize: 12, fontWeight: 800, letterSpacing: 0.2 }}>{label}</div>
+                    <div style={{ color: active ? '#0D0D0Daa' : C.textMid, fontSize: 10, marginTop: 1 }}>{sub}</div>
                   </div>
+                  <span style={{ color: active ? C.black : C.copper, fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                    {active ? '● offen' : '›'}
+                  </span>
                 </button>
               ))}
             </div>
