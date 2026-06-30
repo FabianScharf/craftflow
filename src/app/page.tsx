@@ -2673,7 +2673,7 @@ export default function CraftFlow() {
         ))}
       </div>
 
-      <div style={{ padding: tab === 'kalkulation' ? 0 : 14, maxWidth: (tab === 'kalkulation' && optimPanelOpen) ? 'none' : 760, margin: (tab === 'kalkulation' && optimPanelOpen) ? '0' : '0 auto', boxSizing: 'border-box' }}>
+      <div style={{ padding: tab === 'kalkulation' ? 0 : 14, maxWidth: (tab === 'kalkulation' && (optimPanelOpen || checkPanelOpen)) ? 'none' : 760, margin: (tab === 'kalkulation' && (optimPanelOpen || checkPanelOpen)) ? '0' : '0 auto', boxSizing: 'border-box' }}>
 
         {/* ══ KUNDE ══ */}
         {tab === 'kunde' && (
@@ -2767,7 +2767,7 @@ export default function CraftFlow() {
             <div style={{ display: 'flex', minHeight: 'calc(100vh - 116px)', alignItems: 'flex-start' }}>
 
             {/* ── LEFT: Kalkulation Content ── */}
-            <div style={{ flex: 1, padding: 14, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 116px)', display: isMobile && optimPanelOpen ? 'none' : undefined }}>
+            <div style={{ flex: 1, padding: 14, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 116px)', display: isMobile && (optimPanelOpen || checkPanelOpen) ? 'none' : undefined }}>
 
             {/* Feature 3+4: Top action buttons */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -3319,22 +3319,7 @@ export default function CraftFlow() {
             </div>{/* end left column */}
 
             {/* ── RIGHT: Panel toggle or Panel ── */}
-            {!optimPanelOpen && !checkPanelOpen ? (
-              !isMobile && <button
-                onClick={openOptimPanel}
-                style={{
-                  background: C.darkbg, color: C.copper,
-                  border: 'none', borderLeft: `2px solid ${C.copper}44`,
-                  padding: '24px 9px', cursor: 'pointer',
-                  fontSize: 10, fontFamily: 'Helvetica Neue,sans-serif',
-                  letterSpacing: 2, writingMode: 'vertical-rl',
-                  flexShrink: 0, alignSelf: 'flex-start',
-                  position: 'sticky', top: 0, fontWeight: 700,
-                }}
-              >
-                Optimierung ›
-              </button>
-            ) : checkPanelOpen ? (
+            {!optimPanelOpen && !checkPanelOpen ? null : checkPanelOpen ? (
               <div className="cf-optim-panel">
                 {/* Header */}
                 <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.copper}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: `${C.copper}0A` }}>
