@@ -9,6 +9,17 @@ export interface PDFTextOpts {
   angebotsdatum?: string
 }
 
+export interface FirmaOpts {
+  name?: string
+  inhaber?: string
+  strasse?: string
+  ort?: string
+  email?: string
+  ust?: string
+  iban?: string
+  bank?: string
+}
+
 export function buildPDF(
   pos: Angebotsposition[],
   kunde: Kunde,
@@ -16,8 +27,10 @@ export function buildPDF(
   docTyp: string,
   anschr: string,
   mitWiderruf: boolean,
-  textOpts: PDFTextOpts = {}
+  textOpts: PDFTextOpts = {},
+  firmaOpts: FirmaOpts = {}
 ): string {
+  const firma = { ...FIRMA, ...Object.fromEntries(Object.entries(firmaOpts).filter(([, v]) => v)) }
   const { angebotsdatum: savedDatum, ...restOpts } = textOpts
   void restOpts
   const datumStr = savedDatum || today()
@@ -45,7 +58,7 @@ export function buildPDF(
   const anredeText = (textOpts.anredeVorlage || 'Liebe/r {name},')
     .replace('{name}', kunde.name || 'Kundin / Kunde')
 
-  const defaultWiderruf = `Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Um Ihr Widerrufsrecht auszuüben, wenden Sie sich an: ${FIRMA.name} – ${FIRMA.inhaber}, ${FIRMA.strasse}, ${FIRMA.ort}, E-Mail: ${FIRMA.email}.`
+  const defaultWiderruf = `Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Um Ihr Widerrufsrecht auszuüben, wenden Sie sich an: ${firma.name} – ${firma.inhaber}, ${firma.strasse}, ${firma.ort}, E-Mail: ${firma.email}.`
   const widerrufBlock = mitWiderruf
     ? `<div class="widerruf">
         <strong>Widerrufsrecht</strong><br><br>
@@ -54,8 +67,8 @@ export function buildPDF(
     : ''
 
   const defaultZahlung = '50% Anzahlung nach Auftragserteilung, 50% nach Abnahme, zahlbar innerhalb von 7 Tagen netto.'
-  const defaultNachtext = `Mit freundlichen Grüßen<br><br>${FIRMA.inhaber}<br>${FIRMA.name}`
-  const nachtextRaw = textOpts.nachtext || `Mit freundlichen Grüßen\n\n${FIRMA.inhaber}\n${FIRMA.name}`
+  const defaultNachtext = `Mit freundlichen Grüßen<br><br>${firma.inhaber}<br>${firma.name}`
+  const nachtextRaw = textOpts.nachtext || `Mit freundlichen Grüßen\n\n${firma.inhaber}\n${firma.name}`
   const nachtextHtml = nachtextRaw.replace(/\n/g, '<br>')
 
   const signBlock = docTyp !== 'Rechnung'
@@ -140,7 +153,7 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:16px;padding-bottom:2px}
 <div class="page">
 
 <div class="hdr">
-  <div class="hdr-sender">${FIRMA.name} | ${FIRMA.strasse} | ${FIRMA.ort}</div>
+  <div class="hdr-sender">${firma.name} | ${firma.strasse} | ${firma.ort}</div>
   <div class="hdr-logo">
     ${textOpts.logoUrl ? `<img src="${textOpts.logoUrl}" alt="Logo">` : ''}
   </div>
@@ -155,8 +168,8 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:16px;padding-bottom:2px}
   <table class="meta-t">
     <tr><td>${docTyp}-Nr.</td><td><strong>${docNr}</strong></td></tr>
     <tr><td>Datum</td><td>${datumStr}</td></tr>
-    <tr><td>Ansprechpartner</td><td>${FIRMA.inhaber}</td></tr>
-    <tr><td>E-Mail</td><td>${FIRMA.email}</td></tr>
+    <tr><td>Ansprechpartner</td><td>${firma.inhaber}</td></tr>
+    <tr><td>E-Mail</td><td>${firma.email}</td></tr>
     ${docTyp !== 'Rechnung' ? `<tr><td>Gültig bis</td><td>${savedDatum ? inDays(30, new Date(savedDatum.split('.').reverse().join('-'))) : inDays(30)}</td></tr>` : ''}
   </table>
 </div>
@@ -189,7 +202,7 @@ ${signBlock}
 
 <div class="ftr">
   <span>${docTyp} ${docNr}</span>
-  <span class="ftr-mid">${FIRMA.name} – ${FIRMA.inhaber} | ${FIRMA.strasse} | ${FIRMA.ort}<br>USt-IdNr.: ${FIRMA.ust}<br>${FIRMA.bank} | IBAN: ${FIRMA.iban}</span>
+  <span class="ftr-mid">${firma.name} – ${firma.inhaber} | ${firma.strasse} | ${firma.ort}<br>USt-IdNr.: ${firma.ust}<br>${firma.bank} | IBAN: ${firma.iban}</span>
   <span class="pn">Seite 1</span>
 </div>
 
