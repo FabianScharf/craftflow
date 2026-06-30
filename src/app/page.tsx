@@ -3497,6 +3497,12 @@ export default function CraftFlow() {
                 zeigeUnterschrift: profilPdfZeigeUnterschrift,
                 unterschriftText: profilPdfUnterschriftText || undefined,
                 eigeneBriefpapier: profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl,
+                margins: {
+                  top: profilPdfMarginTop,
+                  bottom: profilPdfMarginBottom,
+                  left: profilPdfMarginLeft,
+                  right: profilPdfMarginRight,
+                },
               }
               const firmaOpts = {
                 name:       profilFirmaName || undefined,

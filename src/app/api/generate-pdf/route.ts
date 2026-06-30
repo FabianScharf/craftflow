@@ -54,23 +54,12 @@ export async function POST(req: NextRequest) {
   try {
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 })
-    const raw = margins ?? { top: 20, bottom: 20, left: 20, right: 20 }
-    // A4: 210×297mm — clamp so content area is never empty (min 30mm each direction)
-    const m = {
-      top:    Math.min(raw.top,    230),
-      bottom: Math.min(raw.bottom, Math.max(0, 267 - Math.min(raw.top, 230))),
-      left:   Math.min(raw.left,   170),
-      right:  Math.min(raw.right,  Math.max(0, 190 - Math.min(raw.left, 170))),
-    }
+    // Margins are set via @page CSS in the HTML — Puppeteer margin must be 0
+    // to avoid double-applying margins (CSS @page takes precedence over Puppeteer).
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: {
-        top: `${m.top}mm`,
-        right: `${m.right}mm`,
-        bottom: `${m.bottom}mm`,
-        left: `${m.left}mm`,
-      },
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
     })
     contentPdfBytes = new Uint8Array(pdfBuffer)
   } finally {
