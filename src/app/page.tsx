@@ -1135,7 +1135,8 @@ export default function CraftFlow() {
       })
       const json = await res.json()
       if (json.message) setOptimMessages([{ role: 'assistant', content: json.message }])
-    } catch (e) { console.error('[openOptimPanel]', e) }
+      else if (json.error) setOptimMessages([{ role: 'assistant', content: `Fehler: ${json.error}` }])
+    } catch (e) { console.error('[openOptimPanel]', e); setOptimMessages([{ role: 'assistant', content: 'Verbindungsfehler – bitte nochmal versuchen.' }]) }
     setOptimLoading(false)
   }, [offerId, optimMessages.length, pos, kunde])
 
@@ -1158,12 +1159,13 @@ export default function CraftFlow() {
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
           chatHistory: [],
-          message: `Erkläre ausführlich für jede Position, warum du auf genau diese Arbeitsstunden gekommen bist. Gehe dabei auf die spezifischen Faktoren ein: Materialwahl, Komplexität, Ausstattungsmerkmale, Oberflächenbehandlung, Montageaufwand – je nachdem was für die Position relevant ist. Erkläre die Zusammenhänge so, dass der Schreiner nachvollziehen kann, wie die KI gedacht hat und ob die Annahmen mit seiner Praxiserfahrung übereinstimmen. Hier sind die exakten kalkulierten Stunden:\n\n${stundenInfo}\n\nAbschließend: "Klingen die Stunden aus deiner Praxiserfahrung plausibel – oder hat dich eine Position überrascht?"`,
+          message: `Gib für jede Position eine kurze Einschätzung in 1–2 Sätzen: Warum genau diese Stunden? Nenne den entscheidenden Faktor (z.B. Materialwahl, Oberflächenaufwand, Sonderausstattung). Dann eine Abschlussfrage ob die Stunden aus Praxissicht passen. Hier die Stunden:\n\n${stundenInfo}`,
         }),
       })
       const json = await res.json()
       if (json.message) setCheckMessages([{ role: 'assistant', content: json.message }])
-    } catch (e) { console.error('[openCheckPanel]', e) }
+      else if (json.error) setCheckMessages([{ role: 'assistant', content: `Fehler: ${json.error}` }])
+    } catch (e) { console.error('[openCheckPanel]', e); setCheckMessages([{ role: 'assistant', content: 'Verbindungsfehler – bitte nochmal versuchen.' }]) }
     setCheckLoading(false)
   }, [checkMessages.length, pos, kunde])
 
