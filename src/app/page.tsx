@@ -3514,42 +3514,37 @@ export default function CraftFlow() {
               }
               const html = buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, textOpts, firmaOpts)
 
-              // Mit eigenem Briefpapier: echtes PDF über API erzeugen
-              if (profilPdfEigeneBriefpapier && profilPdfBriefpapierUrl) {
-                setPdfGenerating(true)
-                try {
-                  const res = await fetch('/api/generate-pdf', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      html,
-                      letterheadUrl: profilPdfBriefpapierUrl,
-                      filename: `${docTyp}_${docNr}`,
-                      margins: {
-                        top: profilPdfMarginTop,
-                        bottom: profilPdfMarginBottom,
-                        left: profilPdfMarginLeft,
-                        right: profilPdfMarginRight,
-                      },
-                    }),
-                  })
-                  if (res.ok) {
-                    const blob = await res.blob()
-                    const url = URL.createObjectURL(blob)
-                    // Vorherige Preview-URL freigeben falls vorhanden
-                    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
-                    setPdfPreviewUrl(url)
-                    setScreen('pdf-preview')
-                  } else {
-                    alert('PDF-Erzeugung fehlgeschlagen. Bitte versuche es erneut.')
-                  }
-                } finally {
-                  setPdfGenerating(false)
+              // Immer über Puppeteer: so wirken Margins auch ohne eigenes Briefpapier
+              setPdfGenerating(true)
+              try {
+                const res = await fetch('/api/generate-pdf', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    html,
+                    letterheadUrl: profilPdfEigeneBriefpapier && profilPdfBriefpapierUrl
+                      ? profilPdfBriefpapierUrl
+                      : undefined,
+                    filename: `${docTyp}_${docNr}`,
+                    margins: {
+                      top: profilPdfMarginTop,
+                      bottom: profilPdfMarginBottom,
+                      left: profilPdfMarginLeft,
+                      right: profilPdfMarginRight,
+                    },
+                  }),
+                })
+                if (res.ok) {
+                  const blob = await res.blob()
+                  const url = URL.createObjectURL(blob)
+                  if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
+                  setPdfPreviewUrl(url)
+                  setScreen('pdf-preview')
+                } else {
+                  alert('PDF-Erzeugung fehlgeschlagen. Bitte versuche es erneut.')
                 }
-              } else {
-                // Ohne Briefpapier: bisherige HTML-Vorschau
-                setPdfHTML(html)
-                setScreen('pdf')
+              } finally {
+                setPdfGenerating(false)
               }
 
               if (currentProjectId) {
