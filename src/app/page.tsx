@@ -495,6 +495,13 @@ export default function CraftFlow() {
   const optimAudioChunksRef = useRef<Blob[]>([])
   const optimChatRef = useRef<HTMLDivElement>(null)
 
+  // ── Kalkulations-Check-Panel ────────────────────────
+  const [checkPanelOpen, setCheckPanelOpen] = useState(false)
+  const [checkMessages, setCheckMessages] = useState<OptimChatMsg[]>([])
+  const [checkInput, setCheckInput] = useState('')
+  const [checkLoading, setCheckLoading] = useState(false)
+  const checkChatRef = useRef<HTMLDivElement>(null)
+
   // ── Help-Assistent ──────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false)
   const [helpMessages, setHelpMessages] = useState<OptimChatMsg[]>([])
@@ -793,6 +800,12 @@ export default function CraftFlow() {
       optimChatRef.current.scrollTop = optimChatRef.current.scrollHeight
     }
   }, [optimMessages])
+
+  useEffect(() => {
+    if (checkChatRef.current) {
+      checkChatRef.current.scrollTop = checkChatRef.current.scrollHeight
+    }
+  }, [checkMessages])
 
   const resetAll = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
@@ -1102,6 +1115,7 @@ export default function CraftFlow() {
   // ── Optimierung-Panel: Chat + Versionen ─────────────
   const openOptimPanel = useCallback(async () => {
     setOptimPanelOpen(true)
+    setCheckPanelOpen(false)
     try {
       const vRes = await fetch(`/api/offer-versions?offerId=${offerId}`)
       const vJson = await vRes.json()
@@ -1109,8 +1123,28 @@ export default function CraftFlow() {
     } catch { /* ignorieren */ }
     if (optimMessages.length > 0) return
     setOptimLoading(true)
+    try {
+      const res = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          offerData: { positionen: pos, kunde },
+          chatHistory: [],
+          message: 'Prüfe das Angebot. Liste NUR die Angaben auf, die für eine präzise Kalkulation noch fehlen. Format: eine Zeile pro Punkt mit → davor. Maximal 6 Punkte, kein erklärender Text.',
+        }),
+      })
+      const json = await res.json()
+      if (json.message) setOptimMessages([{ role: 'assistant', content: json.message }])
+    } catch (e) { console.error('[openOptimPanel]', e) }
+    setOptimLoading(false)
+  }, [offerId, optimMessages.length, pos, kunde])
 
-    // Stunden exakt aus den Positionsdaten berechnen
+  const openCheckPanel = useCallback(async () => {
+    setCheckPanelOpen(true)
+    setOptimPanelOpen(false)
+    if (checkMessages.length > 0) return
+    setCheckLoading(true)
+
     const stundenInfo = pos.map(p => {
       const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
       const details = p.arbeitszeit.map(a => `${a.kostenstelle}: ${a.minuten} min`).join(', ')
@@ -1124,14 +1158,37 @@ export default function CraftFlow() {
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
           chatHistory: [],
-          message: `Analysiere das Angebot wie gewohnt. Ergänze danach für jede Position eine kurze Erklärung, warum die KI auf genau diese Stunden gekommen ist – welche Faktoren (Material, Komplexität, Ausstattung, Erfahrungswerte) diese Schätzung begründen. Nutze dazu diese exakten Stundenwerte aus der Kalkulation:\n\n${stundenInfo}\n\nAbschließend stelle die Frage: "Klingen die Stunden aus deiner Praxiserfahrung plausibel – oder hat dich eine Position überrascht?"`,
+          message: `Erkläre ausführlich für jede Position, warum du auf genau diese Arbeitsstunden gekommen bist. Gehe dabei auf die spezifischen Faktoren ein: Materialwahl, Komplexität, Ausstattungsmerkmale, Oberflächenbehandlung, Montageaufwand – je nachdem was für die Position relevant ist. Erkläre die Zusammenhänge so, dass der Schreiner nachvollziehen kann, wie die KI gedacht hat und ob die Annahmen mit seiner Praxiserfahrung übereinstimmen. Hier sind die exakten kalkulierten Stunden:\n\n${stundenInfo}\n\nAbschließend: "Klingen die Stunden aus deiner Praxiserfahrung plausibel – oder hat dich eine Position überrascht?"`,
         }),
       })
       const json = await res.json()
-      if (json.message) setOptimMessages([{ role: 'assistant', content: json.message }])
-    } catch (e) { console.error('[openOptimPanel]', e) }
-    setOptimLoading(false)
-  }, [offerId, optimMessages.length, pos, kunde])
+      if (json.message) setCheckMessages([{ role: 'assistant', content: json.message }])
+    } catch (e) { console.error('[openCheckPanel]', e) }
+    setCheckLoading(false)
+  }, [checkMessages.length, pos, kunde])
+
+  const sendCheckMessage = useCallback(async () => {
+    const msg = checkInput.trim()
+    if (!msg || checkLoading) return
+    setCheckInput('')
+    const userMsg: OptimChatMsg = { role: 'user', content: msg }
+    setCheckMessages(prev => [...prev, userMsg])
+    setCheckLoading(true)
+    try {
+      const res = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          offerData: { positionen: pos, kunde },
+          chatHistory: checkMessages.slice(-10),
+          message: msg,
+        }),
+      })
+      const json = await res.json()
+      if (json.message) setCheckMessages(prev => [...prev, { role: 'assistant', content: json.message }])
+    } catch (e) { console.error('[sendCheckMessage]', e) }
+    setCheckLoading(false)
+  }, [checkInput, checkLoading, checkMessages, pos, kunde])
 
   const sendOptimMessage = useCallback(async () => {
     const msg = optimInput.trim()
@@ -2860,26 +2917,39 @@ export default function CraftFlow() {
               </div>
             )}
 
-            {/* KI-Optimierung Haupt-Button */}
-            <button
-              onClick={openOptimPanel}
-              style={{
-                width: '100%', marginBottom: 14,
-                background: optimPanelOpen ? `${C.copper}22` : `${C.copper}15`,
-                border: `1px solid ${C.copper}`,
-                borderRadius: 8, padding: '14px 16px',
-                cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
-                display: 'flex', alignItems: 'center', gap: 12,
-                textAlign: 'left' as const,
-              }}
-            >
-              <span style={{ fontSize: 24, flexShrink: 0 }}>✨</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: C.copper, fontSize: 14, fontWeight: 800, letterSpacing: 0.3 }}>KI-Optimierung</div>
-                <div style={{ color: C.textMid, fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>KI analysiert dein Angebot und schlägt Verbesserungen vor</div>
-              </div>
-              <span style={{ color: C.copper, fontSize: 18, flexShrink: 0 }}>→</span>
-            </button>
+            {/* KI-Optimierung + Kalkulations-Check Buttons */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+              <button
+                onClick={openOptimPanel}
+                style={{
+                  background: optimPanelOpen ? `${C.copper}22` : `${C.copper}15`,
+                  border: `1px solid ${optimPanelOpen ? C.copper : C.copper + '88'}`,
+                  borderRadius: 8, padding: '14px 12px',
+                  cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
+                  textAlign: 'left' as const,
+                }}
+              >
+                <span style={{ fontSize: 20 }}>✨</span>
+                <div style={{ color: C.copper, fontSize: 13, fontWeight: 800, letterSpacing: 0.3 }}>KI-Optimierung</div>
+                <div style={{ color: C.textMid, fontSize: 10, lineHeight: 1.4 }}>Analysiert dein Angebot und schlägt Verbesserungen vor</div>
+              </button>
+              <button
+                onClick={openCheckPanel}
+                style={{
+                  background: checkPanelOpen ? `${C.copper}22` : `${C.copper}15`,
+                  border: `1px solid ${checkPanelOpen ? C.copper : C.copper + '88'}`,
+                  borderRadius: 8, padding: '14px 12px',
+                  cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
+                  textAlign: 'left' as const,
+                }}
+              >
+                <span style={{ fontSize: 20 }}>🎯</span>
+                <div style={{ color: C.copper, fontSize: 13, fontWeight: 800, letterSpacing: 0.3 }}>Kalkulations-Check</div>
+                <div style={{ color: C.textMid, fontSize: 10, lineHeight: 1.4 }}>Erklärt warum die KI auf diese Stunden kam</div>
+              </button>
+            </div>
 
             {/* Gesamtübersicht oben */}
             <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 14 }}>
@@ -3257,7 +3327,7 @@ export default function CraftFlow() {
             </div>{/* end left column */}
 
             {/* ── RIGHT: Panel toggle or Panel ── */}
-            {!optimPanelOpen ? (
+            {!optimPanelOpen && !checkPanelOpen ? (
               !isMobile && <button
                 onClick={openOptimPanel}
                 style={{
@@ -3272,6 +3342,84 @@ export default function CraftFlow() {
               >
                 Optimierung ›
               </button>
+            ) : checkPanelOpen ? (
+              <div className="cf-optim-panel">
+                {/* Header */}
+                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.copper}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: `${C.copper}0A` }}>
+                  <div>
+                    <div style={{ color: C.copper, fontWeight: 800, fontSize: 12, letterSpacing: 1.5 }}>🎯 KALKULATIONS-CHECK</div>
+                    <div style={{ color: C.textMid, fontSize: 10, marginTop: 1 }}>Warum die KI auf diese Stunden kam</div>
+                  </div>
+                  <button onClick={() => setCheckPanelOpen(false)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }}>×</button>
+                </div>
+                {/* Chat */}
+                <div ref={checkChatRef} className="chat-area">
+                  {checkMessages.length === 0 && !checkLoading && (
+                    <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, padding: '8px 0' }}>
+                      KI erklärt die Stundenkalkulation…
+                    </div>
+                  )}
+                  {checkMessages.map((msg, i) => (
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                      <div style={{ fontSize: 9, color: C.textMid, marginBottom: 3, letterSpacing: 0.5 }}>
+                        {msg.role === 'user' ? 'DU' : 'KI'}
+                      </div>
+                      <div style={{
+                        maxWidth: '92%', padding: '9px 13px', borderRadius: msg.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+                        fontSize: 13, lineHeight: 1.65,
+                        background: msg.role === 'user' ? C.copper : C.gray1,
+                        color: msg.role === 'user' ? C.black : C.white,
+                        wordBreak: 'break-word',
+                        border: msg.role === 'assistant' ? `1px solid ${C.border}` : 'none',
+                      }}>
+                        {msg.content.split('\n').map((line, li) => {
+                          const clean = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/#{1,3}\s*/g, '')
+                          if (clean.startsWith('→ ') || clean.startsWith('- ')) {
+                            return (
+                              <div key={li} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 3 }}>
+                                <span style={{ color: msg.role === 'user' ? C.black : C.copper, flexShrink: 0, fontWeight: 700, fontSize: 13 }}>→</span>
+                                <span>{clean.startsWith('→ ') ? clean.slice(2) : clean.slice(2)}</span>
+                              </div>
+                            )
+                          }
+                          if (clean === '') return li === 0 ? null : <div key={li} style={{ height: 6 }} />
+                          return <div key={li} style={{ marginBottom: li < msg.content.split('\n').length - 1 ? 2 : 0 }}>{clean}</div>
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {checkLoading && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.copper, opacity: 0.8 }} />
+                      <span style={{ color: C.textMid, fontSize: 11 }}>KI denkt…</span>
+                    </div>
+                  )}
+                </div>
+                {/* Eingabe */}
+                <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.copper}33`, flexShrink: 0, background: `${C.copper}05` }}>
+                  <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: 0.5 }}>
+                    Frage stellen oder Einschätzung teilen:
+                  </div>
+                  <textarea
+                    value={checkInput}
+                    onChange={e => setCheckInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCheckMessage() } }}
+                    placeholder='z.B. "Position 2 hat tatsächlich 5 Stunden länger gedauert"'
+                    rows={3}
+                    disabled={checkLoading}
+                    style={{ width: '100%', background: C.gray2, border: `1px solid ${C.copper}44`, borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button
+                      onClick={sendCheckMessage}
+                      disabled={!checkInput.trim() || checkLoading}
+                      style={{ flex: 1, background: (!checkInput.trim() || checkLoading) ? C.gray2 : C.copper, color: (!checkInput.trim() || checkLoading) ? C.textMid : C.black, border: 'none', borderRadius: 5, padding: '8px 14px', cursor: (!checkInput.trim() || checkLoading) ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800 }}
+                    >
+                      {checkLoading ? '…' : 'Senden →'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="cf-optim-panel">
                 {/* Header */}
