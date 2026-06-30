@@ -36,6 +36,7 @@ export async function PATCH(req: NextRequest) {
     'pdf_layout', 'pdf_zeige_bic', 'pdf_zeige_telefon', 'pdf_zeige_website', 'pdf_hinweis',
     'pdf_zeige_massivholz', 'pdf_massivholz_text', 'pdf_zeige_unterschrift', 'pdf_unterschrift_text',
     'pdf_eigenes_briefpapier', 'pdf_briefpapier_url',
+    'pdf_margin_top', 'pdf_margin_bottom', 'pdf_margin_left', 'pdf_margin_right',
     'plan',
   ]
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }

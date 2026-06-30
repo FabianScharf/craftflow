@@ -803,6 +803,45 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
+                  {/* Textposition auf dem Briefpapier */}
+                  <div style={{ borderTop: `1px solid ${C.gray2}`, paddingTop: 24 }}>
+                    <label style={lbl}>Textposition auf dem Briefpapier</label>
+                    <p style={{ fontSize: 12, color: C.textMid, marginBottom: 16 }}>
+                      Lege fest, wie weit der Angebotstext vom Rand entfernt beginnt. Erhöhe den oberen Abstand, wenn dein Briefpapier oben ein Logo oder einen Farbbalken hat.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      {([
+                        ['pdf_margin_top',    'Abstand oben (mm)',   45],
+                        ['pdf_margin_bottom', 'Abstand unten (mm)',  20],
+                        ['pdf_margin_left',   'Abstand links (mm)',  20],
+                        ['pdf_margin_right',  'Abstand rechts (mm)', 20],
+                      ] as [string, string, number][]).map(([key, label, def]) => (
+                        <div key={key}>
+                          <label style={{ ...lbl, marginBottom: 4 }}>{label}</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <input
+                              type="range"
+                              min={0}
+                              max={120}
+                              step={1}
+                              value={Number(profil[key] ?? def)}
+                              onChange={e => setP(key, e.target.value)}
+                              style={{ flex: 1, accentColor: C.copper }}
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              max={120}
+                              value={Number(profil[key] ?? def)}
+                              onChange={e => setP(key, e.target.value)}
+                              style={{ ...inp(), width: 58, textAlign: 'center' as const, padding: '6px 8px' }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
               )}
 
