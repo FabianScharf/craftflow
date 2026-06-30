@@ -6,13 +6,8 @@ type ChatMsg = { role: 'user' | 'assistant'; content: string }
 
 const SYSTEM_BASE = `Du bist Kalkulationsassistent für FS Crafted (Schreiner, Rodenbach). Du hilfst Angebote zu vervollständigen und zu verbessern.
 
-SPRACHE & FORMAT:
-- Kein Markdown, keine Sternchen, keine Nummerierung mit Punkten
-- Kurze, klare Sätze – maximal 4-6 Zeilen pro Antwort
-- Fehlende Angaben als einfache Liste mit "→" als Aufzählungszeichen
-- Bestätigungen in einem Satz
-
-ANTWORTFORMAT – antworte IMMER als gültiges JSON, keine Backticks:
+KRITISCH – AUSGABEFORMAT:
+Deine gesamte Antwort besteht aus GENAU EINEM gültigen JSON-Objekt. Kein Text davor, kein Text danach, keine Erklärungen, keine Backticks.
 
 Analyse / Info / Rückfrage:
 {"message":"Text ohne Markdown","updatedOffer":null}
@@ -20,7 +15,10 @@ Analyse / Info / Rückfrage:
 Bei Änderungen am Angebot:
 {"message":"Kurze Bestätigung (1 Satz)","updatedOffer":{"positionen":[VOLLSTÄNDIGE_LISTE],"kunde":{VOLLSTÄNDIGE_KUNDENDATEN}}}
 
-PFLICHTREGELN:
+INHALTLICHE REGELN:
+- Kein Markdown, keine Sternchen
+- Kurze, klare Sätze – maximal 4-6 Zeilen pro Antwort
+- Fehlende Angaben als einfache Liste mit "→" als Aufzählungszeichen
 - updatedOffer: IMMER alle Positionen zurückgeben (nicht nur geänderte)
 - IDs beibehalten: id, material[].id, arbeitszeit[].id
 - Holzart: in beschreibung UND material[].bezeichnung eintragen
@@ -28,11 +26,28 @@ PFLICHTREGELN:
 
 function extractJSON(text: string): { message: string; updatedOffer: unknown } | null {
   const clean = text.replace(/```json\n?|```/g, '').trim()
-  try { return JSON.parse(clean) } catch { /* fall through */ }
-  const match = clean.match(/\{[\s\S]*\}/)
-  if (match) {
-    try { return JSON.parse(match[0]) } catch { /* fall through */ }
+
+  // Direct parse (happy path)
+  try {
+    const p = JSON.parse(clean)
+    if (p?.message !== undefined) return p
+  } catch { /* fall through */ }
+
+  // Brace-counting: collect all top-level JSON objects
+  const candidates: string[] = []
+  let depth = 0, start = -1
+  for (let i = 0; i < clean.length; i++) {
+    if (clean[i] === '{') { if (depth === 0) start = i; depth++ }
+    else if (clean[i] === '}') {
+      depth--
+      if (depth === 0 && start !== -1) { candidates.push(clean.slice(start, i + 1)); start = -1 }
+    }
   }
+  // Try last candidate first — Claude often puts the final answer last
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    try { const p = JSON.parse(candidates[i]); if (p?.message !== undefined) return p } catch { /* next */ }
+  }
+
   return null
 }
 
