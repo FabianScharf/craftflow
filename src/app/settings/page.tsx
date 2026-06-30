@@ -136,7 +136,14 @@ export default function SettingsPage() {
     ])
 
     if (bpRes.profil) {
-      setProfil(bpRes.profil)
+      // Supabase returns boolean columns as actual booleans, but the UI compares
+      // them as strings 'true'/'false'. Normalize at load time.
+      const normalized: Profil = {}
+      for (const [k, v] of Object.entries(bpRes.profil as Record<string, unknown>)) {
+        if (typeof v === 'boolean') normalized[k] = v ? 'true' : 'false'
+        else normalized[k] = (v ?? '') as string
+      }
+      setProfil(normalized)
       if (bpRes.profil.logo_url) setLogoPreview(bpRes.profil.logo_url)
     }
 
