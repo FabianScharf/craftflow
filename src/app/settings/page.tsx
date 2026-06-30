@@ -78,6 +78,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
+  const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [isMobile, setIsMobile] = useState(false)
   const [mobileShowContent, setMobileShowContent] = useState(false)
 
@@ -638,93 +639,212 @@ export default function SettingsPage() {
           {/* BEREICH — BRIEFPAPIER */}
           {section === 'briefpapier' && (
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Briefpapier & PDF-Gestaltung</h2>
-              <p style={{ fontSize: 13, color: C.textMid, marginBottom: 28, lineHeight: 1.6 }}>
-                Diese Einstellungen werden bei jeder neuen PDF übernommen.
-              </p>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: C.white }}>Briefpapier & PDF</h2>
 
-              <div style={{ display: 'grid', gap: 28 }}>
+              {/* Tab-Auswahl */}
+              <div style={{ display: 'flex', gap: 2, marginBottom: 28, background: C.gray1, borderRadius: 8, padding: 4 }}>
+                {(['gestaltung', 'texte'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setBriefpapierTab(tab)}
+                    style={{
+                      flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      background: briefpapierTab === tab ? C.gray2 : 'transparent',
+                      color: briefpapierTab === tab ? C.white : C.textMid,
+                      fontFamily: 'Helvetica Neue,sans-serif', fontSize: 13, fontWeight: briefpapierTab === tab ? 700 : 400,
+                      borderBottom: briefpapierTab === tab ? `2px solid ${C.copper}` : '2px solid transparent',
+                    }}
+                  >
+                    {tab === 'gestaltung' ? '🎨 Gestaltung' : '✏️ Texte'}
+                  </button>
+                ))}
+              </div>
 
-                {/* Layout */}
-                <div>
-                  <label style={lbl}>Layout</label>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    {(['klassisch', 'kompakt'] as const).map(opt => (
-                      <button
-                        key={opt}
-                        onClick={() => setP('pdf_layout', opt)}
-                        style={{
-                          flex: 1, padding: '12px 0', borderRadius: 6, cursor: 'pointer',
-                          border: profil.pdf_layout === opt || (!profil.pdf_layout && opt === 'klassisch')
-                            ? `2px solid ${C.copper}` : `1px solid ${C.border}`,
-                          background: profil.pdf_layout === opt || (!profil.pdf_layout && opt === 'klassisch')
-                            ? `${C.copper}15` : C.gray2,
-                          color: C.white, fontFamily: 'Helvetica Neue,sans-serif', fontSize: 13, fontWeight: 700,
-                        }}
-                      >
-                        {opt === 'klassisch' ? '🗒 Klassisch' : '⬜ Kompakt'}
-                      </button>
-                    ))}
+              {/* TAB: GESTALTUNG */}
+              {briefpapierTab === 'gestaltung' && (
+                <div style={{ display: 'grid', gap: 28 }}>
+
+                  <div>
+                    <label style={lbl}>Layout</label>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      {(['klassisch', 'kompakt'] as const).map(opt => (
+                        <button
+                          key={opt}
+                          onClick={() => setP('pdf_layout', opt)}
+                          style={{
+                            flex: 1, padding: '12px 0', borderRadius: 6, cursor: 'pointer',
+                            border: profil.pdf_layout === opt || (!profil.pdf_layout && opt === 'klassisch')
+                              ? `2px solid ${C.copper}` : `1px solid ${C.border}`,
+                            background: profil.pdf_layout === opt || (!profil.pdf_layout && opt === 'klassisch')
+                              ? `${C.copper}15` : C.gray2,
+                            color: C.white, fontFamily: 'Helvetica Neue,sans-serif', fontSize: 13, fontWeight: 700,
+                          }}
+                        >
+                          {opt === 'klassisch' ? '🗒 Klassisch' : '⬜ Kompakt'}
+                        </button>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>
+                      Klassisch: mehr Weißraum &amp; größere Schrift · Kompakt: engere Abstände, mehr Positionen pro Seite
+                    </p>
                   </div>
-                  <p style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>
-                    Klassisch: mehr Weißraum &amp; größere Schrift · Kompakt: engere Abstände, mehr Positionen auf einer Seite
-                  </p>
-                </div>
 
-                {/* Akzentfarbe */}
-                <div>
-                  <label style={lbl}>Akzentfarbe auf PDF</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: C.gray1, borderRadius: 6, border: `1px solid ${C.border}` }}>
-                    <div style={{ width: 24, height: 24, borderRadius: 4, background: profil.farbe_akzent || C.copper, flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color: C.white }}>{profil.farbe_akzent || '#C8885A'}</span>
-                    <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>— wird für Tabellenlinien, Summe und Hinweisbox verwendet</span>
+                  <div>
+                    <label style={lbl}>Akzentfarbe auf PDF</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: C.gray1, borderRadius: 6, border: `1px solid ${C.border}` }}>
+                      <div style={{ width: 24, height: 24, borderRadius: 4, background: profil.farbe_akzent || C.copper, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: C.white }}>{profil.farbe_akzent || '#C8885A'}</span>
+                      <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>— Tabellenlinien, Summe, Hinweisbox</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>
+                      Farbe ändern unter <button onClick={() => setSection('marketing')} style={{ background: 'none', border: 'none', color: C.copper, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Marketing &amp; CI → Akzentfarbe</button>
+                    </p>
                   </div>
-                  <p style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>
-                    Farbe ändern unter <button onClick={() => setSection('marketing')} style={{ background: 'none', border: 'none', color: C.copper, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Marketing &amp; CI → Akzentfarbe</button>
-                  </p>
-                </div>
 
-                {/* Optionale Felder im Footer */}
-                <div>
-                  <label style={lbl}>Zusätzliche Felder im Dokument-Footer</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {([
-                      { key: 'pdf_zeige_bic',      label: 'BIC anzeigen',      sub: profil.bic      || 'noch nicht hinterlegt (Firmendaten → BIC)' },
-                      { key: 'pdf_zeige_telefon',  label: 'Telefon anzeigen',  sub: profil.telefon  || 'noch nicht hinterlegt (Firmendaten → Telefon)' },
-                      { key: 'pdf_zeige_website',  label: 'Website anzeigen',  sub: profil.website  || 'noch nicht hinterlegt (Firmendaten → Website)' },
-                    ] as { key: string; label: string; sub: string }[]).map(({ key, label, sub }) => (
-                      <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', background: C.gray1, borderRadius: 6 }}>
+                  <div>
+                    <label style={lbl}>Zusätzliche Felder im Dokument-Footer</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {([
+                        { key: 'pdf_zeige_bic',     label: 'BIC anzeigen',     sub: profil.bic     || 'noch nicht hinterlegt (Buchhaltung → BIC)' },
+                        { key: 'pdf_zeige_telefon', label: 'Telefon anzeigen', sub: profil.telefon || 'noch nicht hinterlegt (Firmendaten → Telefon)' },
+                        { key: 'pdf_zeige_website', label: 'Website anzeigen', sub: profil.website || 'noch nicht hinterlegt (Firmendaten → Website)' },
+                      ] as { key: string; label: string; sub: string }[]).map(({ key, label, sub }) => (
+                        <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', background: C.gray1, borderRadius: 6 }}>
+                          <input
+                            type="checkbox"
+                            checked={profil[key] === 'true'}
+                            onChange={e => setP(key, e.target.checked ? 'true' : 'false')}
+                            style={{ marginTop: 2, accentColor: C.copper, width: 16, height: 16, flexShrink: 0 }}
+                          />
+                          <div>
+                            <div style={{ fontSize: 13, color: C.white, fontWeight: 600 }}>{label}</div>
+                            <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>{sub}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
+              {/* TAB: TEXTE */}
+              {briefpapierTab === 'texte' && (
+                <div style={{ display: 'grid', gap: 28 }}>
+
+                  <div>
+                    <label style={lbl}>Anrede-Vorlage</label>
+                    <input
+                      style={inp()}
+                      value={profil.anrede_vorlage ?? ''}
+                      onChange={e => setP('anrede_vorlage', e.target.value)}
+                      placeholder="Liebe/r {name},"
+                    />
+                    <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
+                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{name}'}</code> wird durch den Kundennamen ersetzt.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Einleitungstext (Anschreiben)</label>
+                    <textarea
+                      style={{ ...inp(), height: 80, resize: 'vertical' as const, lineHeight: 1.6 }}
+                      value={profil.angebot_einleitung ?? ''}
+                      onChange={e => setP('angebot_einleitung', e.target.value)}
+                      placeholder="vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Zahlungskonditionen</label>
+                    <textarea
+                      style={{ ...inp(), height: 70, resize: 'vertical' as const, lineHeight: 1.6 }}
+                      value={profil.zahlungskonditionen_text ?? ''}
+                      onChange={e => setP('zahlungskonditionen_text', e.target.value)}
+                      placeholder="50% Anzahlung nach Auftragserteilung, 50% nach Abnahme, zahlbar innerhalb von 7 Tagen netto."
+                    />
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <label style={{ ...lbl, marginBottom: 0 }}>Massivholz-Hinweis</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                         <input
                           type="checkbox"
-                          checked={profil[key] === 'true'}
-                          onChange={e => setP(key, e.target.checked ? 'true' : 'false')}
-                          style={{ marginTop: 2, accentColor: C.copper, width: 16, height: 16, flexShrink: 0 }}
+                          checked={profil.pdf_zeige_massivholz !== 'false'}
+                          onChange={e => setP('pdf_zeige_massivholz', e.target.checked ? 'true' : 'false')}
+                          style={{ accentColor: C.copper, width: 15, height: 15 }}
                         />
-                        <div>
-                          <div style={{ fontSize: 13, color: C.white, fontWeight: 600 }}>{label}</div>
-                          <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>{sub}</div>
-                        </div>
+                        <span style={{ fontSize: 11, color: C.textMid }}>anzeigen</span>
                       </label>
-                    ))}
+                    </div>
+                    <textarea
+                      style={{ ...inp(), height: 70, resize: 'vertical' as const, lineHeight: 1.6, opacity: profil.pdf_zeige_massivholz === 'false' ? 0.4 : 1 }}
+                      value={profil.pdf_massivholz_text ?? ''}
+                      onChange={e => setP('pdf_massivholz_text', e.target.value)}
+                      placeholder="Hinweis: Massivholz ist ein Naturprodukt. Farbliche und strukturelle Abweichungen zwischen einzelnen Teilen sind natürlich und kein Mangel."
+                    />
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Leer lassen = Standardtext. Deaktivieren = kein Hinweis auf der PDF.</p>
                   </div>
-                </div>
 
-                {/* Eigener Hinweistext */}
-                <div>
-                  <label style={lbl}>Eigener Hinweistext (erscheint am Ende des Dokuments)</label>
-                  <textarea
-                    value={profil.pdf_hinweis ?? ''}
-                    onChange={e => setP('pdf_hinweis', e.target.value)}
-                    rows={4}
-                    placeholder={'z.B. Gewährleistung: 2 Jahre gemäß §§ 437 ff. BGB.\nKeine Haftung für Schäden durch unsachgemäße Nutzung.'}
-                    style={{ ...inp(), resize: 'vertical', lineHeight: 1.6 }}
-                  />
-                  <p style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>
-                    Freitext — z.B. Gewährleistungshinweise, AGB-Kurzfassung oder individuelle Bedingungen.
-                  </p>
-                </div>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <label style={{ ...lbl, marginBottom: 0 }}>Unterschriftsblock</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={profil.pdf_zeige_unterschrift !== 'false'}
+                          onChange={e => setP('pdf_zeige_unterschrift', e.target.checked ? 'true' : 'false')}
+                          style={{ accentColor: C.copper, width: 15, height: 15 }}
+                        />
+                        <span style={{ fontSize: 11, color: C.textMid }}>anzeigen</span>
+                      </label>
+                    </div>
+                    <textarea
+                      style={{ ...inp(), height: 60, resize: 'vertical' as const, lineHeight: 1.6, opacity: profil.pdf_zeige_unterschrift === 'false' ? 0.4 : 1 }}
+                      value={profil.pdf_unterschrift_text ?? ''}
+                      onChange={e => setP('pdf_unterschrift_text', e.target.value)}
+                      placeholder="Wir freuen uns auf die Zusammenarbeit und bitten um Unterzeichnung und Rücksendung."
+                    />
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Wird nur bei Angeboten angezeigt, nicht bei Rechnungen.</p>
+                  </div>
 
-              </div>
+                  <div>
+                    <label style={lbl}>Widerrufsbelehrung</label>
+                    <textarea
+                      style={{ ...inp(), height: 110, resize: 'vertical' as const, fontSize: 12, lineHeight: 1.6 }}
+                      value={profil.widerrufsbelehrung_text ?? ''}
+                      onChange={e => setP('widerrufsbelehrung_text', e.target.value)}
+                      placeholder="Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen..."
+                    />
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Wird nur eingefügt wenn die Option „Widerrufsbelehrung einfügen" im Angebot aktiviert ist.</p>
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Eigener Hinweisblock (erscheint nach Widerruf)</label>
+                    <textarea
+                      value={profil.pdf_hinweis ?? ''}
+                      onChange={e => setP('pdf_hinweis', e.target.value)}
+                      rows={4}
+                      placeholder={'z.B. Gewährleistung: 2 Jahre gemäß §§ 437 ff. BGB.\nKeine Haftung für Schäden durch unsachgemäße Nutzung.'}
+                      style={{ ...inp(), resize: 'vertical', lineHeight: 1.6 }}
+                    />
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Freitext mit kupferfarbener Randlinie — z.B. AGB-Kurzfassung, Gewährleistung.</p>
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Abschlusstext / Grußformel</label>
+                    <textarea
+                      style={{ ...inp(), height: 80, resize: 'vertical' as const, lineHeight: 1.6 }}
+                      value={profil.angebot_abschluss ?? ''}
+                      onChange={e => setP('angebot_abschluss', e.target.value)}
+                      placeholder={`Mit freundlichen Grüßen\n\nFabian Scharf\nfs crafted`}
+                    />
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 4 }}>Erscheint ganz am Ende des Dokuments.</p>
+                  </div>
+
+                </div>
+              )}
 
               <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
             </div>
