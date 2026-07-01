@@ -755,37 +755,37 @@ export default function SettingsPage() {
                   {/* Eigenes Briefpapier */}
                   <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 24 }}>
                     <label style={lbl}>Eigenes Briefpapier (PDF-Upload)</label>
-                    <div style={{ padding: '14px 16px', background: C.gray1, borderRadius: 8, border: `1px solid ${C.border}` }}>
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 14 }}>
+                    <div style={{ padding: '16px', background: C.gray1, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 16 }}>
                         <input
                           type="checkbox"
                           checked={profil.pdf_eigenes_briefpapier === 'true'}
                           onChange={e => setP('pdf_eigenes_briefpapier', e.target.checked ? 'true' : 'false')}
-                          style={{ marginTop: 2, accentColor: C.copper, width: 16, height: 16, flexShrink: 0 }}
+                          style={{ marginTop: 3, accentColor: C.copper, width: 18, height: 18, flexShrink: 0 }}
                         />
                         <div>
-                          <div style={{ fontSize: 13, color: C.white, fontWeight: 600 }}>Eigenes Briefpapier verwenden</div>
-                          <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>
-                            Das hochgeladene PDF wird als Hintergrund gedruckt. CraftFlow-Header (Logo, Adresse) und Footer werden ausgeblendet — dein Briefpapier liefert den Rahmen.
+                          <div style={{ fontSize: 13, color: C.white, fontWeight: 600, lineHeight: 1.4 }}>Eigenes Briefpapier verwenden</div>
+                          <div style={{ fontSize: 11, color: C.textMid, marginTop: 4, lineHeight: 1.6 }}>
+                            Das hochgeladene PDF wird als Hintergrund gedruckt. CraftFlow-Header und Footer werden ausgeblendet — dein Briefpapier liefert den Rahmen.
                           </div>
                         </div>
                       </label>
 
                       {profil.pdf_briefpapier_url ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#1a2a1a', border: '1px solid #3a6a3a', borderRadius: 6, marginBottom: 10 }}>
-                          <span style={{ fontSize: 18 }}>📄</span>
-                          <span style={{ fontSize: 12, color: '#90EE90', flex: 1 }}>Briefpapier hochgeladen</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#1a2a1a', border: '1px solid #3a6a3a', borderRadius: 6, marginBottom: 12 }}>
+                          <span style={{ fontSize: 18, flexShrink: 0 }}>📄</span>
+                          <span style={{ fontSize: 12, color: '#90EE90', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Briefpapier hochgeladen</span>
                           <a
                             href={profil.pdf_briefpapier_url}
                             target="_blank"
                             rel="noreferrer"
-                            style={{ fontSize: 11, color: C.copper, textDecoration: 'underline' }}
+                            style={{ fontSize: 12, color: C.copper, textDecoration: 'underline', flexShrink: 0 }}
                           >
                             Vorschau
                           </a>
                         </div>
                       ) : (
-                        <div style={{ fontSize: 11, color: C.textMid, marginBottom: 10 }}>Noch kein Briefpapier hochgeladen.</div>
+                        <div style={{ fontSize: 11, color: C.textMid, marginBottom: 12, padding: '8px 0' }}>Noch kein Briefpapier hochgeladen.</div>
                       )}
 
                       <input
@@ -795,17 +795,19 @@ export default function SettingsPage() {
                         style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f) uploadBriefpapier(f); e.target.value = '' }}
                       />
-                      <button
-                        onClick={() => bpFileRef.current?.click()}
-                        disabled={bpUploading}
-                        style={{ padding: '8px 16px', background: bpUploading ? C.gray2 : C.copper, color: bpUploading ? C.textMid : C.black, border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: bpUploading ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
-                      >
-                        {bpUploading ? 'Wird hochgeladen…' : profil.pdf_briefpapier_url ? 'PDF ersetzen' : 'PDF hochladen'}
-                      </button>
-                      {bpMsg && <span style={{ marginLeft: 12, fontSize: 12, color: bpMsg.startsWith('Fehler') ? '#E05A5A' : '#90EE90' }}>{bpMsg}</span>}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+                        <button
+                          onClick={() => bpFileRef.current?.click()}
+                          disabled={bpUploading}
+                          style={{ padding: '10px 20px', background: bpUploading ? C.gray2 : C.copper, color: bpUploading ? C.textMid : C.black, border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: bpUploading ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', flexShrink: 0 }}
+                        >
+                          {bpUploading ? 'Wird hochgeladen…' : profil.pdf_briefpapier_url ? 'PDF ersetzen' : 'PDF hochladen'}
+                        </button>
+                        {bpMsg && <span style={{ fontSize: 12, color: bpMsg.startsWith('Fehler') ? '#E05A5A' : '#90EE90' }}>{bpMsg}</span>}
+                      </div>
 
-                      <p style={{ fontSize: 11, color: C.textMid, marginTop: 10 }}>
-                        Seite 1 des PDFs = erste Angebotsseite · Seite 2 (optional) = alle Folgeseiten · Max. 10 MB
+                      <p style={{ fontSize: 11, color: C.textMid, marginTop: 12, lineHeight: 1.6 }}>
+                        Seite 1 = erste Angebotsseite · Seite 2 (optional) = alle Folgeseiten · Max. 10 MB
                       </p>
                     </div>
                   </div>
@@ -816,7 +818,7 @@ export default function SettingsPage() {
                     <p style={{ fontSize: 12, color: C.textMid, marginBottom: 16 }}>
                       Lege fest, wie weit der Angebotstext vom Rand entfernt beginnt. Erhöhe den oberen Abstand, wenn dein Briefpapier oben ein Logo oder einen Farbbalken hat.
                     </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
                       {([
                         ['pdf_margin_top',    'Abstand oben (mm)',   45],
                         ['pdf_margin_bottom', 'Abstand unten (mm)',  20],
@@ -833,7 +835,7 @@ export default function SettingsPage() {
                               step={1}
                               value={Number(profil[key] ?? def)}
                               onChange={e => setP(key, e.target.value)}
-                              style={{ flex: 1, accentColor: C.copper }}
+                              style={{ flex: 1, minWidth: 0, accentColor: C.copper }}
                             />
                             <input
                               type="number"
@@ -841,7 +843,7 @@ export default function SettingsPage() {
                               max={80}
                               value={Number(profil[key] ?? def)}
                               onChange={e => setP(key, e.target.value)}
-                              style={{ ...inp(), width: 58, textAlign: 'center' as const, padding: '6px 8px' }}
+                              style={{ ...inp(), width: 64, flexShrink: 0, textAlign: 'center' as const, padding: '6px 8px' }}
                             />
                           </div>
                         </div>
