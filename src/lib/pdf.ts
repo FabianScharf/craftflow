@@ -1,5 +1,22 @@
 import { Angebotsposition, Kunde, FIRMA, calcAngebotspos, eur, today, inDays } from './types'
 
+export function buildFooterTemplate(
+  docTyp: string,
+  docNr: string,
+  firmaOpts: FirmaOpts = {},
+  textOpts: PDFTextOpts = {}
+): string {
+  const firma = { ...FIRMA, ...Object.fromEntries(Object.entries(firmaOpts).filter(([, v]) => v)) } as typeof FIRMA & FirmaOpts
+  const ftrLine2 = `USt-IdNr.: ${firma.ust}${textOpts.zeigeTelefon && firma.telefon ? ` | Tel.: ${firma.telefon}` : ''}`
+  const ftrLine3 = `${firma.bank} | IBAN: ${firma.iban}${textOpts.zeigeBic && firma.bic ? ` | BIC: ${firma.bic}` : ''}`
+  const ftrLine4 = textOpts.zeigeWebsite && firma.website ? ` | ${firma.website}` : ''
+  return `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:9px;color:#999;width:100%;display:flex;justify-content:space-between;align-items:center;padding:5px 15mm 0;border-top:1px solid #ddd;box-sizing:border-box;">
+    <span style="white-space:nowrap;flex-shrink:0;">${docTyp} ${docNr}</span>
+    <span style="text-align:center;line-height:1.6;padding:0 8px;">${firma.name} – ${firma.inhaber} | ${firma.strasse} | ${firma.ort}<br>${ftrLine2}<br>${ftrLine3}${ftrLine4}</span>
+    <span style="white-space:nowrap;flex-shrink:0;">Seite <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+  </div>`
+}
+
 export interface PDFTextOpts {
   anredeVorlage?: string
   nachtext?: string
@@ -111,17 +128,13 @@ export function buildPDF(
       </div>`
     : ''
 
-  const ftrLine2 = `USt-IdNr.: ${firma.ust}${textOpts.zeigeTelefon && firma.telefon ? ` | Tel.: ${firma.telefon}` : ''}`
-  const ftrLine3 = `${firma.bank} | IBAN: ${firma.iban}${textOpts.zeigeBic && firma.bic ? ` | BIC: ${firma.bic}` : ''}`
-  const ftrLine4 = textOpts.zeigeWebsite && firma.website ? `<br>${firma.website}` : ''
-
   const m = textOpts.margins
   // Benutzerdefinierte Margins gelten nur mit eigenem Briefpapier.
   // Ohne Briefpapier: feste Standardwerte, damit der fixed-positionierte
   // Header (top:-34mm) korrekt im @page-Randbereich landet.
   const pageMargin = ownLetterhead
     ? (m ? `${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm` : isKompakt ? '28mm 20mm 28mm 20mm' : '38mm 20mm 32mm 20mm')
-    : (isKompakt ? '28mm 15mm 22mm 15mm' : '38mm 15mm 26mm 15mm')
+    : (isKompakt ? '12mm 15mm 22mm 15mm' : '16mm 15mm 26mm 15mm')
   const baseFontSize = isKompakt ? '11px' : '12px'
   const pagePadding = ownLetterhead
     ? (isKompakt ? '10mm 20mm 16mm' : '14mm 20mm 20mm')
@@ -135,14 +148,12 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:${baseFon
 
 @page{size:A4;margin:${pageMargin}}
 @media print{
-  .hdr{position:fixed;top:-34mm;left:0;right:0}
-  .ftr{position:fixed;bottom:-22mm;left:0;right:0}
-  .ftr .pn::after{content:"Seite " counter(page) " / " counter(pages)}
+  .ftr{display:none}
 }
 @media screen{
   body{background:#e8e8e8}
   .page{max-width:210mm;margin:0 auto;background:#fff;padding:${pagePadding};box-shadow:0 4px 24px rgba(0,0,0,.15)}
-  .hdr{padding:10mm 0 7px}
+  .hdr{padding:6px 0 7px}
   .ftr{margin-top:28px}
 }
 
@@ -248,11 +259,6 @@ ${hinweisBlock}
 ${signBlock}
 <div class="gruss">${nachtextHtml}</div>
 
-${ownLetterhead ? '' : `<div class="ftr">
-  <span>${docTyp} ${docNr}</span>
-  <span class="ftr-mid">${firma.name} – ${firma.inhaber} | ${firma.strasse} | ${firma.ort}<br>${ftrLine2}<br>${ftrLine3}${ftrLine4}</span>
-  <span class="pn">Seite 1</span>
-</div>`}
 
 </div>
 </body></html>`
