@@ -1826,6 +1826,73 @@ export default function CraftFlow() {
       ),
     },
     {
+      icon: '🗣️',
+      label: 'Beschreibung',
+      title: 'So beschreibst du ein Projekt',
+      content: (
+        <div>
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
+            Je mehr Details du gibst, desto genauer die Kalkulation. Diese 5 Infos braucht die KI:
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { icon: '🪑', title: 'Was wird gebaut?', text: 'Möbeltyp konkret — z.B. „Einbauschrank raumhoch mit Schiebetüren"' },
+              { icon: '🌲', title: 'Material', text: 'Massivholz (Eiche, Nussbaum …) oder Dekormöbel (Weiß matt, Beton …)' },
+              { icon: '📐', title: 'Breite × Höhe × Tiefe', text: 'Alle drei Maße in cm oder mm — oder die verfügbare Nische' },
+              { icon: '⚙️', title: 'Ausstattung', text: 'Türen, Schubladen, Klappen, LED, Akustikstoff — jedes Detail zählt' },
+              { icon: '📍', title: 'Montageort', text: 'Kundenadresse nennen — die KI berechnet die Anfahrt automatisch' },
+            ].map(({ icon, title, text }) => (
+              <div key={title} style={{ display: 'flex', gap: 12, background: '#1C1C1C', borderRadius: 8, padding: '10px 12px', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                <div>
+                  <div style={{ color: C.white, fontSize: 12, fontWeight: 700, marginBottom: 2 }}>{title}</div>
+                  <div style={{ color: '#7A7A7A', fontSize: 11, lineHeight: 1.5 }}>{text}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ),
+    },
+    {
+      icon: '✨',
+      label: 'KI-Tools',
+      title: 'Deine KI-Werkzeuge',
+      content: (
+        <div>
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
+            Nach jeder Kalkulation stehen dir zwei KI-Werkzeuge zur Verfügung:
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ background: '#1C1C1C', border: `1px solid #2A2A2A`, borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#252525', border: `1px solid ${C.copper}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔧</div>
+                <div>
+                  <div style={{ color: C.white, fontSize: 13, fontWeight: 800 }}>KI-Optimierung</div>
+                  <div style={{ color: C.copper, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>Analyse</div>
+                </div>
+              </div>
+              <p style={{ color: '#8A8A8A', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+                Prüft das Angebot auf fehlende Angaben und Unklarheiten — und gibt dir konkrete Verbesserungsvorschläge, bevor du sendest.
+              </p>
+            </div>
+            <div style={{ background: '#1C1C1C', border: `1px solid #2A2A2A`, borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#252525', border: `1px solid ${C.copper}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🎯</div>
+                <div>
+                  <div style={{ color: C.white, fontSize: 13, fontWeight: 800 }}>Kalkulations-Check</div>
+                  <div style={{ color: C.copper, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>Erklärung</div>
+                </div>
+              </div>
+              <p style={{ color: '#8A8A8A', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+                Erklärt detailliert warum die KI genau diese Stunden und Materialmengen berechnet hat — du kannst direkt Rückmeldung geben und die Kalkulation anpassen.
+              </p>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
       icon: '⏱',
       label: 'Stundensätze',
       title: 'Kostenstellen einrichten',
