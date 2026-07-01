@@ -1493,6 +1493,22 @@ export default function SettingsPage() {
               >
                 Anleitung als Popup öffnen →
               </button>
+
+              <div style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 6 }}>Programmvorstellung</div>
+                <p style={{ fontSize: 12, color: C.textMid, marginBottom: 14, lineHeight: 1.6 }}>
+                  Zeigt den Einführungs-Wizard erneut an — mit Erklärungen zu Kostenstellen, Materialaufschlag und wie du bessere Ergebnisse bekommst.
+                </p>
+                <button
+                  onClick={async () => {
+                    await fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: false }) })
+                    window.location.href = '/'
+                  }}
+                  style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 8, padding: '11px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                >
+                  Programmvorstellung wiederholen →
+                </button>
+              </div>
             </div>
           )}
 

@@ -2002,6 +2002,16 @@ export default function CraftFlow() {
             </div>
           )}
 
+          {/* Nicht mehr anzeigen */}
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <button
+              onClick={() => finishOnboarding(false)}
+              style={{ background: 'transparent', border: 'none', color: '#484848', fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', padding: 0 }}
+            >
+              Nicht mehr anzeigen
+            </button>
+          </div>
+
         </div>
       </div>
     )
