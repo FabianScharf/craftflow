@@ -196,6 +196,7 @@ export default function CraftFlow() {
   const [previousScreen, setPreviousScreen] = useState<'start' | 'projekte'>('start')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [onboardingStep, setOnboardingStep] = useState(0)
   const [showGuide, setShowGuide]           = useState(false)
   const [guideDismiss, setGuideDismiss]     = useState(false)
   const [brandAccent, setBrandAccent] = useState(C.copper)
@@ -1799,38 +1800,212 @@ export default function CraftFlow() {
   /* ══════════════════════════════════════════════════
      ONBOARDING MODAL
   ══════════════════════════════════════════════════ */
-  const OnboardingModal = showOnboarding ? (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: '#141414', border: '2px solid ' + C.copper, borderRadius: 12, padding: '32px 28px', width: '100%', maxWidth: 400, fontFamily: 'Helvetica Neue,sans-serif' }}>
-        <div style={{ color: C.copper, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Willkommen bei CraftFlow</div>
-        <h2 style={{ color: C.white, fontSize: 20, fontWeight: 800, marginBottom: 12, letterSpacing: -0.3 }}>Einstellungen hinterlegen</h2>
-        <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.65, marginBottom: 24 }}>
-          Damit die KI mit deinen individuellen Stundensätzen und Materialaufschlägen kalkuliert, hinterleg einmalig deine Betriebsdaten. Das dauert 2 Minuten.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            onClick={() => {
-              fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
-              setShowOnboarding(false)
-              window.location.href = '/settings'
-            }}
-            style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 8, padding: '14px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', letterSpacing: 0.3 }}
-          >
-            Jetzt Einstellungen öffnen
-          </button>
-          <button
-            onClick={() => {
-              fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
-              setShowOnboarding(false)
-            }}
-            style={{ background: 'transparent', color: '#8A8A8A', border: '1px solid ' + C.border, borderRadius: 8, padding: '12px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
-          >
-            Später – direkt loslegen
-          </button>
+  const ONBOARDING_STEPS = [
+    {
+      icon: '✦',
+      label: 'Willkommen',
+      title: 'Dein KI-Assistent für Angebote',
+      content: (
+        <div>
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
+            CraftFlow erstellt Angebote aus deiner Sprache. Beschreibe einfach, was gebaut werden soll — die Kalkulation entsteht automatisch.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { icon: '🎙️', text: 'Sprechen oder tippen — Maße, Material, Ausstattung' },
+              { icon: '✨', text: 'KI kalkuliert Stunden, Material und Montage' },
+              { icon: '📄', text: 'Angebot als PDF — fertig zum Versenden' },
+            ].map(({ icon, text }) => (
+              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#1C1C1C', borderRadius: 8, padding: '11px 14px' }}>
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+                <span style={{ color: '#C0C0C0', fontSize: 13, lineHeight: 1.5 }}>{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ),
+    },
+    {
+      icon: '⏱',
+      label: 'Stundensätze',
+      title: 'Kostenstellen einrichten',
+      content: (
+        <div>
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>
+            Die KI kalkuliert mit deinen Stundensätzen. Standardwerte sind vorausgefüllt — passe sie einmalig an deinen Betrieb an.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7, marginBottom: 16 }}>
+            {[
+              ['Produktion', '65 €/h'],
+              ['Zuschnitt', '72 €/h'],
+              ['Oberfläche', '72 €/h'],
+              ['Montage', '65 €/h'],
+              ['Bekantung', '100 €/h'],
+              ['CNC', '120 €/h'],
+            ].map(([name, rate]) => (
+              <div key={name} style={{ background: '#1C1C1C', borderRadius: 7, padding: '9px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#8A8A8A', fontSize: 12 }}>{name}</span>
+                <span style={{ color: C.copper, fontSize: 12, fontWeight: 700 }}>{rate}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 15 }}>⚙️</span>
+            <span style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>
+              Alle Kostenstellen anpassen unter <span style={{ color: C.copper }}>Einstellungen → Kostenstellen</span>
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      icon: '📦',
+      label: 'Material',
+      title: 'Materialaufschlag einstellen',
+      content: (
+        <div>
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>
+            Auf alle Materialkosten wird automatisch ein Aufschlag berechnet — für Beschaffung, Lager und Verschnitt.
+          </p>
+          <div style={{ background: '#1C1C1C', borderRadius: 10, padding: '18px 20px', textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ color: C.copper, fontSize: 42, fontWeight: 900, lineHeight: 1, letterSpacing: -1 }}>30%</div>
+            <div style={{ color: '#6A6A6A', fontSize: 12, marginTop: 6 }}>Standardaufschlag auf Einkaufspreis</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            {[
+              ['Standardplatten / Zukaufteile', '15–20 %'],
+              ['Allgemein (Richtwert)', '20–30 %'],
+              ['Massivholz / Sonderbestellung', '25–35 %'],
+            ].map(([label, val]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#1A1A1A', borderRadius: 7 }}>
+                <span style={{ color: '#8A8A8A', fontSize: 12 }}>{label}</span>
+                <span style={{ color: '#C0C0C0', fontSize: 12, fontWeight: 600 }}>{val}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 15 }}>⚙️</span>
+            <span style={{ color: '#7A7A7A', fontSize: 12 }}>
+              Anpassen unter <span style={{ color: C.copper }}>Einstellungen → Warenaufschläge</span>
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      icon: '🎯',
+      label: 'Feedback',
+      title: 'Bessere Ergebnisse bekommen',
+      content: (
+        <div>
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>
+            Die KI schätzt — du weißt es besser. So holst du das Beste heraus:
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+            {[
+              {
+                icon: '✏️',
+                title: 'Positionen direkt anpassen',
+                text: 'Klappe jede Position auf und ändere Stunden oder Material sofort — die Summe passt sich automatisch an.',
+              },
+              {
+                icon: '🎯',
+                title: 'Kalkulations-Check nutzen',
+                text: 'Die KI erklärt, warum sie so gerechnet hat. Sag ihr, was nicht stimmt — sie lernt aus deiner Rückmeldung.',
+              },
+              {
+                icon: '🗣️',
+                title: 'Genauer beschreiben',
+                text: 'Material, Maße, Besonderheiten — je präziser deine Eingabe, desto besser die Kalkulation beim nächsten Mal.',
+              },
+            ].map(({ icon, title, text }) => (
+              <div key={title} style={{ background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 12 }}>
+                <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                <div>
+                  <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title}</div>
+                  <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.55 }}>{text}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ),
+    },
+  ]
+
+  const finishOnboarding = (goToSettings: boolean) => {
+    fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
+    setShowOnboarding(false)
+    setOnboardingStep(0)
+    if (goToSettings) window.location.href = '/settings'
+  }
+
+  const OnboardingModal = showOnboarding ? (() => {
+    const step = ONBOARDING_STEPS[onboardingStep]
+    const isLast = onboardingStep === ONBOARDING_STEPS.length - 1
+    const isFirst = onboardingStep === 0
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ background: '#141414', border: `1px solid #2A2A2A`, borderRadius: 14, padding: '28px 24px', width: '100%', maxWidth: 420, fontFamily: 'Helvetica Neue,sans-serif', maxHeight: '90vh', overflowY: 'auto' }}>
+
+          {/* Schritt-Punkte */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 7, marginBottom: 24 }}>
+            {ONBOARDING_STEPS.map((_, i) => (
+              <div key={i} style={{ width: i === onboardingStep ? 20 : 7, height: 7, borderRadius: 4, background: i === onboardingStep ? C.copper : '#2E2E2E', transition: 'all 0.25s' }} />
+            ))}
+          </div>
+
+          {/* Kopf */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: '#1E1E1E', border: `1px solid #2E2E2E`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+              {step.icon}
+            </div>
+            <div>
+              <div style={{ color: C.copper, fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase', marginBottom: 2 }}>{step.label}</div>
+              <h2 style={{ color: C.white, fontSize: 17, fontWeight: 800, letterSpacing: -0.3, margin: 0 }}>{step.title}</h2>
+            </div>
+          </div>
+
+          {/* Inhalt */}
+          {step.content}
+
+          {/* Buttons */}
+          {isLast ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 4 }}>
+              <button
+                onClick={() => finishOnboarding(true)}
+                style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 8, padding: '13px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+              >
+                Jetzt Einstellungen öffnen
+              </button>
+              <button
+                onClick={() => finishOnboarding(false)}
+                style={{ background: 'transparent', color: '#7A7A7A', border: '1px solid #2A2A2A', borderRadius: 8, padding: '11px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+              >
+                Direkt loslegen
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <button
+                onClick={() => { if (!isFirst) setOnboardingStep(s => s - 1) }}
+                style={{ background: 'transparent', color: isFirst ? 'transparent' : '#6A6A6A', border: 'none', fontSize: 13, cursor: isFirst ? 'default' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', padding: '4px 0', pointerEvents: isFirst ? 'none' : 'auto' }}
+              >
+                ← Zurück
+              </button>
+              <button
+                onClick={() => setOnboardingStep(s => s + 1)}
+                style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 8, padding: '11px 24px', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+              >
+                Weiter →
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
-    </div>
-  ) : null
+    )
+  })() : null
 
   /* ══════════════════════════════════════════════════
      KI-GUIDE MODAL
