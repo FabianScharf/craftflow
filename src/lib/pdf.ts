@@ -128,10 +128,6 @@ export function buildPDF(
       </div>`
     : ''
 
-  const ftrLine2 = `USt-IdNr.: ${firma.ust}${textOpts.zeigeTelefon && firma.telefon ? ` | Tel.: ${firma.telefon}` : ''}`
-  const ftrLine3 = `${firma.bank} | IBAN: ${firma.iban}${textOpts.zeigeBic && firma.bic ? ` | BIC: ${firma.bic}` : ''}`
-  const ftrLine4 = textOpts.zeigeWebsite && firma.website ? `<br>${firma.website}` : ''
-
   const m = textOpts.margins
   // Benutzerdefinierte Margins gelten nur mit eigenem Briefpapier.
   // Ohne Briefpapier: feste Standardwerte, damit der fixed-positionierte
@@ -263,11 +259,6 @@ ${hinweisBlock}
 ${signBlock}
 <div class="gruss">${nachtextHtml}</div>
 
-${ownLetterhead ? '' : `<div class="ftr">
-  <span>${docTyp} ${docNr}</span>
-  <span class="ftr-mid">${firma.name} – ${firma.inhaber} | ${firma.strasse} | ${firma.ort}<br>${ftrLine2}<br>${ftrLine3}${ftrLine4}</span>
-  <span class="pn">Seite 1</span>
-</div>`}
 
 </div>
 </body></html>`
