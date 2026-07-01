@@ -60,7 +60,11 @@ export async function POST(req: NextRequest) {
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: '0', right: '0', bottom: footerTemplate ? '26mm' : '0', left: '0' },
+      // Non-letterhead (with footerTemplate): Puppeteer steuert alle Margins.
+      // Letterhead / kein Footer: CSS @page steuert Margins, Puppeteer = 0.
+      margin: footerTemplate
+        ? { top: '16mm', right: '15mm', bottom: '26mm', left: '15mm' }
+        : { top: '0', right: '0', bottom: '0', left: '0' },
       ...(footerTemplate ? {
         displayHeaderFooter: true,
         headerTemplate: '<span></span>',
