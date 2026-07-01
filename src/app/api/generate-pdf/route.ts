@@ -39,11 +39,12 @@ export async function POST(req: NextRequest) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
-  const { html, letterheadUrl, filename, margins } = await req.json() as {
+  const { html, letterheadUrl, filename, margins, footerTemplate } = await req.json() as {
     html: string
     letterheadUrl?: string
     filename?: string
     margins?: { top: number; bottom: number; left: number; right: number }
+    footerTemplate?: string
   }
 
   if (!html) return NextResponse.json({ error: 'Kein HTML' }, { status: 400 })
@@ -59,7 +60,12 @@ export async function POST(req: NextRequest) {
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      margin: { top: '0', right: '0', bottom: footerTemplate ? '26mm' : '0', left: '0' },
+      ...(footerTemplate ? {
+        displayHeaderFooter: true,
+        headerTemplate: '<span></span>',
+        footerTemplate,
+      } : {}),
     })
     contentPdfBytes = new Uint8Array(pdfBuffer)
   } finally {

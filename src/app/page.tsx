@@ -13,7 +13,7 @@ import {
   type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
   type DbKostenstelle,
 } from '@/lib/types'
-import { buildPDF, type FirmaOpts } from '@/lib/pdf'
+import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -3720,6 +3720,8 @@ export default function CraftFlow() {
                 akzentfarbe: brandAccent    || undefined,
               }
               const html = buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, textOpts, firmaOpts)
+              const useOwnLetterhead = profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl
+              const footerTpl = useOwnLetterhead ? undefined : buildFooterTemplate(docTyp, docNr, firmaOpts, textOpts)
 
               // Immer über Puppeteer: so wirken Margins auch ohne eigenes Briefpapier
               setPdfGenerating(true)
@@ -3729,9 +3731,7 @@ export default function CraftFlow() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     html,
-                    letterheadUrl: profilPdfEigeneBriefpapier && profilPdfBriefpapierUrl
-                      ? profilPdfBriefpapierUrl
-                      : undefined,
+                    letterheadUrl: useOwnLetterhead ? profilPdfBriefpapierUrl : undefined,
                     filename: `${docTyp}_${docNr}`,
                     margins: {
                       top: profilPdfMarginTop,
@@ -3739,6 +3739,7 @@ export default function CraftFlow() {
                       left: profilPdfMarginLeft,
                       right: profilPdfMarginRight,
                     },
+                    footerTemplate: footerTpl,
                   }),
                 })
                 if (res.ok) {
