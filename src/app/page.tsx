@@ -1992,32 +1992,32 @@ export default function CraftFlow() {
       title: 'Bessere Ergebnisse bekommen',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
             Die KI schätzt — du weißt es besser. So holst du das Beste heraus:
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
               {
                 icon: '✏️',
                 title: 'Positionen direkt anpassen',
-                text: 'Klappe jede Position auf und ändere Stunden oder Material sofort — die Summe passt sich automatisch an.',
+                text: 'Stunden oder Material in jeder Position ändern — die Summe passt sich automatisch an.',
               },
               {
                 icon: '🎯',
                 title: 'Kalkulations-Check nutzen',
-                text: 'Die KI erklärt, warum sie so gerechnet hat. Sag ihr, was nicht stimmt — sie lernt aus deiner Rückmeldung.',
+                text: 'Lass die KI erklären, wie sie gerechnet hat, und gib Rückmeldung.',
               },
               {
                 icon: '🗣️',
                 title: 'Genauer beschreiben',
-                text: 'Material, Maße, Besonderheiten — je präziser deine Eingabe, desto besser die Kalkulation beim nächsten Mal.',
+                text: 'Je präziser Maße, Material und Ausstattung — desto besser die Kalkulation.',
               },
             ].map(({ icon, title, text }) => (
               <div key={title} style={{ background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 12 }}>
                 <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
                 <div>
                   <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title}</div>
-                  <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.55 }}>{text}</div>
+                  <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>{text}</div>
                 </div>
               </div>
             ))}
@@ -2098,15 +2098,17 @@ export default function CraftFlow() {
             </div>
           )}
 
-          {/* Nicht mehr anzeigen */}
-          <div style={{ textAlign: 'center', marginTop: 12, flexShrink: 0 }}>
-            <button
-              onClick={() => finishOnboarding(false)}
-              style={{ background: 'transparent', border: 'none', color: '#484848', fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', padding: 0 }}
-            >
-              Nicht mehr anzeigen
-            </button>
-          </div>
+          {/* Nicht mehr anzeigen — nur auf Zwischenschritten (letzter hat 'Direkt loslegen') */}
+          {!isLast && (
+            <div style={{ textAlign: 'center', marginTop: 12, flexShrink: 0 }}>
+              <button
+                onClick={() => finishOnboarding(false)}
+                style={{ background: 'transparent', border: 'none', color: '#484848', fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', padding: 0 }}
+              >
+                Nicht mehr anzeigen
+              </button>
+            </div>
+          )}
 
         </div>
       </div>
