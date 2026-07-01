@@ -1828,25 +1828,55 @@ export default function CraftFlow() {
       title: 'So beschreibst du ein Projekt',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
-            Je mehr Details du gibst, desto genauer die Kalkulation. Diese 5 Infos braucht die KI:
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+            Je mehr Details du gibst, desto genauer die Kalkulation:
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
               { icon: '🪑', title: 'Was wird gebaut?', text: 'Möbeltyp konkret — z.B. „Einbauschrank raumhoch mit Schiebetüren"' },
               { icon: '🌲', title: 'Material', text: 'Massivholz (Eiche, Nussbaum …) oder Dekormöbel (Weiß matt, Beton …)' },
               { icon: '📐', title: 'Breite × Höhe × Tiefe', text: 'Alle drei Maße in cm oder mm — oder die verfügbare Nische' },
-              { icon: '⚙️', title: 'Ausstattung', text: 'Türen, Schubladen, Klappen, LED, Akustikstoff — jedes Detail zählt' },
-              { icon: '📍', title: 'Montageort', text: 'Kundenadresse nennen — die KI berechnet die Anfahrt automatisch' },
             ].map(({ icon, title, text }) => (
-              <div key={title} style={{ display: 'flex', gap: 12, background: '#1C1C1C', borderRadius: 8, padding: '10px 12px', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+              <div key={title} style={{ display: 'flex', gap: 12, background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
                 <div>
-                  <div style={{ color: C.white, fontSize: 12, fontWeight: 700, marginBottom: 2 }}>{title}</div>
-                  <div style={{ color: '#7A7A7A', fontSize: 11, lineHeight: 1.5 }}>{text}</div>
+                  <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title}</div>
+                  <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>{text}</div>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      ),
+    },
+    {
+      icon: '🗣️',
+      label: 'Beschreibung',
+      title: 'So beschreibst du ein Projekt',
+      content: (
+        <div>
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+            Und diese zwei Punkte machen die Kalkulation komplett:
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { icon: '⚙️', title: 'Ausstattung', text: 'Türen, Schubladen, Klappen, LED, Akustikstoff — jedes Detail zählt' },
+              { icon: '📍', title: 'Montageort', text: 'Kundenadresse nennen — die KI berechnet die Anfahrt automatisch' },
+            ].map(({ icon, title, text }) => (
+              <div key={title} style={{ display: 'flex', gap: 12, background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                <div>
+                  <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title}</div>
+                  <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>{text}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 16, background: '#1A1A1A', border: `1px solid #2A2A2A`, borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ color: C.copper, fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 }}>Beispiel</div>
+            <p style={{ color: '#8A8A8A', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+              „Einbauschrank Eiche massiv, 280 × 230 × 60 cm, 3 Drehtüren, 2 Schubladen Legrabox, Montage in 63517 Rodenbach"
+            </p>
           </div>
         </div>
       ),
