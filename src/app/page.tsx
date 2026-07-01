@@ -2493,7 +2493,6 @@ export default function CraftFlow() {
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {OnboardingModal}
-        {GuideModal}
         {isInTrial && (
           <div onClick={() => window.location.href = '/settings#plan'} style={{ background: `${C.copper}18`, borderBottom: `1px solid ${C.copper}55`, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer' }}>
             <span style={{ fontSize: 14 }}>🎁</span>
