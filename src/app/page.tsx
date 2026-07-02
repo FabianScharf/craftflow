@@ -1958,20 +1958,20 @@ export default function CraftFlow() {
       title: 'Materialaufschlag einstellen',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>
-            Auf alle Materialkosten wird automatisch ein Aufschlag berechnet — für Beschaffung, Lager und Verschnitt.
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
+            Ein Aufschlag auf alle Materialkosten deckt Beschaffung, Lager und Verschnitt ab.
           </p>
-          <div style={{ background: '#1C1C1C', borderRadius: 10, padding: '18px 20px', textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ background: '#1C1C1C', borderRadius: 10, padding: '14px 20px', textAlign: 'center', marginBottom: 12 }}>
             <div style={{ color: C.copper, fontSize: 42, fontWeight: 900, lineHeight: 1, letterSpacing: -1 }}>30%</div>
-            <div style={{ color: '#6A6A6A', fontSize: 12, marginTop: 6 }}>Standardaufschlag auf Einkaufspreis</div>
+            <div style={{ color: '#6A6A6A', fontSize: 12, marginTop: 5 }}>Standardaufschlag auf Einkaufspreis</div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
             {[
               ['Standardplatten / Zukaufteile', '15–20 %'],
               ['Allgemein (Richtwert)', '20–30 %'],
               ['Massivholz / Sonderbestellung', '25–35 %'],
             ].map(([label, val]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#1A1A1A', borderRadius: 7 }}>
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: '#1A1A1A', borderRadius: 7 }}>
                 <span style={{ color: '#8A8A8A', fontSize: 12 }}>{label}</span>
                 <span style={{ color: '#C0C0C0', fontSize: 12, fontWeight: 600 }}>{val}</span>
               </div>
