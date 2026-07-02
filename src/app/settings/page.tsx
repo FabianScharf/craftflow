@@ -1464,34 +1464,17 @@ export default function SettingsPage() {
           {section === 'hilfe' && (
             <div style={{ padding: '24px 20px', maxWidth: 520 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Hilfe</h2>
-              <p style={{ fontSize: 13, color: C.textMid, marginBottom: 28, lineHeight: 1.6 }}>
-                Diese 5 Informationen braucht die KI für eine präzise Kalkulation.
+              <p style={{ fontSize: 13, color: C.textMid, marginBottom: 24, lineHeight: 1.6 }}>
+                Der Einführungs-Wizard erklärt alle wichtigen Funktionen — Beschreibung, KI-Werkzeuge, Kostenstellen und Materialaufschlag.
               </p>
-
-              {[
-                { icon: '🪑', title: 'Was wird gebaut?',          text: 'Möbeltyp konkret nennen — z.B. „Einbauschrank raumhoch mit Schiebetüren".' },
-                { icon: '🌲', title: 'Massivholz oder Dekormöbel?', text: 'Holzart (Eiche, Nussbaum …) oder Dekor (Weiß matt, Beton-Optik …) angeben.' },
-                { icon: '📐', title: 'Breite × Höhe × Tiefe',     text: 'Alle drei Maße in cm oder mm — oder den verfügbaren Raumausschnitt.' },
-                { icon: '⚙️', title: 'Was kommt rein?',           text: 'Türen, Schubladen, Klappen, Einlegeböden, LED, Akustikstoff — jedes Detail zählt.' },
-                { icon: '📍', title: 'Wo wird eingebaut?',         text: 'Kundenadresse nennen — die KI berechnet die Anfahrt ab deinem Standort.' },
-              ].map((s, i) => (
-                <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 16, padding: '12px 14px', background: C.gray1, borderRadius: 8 }}>
-                  <div style={{ fontSize: 22, flexShrink: 0, marginTop: 1 }}>{s.icon}</div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.white, marginBottom: 3 }}>{s.title}</div>
-                    <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>{s.text}</div>
-                  </div>
-                </div>
-              ))}
-
               <button
-                onClick={() => {
-                  localStorage.removeItem('cf_guide_dismissed')
+                onClick={async () => {
+                  await fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: false }) })
                   window.location.href = '/'
                 }}
-                style={{ marginTop: 8, background: C.copper, color: C.black, border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
               >
-                Anleitung als Popup öffnen →
+                Programmvorstellung wiederholen →
               </button>
             </div>
           )}
