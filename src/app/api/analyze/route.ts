@@ -747,13 +747,15 @@ export async function POST(req: NextRequest) {
     const customKs = Array.isArray(userKostenstellen)
       ? (userKostenstellen as Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>)
       : []
-    // Keyed by bezeichnung (readable name, e.g. "Konstruktion"), NOT code
-    // (legacy technical id, e.g. "02_01_Konstruktion") — the AI's own
-    // "kostenstelle" field always uses the readable name per the system
-    // prompt's fixed vocabulary, and STUNDENSAETZE below is keyed the same
-    // way. Keying by code here meant this override never matched anything
-    // and Firmeneinstellungen were silently ignored (2026-07-04 Vorfall #2).
-    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.bezeichnung, k.stundensatz]))
+    // Keyed by normalizeKsId(code), NOT k.bezeichnung and NOT raw k.code.
+    // bezeichnung is free user-edited text and can diverge from the AI's
+    // fixed kostenstelle vocabulary (e.g. code 03_01_Warenhandling saved
+    // with bezeichnung "Warenwirtschaft" instead of "Warenhandling" —
+    // confirmed via DB inspection 2026-07-04). code alone doesn't match
+    // either (that was Vorfall #2). normalizeKsId(code) via LEGACY_KS_MAP
+    // is the one stable mapping to the canonical name STUNDENSAETZE and the
+    // AI both use.
+    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [normalizeKsId(k.code), k.stundensatz]))
 
     const matGruppen = Array.isArray(userMaterialgruppen)
       ? (userMaterialgruppen as Array<{ name: string; aufschlag_prozent: number }>)
@@ -815,7 +817,7 @@ export async function POST(req: NextRequest) {
 
     let systemPrompt = SYSTEM_PROMPT
     if (customKs.length > 0) {
-      const lines = customKs.map(k => `${k.bezeichnung} → ${k.stundensatz} €/h`)
+      const lines = customKs.map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
       systemPrompt += '\n\n## ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen die Beispielsätze oben):\n' + lines.join('\n')
     }
     if (matGruppen.length > 0) {

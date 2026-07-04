@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
 
 export const maxDuration = 120
 
@@ -26,16 +27,6 @@ INHALTLICHE REGELN:
 
 function looksLikeOffer(p: unknown): p is { positionen?: unknown; kunde?: unknown } {
   return !!p && typeof p === 'object' && ('positionen' in p || 'kunde' in p)
-}
-
-// Same defaults as /api/analyze — kept in sync manually since each route is
-// a standalone serverless function. User-configured rates always win.
-const STUNDENSAETZE: Record<string, number> = {
-  'Besprechung': 65, 'Planung': 85, 'Konstruktion': 75,
-  'Arbeitsvorbereitung': 75, 'Produktion': 65, 'Warenhandling': 65,
-  'Zuschnitt': 72, 'Bekantung': 100, 'CNC': 120,
-  'Oberfläche': 72, 'Zusammenbau': 65, 'Verpacken': 65,
-  'Azubi': 52, 'Montage': 65, 'Lieferung': 65,
 }
 
 type AZ = { kostenstelle: string; minuten: number; vkStunde: number }
@@ -69,7 +60,7 @@ function applyUserRates(
 ): Record<string, unknown> {
   const positionen = offer.positionen
   if (!Array.isArray(positionen)) return offer
-  const activeSaetze = { ...STUNDENSAETZE, ...customSaetze }
+  const activeSaetze: Record<string, number> = { ...DEFAULT_STUNDENSAETZE, ...customSaetze }
   offer.positionen = positionen.map((raw: unknown) => {
     const pos = raw as Pos
     const arbeitszeit = Array.isArray(pos.arbeitszeit)
@@ -133,15 +124,17 @@ export async function POST(req: NextRequest) {
     if (!apiKey) return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
 
     const customKs = Array.isArray(userKostenstellen) ? userKostenstellen : []
-    // Keyed by bezeichnung (readable name), matching the AI's "kostenstelle"
-    // vocabulary and STUNDENSAETZE's keys — keying by code (technical id)
-    // meant this never matched anything (2026-07-04 Vorfall #2).
-    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.bezeichnung, k.stundensatz]))
+    // Keyed by normalizeKsId(code) — bezeichnung is free user-edited text and
+    // can diverge from the AI's fixed kostenstelle vocabulary (e.g. code
+    // 03_01_Warenhandling saved with bezeichnung "Warenwirtschaft"), and code
+    // alone doesn't match either. normalizeKsId(code) via LEGACY_KS_MAP is
+    // the one stable mapping to the canonical name (2026-07-04 Vorfall #3).
+    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [normalizeKsId(k.code), k.stundensatz]))
     const matGruppen = Array.isArray(userMaterialgruppen) ? userMaterialgruppen : []
 
     let system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
     if (customKs.length > 0) {
-      const lines = customKs.map(k => `${k.bezeichnung} → ${k.stundensatz} €/h`)
+      const lines = customKs.map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
       system += '\n\n== ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen alle anderen Werte im JSON) ==\n' + lines.join('\n') +
         '\nVerwende IMMER diese Sätze für vkStunde, auch wenn im Angebot-JSON andere Werte stehen — die JSON-Werte können veraltet sein.'
     }
