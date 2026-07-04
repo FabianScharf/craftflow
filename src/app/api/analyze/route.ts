@@ -228,9 +228,7 @@ Beispiel Dekormöbel Einbauschrank 3,6 lfm raumhoch:
   03_02_Zuschnitt: 389 min | 03_06_Zusammenbau: 583 min (+ Beschläge)
 
 PLAUSIBILITÄTSPRÜFUNG – PFLICHT nach jeder Kalkulation:
-Gesamtpreis je Position = Materialkosten (EK × 1,30) + Σ (Minuten / 60 × Stundensatz)
-Mindestpreis je Position: Laufmeter × 800 € netto
-Falls Gesamtpreis unter diesem Mindest → Werkstattzeiten proportional erhöhen bis Preis stimmt.
+Prüfe NUR die Arbeitszeiten (Minuten) gegen die Zeitrichtwerte in dieser Anleitung (z. B. lfm × 4,5h/5h Werkstattzeit-Basis). Der Gesamtpreis selbst ist KEIN Prüfkriterium – er ergibt sich automatisch aus Minuten × Stundensatz, und der Stundensatz kommt vollständig vom Nutzer (kann stark von den FS-Crafted-Richtwerten abweichen). Zeiten NIEMALS erhöhen, um einen bestimmten Gesamtpreis zu erreichen.
 
 SELBSTPRÜFUNGS-CHECKLISTE – VOR der JSON-Ausgabe durchgehen:
 
@@ -256,8 +254,7 @@ Schritt 4 – MONTAGE:
 □ Altbau oder schiefe Wände erwähnt? Dann +25 % Puffer.
 
 Schritt 5 – GESAMTPREIS:
-□ Gesamtpreis ≥ lfm × 800 € (Dekor) oder lfm × 1.200 € (Massivholz Eiche)?
-□ Wenn nicht → Werkstattzeiten erhöhen.
+□ Ergibt sich rein rechnerisch aus Material + Minuten × Stundensatz — KEINE eigene Prüfung oder Anpassung der Zeiten anhand des Gesamtpreises.
 
 Wenn alle Punkte korrekt: JSON ausgeben.
 Wenn ein Punkt nicht stimmt: erst korrigieren, dann ausgeben.
@@ -404,18 +401,18 @@ Türfront Lack/HPL: 80–180 €/Stk
 
 ---
 
-## PREISFAUSTREGELN (Plausibilitätskontrolle, Richtwerte netto)
+## HISTORISCHE PREISPUNKTE FS CRAFTED (nur zur Einordnung, NICHT zur Kalkulation verwenden)
 
-1 lfm Möbel ≈ 1.000 € netto (mittleres Dekormöbel, ohne Montage)
-Einbauschrank Standard Dekormöbel: 600–1.000 €/lfm netto (inkl. Montage)
-Einbauschrank Massivholz Eiche: 1.200–2.000 €/lfm netto
+Diese €-Werte basieren auf den alten FS-Crafted-Standardstundensätzen und sind branchenüblich für Deutschland — sie dienen nur als grobe Einordnung, ob ein Projekt "klein" oder "groß" ist. NIEMALS Zeiten oder Preise danach anpassen: der tatsächliche Preis ergibt sich ausschließlich aus Material + Minuten × Stundensatz des jeweiligen Nutzers, und Stundensätze unterscheiden sich von Nutzer zu Nutzer stark.
+
+1 lfm Möbel ≈ 1.000 € netto (mittleres Dekormöbel, ohne Montage, bei ca. 65–90 €/h)
+Einbauschrank Massivholz Eiche: 1.200–2.000 €/lfm netto (bei FS-Crafted-Standardsätzen)
 Einbauküche nach Maß: 5.000–20.000 € netto je nach Ausstattung
 Innentür liefern + montieren: 350–800 €/Stk netto
 Gerade Holztreppe (Fichte/Buche, eingebaut): 3.000–7.000 € netto
 Massivholztisch Eiche 200×90 cm, geölt: 2.000–4.500 € netto
-Pro 1.000 € Nettowert ≈ 1 Stunde Montage + Anfahrt
 
-Bei Projekten > 5.000 € Auftragswert: Planungspauschale 150–300 € separat einpreisen (in 01_02_Planung).
+Bei Projekten > 5.000 € Auftragswert: Planungspauschale 150–300 € separat einpreisen (in 01_02_Planung) — als Zeit, nicht als nachträglicher Preisaufschlag.
 
 ---
 
@@ -671,25 +668,23 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
     }
 
     // 7. Plausibility check — flags (does NOT silently alter numbers) positions
-    //    whose total price is far outside the FS Crafted Faustregel range for
-    //    the detected lfm. Surfaces as pos.warnung for manual review instead of
-    //    quietly rescaling, so nothing gets sent out uncontrolled (2026-07-04 Vorfall).
+    //    whose total WORKSHOP TIME is far outside the lm-based time floor.
+    //    Deliberately rate-independent: checking price/lfm here would punish
+    //    users with custom (e.g. much lower) Stundensätze for a correctly low
+    //    price, and previously caused the AI to inflate hours to hit an old
+    //    FS-Crafted price target regardless of the configured rate (2026-07-04
+    //    Vorfall). Time is what must be plausible; price is minutes × rate.
     let warnung: string | undefined
     if (lm > 0) {
-      const materialTotal = (pos.material ?? []).reduce(
-        (s, m) => s + (m.menge ?? 0) * (m.ekPreis ?? 0) * (1 + (m.aufschlag ?? 0.3)),
-        0
-      )
-      const arbeitszeitTotal = az.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
-      const totalPrice = materialTotal + arbeitszeitTotal
+      const flexKs = ['Zuschnitt', 'Zusammenbau', 'Oberfläche', 'Bekantung', 'CNC', 'Montage', 'Produktion']
+      const flexMinutes = az.filter(a => flexKs.includes(a.kostenstelle)).reduce((s, a) => s + a.minuten, 0)
+      const expectedMin = lm * (massiv ? 5 : 4.5) * 60
 
-      const perLm = massiv ? { min: 1200, max: 2500 } : { min: 600, max: 1500 }
-      const plausibleMin = lm * perLm.min * 0.5 // großzügiger Puffer nach unten
-      const plausibleMax = lm * perLm.max * 2 // großzügiger Puffer nach oben
-
-      if (totalPrice > plausibleMax || totalPrice < plausibleMin) {
-        warnung = `Preis (${Math.round(totalPrice)} € netto) liegt deutlich außerhalb des Richtwerts für ${lm.toFixed(1)} lfm ` +
-          `(erwartet ca. ${Math.round(lm * perLm.min)}–${Math.round(lm * perLm.max)} €) — bitte manuell prüfen.`
+      if (flexMinutes > expectedMin * 4 || flexMinutes < expectedMin * 0.3) {
+        const hours = Math.round(flexMinutes / 60)
+        const expectedHours = Math.round(expectedMin / 60)
+        warnung = `Werkstattzeit (${hours} h) liegt weit außerhalb des Zeitrichtwerts für ${lm.toFixed(1)} lfm ` +
+          `(erwartet ca. ${expectedHours} h) — bitte manuell prüfen.`
         console.warn('[analyze] Plausibilitätswarnung:', warnung)
       }
     }
