@@ -3208,13 +3208,13 @@ export default function CraftFlow() {
               </div>
               <div style={{ display: 'flex', borderTop: `1px solid ${C.border}` }}>
                 {[
-                  { l: 'Material', v: eur(materialGesamt) },
-                  { l: 'Stunden', v: `${stundenGesamtWert.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h` },
+                  { l: 'Materialkosten gesamt', v: eur(materialGesamt) },
+                  { l: 'Stunden gesamt', v: `${stundenGesamtWert.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h` },
                 ].map(({ l, v }, i) => (
-                  <div key={l} style={{ flex: 1, borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
-                    <div style={{ padding: '5px 6px', textAlign: 'center', display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 5 }}>
-                      <span style={{ color: C.textMid, fontSize: 8, letterSpacing: 1, textTransform: 'uppercase' }}>{l}</span>
-                      <span style={{ color: C.copper, fontSize: 10, fontWeight: 800 }}>{v}</span>
+                  <div key={l} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
+                    <div style={{ padding: '11px 6px', textAlign: 'center' }}>
+                      <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 3 }}>{l}</div>
+                      <div style={{ color: C.copper, fontSize: 11, fontWeight: 800 }}>{v}</div>
                     </div>
                   </div>
                 ))}
