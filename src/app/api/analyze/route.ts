@@ -747,7 +747,13 @@ export async function POST(req: NextRequest) {
     const customKs = Array.isArray(userKostenstellen)
       ? (userKostenstellen as Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>)
       : []
-    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.code, k.stundensatz]))
+    // Keyed by bezeichnung (readable name, e.g. "Konstruktion"), NOT code
+    // (legacy technical id, e.g. "02_01_Konstruktion") — the AI's own
+    // "kostenstelle" field always uses the readable name per the system
+    // prompt's fixed vocabulary, and STUNDENSAETZE below is keyed the same
+    // way. Keying by code here meant this override never matched anything
+    // and Firmeneinstellungen were silently ignored (2026-07-04 Vorfall #2).
+    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.bezeichnung, k.stundensatz]))
 
     const matGruppen = Array.isArray(userMaterialgruppen)
       ? (userMaterialgruppen as Array<{ name: string; aufschlag_prozent: number }>)
@@ -809,8 +815,8 @@ export async function POST(req: NextRequest) {
 
     let systemPrompt = SYSTEM_PROMPT
     if (customKs.length > 0) {
-      const lines = customKs.map(k => `${k.code}  → ${k.stundensatz} €/h${k.gruppe ? ' [Gruppe: ' + k.gruppe + ']' : ''}`)
-      systemPrompt += '\n\n## ZUSÄTZLICHE KOSTENSTELLEN DIESES NUTZERS (müssen verwendet werden wenn passend):\n' + lines.join('\n')
+      const lines = customKs.map(k => `${k.bezeichnung} → ${k.stundensatz} €/h`)
+      systemPrompt += '\n\n## ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen die Beispielsätze oben):\n' + lines.join('\n')
     }
     if (matGruppen.length > 0) {
       const lines = matGruppen.map(m => `${m.name} → ${m.aufschlag_prozent}%`)

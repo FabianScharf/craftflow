@@ -133,12 +133,15 @@ export async function POST(req: NextRequest) {
     if (!apiKey) return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
 
     const customKs = Array.isArray(userKostenstellen) ? userKostenstellen : []
-    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.code, k.stundensatz]))
+    // Keyed by bezeichnung (readable name), matching the AI's "kostenstelle"
+    // vocabulary and STUNDENSAETZE's keys — keying by code (technical id)
+    // meant this never matched anything (2026-07-04 Vorfall #2).
+    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.bezeichnung, k.stundensatz]))
     const matGruppen = Array.isArray(userMaterialgruppen) ? userMaterialgruppen : []
 
     let system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
     if (customKs.length > 0) {
-      const lines = customKs.map(k => `${k.code} → ${k.stundensatz} €/h`)
+      const lines = customKs.map(k => `${k.bezeichnung} → ${k.stundensatz} €/h`)
       system += '\n\n== ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen alle anderen Werte im JSON) ==\n' + lines.join('\n') +
         '\nVerwende IMMER diese Sätze für vkStunde, auch wenn im Angebot-JSON andere Werte stehen — die JSON-Werte können veraltet sein.'
     }
