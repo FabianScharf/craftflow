@@ -149,6 +149,15 @@ export interface DbKostenstelle {
   ist_standard: boolean
 }
 
+export interface DbMaterialgruppe {
+  id: string
+  name: string
+  aufschlag_prozent: number
+  beschreibung: string | null
+  reihenfolge: number
+  aktiv: boolean
+}
+
 export interface ArbeitsPosten {
   id: number
   kostenstelle: string

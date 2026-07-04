@@ -580,7 +580,28 @@ function normalizeKostenstelle(ks: string): string {
   return KS_ALIASES[ks] ?? normalizeKsId(ks)
 }
 
-function validateAndFix(data: Record<string, unknown>, originalInput = '', customSaetze: Record<string, number> = {}): Record<string, unknown> {
+// Finds the best-matching user Materialgruppe for a material's Bezeichnung
+// via case-insensitive substring match, preferring the longest (most
+// specific) group name. Returns null if nothing matches — callers must then
+// leave the AI's own aufschlag untouched rather than guess.
+function matchMaterialgruppe(
+  bezeichnung: string,
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }>
+): number | null {
+  const text = bezeichnung.toLowerCase()
+  let best: { name: string; aufschlag_prozent: number } | null = null
+  for (const g of matGruppen) {
+    if (text.includes(g.name.toLowerCase()) && (!best || g.name.length > best.name.length)) best = g
+  }
+  return best ? best.aufschlag_prozent / 100 : null
+}
+
+function validateAndFix(
+  data: Record<string, unknown>,
+  originalInput = '',
+  customSaetze: Record<string, number> = {},
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }> = []
+): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
 
@@ -599,6 +620,18 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
     // 1. Correct all vkStunde to exact FS Crafted rates
     for (const a of az) {
       if (a.kostenstelle in activeSaetze) a.vkStunde = activeSaetze[a.kostenstelle]
+    }
+
+    // 1b. Correct material aufschlag to the user's actual Materialgruppen —
+    //     never trust the AI's own % here, only overwrite where a group
+    //     confidently matches the Bezeichnung (2026-07-04: rates/markups must
+    //     come from Firmeneinstellungen, not from whatever the JSON contains).
+    const material = Array.isArray(pos.material) ? pos.material.map(m => ({ ...m })) : []
+    if (matGruppen.length > 0) {
+      for (const m of material) {
+        const matched = matchMaterialgruppe(m.bezeichnung ?? '', matGruppen)
+        if (matched !== null) m.aufschlag = matched
+      }
     }
 
     // 2. Fixkosten: enforce presence and minimum minutes
@@ -689,7 +722,7 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
       }
     }
 
-    return warnung ? { ...pos, arbeitszeit: az, warnung } : { ...pos, arbeitszeit: az }
+    return warnung ? { ...pos, material, arbeitszeit: az, warnung } : { ...pos, material, arbeitszeit: az }
   })
 
   return data
@@ -710,11 +743,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage zu groß – bitte weniger oder kleinere Bilder verwenden.' }, { status: 413 })
     }
 
-    let { text, imageBase64, userKostenstellen } = await req.json()
+    let { text, imageBase64, userKostenstellen, userMaterialgruppen } = await req.json()
     const customKs = Array.isArray(userKostenstellen)
       ? (userKostenstellen as Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>)
       : []
     const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.code, k.stundensatz]))
+
+    const matGruppen = Array.isArray(userMaterialgruppen)
+      ? (userMaterialgruppen as Array<{ name: string; aufschlag_prozent: number }>)
+      : []
 
     const rawImages: string[] = Array.isArray(imageBase64)
       ? imageBase64.filter(Boolean)
@@ -774,6 +811,11 @@ export async function POST(req: NextRequest) {
     if (customKs.length > 0) {
       const lines = customKs.map(k => `${k.code}  → ${k.stundensatz} €/h${k.gruppe ? ' [Gruppe: ' + k.gruppe + ']' : ''}`)
       systemPrompt += '\n\n## ZUSÄTZLICHE KOSTENSTELLEN DIESES NUTZERS (müssen verwendet werden wenn passend):\n' + lines.join('\n')
+    }
+    if (matGruppen.length > 0) {
+      const lines = matGruppen.map(m => `${m.name} → ${m.aufschlag_prozent}%`)
+      systemPrompt += '\n\n## ECHTE MATERIALAUFSCHLÄGE DIESES NUTZERS (verbindlich, ersetzen die pauschalen 30% oben):\n' +
+        lines.join('\n') + '\nOrdne jedes Material der passenden Gruppe zu und verwende deren Aufschlag als "aufschlag" (z.B. 25% → 0.25).'
     }
 
     const model = 'claude-sonnet-4-6'
@@ -835,7 +877,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const parsed = JSON.parse(clean)
-      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze)
+      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen)
       return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))

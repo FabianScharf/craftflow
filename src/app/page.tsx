@@ -11,7 +11,7 @@ import {
   DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS, KOSTENSTELLEN_GRUPPEN, KOSTENSTELLEN_GRUPPEN_ORDER,
   type Kunde, type KundeDB,
   type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
-  type DbKostenstelle,
+  type DbKostenstelle, type DbMaterialgruppe,
 } from '@/lib/types'
 import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
 
@@ -260,6 +260,10 @@ export default function CraftFlow() {
           .then(r => r.json())
           .then(d => { setUserKs(d.kostenstellen ?? []) })
           .catch(() => {})
+        fetch('/api/settings/materialgruppen')
+          .then(r => r.json())
+          .then(d => { setUserMatGruppen(d.materialgruppen ?? []) })
+          .catch(() => {})
         fetch('/api/settings/betriebsprofil')
           .then(r => r.json())
           .then(d => {
@@ -467,6 +471,7 @@ export default function CraftFlow() {
 
   // Nutzer-Kostenstellen (aus Einstellungen)
   const [userKs, setUserKs] = useState<DbKostenstelle[]>([])
+  const [userMatGruppen, setUserMatGruppen] = useState<DbMaterialgruppe[]>([])
 
   // Mikrofon State
   const [micStatus, setMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
@@ -681,6 +686,9 @@ export default function CraftFlow() {
         userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
           code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz, gruppe: k.gruppe,
         })),
+        userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
+          name: m.name, aufschlag_prozent: m.aufschlag_prozent,
+        })),
       }),
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -693,7 +701,7 @@ export default function CraftFlow() {
     }
     if (!res.ok || !json.success) throw new Error(json.error || `API Fehler: ${res.status}`)
     return json.data
-  }, [userKs])
+  }, [userKs, userMatGruppen])
 
   const handleGaebFile = useCallback(async (file: File) => {
     setGaebDetected(true)
@@ -1172,6 +1180,12 @@ export default function CraftFlow() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
+          userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
+            code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz, gruppe: k.gruppe,
+          })),
+          userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
+            name: m.name, aufschlag_prozent: m.aufschlag_prozent,
+          })),
           chatHistory: [],
           message: 'Prüfe das Angebot. Liste NUR die Angaben auf, die für eine präzise Kalkulation noch fehlen. Format: eine Zeile pro Punkt mit → davor. Maximal 6 Punkte, kein erklärender Text.',
         }),
@@ -1181,7 +1195,7 @@ export default function CraftFlow() {
       else if (json.error) setOptimMessages([{ role: 'assistant', content: `Fehler: ${json.error}` }])
     } catch (e) { console.error('[openOptimPanel]', e); setOptimMessages([{ role: 'assistant', content: 'Verbindungsfehler – bitte nochmal versuchen.' }]) }
     setOptimLoading(false)
-  }, [offerId, optimMessages.length, pos, kunde])
+  }, [offerId, optimMessages.length, pos, kunde, userKs, userMatGruppen])
 
   const openCheckPanel = useCallback(async () => {
     setCheckPanelOpen(true)
@@ -1201,6 +1215,12 @@ export default function CraftFlow() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
+          userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
+            code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz, gruppe: k.gruppe,
+          })),
+          userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
+            name: m.name, aufschlag_prozent: m.aufschlag_prozent,
+          })),
           chatHistory: [],
           message: `Gib für jede Position eine kurze Einschätzung in 1–2 Sätzen: Warum genau diese Stunden? Nenne den entscheidenden Faktor (z.B. Materialwahl, Oberflächenaufwand, Sonderausstattung). Dann eine Abschlussfrage ob die Stunden aus Praxissicht passen. Hier die Stunden:\n\n${stundenInfo}`,
         }),
@@ -1210,7 +1230,7 @@ export default function CraftFlow() {
       else if (json.error) setCheckMessages([{ role: 'assistant', content: `Fehler: ${json.error}` }])
     } catch (e) { console.error('[openCheckPanel]', e); setCheckMessages([{ role: 'assistant', content: 'Verbindungsfehler – bitte nochmal versuchen.' }]) }
     setCheckLoading(false)
-  }, [checkMessages.length, pos, kunde])
+  }, [checkMessages.length, pos, kunde, userKs, userMatGruppen])
 
   const sendCheckMessage = useCallback(async () => {
     const msg = checkInput.trim()
@@ -1225,6 +1245,12 @@ export default function CraftFlow() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
+          userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
+            code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz, gruppe: k.gruppe,
+          })),
+          userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
+            name: m.name, aufschlag_prozent: m.aufschlag_prozent,
+          })),
           chatHistory: checkMessages.slice(-10),
           message: msg,
         }),
@@ -1233,7 +1259,7 @@ export default function CraftFlow() {
       if (json.message) setCheckMessages(prev => [...prev, { role: 'assistant', content: json.message }])
     } catch (e) { console.error('[sendCheckMessage]', e) }
     setCheckLoading(false)
-  }, [checkInput, checkLoading, checkMessages, pos, kunde])
+  }, [checkInput, checkLoading, checkMessages, pos, kunde, userKs, userMatGruppen])
 
   const sendOptimMessage = useCallback(async () => {
     const msg = optimInput.trim()
@@ -1254,6 +1280,12 @@ export default function CraftFlow() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           offerData: { positionen: pos, kunde },
+          userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
+            code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz, gruppe: k.gruppe,
+          })),
+          userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
+            name: m.name, aufschlag_prozent: m.aufschlag_prozent,
+          })),
           chatHistory: optimMessages.slice(-10),
           message: msg,
         }),
@@ -1310,7 +1342,7 @@ export default function CraftFlow() {
       setOptimMessages(prev => [...prev, { role: 'assistant', content: `Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}` }])
     }
     setOptimLoading(false)
-  }, [optimInput, optimLoading, optimMessages, pos, kunde, offerId, totals.net, currentProjectId])
+  }, [optimInput, optimLoading, optimMessages, pos, kunde, offerId, totals.net, currentProjectId, userKs, userMatGruppen])
 
   const restoreVersion = useCallback(async (versionId: string) => {
     try {

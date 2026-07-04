@@ -28,6 +28,64 @@ function looksLikeOffer(p: unknown): p is { positionen?: unknown; kunde?: unknow
   return !!p && typeof p === 'object' && ('positionen' in p || 'kunde' in p)
 }
 
+// Same defaults as /api/analyze — kept in sync manually since each route is
+// a standalone serverless function. User-configured rates always win.
+const STUNDENSAETZE: Record<string, number> = {
+  'Besprechung': 65, 'Planung': 85, 'Konstruktion': 75,
+  'Arbeitsvorbereitung': 75, 'Produktion': 65, 'Warenhandling': 65,
+  'Zuschnitt': 72, 'Bekantung': 100, 'CNC': 120,
+  'Oberfläche': 72, 'Zusammenbau': 65, 'Verpacken': 65,
+  'Azubi': 52, 'Montage': 65, 'Lieferung': 65,
+}
+
+type AZ = { kostenstelle: string; minuten: number; vkStunde: number }
+type MatItem = { bezeichnung?: string; aufschlag?: number; [key: string]: unknown }
+type Pos = { arbeitszeit?: AZ[]; material?: MatItem[]; [key: string]: unknown }
+
+// Same matching logic as /api/analyze — case-insensitive substring match,
+// longest (most specific) Materialgruppe name wins. Returns null if nothing
+// matches, so callers leave the LLM's own aufschlag untouched rather than guess.
+function matchMaterialgruppe(
+  bezeichnung: string,
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }>
+): number | null {
+  const text = bezeichnung.toLowerCase()
+  let best: { name: string; aufschlag_prozent: number } | null = null
+  for (const g of matGruppen) {
+    if (text.includes(g.name.toLowerCase()) && (!best || g.name.length > best.name.length)) best = g
+  }
+  return best ? best.aufschlag_prozent / 100 : null
+}
+
+// Deterministically overwrites vkStunde and Material-Aufschlag with the
+// user's actual Firmeneinstellungen — never trusts the LLM's own numbers
+// here. Fixes the 2026-07-04 incident where the optimizer had no access to
+// Firmeneinstellungen at all and just kept/invented values from whatever was
+// already in the offer JSON.
+function applyUserRates(
+  offer: Record<string, unknown>,
+  customSaetze: Record<string, number>,
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }>
+): Record<string, unknown> {
+  const positionen = offer.positionen
+  if (!Array.isArray(positionen)) return offer
+  const activeSaetze = { ...STUNDENSAETZE, ...customSaetze }
+  offer.positionen = positionen.map((raw: unknown) => {
+    const pos = raw as Pos
+    const arbeitszeit = Array.isArray(pos.arbeitszeit)
+      ? pos.arbeitszeit.map(a => (a.kostenstelle in activeSaetze ? { ...a, vkStunde: activeSaetze[a.kostenstelle] } : a))
+      : pos.arbeitszeit
+    const material = Array.isArray(pos.material)
+      ? pos.material.map(m => {
+          const matched = matGruppen.length > 0 ? matchMaterialgruppe(m.bezeichnung ?? '', matGruppen) : null
+          return matched !== null ? { ...m, aufschlag: matched } : m
+        })
+      : pos.material
+    return { ...pos, arbeitszeit, material }
+  })
+  return offer
+}
+
 function extractJSON(text: string): { message: string; updatedOffer: unknown } | null {
   const clean = text.replace(/```json\n?|```/g, '').trim()
 
@@ -63,16 +121,32 @@ function extractJSON(text: string): { message: string; updatedOffer: unknown } |
 
 export async function POST(req: NextRequest) {
   try {
-    const { offerData, chatHistory, message } = await req.json() as {
+    const { offerData, chatHistory, message, userKostenstellen, userMaterialgruppen } = await req.json() as {
       offerData: unknown
       chatHistory: ChatMsg[]
       message: string
+      userKostenstellen?: Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>
+      userMaterialgruppen?: Array<{ name: string; aufschlag_prozent: number }>
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
 
-    const system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
+    const customKs = Array.isArray(userKostenstellen) ? userKostenstellen : []
+    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.code, k.stundensatz]))
+    const matGruppen = Array.isArray(userMaterialgruppen) ? userMaterialgruppen : []
+
+    let system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
+    if (customKs.length > 0) {
+      const lines = customKs.map(k => `${k.code} → ${k.stundensatz} €/h`)
+      system += '\n\n== ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen alle anderen Werte im JSON) ==\n' + lines.join('\n') +
+        '\nVerwende IMMER diese Sätze für vkStunde, auch wenn im Angebot-JSON andere Werte stehen — die JSON-Werte können veraltet sein.'
+    }
+    if (matGruppen.length > 0) {
+      const lines = matGruppen.map(m => `${m.name} → ${m.aufschlag_prozent}%`)
+      system += '\n\n== ECHTE MATERIALAUFSCHLÄGE DIESES NUTZERS (verbindlich, ersetzen alle anderen Werte im JSON) ==\n' + lines.join('\n') +
+        '\nOrdne jedes Material der passenden Gruppe zu und verwende deren Aufschlag, auch wenn im Angebot-JSON andere Werte stehen.'
+    }
 
     const messages: ChatMsg[] = [
       ...chatHistory,
@@ -105,7 +179,10 @@ export async function POST(req: NextRequest) {
 
     const parsed = extractJSON(raw)
     if (parsed) {
-      return NextResponse.json({ success: true, message: parsed.message, updatedOffer: parsed.updatedOffer ?? null })
+      const updatedOffer = parsed.updatedOffer
+        ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen)
+        : null
+      return NextResponse.json({ success: true, message: parsed.message, updatedOffer })
     }
     console.error('[optimize] unparsable response:', raw.slice(0, 500))
     return NextResponse.json({
