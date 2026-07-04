@@ -548,14 +548,20 @@ function isMassivholz(pos: Pos): boolean {
 // Sums all explicit metre values in text (e.g. "3,20m + 1,80m", "3.6 lfm").
 // Falls back to a width in cm ("360cm breit") if no metre values are found.
 // Returns total linear metres, or 0 if nothing parseable.
+// Capped at MAX_PLAUSIBLE_LM: the AI's own material/time breakdown in the
+// Beschreibung is full of "X,XX m²" area figures, and without the cap those
+// used to get summed up as if they were linear metres (see 2026-07-04 incident).
+const MAX_PLAUSIBLE_LM = 25
+
 function parseLaufmeter(text: string): number {
-  const mRe = /(\d+[,.]\d+)\s*(?:lfm|lm|m)(?!\w)/gi
+  // (?![\w²³]) excludes "m²"/"m³"/"mm" — only bare m/lm/lfm count as linear metres.
+  const mRe = /(\d+[,.]\d+)\s*(?:lfm|lm|m)(?![\w²³])/gi
   const mMatches = [...text.matchAll(mRe)]
   const mSum = mMatches.reduce((s, m) => s + parseFloat(m[1].replace(',', '.')), 0)
-  if (mSum > 0) return mSum
+  if (mSum > 0) return Math.min(mSum, MAX_PLAUSIBLE_LM)
 
   const cmMatch = text.match(/(\d{2,4})\s*cm\s*(?:breit|breite|gesamt)/i)
-  if (cmMatch) return parseInt(cmMatch[1]) / 100
+  if (cmMatch) return Math.min(parseInt(cmMatch[1]) / 100, MAX_PLAUSIBLE_LM)
 
   return 0
 }
@@ -664,7 +670,31 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
       montage.minuten = Math.max(montage.minuten, Math.round(lm * 90))
     }
 
-    return { ...pos, arbeitszeit: az }
+    // 7. Plausibility check — flags (does NOT silently alter numbers) positions
+    //    whose total price is far outside the FS Crafted Faustregel range for
+    //    the detected lfm. Surfaces as pos.warnung for manual review instead of
+    //    quietly rescaling, so nothing gets sent out uncontrolled (2026-07-04 Vorfall).
+    let warnung: string | undefined
+    if (lm > 0) {
+      const materialTotal = (pos.material ?? []).reduce(
+        (s, m) => s + (m.menge ?? 0) * (m.ekPreis ?? 0) * (1 + (m.aufschlag ?? 0.3)),
+        0
+      )
+      const arbeitszeitTotal = az.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
+      const totalPrice = materialTotal + arbeitszeitTotal
+
+      const perLm = massiv ? { min: 1200, max: 2500 } : { min: 600, max: 1500 }
+      const plausibleMin = lm * perLm.min * 0.5 // großzügiger Puffer nach unten
+      const plausibleMax = lm * perLm.max * 2 // großzügiger Puffer nach oben
+
+      if (totalPrice > plausibleMax || totalPrice < plausibleMin) {
+        warnung = `Preis (${Math.round(totalPrice)} € netto) liegt deutlich außerhalb des Richtwerts für ${lm.toFixed(1)} lfm ` +
+          `(erwartet ca. ${Math.round(lm * perLm.min)}–${Math.round(lm * perLm.max)} €) — bitte manuell prüfen.`
+        console.warn('[analyze] Plausibilitätswarnung:', warnung)
+      }
+    }
+
+    return warnung ? { ...pos, arbeitszeit: az, warnung } : { ...pos, arbeitszeit: az }
   })
 
   return data
