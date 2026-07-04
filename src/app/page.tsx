@@ -6,7 +6,7 @@ import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
 import {
   C,
-  calcAngebotspos, eur, today, inDays,
+  calcAngebotspos, materialkostenPos, arbeitszeitPreisPos, materialkostenGesamt, stundenGesamt, eur, today, inDays,
   ladeKunden, speichereKunden,
   DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS, KOSTENSTELLEN_GRUPPEN, KOSTENSTELLEN_GRUPPEN_ORDER,
   type Kunde, type KundeDB,
@@ -584,6 +584,8 @@ export default function CraftFlow() {
   ]
 
   const totals = pos.reduce((a, p) => ({ net: a.net + calcAngebotspos(p) }), { net: 0 })
+  const materialGesamt = materialkostenGesamt(pos)
+  const stundenGesamtWert = stundenGesamt(pos)
   const vat = totals.net * 0.19
   const gross = totals.net + vat
 
@@ -3204,12 +3206,25 @@ export default function CraftFlow() {
                   </div>
                 ))}
               </div>
+              <div style={{ display: 'flex', borderTop: `1px solid ${C.border}` }}>
+                {[
+                  { l: 'Materialkosten gesamt', v: eur(materialGesamt) },
+                  { l: 'Stunden gesamt', v: `${stundenGesamtWert.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h` },
+                ].map(({ l, v }, i) => (
+                  <div key={l} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
+                    <div style={{ padding: '11px 6px', textAlign: 'center' }}>
+                      <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 3 }}>{l}</div>
+                      <div style={{ color: C.copper, fontSize: 11, fontWeight: 800 }}>{v}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {pos.map(p => {
               const gesamt = calcAngebotspos(p)
-              const matTotal = p.material.reduce((s, m) => s + m.menge * m.ekPreis * (1 + m.aufschlag), 0)
-              const arbTotal = p.arbeitszeit.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
+              const matTotal = materialkostenPos(p)
+              const arbTotal = arbeitszeitPreisPos(p)
 
               const cellInput: React.CSSProperties = {
                 width: '100%', padding: '4px 6px', background: C.gray2,

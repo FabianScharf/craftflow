@@ -277,10 +277,32 @@ export const KOSTENSTELLEN_LABELS: Record<KostenstelleId, string> = {
   'Lieferung':         'Lieferung & Fahrt',
 }
 
+export function materialkostenPos(p: Angebotsposition): number {
+  return p.material.reduce((s, m) => s + m.menge * m.ekPreis * (1 + m.aufschlag), 0)
+}
+
+export function arbeitszeitPreisPos(p: Angebotsposition): number {
+  return p.arbeitszeit.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
+}
+
+export function stundenPos(p: Angebotsposition): number {
+  return p.arbeitszeit.reduce((s, a) => s + a.minuten / 60, 0)
+}
+
 export function calcAngebotspos(p: Angebotsposition): number {
-  const mat = p.material.reduce((s, m) => s + m.menge * m.ekPreis * (1 + m.aufschlag), 0)
-  const arb = p.arbeitszeit.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
-  return mat + arb
+  return materialkostenPos(p) + arbeitszeitPreisPos(p)
+}
+
+// Single source of truth for project-wide summary fields — always derived by
+// summing the same per-position formulas used everywhere else (PDF, Angebot,
+// Kalkulations-Übersicht), never a separately re-typed calculation, so the
+// totals can never silently drift apart (2026-07-04 Vorfall).
+export function materialkostenGesamt(positionen: Angebotsposition[]): number {
+  return positionen.reduce((s, p) => s + materialkostenPos(p), 0)
+}
+
+export function stundenGesamt(positionen: Angebotsposition[]): number {
+  return positionen.reduce((s, p) => s + stundenPos(p), 0)
 }
 
 // ── Demo-Kunden ──────────────────────────────────────
