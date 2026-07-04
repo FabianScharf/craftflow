@@ -3016,7 +3016,7 @@ export default function CraftFlow() {
             <div style={{ display: 'flex', minHeight: 'calc(100vh - 116px)', alignItems: 'flex-start' }}>
 
             {/* ── LEFT: Kalkulation Content ── */}
-            <div style={{ flex: 1, padding: 14, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 116px)', display: isMobile && (optimPanelOpen || checkPanelOpen) ? 'none' : undefined }}>
+            <div className="no-scrollbar" style={{ flex: 1, padding: 14, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 116px)', display: isMobile && (optimPanelOpen || checkPanelOpen) ? 'none' : undefined }}>
 
             {/* Feature 3+4: Top action buttons */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
