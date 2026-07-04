@@ -24,6 +24,10 @@ INHALTLICHE REGELN:
 - Holzart: in beschreibung UND material[].bezeichnung eintragen
 - Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung`
 
+function looksLikeOffer(p: unknown): p is { positionen?: unknown; kunde?: unknown } {
+  return !!p && typeof p === 'object' && ('positionen' in p || 'kunde' in p)
+}
+
 function extractJSON(text: string): { message: string; updatedOffer: unknown } | null {
   const clean = text.replace(/```json\n?|```/g, '').trim()
 
@@ -31,6 +35,8 @@ function extractJSON(text: string): { message: string; updatedOffer: unknown } |
   try {
     const p = JSON.parse(clean)
     if (p?.message !== undefined) return p
+    // Model skipped the {message, updatedOffer} wrapper and returned the offer directly
+    if (looksLikeOffer(p)) return { message: 'Kalkulation aktualisiert.', updatedOffer: p }
   } catch { /* fall through */ }
 
   // Brace-counting: collect all top-level JSON objects
@@ -45,7 +51,11 @@ function extractJSON(text: string): { message: string; updatedOffer: unknown } |
   }
   // Try last candidate first — Claude often puts the final answer last
   for (let i = candidates.length - 1; i >= 0; i--) {
-    try { const p = JSON.parse(candidates[i]); if (p?.message !== undefined) return p } catch { /* next */ }
+    try {
+      const p = JSON.parse(candidates[i])
+      if (p?.message !== undefined) return p
+      if (looksLikeOffer(p)) return { message: 'Kalkulation aktualisiert.', updatedOffer: p }
+    } catch { /* next */ }
   }
 
   return null
@@ -97,7 +107,12 @@ export async function POST(req: NextRequest) {
     if (parsed) {
       return NextResponse.json({ success: true, message: parsed.message, updatedOffer: parsed.updatedOffer ?? null })
     }
-    return NextResponse.json({ success: true, message: raw, updatedOffer: null })
+    console.error('[optimize] unparsable response:', raw.slice(0, 500))
+    return NextResponse.json({
+      success: true,
+      message: 'Antwort konnte nicht verarbeitet werden. Bitte die Anfrage anders formulieren oder erneut senden.',
+      updatedOffer: null,
+    })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     console.error('[optimize]', msg)
