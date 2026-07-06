@@ -666,12 +666,12 @@ function validateAndFix(
         if (zsItem) {
           zsItem.minuten = Math.round(zsItem.minuten * scale)
         } else {
-          az.push({ kostenstelle: 'Zuschnitt', minuten: Math.round(minWorkshopMin * 0.4), vkStunde: 72 })
+          az.push({ kostenstelle: 'Zuschnitt', minuten: Math.round(minWorkshopMin * 0.4), vkStunde: activeSaetze['Zuschnitt'] })
         }
         if (zbItem) {
           zbItem.minuten = Math.round(zbItem.minuten * scale)
         } else {
-          az.push({ kostenstelle: 'Zusammenbau', minuten: Math.round(minWorkshopMin * 0.6), vkStunde: 65 })
+          az.push({ kostenstelle: 'Zusammenbau', minuten: Math.round(minWorkshopMin * 0.6), vkStunde: activeSaetze['Zusammenbau'] })
         }
       }
     }
@@ -688,7 +688,7 @@ function validateAndFix(
     if (zb) {
       zb.minuten = Math.max(zb.minuten, minZusammenbau)
     } else {
-      az.push({ kostenstelle: 'Zusammenbau', minuten: minZusammenbau, vkStunde: 65 })
+      az.push({ kostenstelle: 'Zusammenbau', minuten: minZusammenbau, vkStunde: activeSaetze['Zusammenbau'] })
     }
 
     // 6. Montage: enforce minimum only when 05_01_Montage already present
