@@ -35,15 +35,15 @@ All styles are inline `style={{}}` objects using constants from `@/lib/types` (c
 
 ## Environment
 
-`GEMINI_API_KEY` is required for `/api/analyze`. For local dev, add it to `.env.local`. On Vercel it is set as an environment variable in the project settings.
+Alle Secrets liegen auf **Vercel**. Lokal enthält `.env.local` nur leere Platzhalter → die App läuft lokal NICHT (siehe „Lokale Umgebung & Testen" unten). Relevante Keys: `ANTHROPIC_API_KEY` (Analyse/Optimierung), `GROQ_API_KEY` (Voice), `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` (Auth/DB).
 
 ## AI integration
 
-Model: `gemini-1.5-flash`. Prompt is German-only and returns structured JSON parsed directly — no markdown wrapper expected. The route strips backtick fences as a fallback.
+Modelle: Anthropic `claude-sonnet-4-6` für `/api/analyze` (Extended Thinking) und `/api/optimize`; Groq `whisper-large-v3-turbo` für `/api/transcribe` (Voice). Prompts sind deutsch und liefern strukturiertes JSON (Backtick-Fences werden als Fallback entfernt).
 
 ## Deployment
 
-Push to `main` → Vercel auto-deploys. Live URL: `https://craftflow-sable.vercel.app`
+Push to `main` → Vercel auto-deploys. Live URL: `https://app.getcraftflow.de` (Custom-Domain, offizielle Adresse). Vercel-Standarddomain (Fallback): `https://craftflow-sable.vercel.app` — zeigt auf dieselbe Produktion.
 
 No CI pipeline. To trigger a redeploy without code changes: `git commit --allow-empty -m "..." && git push`
 
@@ -51,12 +51,77 @@ No CI pipeline. To trigger a redeploy without code changes: `git commit --allow-
 
 UI and all user-facing strings are German only. Keep them German.
 
-## API Migration (geplant)
+## AI-Provider (aktueller Stand — ersetzt den alten Gemini/Groq-Migrationsplan)
 
-Aktuell: `gemini-1.5-flash` via `GEMINI_API_KEY`
-Geplant: Migration zu Groq (Whisper für Voice + Llama für Analyse)
-Grund: Gemini Free Tier funktioniert nicht in der Schweiz; Groq ist kostenlos, keine Kreditkarte erforderlich.
-Route die geändert wird: `src/app/api/analyze/route.ts`
+Die Migration ist erledigt: Analyse/Optimierung laufen über Anthropic
+`claude-sonnet-4-6`, Voice über Groq `whisper-large-v3-turbo`. Gemini wird nicht
+mehr verwendet.
+
+---
+
+# Zusammenarbeit & Projektwissen (Stand 2026-07-06)
+
+> Kompakte Zusammenfassung der Erkenntnisse aus der Session, damit künftige
+> Sitzungen sofort produktiv sind.
+
+## Über Fabian
+Schreinermeister, kein Programmierer. Erklärungen kurz, in Alltagssprache,
+Deutsch. Entscheidungen — besonders Deployments — immer ihm überlassen; nichts
+ungefragt auf `main`.
+
+## Lokale Umgebung & Testen — WICHTIG
+- `.env.local` enthält **nur leere Platzhalter** (`ANTHROPIC_API_KEY=""` etc., von
+  `vercel env pull`). `npm run dev` scheitert am Supabase-Client. **Nicht** versuchen,
+  die App lokal laufen zu lassen — Zeitverschwendung.
+- Echte Keys liegen ausschließlich auf Vercel. **Deployen braucht sie nicht** (läuft
+  über GitHub-Push, Vercel baut mit seinen eigenen Keys).
+
+### Zwei bewährte Testwege
+1. **Reine Logik ohne Keys/LLM:** Die Preisfunktionen in `src/lib/types.ts` und die
+   Nachbearbeitung sind pure Funktionen → in ein Node-Skript kopieren, mit festen
+   Eingaben durchrechnen. Bester Weg für exakte Zahlen-Plausibilität.
+2. **Live gegen die deployte dev-Preview (echte KI):**
+   - Preview-URL: `gh api repos/FabianScharf/craftflow/deployments` → neueste ID →
+     `/deployments/<id>/statuses` → `target_url`.
+   - Chrome mit Debug-Port: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/craftflow-chrome-profile <preview-url>/login`
+   - **Zwei Login-Wände:** erst Vercel-SSO (über GitHub), dann App-Login. Fabian
+     loggt manuell ein; das Vercel-SSO-Cookie gilt teamweit über alle Previews.
+   - Steuerung über projekteigenes `puppeteer-core` (v25):
+     `puppeteer.connect({ browserURL: 'http://localhost:9222' })`, dann im
+     eingeloggten Tab per `page.evaluate(fetch('/api/analyze', …))`. So lassen sich
+     `userKostenstellen`/`userMaterialgruppen`/`deaktivierteKostenstellen` exakt
+     steuern — sauberer als UI-Klicken.
+   - `/api/analyze` und `/api/optimize` haben keine eigene Auth-Prüfung, brauchen
+     aber die Session-Cookies (Middleware schützt alles außer `PUBLIC_PATHS`).
+
+## Kalkulations-Engine — verbindliche Invarianten
+- Preis pro Position: Material `= Σ menge·EK·(1+aufschlag)`, Lohn
+  `= Σ (minuten/60)·vkStunde` (`src/lib/types.ts`).
+- **Nach** der KI-Antwort werden `vkStunde` und `aufschlag` **deterministisch
+  überschrieben** (`validateAndFix` in analyze, `applyUserRates` in optimize) —
+  den KI-Zahlen nie vertrauen.
+- Stundensätze werden per **`normalizeKsId(code)`** zugeordnet (NIE über
+  `bezeichnung`, NIE über rohen Code — Code/Bezeichnung/Legacy-IDs weichen ab;
+  war Ursache mehrerer Vorfälle).
+- 15 feste Standard-Kostenstellen. Eigene Kostenstellen sind zusätzlich erlaubt
+  (per `bezeichnung` gekeyt), mit Anti-Doppelzählungs-Regel im Prompt.
+- **Deaktivierte** Kostenstellen werden komplett ausgeschlossen (Frontend sendet
+  `deaktivierteKostenstellen`); kein Rückfall mehr auf den Standardsatz.
+
+## Am 2026-07-06 erledigt (auf `main` deployt)
+- Fallback-Ergänzung Zuschnitt/Zusammenbau nutzt Nutzer-Stundensatz (statt 72/65).
+- Deaktivieren schließt Kostenstelle wirklich aus.
+- Eigene Kostenstellen nutzbar, ohne Doppelzählung.
+- Alle Punkte live auf dev-Preview geprüft, dann `dev → main` gemerged.
+
+## Offen / für Fabian
+- In Fabians eigenem Konto fehlt die Kostenstelle **„Zusammenbau"** → rechnet dort
+  mit Standard 65 € statt seinem Satz. In den Einstellungen anlegen.
+
+## Deploy-Workflow (strikt)
+Nie direkt auf `main`. Immer: Änderung auf `dev` → live auf dev-Preview testen →
+Fabian gibt Freigabe → dann `dev → main` mergen + pushen (Vercel deployt Produktion
+automatisch). GitHub-Push ist eingerichtet (gh-CLI, Konto FabianScharf).
 
 ## Bekannte Bugs / Stolperfallen
 

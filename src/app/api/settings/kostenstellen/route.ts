@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
 
 export async function GET() {
   const supabase = await createClient()
@@ -73,12 +74,23 @@ export async function DELETE(req: NextRequest) {
   const { id } = await req.json() as { id: string }
   if (!id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })
 
+  // Standard-Kostenstellen dürfen NIE gelöscht werden (nur deaktiviert) — robust
+  // über normalizeKsId(code), unabhängig von ist_standard und Legacy-Codes.
+  const { data: row } = await supabase
+    .from('kostenstellen')
+    .select('code')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+  if (row && normalizeKsId(row.code) in DEFAULT_STUNDENSAETZE) {
+    return NextResponse.json({ error: 'Standard-Kostenstelle kann nicht gelöscht werden – nur deaktivieren.' }, { status: 400 })
+  }
+
   const { error } = await supabase
     .from('kostenstellen')
     .delete()
     .eq('id', id)
     .eq('user_id', user.id)
-    .eq('ist_standard', false)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
