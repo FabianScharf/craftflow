@@ -22,13 +22,14 @@ export async function PUT(req: NextRequest) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
-  const body = await req.json() as { id: string; stundensatz?: number; aktiv?: boolean }
+  const body = await req.json() as { id: string; stundensatz?: number; aktiv?: boolean; bezeichnung?: string }
   const { id } = body
   if (!id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (body.stundensatz != null) patch.stundensatz = body.stundensatz
   if (body.aktiv != null) patch.aktiv = body.aktiv
+  if (body.bezeichnung != null) patch.bezeichnung = body.bezeichnung // TEMP: einmalige Namens-Korrektur, danach wieder entfernen
 
   const { error } = await supabase
     .from('kostenstellen')
