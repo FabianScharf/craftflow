@@ -691,6 +691,7 @@ export default function CraftFlow() {
         userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
           name: m.name, aufschlag_prozent: m.aufschlag_prozent,
         })),
+        deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
       }),
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1188,6 +1189,7 @@ export default function CraftFlow() {
           userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
             name: m.name, aufschlag_prozent: m.aufschlag_prozent,
           })),
+          deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           chatHistory: [],
           message: 'Prüfe das Angebot. Liste NUR die Angaben auf, die für eine präzise Kalkulation noch fehlen. Format: eine Zeile pro Punkt mit → davor. Maximal 6 Punkte, kein erklärender Text.',
         }),
@@ -1223,6 +1225,7 @@ export default function CraftFlow() {
           userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
             name: m.name, aufschlag_prozent: m.aufschlag_prozent,
           })),
+          deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           chatHistory: [],
           message: `Gib für jede Position eine kurze Einschätzung in 1–2 Sätzen: Warum genau diese Stunden? Nenne den entscheidenden Faktor (z.B. Materialwahl, Oberflächenaufwand, Sonderausstattung). Dann eine Abschlussfrage ob die Stunden aus Praxissicht passen. Hier die Stunden:\n\n${stundenInfo}`,
         }),
@@ -1253,6 +1256,7 @@ export default function CraftFlow() {
           userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
             name: m.name, aufschlag_prozent: m.aufschlag_prozent,
           })),
+          deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           chatHistory: checkMessages.slice(-10),
           message: msg,
         }),
@@ -1288,6 +1292,7 @@ export default function CraftFlow() {
           userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
             name: m.name, aufschlag_prozent: m.aufschlag_prozent,
           })),
+          deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           chatHistory: optimMessages.slice(-10),
           message: msg,
         }),

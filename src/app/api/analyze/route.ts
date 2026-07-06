@@ -600,7 +600,8 @@ function validateAndFix(
   data: Record<string, unknown>,
   originalInput = '',
   customSaetze: Record<string, number> = {},
-  matGruppen: Array<{ name: string; aufschlag_prozent: number }> = []
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }> = [],
+  deaktiviert: Set<string> = new Set()
 ): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
@@ -612,9 +613,11 @@ function validateAndFix(
 
   data.positionen = positionen.map((raw: unknown) => {
     const pos = raw as Pos
-    const az: AZ[] = Array.isArray(pos.arbeitszeit)
+    let az: AZ[] = Array.isArray(pos.arbeitszeit)
       ? pos.arbeitszeit.map(a => ({ ...a, kostenstelle: normalizeKostenstelle(a.kostenstelle) }))
       : []
+    // Deaktivierte Kostenstellen komplett entfernen — sie dürfen nicht kalkuliert werden.
+    if (deaktiviert.size > 0) az = az.filter(a => !deaktiviert.has(a.kostenstelle))
     const massiv = isMassivholz(pos)
 
     // 1. Correct all vkStunde to exact FS Crafted rates
@@ -636,6 +639,7 @@ function validateAndFix(
 
     // 2. Fixkosten: enforce presence and minimum minutes
     for (const [ks, minMin] of Object.entries(FIXKOSTEN_MINIMA)) {
+      if (deaktiviert.has(ks)) continue
       const existing = az.find(a => a.kostenstelle === ks)
       if (existing) {
         existing.minuten = Math.max(existing.minuten, minMin)
@@ -665,12 +669,12 @@ function validateAndFix(
         const scale = minWorkshopMin / Math.max(currentWorkshop, 1)
         if (zsItem) {
           zsItem.minuten = Math.round(zsItem.minuten * scale)
-        } else {
+        } else if (!deaktiviert.has('Zuschnitt')) {
           az.push({ kostenstelle: 'Zuschnitt', minuten: Math.round(minWorkshopMin * 0.4), vkStunde: activeSaetze['Zuschnitt'] })
         }
         if (zbItem) {
           zbItem.minuten = Math.round(zbItem.minuten * scale)
-        } else {
+        } else if (!deaktiviert.has('Zusammenbau')) {
           az.push({ kostenstelle: 'Zusammenbau', minuten: Math.round(minWorkshopMin * 0.6), vkStunde: activeSaetze['Zusammenbau'] })
         }
       }
@@ -687,7 +691,7 @@ function validateAndFix(
     const zb = az.find(a => a.kostenstelle === 'Zusammenbau')
     if (zb) {
       zb.minuten = Math.max(zb.minuten, minZusammenbau)
-    } else {
+    } else if (!deaktiviert.has('Zusammenbau')) {
       az.push({ kostenstelle: 'Zusammenbau', minuten: minZusammenbau, vkStunde: activeSaetze['Zusammenbau'] })
     }
 
@@ -743,7 +747,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage zu groß – bitte weniger oder kleinere Bilder verwenden.' }, { status: 413 })
     }
 
-    let { text, imageBase64, userKostenstellen, userMaterialgruppen } = await req.json()
+    let { text, imageBase64, userKostenstellen, userMaterialgruppen, deaktivierteKostenstellen } = await req.json()
     const customKs = Array.isArray(userKostenstellen)
       ? (userKostenstellen as Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>)
       : []
@@ -755,7 +759,24 @@ export async function POST(req: NextRequest) {
     // either (that was Vorfall #2). normalizeKsId(code) via LEGACY_KS_MAP
     // is the one stable mapping to the canonical name STUNDENSAETZE and the
     // AI both use.
-    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [normalizeKsId(k.code), k.stundensatz]))
+    // Standard-KS per normalizeKsId(code). Eigene (nicht-Standard) KS zusätzlich
+    // per bezeichnung keyen, weil die KI sie unter ihrer bezeichnung ausgibt —
+    // so greift der deterministische vkStunde-Override in beiden Fällen.
+    const customSaetze: Record<string, number> = {}
+    const eigeneKs: Array<{ id: string; bezeichnung: string; stundensatz: number }> = []
+    for (const k of customKs) {
+      const id = normalizeKsId(k.code)
+      customSaetze[id] = k.stundensatz
+      if (!(id in STUNDENSAETZE)) {
+        customSaetze[k.bezeichnung] = k.stundensatz
+        eigeneKs.push({ id, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz })
+      }
+    }
+    // Vom Nutzer deaktivierte Kostenstellen — dürfen nirgends in der Kalkulation
+    // auftauchen (auch nicht über Fixkosten-/Workshop-Floor-Fallbacks).
+    const deaktiviert = new Set<string>(
+      (Array.isArray(deaktivierteKostenstellen) ? deaktivierteKostenstellen as string[] : []).map(c => normalizeKsId(c))
+    )
 
     const matGruppen = Array.isArray(userMaterialgruppen)
       ? (userMaterialgruppen as Array<{ name: string; aufschlag_prozent: number }>)
@@ -816,9 +837,22 @@ export async function POST(req: NextRequest) {
     }
 
     let systemPrompt = SYSTEM_PROMPT
-    if (customKs.length > 0) {
-      const lines = customKs.map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
-      systemPrompt += '\n\n## ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen die Beispielsätze oben):\n' + lines.join('\n')
+    const standardLines = customKs
+      .filter(k => normalizeKsId(k.code) in STUNDENSAETZE)
+      .map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
+    if (standardLines.length > 0) {
+      systemPrompt += '\n\n## ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen die Beispielsätze oben):\n' + standardLines.join('\n')
+    }
+    if (deaktiviert.size > 0) {
+      systemPrompt += '\n\n## DIESE KOSTENSTELLEN NICHT VERWENDEN (Betrieb bietet sie nicht an):\n' +
+        [...deaktiviert].join(', ') +
+        '\nNiemals in "arbeitszeit" aufnehmen. Die zugehörige Arbeit entfällt oder wird von einer erlaubten Kostenstelle mit übernommen — aber die genannten Kostenstellen selbst tauchen NIE auf.'
+    }
+    if (eigeneKs.length > 0) {
+      systemPrompt += '\n\n## ZUSÄTZLICH ERLAUBTE EIGENE KOSTENSTELLEN DIESES NUTZERS:\n' +
+        eigeneKs.map(k => `${k.bezeichnung} (${k.stundensatz} €/h)`).join('\n') +
+        '\nDu darfst diese ZUSÄTZLICH zu den 15 Standard-Kostenstellen verwenden — aber NUR, wenn eine Tätigkeit inhaltlich dazu passt und NICHT bereits von einer Standard-Kostenstelle abgedeckt ist. Schreibe als "kostenstelle" exakt diese Bezeichnung.' +
+        '\nGEGEN DOPPELZÄHLUNG: Ordne jede Tätigkeit GENAU EINER Kostenstelle zu. Dieselbe Arbeit nie zweimal (z. B. Politur entweder unter Oberfläche ODER unter der eigenen Kostenstelle, niemals beides). Verteile die vorhandene Zeit, erfinde keine zusätzliche.'
     }
     if (matGruppen.length > 0) {
       const lines = matGruppen.map(m => `${m.name} → ${m.aufschlag_prozent}%`)
@@ -885,7 +919,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const parsed = JSON.parse(clean)
-      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen)
+      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert)
       return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))
