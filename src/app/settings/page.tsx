@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { normalizeKsId } from '@/lib/types'
 import { PlanGate } from '@/components/PlanGate'
 
 import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
@@ -999,7 +1000,6 @@ export default function SettingsPage() {
                         }}>
                           <div>
                             <div style={{ fontSize: 13, color: C.white }}>{ks.bezeichnung}</div>
-                            <div style={{ fontSize: 10, color: C.textMid }}>{ks.code}</div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <input
@@ -1022,7 +1022,7 @@ export default function SettingsPage() {
                               fontSize: 14, cursor: 'pointer', padding: '5px 0', width: '100%',
                             }}
                           >{ks.aktiv ? '✓' : '○'}</button>
-                          {!STANDARD_CODES.includes(ks.code) ? (
+                          {!STANDARD_CODES.includes(normalizeKsId(ks.code)) ? (
                             <button
                               onClick={() => deleteKs(ks.id)}
                               style={{ background: 'none', border: 'none', color: C.err, fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}
