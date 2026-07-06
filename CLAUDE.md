@@ -43,7 +43,7 @@ Model: `gemini-1.5-flash`. Prompt is German-only and returns structured JSON par
 
 ## Deployment
 
-Push to `main` → Vercel auto-deploys. Live URL: `https://craftflow-sable.vercel.app`
+Push to `main` → Vercel auto-deploys. Live URL: `https://app.getcraftflow.de` (Custom-Domain, offizielle Adresse). Vercel-Standarddomain (Fallback): `https://craftflow-sable.vercel.app` — zeigt auf dieselbe Produktion.
 
 No CI pipeline. To trigger a redeploy without code changes: `git commit --allow-empty -m "..." && git push`
 
