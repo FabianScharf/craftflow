@@ -228,9 +228,7 @@ Beispiel Dekormöbel Einbauschrank 3,6 lfm raumhoch:
   03_02_Zuschnitt: 389 min | 03_06_Zusammenbau: 583 min (+ Beschläge)
 
 PLAUSIBILITÄTSPRÜFUNG – PFLICHT nach jeder Kalkulation:
-Gesamtpreis je Position = Materialkosten (EK × 1,30) + Σ (Minuten / 60 × Stundensatz)
-Mindestpreis je Position: Laufmeter × 800 € netto
-Falls Gesamtpreis unter diesem Mindest → Werkstattzeiten proportional erhöhen bis Preis stimmt.
+Prüfe NUR die Arbeitszeiten (Minuten) gegen die Zeitrichtwerte in dieser Anleitung (z. B. lfm × 4,5h/5h Werkstattzeit-Basis). Der Gesamtpreis selbst ist KEIN Prüfkriterium – er ergibt sich automatisch aus Minuten × Stundensatz, und der Stundensatz kommt vollständig vom Nutzer (kann stark von den FS-Crafted-Richtwerten abweichen). Zeiten NIEMALS erhöhen, um einen bestimmten Gesamtpreis zu erreichen.
 
 SELBSTPRÜFUNGS-CHECKLISTE – VOR der JSON-Ausgabe durchgehen:
 
@@ -256,8 +254,7 @@ Schritt 4 – MONTAGE:
 □ Altbau oder schiefe Wände erwähnt? Dann +25 % Puffer.
 
 Schritt 5 – GESAMTPREIS:
-□ Gesamtpreis ≥ lfm × 800 € (Dekor) oder lfm × 1.200 € (Massivholz Eiche)?
-□ Wenn nicht → Werkstattzeiten erhöhen.
+□ Ergibt sich rein rechnerisch aus Material + Minuten × Stundensatz — KEINE eigene Prüfung oder Anpassung der Zeiten anhand des Gesamtpreises.
 
 Wenn alle Punkte korrekt: JSON ausgeben.
 Wenn ein Punkt nicht stimmt: erst korrigieren, dann ausgeben.
@@ -404,18 +401,18 @@ Türfront Lack/HPL: 80–180 €/Stk
 
 ---
 
-## PREISFAUSTREGELN (Plausibilitätskontrolle, Richtwerte netto)
+## HISTORISCHE PREISPUNKTE FS CRAFTED (nur zur Einordnung, NICHT zur Kalkulation verwenden)
 
-1 lfm Möbel ≈ 1.000 € netto (mittleres Dekormöbel, ohne Montage)
-Einbauschrank Standard Dekormöbel: 600–1.000 €/lfm netto (inkl. Montage)
-Einbauschrank Massivholz Eiche: 1.200–2.000 €/lfm netto
+Diese €-Werte basieren auf den alten FS-Crafted-Standardstundensätzen und sind branchenüblich für Deutschland — sie dienen nur als grobe Einordnung, ob ein Projekt "klein" oder "groß" ist. NIEMALS Zeiten oder Preise danach anpassen: der tatsächliche Preis ergibt sich ausschließlich aus Material + Minuten × Stundensatz des jeweiligen Nutzers, und Stundensätze unterscheiden sich von Nutzer zu Nutzer stark.
+
+1 lfm Möbel ≈ 1.000 € netto (mittleres Dekormöbel, ohne Montage, bei ca. 65–90 €/h)
+Einbauschrank Massivholz Eiche: 1.200–2.000 €/lfm netto (bei FS-Crafted-Standardsätzen)
 Einbauküche nach Maß: 5.000–20.000 € netto je nach Ausstattung
 Innentür liefern + montieren: 350–800 €/Stk netto
 Gerade Holztreppe (Fichte/Buche, eingebaut): 3.000–7.000 € netto
 Massivholztisch Eiche 200×90 cm, geölt: 2.000–4.500 € netto
-Pro 1.000 € Nettowert ≈ 1 Stunde Montage + Anfahrt
 
-Bei Projekten > 5.000 € Auftragswert: Planungspauschale 150–300 € separat einpreisen (in 01_02_Planung).
+Bei Projekten > 5.000 € Auftragswert: Planungspauschale 150–300 € separat einpreisen (in 01_02_Planung) — als Zeit, nicht als nachträglicher Preisaufschlag.
 
 ---
 
@@ -548,14 +545,20 @@ function isMassivholz(pos: Pos): boolean {
 // Sums all explicit metre values in text (e.g. "3,20m + 1,80m", "3.6 lfm").
 // Falls back to a width in cm ("360cm breit") if no metre values are found.
 // Returns total linear metres, or 0 if nothing parseable.
+// Capped at MAX_PLAUSIBLE_LM: the AI's own material/time breakdown in the
+// Beschreibung is full of "X,XX m²" area figures, and without the cap those
+// used to get summed up as if they were linear metres (see 2026-07-04 incident).
+const MAX_PLAUSIBLE_LM = 25
+
 function parseLaufmeter(text: string): number {
-  const mRe = /(\d+[,.]\d+)\s*(?:lfm|lm|m)(?!\w)/gi
+  // (?![\w²³]) excludes "m²"/"m³"/"mm" — only bare m/lm/lfm count as linear metres.
+  const mRe = /(\d+[,.]\d+)\s*(?:lfm|lm|m)(?![\w²³])/gi
   const mMatches = [...text.matchAll(mRe)]
   const mSum = mMatches.reduce((s, m) => s + parseFloat(m[1].replace(',', '.')), 0)
-  if (mSum > 0) return mSum
+  if (mSum > 0) return Math.min(mSum, MAX_PLAUSIBLE_LM)
 
   const cmMatch = text.match(/(\d{2,4})\s*cm\s*(?:breit|breite|gesamt)/i)
-  if (cmMatch) return parseInt(cmMatch[1]) / 100
+  if (cmMatch) return Math.min(parseInt(cmMatch[1]) / 100, MAX_PLAUSIBLE_LM)
 
   return 0
 }
@@ -577,7 +580,29 @@ function normalizeKostenstelle(ks: string): string {
   return KS_ALIASES[ks] ?? normalizeKsId(ks)
 }
 
-function validateAndFix(data: Record<string, unknown>, originalInput = '', customSaetze: Record<string, number> = {}): Record<string, unknown> {
+// Finds the best-matching user Materialgruppe for a material's Bezeichnung
+// via case-insensitive substring match, preferring the longest (most
+// specific) group name. Returns null if nothing matches — callers must then
+// leave the AI's own aufschlag untouched rather than guess.
+function matchMaterialgruppe(
+  bezeichnung: string,
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }>
+): number | null {
+  const text = bezeichnung.toLowerCase()
+  let best: { name: string; aufschlag_prozent: number } | null = null
+  for (const g of matGruppen) {
+    if (text.includes(g.name.toLowerCase()) && (!best || g.name.length > best.name.length)) best = g
+  }
+  return best ? best.aufschlag_prozent / 100 : null
+}
+
+function validateAndFix(
+  data: Record<string, unknown>,
+  originalInput = '',
+  customSaetze: Record<string, number> = {},
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }> = [],
+  deaktiviert: Set<string> = new Set()
+): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
 
@@ -588,9 +613,11 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
 
   data.positionen = positionen.map((raw: unknown) => {
     const pos = raw as Pos
-    const az: AZ[] = Array.isArray(pos.arbeitszeit)
+    let az: AZ[] = Array.isArray(pos.arbeitszeit)
       ? pos.arbeitszeit.map(a => ({ ...a, kostenstelle: normalizeKostenstelle(a.kostenstelle) }))
       : []
+    // Deaktivierte Kostenstellen komplett entfernen — sie dürfen nicht kalkuliert werden.
+    if (deaktiviert.size > 0) az = az.filter(a => !deaktiviert.has(a.kostenstelle))
     const massiv = isMassivholz(pos)
 
     // 1. Correct all vkStunde to exact FS Crafted rates
@@ -598,8 +625,21 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
       if (a.kostenstelle in activeSaetze) a.vkStunde = activeSaetze[a.kostenstelle]
     }
 
+    // 1b. Correct material aufschlag to the user's actual Materialgruppen —
+    //     never trust the AI's own % here, only overwrite where a group
+    //     confidently matches the Bezeichnung (2026-07-04: rates/markups must
+    //     come from Firmeneinstellungen, not from whatever the JSON contains).
+    const material = Array.isArray(pos.material) ? pos.material.map(m => ({ ...m })) : []
+    if (matGruppen.length > 0) {
+      for (const m of material) {
+        const matched = matchMaterialgruppe(m.bezeichnung ?? '', matGruppen)
+        if (matched !== null) m.aufschlag = matched
+      }
+    }
+
     // 2. Fixkosten: enforce presence and minimum minutes
     for (const [ks, minMin] of Object.entries(FIXKOSTEN_MINIMA)) {
+      if (deaktiviert.has(ks)) continue
       const existing = az.find(a => a.kostenstelle === ks)
       if (existing) {
         existing.minuten = Math.max(existing.minuten, minMin)
@@ -629,13 +669,13 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
         const scale = minWorkshopMin / Math.max(currentWorkshop, 1)
         if (zsItem) {
           zsItem.minuten = Math.round(zsItem.minuten * scale)
-        } else {
-          az.push({ kostenstelle: 'Zuschnitt', minuten: Math.round(minWorkshopMin * 0.4), vkStunde: 72 })
+        } else if (!deaktiviert.has('Zuschnitt')) {
+          az.push({ kostenstelle: 'Zuschnitt', minuten: Math.round(minWorkshopMin * 0.4), vkStunde: activeSaetze['Zuschnitt'] })
         }
         if (zbItem) {
           zbItem.minuten = Math.round(zbItem.minuten * scale)
-        } else {
-          az.push({ kostenstelle: 'Zusammenbau', minuten: Math.round(minWorkshopMin * 0.6), vkStunde: 65 })
+        } else if (!deaktiviert.has('Zusammenbau')) {
+          az.push({ kostenstelle: 'Zusammenbau', minuten: Math.round(minWorkshopMin * 0.6), vkStunde: activeSaetze['Zusammenbau'] })
         }
       }
     }
@@ -651,8 +691,8 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
     const zb = az.find(a => a.kostenstelle === 'Zusammenbau')
     if (zb) {
       zb.minuten = Math.max(zb.minuten, minZusammenbau)
-    } else {
-      az.push({ kostenstelle: 'Zusammenbau', minuten: minZusammenbau, vkStunde: 65 })
+    } else if (!deaktiviert.has('Zusammenbau')) {
+      az.push({ kostenstelle: 'Zusammenbau', minuten: minZusammenbau, vkStunde: activeSaetze['Zusammenbau'] })
     }
 
     // 6. Montage: enforce minimum only when 05_01_Montage already present
@@ -664,7 +704,29 @@ function validateAndFix(data: Record<string, unknown>, originalInput = '', custo
       montage.minuten = Math.max(montage.minuten, Math.round(lm * 90))
     }
 
-    return { ...pos, arbeitszeit: az }
+    // 7. Plausibility check — flags (does NOT silently alter numbers) positions
+    //    whose total WORKSHOP TIME is far outside the lm-based time floor.
+    //    Deliberately rate-independent: checking price/lfm here would punish
+    //    users with custom (e.g. much lower) Stundensätze for a correctly low
+    //    price, and previously caused the AI to inflate hours to hit an old
+    //    FS-Crafted price target regardless of the configured rate (2026-07-04
+    //    Vorfall). Time is what must be plausible; price is minutes × rate.
+    let warnung: string | undefined
+    if (lm > 0) {
+      const flexKs = ['Zuschnitt', 'Zusammenbau', 'Oberfläche', 'Bekantung', 'CNC', 'Montage', 'Produktion']
+      const flexMinutes = az.filter(a => flexKs.includes(a.kostenstelle)).reduce((s, a) => s + a.minuten, 0)
+      const expectedMin = lm * (massiv ? 5 : 4.5) * 60
+
+      if (flexMinutes > expectedMin * 4 || flexMinutes < expectedMin * 0.3) {
+        const hours = Math.round(flexMinutes / 60)
+        const expectedHours = Math.round(expectedMin / 60)
+        warnung = `Werkstattzeit (${hours} h) liegt weit außerhalb des Zeitrichtwerts für ${lm.toFixed(1)} lfm ` +
+          `(erwartet ca. ${expectedHours} h) — bitte manuell prüfen.`
+        console.warn('[analyze] Plausibilitätswarnung:', warnung)
+      }
+    }
+
+    return warnung ? { ...pos, material, arbeitszeit: az, warnung } : { ...pos, material, arbeitszeit: az }
   })
 
   return data
@@ -685,11 +747,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage zu groß – bitte weniger oder kleinere Bilder verwenden.' }, { status: 413 })
     }
 
-    let { text, imageBase64, userKostenstellen } = await req.json()
+    let { text, imageBase64, userKostenstellen, userMaterialgruppen, deaktivierteKostenstellen } = await req.json()
     const customKs = Array.isArray(userKostenstellen)
       ? (userKostenstellen as Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>)
       : []
-    const customSaetze: Record<string, number> = Object.fromEntries(customKs.map(k => [k.code, k.stundensatz]))
+    // Keyed by normalizeKsId(code), NOT k.bezeichnung and NOT raw k.code.
+    // bezeichnung is free user-edited text and can diverge from the AI's
+    // fixed kostenstelle vocabulary (e.g. code 03_01_Warenhandling saved
+    // with bezeichnung "Warenwirtschaft" instead of "Warenhandling" —
+    // confirmed via DB inspection 2026-07-04). code alone doesn't match
+    // either (that was Vorfall #2). normalizeKsId(code) via LEGACY_KS_MAP
+    // is the one stable mapping to the canonical name STUNDENSAETZE and the
+    // AI both use.
+    // Standard-KS per normalizeKsId(code). Eigene (nicht-Standard) KS zusätzlich
+    // per bezeichnung keyen, weil die KI sie unter ihrer bezeichnung ausgibt —
+    // so greift der deterministische vkStunde-Override in beiden Fällen.
+    const customSaetze: Record<string, number> = {}
+    const eigeneKs: Array<{ id: string; bezeichnung: string; stundensatz: number }> = []
+    for (const k of customKs) {
+      const id = normalizeKsId(k.code)
+      customSaetze[id] = k.stundensatz
+      if (!(id in STUNDENSAETZE)) {
+        customSaetze[k.bezeichnung] = k.stundensatz
+        eigeneKs.push({ id, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz })
+      }
+    }
+    // Vom Nutzer deaktivierte Kostenstellen — dürfen nirgends in der Kalkulation
+    // auftauchen (auch nicht über Fixkosten-/Workshop-Floor-Fallbacks).
+    const deaktiviert = new Set<string>(
+      (Array.isArray(deaktivierteKostenstellen) ? deaktivierteKostenstellen as string[] : []).map(c => normalizeKsId(c))
+    )
+
+    const matGruppen = Array.isArray(userMaterialgruppen)
+      ? (userMaterialgruppen as Array<{ name: string; aufschlag_prozent: number }>)
+      : []
 
     const rawImages: string[] = Array.isArray(imageBase64)
       ? imageBase64.filter(Boolean)
@@ -746,9 +837,27 @@ export async function POST(req: NextRequest) {
     }
 
     let systemPrompt = SYSTEM_PROMPT
-    if (customKs.length > 0) {
-      const lines = customKs.map(k => `${k.code}  → ${k.stundensatz} €/h${k.gruppe ? ' [Gruppe: ' + k.gruppe + ']' : ''}`)
-      systemPrompt += '\n\n## ZUSÄTZLICHE KOSTENSTELLEN DIESES NUTZERS (müssen verwendet werden wenn passend):\n' + lines.join('\n')
+    const standardLines = customKs
+      .filter(k => normalizeKsId(k.code) in STUNDENSAETZE)
+      .map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
+    if (standardLines.length > 0) {
+      systemPrompt += '\n\n## ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen die Beispielsätze oben):\n' + standardLines.join('\n')
+    }
+    if (deaktiviert.size > 0) {
+      systemPrompt += '\n\n## DIESE KOSTENSTELLEN NICHT VERWENDEN (Betrieb bietet sie nicht an):\n' +
+        [...deaktiviert].join(', ') +
+        '\nNiemals in "arbeitszeit" aufnehmen. Die zugehörige Arbeit entfällt oder wird von einer erlaubten Kostenstelle mit übernommen — aber die genannten Kostenstellen selbst tauchen NIE auf.'
+    }
+    if (eigeneKs.length > 0) {
+      systemPrompt += '\n\n## ZUSÄTZLICH ERLAUBTE EIGENE KOSTENSTELLEN DIESES NUTZERS:\n' +
+        eigeneKs.map(k => `${k.bezeichnung} (${k.stundensatz} €/h)`).join('\n') +
+        '\nDu darfst diese ZUSÄTZLICH zu den 15 Standard-Kostenstellen verwenden — aber NUR, wenn eine Tätigkeit inhaltlich dazu passt und NICHT bereits von einer Standard-Kostenstelle abgedeckt ist. Schreibe als "kostenstelle" exakt diese Bezeichnung.' +
+        '\nGEGEN DOPPELZÄHLUNG: Ordne jede Tätigkeit GENAU EINER Kostenstelle zu. Dieselbe Arbeit nie zweimal (z. B. Politur entweder unter Oberfläche ODER unter der eigenen Kostenstelle, niemals beides). Verteile die vorhandene Zeit, erfinde keine zusätzliche.'
+    }
+    if (matGruppen.length > 0) {
+      const lines = matGruppen.map(m => `${m.name} → ${m.aufschlag_prozent}%`)
+      systemPrompt += '\n\n## ECHTE MATERIALAUFSCHLÄGE DIESES NUTZERS (verbindlich, ersetzen die pauschalen 30% oben):\n' +
+        lines.join('\n') + '\nOrdne jedes Material der passenden Gruppe zu und verwende deren Aufschlag als "aufschlag" (z.B. 25% → 0.25).'
     }
 
     const model = 'claude-sonnet-4-6'
@@ -810,7 +919,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const parsed = JSON.parse(clean)
-      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze)
+      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert)
       return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))

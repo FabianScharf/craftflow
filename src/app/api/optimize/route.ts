@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
 
 export const maxDuration = 120
 
@@ -24,6 +25,61 @@ INHALTLICHE REGELN:
 - Holzart: in beschreibung UND material[].bezeichnung eintragen
 - Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung`
 
+function looksLikeOffer(p: unknown): p is { positionen?: unknown; kunde?: unknown } {
+  return !!p && typeof p === 'object' && ('positionen' in p || 'kunde' in p)
+}
+
+type AZ = { kostenstelle: string; minuten: number; vkStunde: number }
+type MatItem = { bezeichnung?: string; aufschlag?: number; [key: string]: unknown }
+type Pos = { arbeitszeit?: AZ[]; material?: MatItem[]; [key: string]: unknown }
+
+// Same matching logic as /api/analyze — case-insensitive substring match,
+// longest (most specific) Materialgruppe name wins. Returns null if nothing
+// matches, so callers leave the LLM's own aufschlag untouched rather than guess.
+function matchMaterialgruppe(
+  bezeichnung: string,
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }>
+): number | null {
+  const text = bezeichnung.toLowerCase()
+  let best: { name: string; aufschlag_prozent: number } | null = null
+  for (const g of matGruppen) {
+    if (text.includes(g.name.toLowerCase()) && (!best || g.name.length > best.name.length)) best = g
+  }
+  return best ? best.aufschlag_prozent / 100 : null
+}
+
+// Deterministically overwrites vkStunde and Material-Aufschlag with the
+// user's actual Firmeneinstellungen — never trusts the LLM's own numbers
+// here. Fixes the 2026-07-04 incident where the optimizer had no access to
+// Firmeneinstellungen at all and just kept/invented values from whatever was
+// already in the offer JSON.
+function applyUserRates(
+  offer: Record<string, unknown>,
+  customSaetze: Record<string, number>,
+  matGruppen: Array<{ name: string; aufschlag_prozent: number }>,
+  deaktiviert: Set<string> = new Set()
+): Record<string, unknown> {
+  const positionen = offer.positionen
+  if (!Array.isArray(positionen)) return offer
+  const activeSaetze: Record<string, number> = { ...DEFAULT_STUNDENSAETZE, ...customSaetze }
+  offer.positionen = positionen.map((raw: unknown) => {
+    const pos = raw as Pos
+    const arbeitszeit = Array.isArray(pos.arbeitszeit)
+      ? pos.arbeitszeit
+          .filter(a => !deaktiviert.has(normalizeKsId(a.kostenstelle)))
+          .map(a => (a.kostenstelle in activeSaetze ? { ...a, vkStunde: activeSaetze[a.kostenstelle] } : a))
+      : pos.arbeitszeit
+    const material = Array.isArray(pos.material)
+      ? pos.material.map(m => {
+          const matched = matGruppen.length > 0 ? matchMaterialgruppe(m.bezeichnung ?? '', matGruppen) : null
+          return matched !== null ? { ...m, aufschlag: matched } : m
+        })
+      : pos.material
+    return { ...pos, arbeitszeit, material }
+  })
+  return offer
+}
+
 function extractJSON(text: string): { message: string; updatedOffer: unknown } | null {
   const clean = text.replace(/```json\n?|```/g, '').trim()
 
@@ -31,6 +87,8 @@ function extractJSON(text: string): { message: string; updatedOffer: unknown } |
   try {
     const p = JSON.parse(clean)
     if (p?.message !== undefined) return p
+    // Model skipped the {message, updatedOffer} wrapper and returned the offer directly
+    if (looksLikeOffer(p)) return { message: 'Kalkulation aktualisiert.', updatedOffer: p }
   } catch { /* fall through */ }
 
   // Brace-counting: collect all top-level JSON objects
@@ -45,7 +103,11 @@ function extractJSON(text: string): { message: string; updatedOffer: unknown } |
   }
   // Try last candidate first — Claude often puts the final answer last
   for (let i = candidates.length - 1; i >= 0; i--) {
-    try { const p = JSON.parse(candidates[i]); if (p?.message !== undefined) return p } catch { /* next */ }
+    try {
+      const p = JSON.parse(candidates[i])
+      if (p?.message !== undefined) return p
+      if (looksLikeOffer(p)) return { message: 'Kalkulation aktualisiert.', updatedOffer: p }
+    } catch { /* next */ }
   }
 
   return null
@@ -53,16 +115,60 @@ function extractJSON(text: string): { message: string; updatedOffer: unknown } |
 
 export async function POST(req: NextRequest) {
   try {
-    const { offerData, chatHistory, message } = await req.json() as {
+    const { offerData, chatHistory, message, userKostenstellen, userMaterialgruppen, deaktivierteKostenstellen } = await req.json() as {
       offerData: unknown
       chatHistory: ChatMsg[]
       message: string
+      userKostenstellen?: Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>
+      userMaterialgruppen?: Array<{ name: string; aufschlag_prozent: number }>
+      deaktivierteKostenstellen?: string[]
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
 
-    const system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
+    const customKs = Array.isArray(userKostenstellen) ? userKostenstellen : []
+    // Keyed by normalizeKsId(code) — bezeichnung is free user-edited text and
+    // can diverge from the AI's fixed kostenstelle vocabulary (e.g. code
+    // 03_01_Warenhandling saved with bezeichnung "Warenwirtschaft"), and code
+    // alone doesn't match either. normalizeKsId(code) via LEGACY_KS_MAP is
+    // the one stable mapping to the canonical name (2026-07-04 Vorfall #3).
+    // Standard-KS per normalizeKsId(code); eigene (nicht-Standard) KS zusätzlich
+    // per bezeichnung, da die KI sie unter ihrer bezeichnung ausgibt.
+    const customSaetze: Record<string, number> = {}
+    const eigeneKs: Array<{ bezeichnung: string; stundensatz: number }> = []
+    for (const k of customKs) {
+      const id = normalizeKsId(k.code)
+      customSaetze[id] = k.stundensatz
+      if (!(id in DEFAULT_STUNDENSAETZE)) {
+        customSaetze[k.bezeichnung] = k.stundensatz
+        eigeneKs.push({ bezeichnung: k.bezeichnung, stundensatz: k.stundensatz })
+      }
+    }
+    const deaktiviert = new Set<string>(
+      (Array.isArray(deaktivierteKostenstellen) ? deaktivierteKostenstellen : []).map(c => normalizeKsId(c))
+    )
+    const matGruppen = Array.isArray(userMaterialgruppen) ? userMaterialgruppen : []
+
+    let system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
+    const standardLines = customKs.filter(k => normalizeKsId(k.code) in DEFAULT_STUNDENSAETZE).map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
+    if (standardLines.length > 0) {
+      system += '\n\n== ECHTE STUNDENSÄTZE DIESES NUTZERS (verbindlich, ersetzen alle anderen Werte im JSON) ==\n' + standardLines.join('\n') +
+        '\nVerwende IMMER diese Sätze für vkStunde, auch wenn im Angebot-JSON andere Werte stehen — die JSON-Werte können veraltet sein.'
+    }
+    if (deaktiviert.size > 0) {
+      system += '\n\n== DIESE KOSTENSTELLEN NICHT VERWENDEN (vom Nutzer deaktiviert) ==\n' + [...deaktiviert].join(', ') +
+        '\nEntferne sie aus arbeitszeit und nimm sie nie neu auf.'
+    }
+    if (eigeneKs.length > 0) {
+      system += '\n\n== ZUSÄTZLICH ERLAUBTE EIGENE KOSTENSTELLEN ==\n' + eigeneKs.map(k => `${k.bezeichnung} (${k.stundensatz} €/h)`).join('\n') +
+        '\nNur verwenden, wenn die Arbeit inhaltlich passt und nicht schon von einer Standard-Kostenstelle abgedeckt ist. Als "kostenstelle" exakt die Bezeichnung schreiben. Jede Arbeit nur EINER Kostenstelle zuordnen, nie doppelt.'
+    }
+    if (matGruppen.length > 0) {
+      const lines = matGruppen.map(m => `${m.name} → ${m.aufschlag_prozent}%`)
+      system += '\n\n== ECHTE MATERIALAUFSCHLÄGE DIESES NUTZERS (verbindlich, ersetzen alle anderen Werte im JSON) ==\n' + lines.join('\n') +
+        '\nOrdne jedes Material der passenden Gruppe zu und verwende deren Aufschlag, auch wenn im Angebot-JSON andere Werte stehen.'
+    }
 
     const messages: ChatMsg[] = [
       ...chatHistory,
@@ -95,9 +201,17 @@ export async function POST(req: NextRequest) {
 
     const parsed = extractJSON(raw)
     if (parsed) {
-      return NextResponse.json({ success: true, message: parsed.message, updatedOffer: parsed.updatedOffer ?? null })
+      const updatedOffer = parsed.updatedOffer
+        ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen, deaktiviert)
+        : null
+      return NextResponse.json({ success: true, message: parsed.message, updatedOffer })
     }
-    return NextResponse.json({ success: true, message: raw, updatedOffer: null })
+    console.error('[optimize] unparsable response:', raw.slice(0, 500))
+    return NextResponse.json({
+      success: true,
+      message: 'Antwort konnte nicht verarbeitet werden. Bitte die Anfrage anders formulieren oder erneut senden.',
+      updatedOffer: null,
+    })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     console.error('[optimize]', msg)
