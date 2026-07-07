@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
+import { createClient } from '@/utils/supabase/server'
 
 export const maxDuration = 120
 
@@ -150,6 +151,24 @@ export async function POST(req: NextRequest) {
     )
     const matGruppen = Array.isArray(userMaterialgruppen) ? userMaterialgruppen : []
 
+    // Firmenstandort des Nutzers aus dem Betriebsprofil — Anfahrt IMMER von dort.
+    let firmenStandort = ''
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profil } = await supabase
+          .from('betriebsprofil')
+          .select('strasse, plz, ort')
+          .eq('user_id', user.id)
+          .single()
+        if (profil) {
+          const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
+          firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
+        }
+      }
+    } catch { /* kein Profil → Default */ }
+
     let system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
     const standardLines = customKs.filter(k => normalizeKsId(k.code) in DEFAULT_STUNDENSAETZE).map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
     if (standardLines.length > 0) {
@@ -168,6 +187,10 @@ export async function POST(req: NextRequest) {
       const lines = matGruppen.map(m => `${m.name} → ${m.aufschlag_prozent}%`)
       system += '\n\n== ECHTE MATERIALAUFSCHLÄGE DIESES NUTZERS (verbindlich, ersetzen alle anderen Werte im JSON) ==\n' + lines.join('\n') +
         '\nOrdne jedes Material der passenden Gruppe zu und verwende deren Aufschlag, auch wenn im Angebot-JSON andere Werte stehen.'
+    }
+    if (firmenStandort) {
+      system += '\n\n== FIRMENSTANDORT DES NUTZERS (verbindlich für Anfahrt & Fahrtzeit) ==\n' + firmenStandort +
+        '\nAnfahrt/Fahrtzeit (Montage & Lieferung) IMMER von diesem Standort berechnen — NIEMALS ab Rodenbach.'
     }
 
     const messages: ChatMsg[] = [
