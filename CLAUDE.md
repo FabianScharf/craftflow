@@ -59,7 +59,7 @@ mehr verwendet.
 
 ---
 
-# Zusammenarbeit & Projektwissen (Stand 2026-07-06)
+# Zusammenarbeit & Projektwissen (Stand 2026-07-07)
 
 > Kompakte Zusammenfassung der Erkenntnisse aus der Session, damit künftige
 > Sitzungen sofort produktiv sind.
@@ -81,11 +81,17 @@ ungefragt auf `main`.
    Nachbearbeitung sind pure Funktionen → in ein Node-Skript kopieren, mit festen
    Eingaben durchrechnen. Bester Weg für exakte Zahlen-Plausibilität.
 2. **Live gegen die deployte dev-Preview (echte KI):**
-   - Preview-URL: `gh api repos/FabianScharf/craftflow/deployments` → neueste ID →
-     `/deployments/<id>/statuses` → `target_url`.
-   - Chrome mit Debug-Port: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/craftflow-chrome-profile <preview-url>/login`
-   - **Zwei Login-Wände:** erst Vercel-SSO (über GitHub), dann App-Login. Fabian
-     loggt manuell ein; das Vercel-SSO-Cookie gilt teamweit über alle Previews.
+   - **Stabile Dev-Adresse (bevorzugt — kein Neu-Login je Preview):**
+     `https://craftflow-git-dev-fabian-scharf-s-projects.vercel.app` — zeigt immer auf
+     die neueste dev-Version, einmal einloggen bleibt über Deploys gültig.
+     (Per-Deploy-URL sonst via `gh api repos/FabianScharf/craftflow/deployments` →
+     `/deployments/<id>/statuses` → `target_url` — erzwingt aber je Preview neuen App-Login.)
+   - Chrome mit Debug-Port: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/craftflow-chrome-profile <url>/login`
+   - **Zwei Login-Wände:** Vercel-SSO (über GitHub, gilt teamweit über alle Previews)
+     + App-Login (Supabase, host-scoped → per Preview neu; stabiler Alias vermeidet das).
+     Fabian loggt manuell ein.
+   - **Alle Previews + Produktion teilen dieselbe Supabase-DB** → Daten-/Settings-
+     Änderungen (z. B. Kostenstellen) wirken sofort überall, unabhängig vom Branch.
    - Steuerung über projekteigenes `puppeteer-core` (v25):
      `puppeteer.connect({ browserURL: 'http://localhost:9222' })`, dann im
      eingeloggten Tab per `page.evaluate(fetch('/api/analyze', …))`. So lassen sich
@@ -108,15 +114,30 @@ ungefragt auf `main`.
 - **Deaktivierte** Kostenstellen werden komplett ausgeschlossen (Frontend sendet
   `deaktivierteKostenstellen`); kein Rückfall mehr auf den Standardsatz.
 
-## Am 2026-07-06 erledigt (auf `main` deployt)
+## Settings / Kostenstellen (Regeln & Route)
+- **15 Standard-Kostenstellen:** nicht löschbar, nicht umbenennbar — nur Betrag
+  ändern oder aus/an. Standard-Erkennung IMMER über `normalizeKsId(code) ∈
+  DEFAULT_STUNDENSAETZE` (NIE roher `code` — sonst erscheint der Lösch-Button bei
+  Legacy-Codes fälschlich). Gilt im UI (`settings/page.tsx`) UND serverseitig (DELETE blockt).
+- **Eigene Kostenstellen:** mit Name + Preis anlegbar, löschbar (× nur bei eigenen);
+  werden in der Kalkulation genutzt, wenn die Beschreibung passt.
+- **Update-Route ist PUT** (nicht PATCH → 405) und akzeptiert nur `stundensatz` +
+  `aktiv` — bewusst KEIN `bezeichnung` (Umbenennen gesperrt). Methoden der
+  Kostenstellen-Route: GET (lesen), PUT (stundensatz/aktiv), POST (neu), DELETE (nur eigene).
+
+## Erledigt & auf `main` deployt (2026-07-06/07)
 - Fallback-Ergänzung Zuschnitt/Zusammenbau nutzt Nutzer-Stundensatz (statt 72/65).
 - Deaktivieren schließt Kostenstelle wirklich aus.
 - Eigene Kostenstellen nutzbar, ohne Doppelzählung.
-- Alle Punkte live auf dev-Preview geprüft, dann `dev → main` gemerged.
+- Standard-Kostenstellen nicht löschbar / nicht umbenennbar; Code-Zeile im UI entfernt.
+- Fabians Konto bereinigt: alle 15 Standard-KS vorhanden, Handwerkskammer-Standardsätze,
+  saubere Standard-Kurznamen (frühere Umbenennungen zurückgesetzt).
+- Alles live auf dev getestet, dann `dev → main` gemerged.
 
 ## Offen / für Fabian
-- In Fabians eigenem Konto fehlt die Kostenstelle **„Zusammenbau"** → rechnet dort
-  mit Standard 65 € statt seinem Satz. In den Einstellungen anlegen.
+- Stundensätze auf die echten Betriebswerte anpassen (stehen aktuell auf
+  Handwerkskammer-Standard, der für viele Betriebe zu hoch ist).
+- (Frühere Lücke „Zusammenbau fehlt" ist erledigt — wiederhergestellt.)
 
 ## Deploy-Workflow (strikt)
 Nie direkt auf `main`. Immer: Änderung auf `dev` → live auf dev-Preview testen →
