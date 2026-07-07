@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId } from '@/lib/types'
+import { createClient } from '@/utils/supabase/server'
 
 export const maxDuration = 300
 
@@ -32,7 +33,7 @@ Mindestens eine der drei Dimensionen (Breite, Höhe, Tiefe) fehlt vollständig.
 Weder Straße noch Ort noch Ortsname taucht im Text auf.
 → Dann fragen: "Wie lautet die Lieferadresse des Kunden (Straße, Ort)?"
 → NICHT fragen wenn mindestens ein Ortsname oder eine Straße erkennbar ist.
-→ Stadtname allein (z.B. "Schöllkrippen", "Frankfurt") reicht aus – dann Anfahrt ab Rodenbach schätzen.
+→ Stadtname allein (z.B. "Schöllkrippen", "Frankfurt") reicht aus – dann Anfahrt ab dem Firmenstandort des Nutzers schätzen (siehe Abschnitt „FIRMENSTANDORT" unten).
 
 ### BEI ALLEM ANDEREN → SCHÄTZEN, NICHT FRAGEN:
 
@@ -836,6 +837,25 @@ export async function POST(req: NextRequest) {
       userContent.push({ type: 'text', text: `Beschreibung: "${text}"` })
     }
 
+    // Firmenstandort des eingeloggten Nutzers aus dem Betriebsprofil holen — die
+    // Anfahrt/Montage MUSS von dort ausgehen, nicht vom Hersteller-Sitz Rodenbach.
+    let firmenStandort = ''
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profil } = await supabase
+          .from('betriebsprofil')
+          .select('strasse, plz, ort')
+          .eq('user_id', user.id)
+          .single()
+        if (profil) {
+          const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
+          firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
+        }
+      }
+    } catch { /* kein Profil / nicht eingeloggt → Default-Verhalten */ }
+
     let systemPrompt = SYSTEM_PROMPT
     const standardLines = customKs
       .filter(k => normalizeKsId(k.code) in STUNDENSAETZE)
@@ -858,6 +878,10 @@ export async function POST(req: NextRequest) {
       const lines = matGruppen.map(m => `${m.name} → ${m.aufschlag_prozent}%`)
       systemPrompt += '\n\n## ECHTE MATERIALAUFSCHLÄGE DIESES NUTZERS (verbindlich, ersetzen die pauschalen 30% oben):\n' +
         lines.join('\n') + '\nOrdne jedes Material der passenden Gruppe zu und verwende deren Aufschlag als "aufschlag" (z.B. 25% → 0.25).'
+    }
+    if (firmenStandort) {
+      systemPrompt += '\n\n## FIRMENSTANDORT DES NUTZERS (verbindlich für Anfahrt & Fahrtzeit):\n' + firmenStandort +
+        '\nBerechne Anfahrt und Fahrtzeit (Kostenstellen Montage & Lieferung) IMMER von diesem Standort zum Kunden — NIEMALS ab Rodenbach. Rodenbach ist nur der Sitz des Software-Herstellers und für die Anfahrt völlig irrelevant.'
     }
 
     const model = 'claude-sonnet-4-6'
