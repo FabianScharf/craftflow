@@ -167,8 +167,14 @@ belegte Änderungsliste (nummeriert) plus die Chat-Sätze des Nutzers. Output: J
 Der Server prüft jeden Kandidaten:
 
 - `belegt_durch.art === 'diff'` → `nr` muss in der Änderungsliste existieren.
-- `belegt_durch.art === 'zitat'` → `text` muss als Teilstring in einer Nutzer-Chat-Nachricht
-  vorkommen (normalisiert: Kleinschreibung, Mehrfach-Leerzeichen zusammengefasst).
+- `belegt_durch.art === 'zitat'` → `text` muss in einer Nutzer-Chat-Nachricht vorkommen
+  (normalisiert: Kleinschreibung, Mehrfach-Leerzeichen zusammengefasst), und zwar unter
+  **zwei** Bedingungen gleichzeitig: mindestens **6 Zeichen** lang UND als **vollständige
+  Wortfolge** (Wortgrenzen an beiden Enden), nicht als beliebiger Teilstring.
+  Begründung: Ohne Mindestlänge genügt ein Alltagswort wie „die", das in fast jeder
+  Nachricht steht; ohne Wortgrenze trifft „machen" auch mitten in „Maschinen". Beides
+  wären Schlupflöcher, durch die sich die KI einen Beleg erschleichen kann — und damit
+  genau der Fehlermodus, den die Belegpflicht verhindern soll.
 - Alles andere → verworfen, ohne Fehlermeldung an den Nutzer.
 
 Damit kann die KI keine Änderung erfinden, die nicht passiert ist. Sie darf nur in Worte

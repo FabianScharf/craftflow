@@ -365,7 +365,7 @@ git commit -m "feat(learn): Diff-Engine mit Rauschfilter fuer Bauweise-Vault"
 
 **Interfaces:**
 - Consumes: aus Task 1 `Aenderung`, `Bereich`, `BEREICHE`, `normalisiere`
-- Produces: `Beleg`, `Kandidat`, `BestehendeRegel`, `GepruefterKandidat`, `AUSNAHME_WOERTER`, `istAusnahmeNachricht(text: string): boolean`, `beschreibeAenderung(a: Aenderung): string`, `istGleicheRegel(a: {bereich:string; wenn:string}, b: {bereich:string; wenn:string}): boolean`, `pruefeKandidaten(kandidaten: unknown, aenderungen: Aenderung[], nutzerChat: string[], kundenWoerter: string[], bestehendeRegeln: BestehendeRegel[]): GepruefterKandidat[]`
+- Produces: `Beleg`, `Kandidat`, `BestehendeRegel`, `GepruefterKandidat`, `AUSNAHME_WOERTER`, `MIN_ZITAT_ZEICHEN` (Wert `6`), `enthaeltWortfolge(nachrichtNorm: string, zitatNorm: string): boolean`, `istAusnahmeNachricht(text: string): boolean`, `beschreibeAenderung(a: Aenderung): string`, `istGleicheRegel(a: {bereich:string; wenn:string}, b: {bereich:string; wenn:string}): boolean`, `pruefeKandidaten(kandidaten: unknown, aenderungen: Aenderung[], nutzerChat: string[], kundenWoerter: string[], bestehendeRegeln: BestehendeRegel[]): GepruefterKandidat[]`
 
 - [ ] **Step 1: Den fehlschlagenden Test schreiben**
 
@@ -374,7 +374,7 @@ git commit -m "feat(learn): Diff-Engine mit Rauschfilter fuer Bauweise-Vault"
 ```js
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pruefeKandidaten, istAusnahmeNachricht, istGleicheRegel, beschreibeAenderung } from '../src/lib/learn.ts'
+import { pruefeKandidaten, istAusnahmeNachricht, istGleicheRegel, beschreibeAenderung, enthaeltWortfolge, MIN_ZITAT_ZEICHEN } from '../src/lib/learn.ts'
 
 const AEND = [
   { nr: 1, art: 'material_ersetzt', position: 'Garderobe', vorher: 'HPL 6mm', nachher: 'Multiplex Birke 8mm' },
@@ -407,6 +407,29 @@ test('Kandidat mit Zitat aus dem Chat wird übernommen', () => {
 test('Kandidat mit erfundenem Zitat wird verworfen', () => {
   const k = [{ bereich: 'Konstruktion', wenn: '', dann: 'Alles aus Nussbaum', belegt_durch: { art: 'zitat', text: 'immer Nussbaum verwenden' } }]
   assert.deepEqual(pruefeKandidaten(k, AEND, CHAT, [], []), [])
+})
+
+test('Zu kurzes Zitat wird verworfen, auch wenn es im Chat vorkommt', () => {
+  const chat = ['Die Rueckwand soll anders werden']
+  const k = [{ bereich: 'Material', wenn: '', dann: 'Irgendwas', belegt_durch: { art: 'zitat', text: 'die' } }]
+  assert.deepEqual(pruefeKandidaten(k, AEND, chat, [], []), [])
+})
+
+test('Zitat, das nur mitten in einem Wort trifft, wird verworfen', () => {
+  const chat = ['Die Maschinen laufen gut']
+  const k = [{ bereich: 'Zeit', wenn: '', dann: 'Irgendwas', belegt_durch: { art: 'zitat', text: 'maschin' } }]
+  assert.deepEqual(pruefeKandidaten(k, AEND, chat, [], []), [])
+})
+
+test('enthaeltWortfolge trifft nur auf ganze Wortfolgen', () => {
+  assert.equal(enthaeltWortfolge('rueckwand immer multiplex nie hpl', 'nie hpl'), true)
+  assert.equal(enthaeltWortfolge('die maschinen laufen', 'maschin'), false)
+  assert.equal(enthaeltWortfolge('nie hpl', 'nie hpl'), true)
+  assert.equal(enthaeltWortfolge('irgendwas', ''), false)
+})
+
+test('MIN_ZITAT_ZEICHEN hat den festgelegten Wert', () => {
+  assert.equal(MIN_ZITAT_ZEICHEN, 6)
 })
 
 test('Kandidat ohne Beleg wird verworfen', () => {
@@ -520,6 +543,18 @@ export function beschreibeAenderung(a: Aenderung): string {
   }
 }
 
+// Ein Zitat muss ein echter Beleg sein. Zwei Huerden gemeinsam:
+// Mindestlaenge UND vollstaendige Wortfolge. Ohne die Mindestlaenge wuerde ein
+// Alltagswort wie "die" reichen, das in fast jeder Nachricht vorkommt; ohne die
+// Wortgrenze wuerde "machen" auch mitten in "Maschinen" treffen. Beides waere
+// ein Schlupfloch, durch das die KI sich einen Beleg erschleichen kann.
+export const MIN_ZITAT_ZEICHEN = 6
+
+export function enthaeltWortfolge(nachrichtNorm: string, zitatNorm: string): boolean {
+  if (zitatNorm === '') return false
+  return ` ${nachrichtNorm} `.includes(` ${zitatNorm} `)
+}
+
 // Bewusst exakter Vergleich nach Normalisierung, kein unscharfes Matching:
 // ein Fehltreffer würde die falsche Regel überschreiben, und Ähnlichkeits-
 // schwellen sind nicht sinnvoll testbar.
@@ -555,7 +590,7 @@ export function pruefeKandidaten(
       if (treffer) belegText = beschreibeAenderung(treffer)
     } else if (beleg && beleg.art === 'zitat' && typeof beleg.text === 'string' && beleg.text.trim() !== '') {
       const zitat = normalisiere(beleg.text)
-      if (zitat.length >= 3 && chatNorm.some(m => m.includes(zitat))) {
+      if (zitat.length >= MIN_ZITAT_ZEICHEN && chatNorm.some(m => enthaeltWortfolge(m, zitat))) {
         belegText = `Chat: „${beleg.text.trim()}"`
       }
     }
