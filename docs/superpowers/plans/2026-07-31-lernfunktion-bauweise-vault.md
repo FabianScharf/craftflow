@@ -1299,6 +1299,7 @@ Bei den übrigen `useState`/`useRef`-Deklarationen der Hauptkomponente (in der N
   const [lernAuswahl, setLernAuswahl] = useState<Record<number, boolean>>({})
   const [lernWenn, setLernWenn] = useState<Record<number, string>>({})
   const [lernSpeichert, setLernSpeichert] = useState(false)
+  const [lernFehler, setLernFehler] = useState('')
 ```
 
 - [ ] **Step 2: Erstvorschlag beim Analyse-Ergebnis merken**
@@ -1361,11 +1362,13 @@ gehören hinter die Deklaration aller vier States (in der aktuellen Datei hinter
 
   const lernRegelnSpeichern = useCallback(async () => {
     setLernSpeichert(true)
-    try {
-      for (let i = 0; i < lernKandidaten.length; i++) {
-        if (!lernAuswahl[i]) continue
-        const k = lernKandidaten[i]
-        await fetch('/api/settings/bauweise', {
+    setLernFehler('')
+    let fehler = 0
+    for (let i = 0; i < lernKandidaten.length; i++) {
+      if (!lernAuswahl[i]) continue
+      const k = lernKandidaten[i]
+      try {
+        const res = await fetch('/api/settings/bauweise', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1378,10 +1381,27 @@ gehören hinter die Deklaration aller vier States (in der aktuellen Datei hinter
             ersetztRegelId: k.aendertRegelId ?? undefined,
           }),
         })
+        if (!res.ok) fehler++
+      } catch (e) {
+        // Einzelne Regel gescheitert — die übrigen trotzdem versuchen, statt die
+        // ganze Schleife abzubrechen.
+        console.error('[learn] Regel speichern', e)
+        fehler++
       }
-    } catch (e) { console.error('[learn] lernRegelnSpeichern', e) }
+    }
     setLernSpeichert(false)
+    if (fehler > 0) {
+      // Dialog offen lassen. Still schließen wäre die schlechteste Variante: der
+      // Nutzer hat bestätigt, gespeichert wurde nichts, und er wundert sich beim
+      // nächsten Angebot, warum die Regel nicht greift.
+      setLernFehler(fehler === 1
+        ? 'Eine Regel konnte nicht gespeichert werden. Bitte nochmal versuchen.'
+        : `${fehler} Regeln konnten nicht gespeichert werden. Bitte nochmal versuchen.`)
+      return
+    }
     setLernKandidaten([])
+    setLernAuswahl({})
+    setLernWenn({})
   }, [lernKandidaten, lernAuswahl, lernWenn])
 ```
 
@@ -1393,13 +1413,47 @@ In `saveProject` **nach** `setSaveStatus('saved')` (Zeile 385) — also nachdem 
       void pruefeLernkandidaten()
 ```
 
-Beim PDF-Export in `src/app/page.tsx` nach dem `pdf_export`-Tracking-Aufruf (Zeile 3978–3980):
+**Beim PDF-Export NICHT direkt nach dem Export auslösen.** Der Export setzt
+`setScreen('pdf-preview')`, und dieser Bildschirm kehrt früh zurück — der Dialog wird dort
+gar nicht gerendert (er hängt im `screen === 'app'`-Zweig). Der Aufruf am Export-Ende
+würde die Kandidaten unsichtbar füllen und der Dialog später überfallartig auftauchen,
+im schlechtesten Fall mit Kandidaten eines längst gewechselten Angebots.
+
+Stattdessen im **„← Zurück"-Handler des `pdf-preview`-Bildschirms** auslösen, also genau
+dann, wenn der Nutzer die Vorschau verlässt und wieder auf `screen === 'app'` landet:
 
 ```tsx
               void pruefeLernkandidaten()
 ```
 
+Nebeneffekt: Bei fehlgeschlagener PDF-Erzeugung erscheint dadurch gar kein Dialog mehr —
+richtig so, denn das ist der schlechteste Moment für eine Rückfrage.
+
 `saveProject` ist eine normale `async function`, keine `useCallback` — der Aufruf von `pruefeLernkandidaten` darin ist zulässig, weil die Funktion bei jedem Render neu erzeugt wird und die aktuelle Closure sieht.
+
+- [ ] **Step 4b: Vergleichsbasis beim Angebotswechsel zurücksetzen**
+
+Ohne diesen Schritt ist die Regel „keine Kopie → kein Lernen" ausgehebelt:
+`kiVorschlagRef.current` wird nur gesetzt, nie geleert. Wer ein Angebot analysiert, dann
+„Neues Angebot" klickt oder ein Projekt aus der Liste lädt, bearbeitet und speichert,
+vergleicht das neue Angebot gegen den Erstvorschlag des **vorigen**. Der Diff ist Müll,
+die KI leitet daraus Kandidaten ab — und weil das neue Regeln sind, stehen sie
+**vorangehakt** hinter dem Bestätigungsknopf. Ein Klick vermüllt den Vault dauerhaft,
+und der Müll fließt danach in jeden Prompt.
+
+In `resetAll` (ca. Zeile 899–943) **und** in `loadProject` (ca. Zeile 416–432) jeweils
+ergänzen:
+
+```tsx
+    // Bauweise-Vault: Vergleichsbasis und offene Kandidaten gehören zum bisherigen
+    // Angebot. Ohne Zurücksetzen würde das nächste Angebot gegen den Erstvorschlag
+    // des vorigen verglichen.
+    kiVorschlagRef.current = null
+    setLernKandidaten([])
+    setLernAuswahl({})
+    setLernWenn({})
+    setLernFehler('')
+```
 
 - [ ] **Step 5: Dialog rendern**
 
@@ -1407,7 +1461,9 @@ Am Ende des JSX der Hauptkomponente, direkt vor `{HelpWidget}` (Zeile 3990):
 
 ```tsx
       {lernKandidaten.length > 0 && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000000CC', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 16 }}>
+        <div
+          onClick={e => { if (e.target === e.currentTarget && !lernSpeichert) { setLernKandidaten([]); setLernFehler('') } }}
+          style={{ position: 'fixed', inset: 0, background: '#000000CC', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 16 }}>
           <div style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 4, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: 20 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 4 }}>
               {lernKandidaten.length === 1 ? 'Mir ist eine Sache aufgefallen' : `Mir sind ${lernKandidaten.length} Dinge aufgefallen`}
@@ -1451,9 +1507,15 @@ Am Ende des JSX der Hauptkomponente, direkt vor `{HelpWidget}` (Zeile 3990):
               </div>
             ))}
 
+            {lernFehler && (
+              <div style={{ border: '1px solid #6a3a3a', background: '#2a1a1a', borderRadius: 3, padding: 10, marginTop: 10, fontSize: 11, color: '#E05A5A' }}>
+                {lernFehler}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
               <button
-                onClick={() => setLernKandidaten([])}
+                onClick={() => { setLernKandidaten([]); setLernFehler('') }}
                 disabled={lernSpeichert}
                 style={{ flex: 1, background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, cursor: lernSpeichert ? 'not-allowed' : 'pointer' }}
               >
