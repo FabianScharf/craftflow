@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
+import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
 
 export const maxDuration = 300
 
@@ -839,7 +840,13 @@ export async function POST(req: NextRequest) {
 
     // Firmenstandort des eingeloggten Nutzers aus dem Betriebsprofil holen — die
     // Anfahrt/Montage MUSS von dort ausgehen, nicht vom Hersteller-Sitz Rodenbach.
+    // Im selben Zug: gelernte Bauweise-Regeln dieses Nutzers (Bauweise-Vault),
+    // serverseitig geladen, nicht vom Frontend geschickt — was das Frontend
+    // nicht sendet, kann nicht manipuliert werden.
     let firmenStandort = ''
+    let regelBlock = ''
+    let regelIds: string[] = []
+    let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -853,6 +860,12 @@ export async function POST(req: NextRequest) {
           const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
+        try {
+          const r = await regelBlockFuerNutzer(supabase, user.id)
+          regelBlock = r.block
+          regelIds = r.ids
+          supabaseFuerZaehler = supabase
+        } catch (e) { console.error('[learn] Regeln laden (analyze):', e) }
       }
     } catch { /* kein Profil / nicht eingeloggt → Default-Verhalten */ }
 
@@ -883,6 +896,10 @@ export async function POST(req: NextRequest) {
       systemPrompt += '\n\n## FIRMENSTANDORT DES NUTZERS (verbindlich für Anfahrt & Fahrtzeit):\n' + firmenStandort +
         '\nBerechne Anfahrt und Fahrtzeit (Kostenstellen Montage & Lieferung) IMMER von diesem Standort zum Kunden — NIEMALS ab Rodenbach. Rodenbach ist nur der Sitz des Software-Herstellers und für die Anfahrt völlig irrelevant.'
     }
+    // MUSS ganz am Ende stehen: der Block trägt einen Vorrang-Satz und muss
+    // nach dem allgemeinen Fachwissen kommen, sonst gewinnt weiter die
+    // generische Vorgabe (z. B. 6 mm HPL-Rückwand).
+    systemPrompt += regelBlock
 
     const model = 'claude-sonnet-4-6'
     const reqBody = JSON.stringify({
@@ -914,6 +931,7 @@ export async function POST(req: NextRequest) {
         { status: 502 }
       )
     }
+    if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds)
 
     const data = await response.json()
     // Extended thinking liefert mehrere Content-Blöcke — wir nehmen nur den text-Block

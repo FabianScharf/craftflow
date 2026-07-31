@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
+import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
 
 export const maxDuration = 120
 
@@ -152,7 +153,12 @@ export async function POST(req: NextRequest) {
     const matGruppen = Array.isArray(userMaterialgruppen) ? userMaterialgruppen : []
 
     // Firmenstandort des Nutzers aus dem Betriebsprofil — Anfahrt IMMER von dort.
+    // Im selben Zug: gelernte Bauweise-Regeln dieses Nutzers (Bauweise-Vault),
+    // serverseitig geladen, nicht vom Frontend geschickt.
     let firmenStandort = ''
+    let regelBlock = ''
+    let regelIds: string[] = []
+    let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -166,6 +172,12 @@ export async function POST(req: NextRequest) {
           const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
+        try {
+          const r = await regelBlockFuerNutzer(supabase, user.id)
+          regelBlock = r.block
+          regelIds = r.ids
+          supabaseFuerZaehler = supabase
+        } catch (e) { console.error('[learn] Regeln laden (optimize):', e) }
       }
     } catch { /* kein Profil → Default */ }
 
@@ -192,6 +204,10 @@ export async function POST(req: NextRequest) {
       system += '\n\n== FIRMENSTANDORT DES NUTZERS (verbindlich für Anfahrt & Fahrtzeit) ==\n' + firmenStandort +
         '\nAnfahrt/Fahrtzeit (Montage & Lieferung) IMMER von diesem Standort berechnen — NIEMALS ab Rodenbach.'
     }
+    // MUSS ganz am Ende stehen: der Block trägt einen Vorrang-Satz und muss
+    // nach dem allgemeinen Fachwissen kommen, sonst gewinnt weiter die
+    // generische Vorgabe (z. B. 6 mm HPL-Rückwand).
+    system += regelBlock
 
     const messages: ChatMsg[] = [
       ...chatHistory,
@@ -218,6 +234,7 @@ export async function POST(req: NextRequest) {
       const err = await res.text()
       throw new Error(`Claude ${res.status}: ${err.slice(0, 300)}`)
     }
+    if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds)
 
     const data = await res.json() as { content?: Array<{ text?: string }> }
     const raw = data.content?.[0]?.text ?? ''
