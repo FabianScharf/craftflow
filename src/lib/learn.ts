@@ -128,3 +128,95 @@ export function diffOffer(kiVorschlag: LernOffer, endstand: LernOffer): Aenderun
 
   return roh.map((a, i) => ({ ...a, nr: i + 1 }) as Aenderung)
 }
+
+// ── Belegprüfung ───────────────────────────────────────────────────────────
+// Die KI darf Regeln nur FORMULIEREN, nicht ERFINDEN. Jeder Kandidat muss auf
+// eine Änderung aus dem Code-Diff oder ein wörtliches Chat-Zitat zeigen. Alles
+// ohne gültigen Beleg wird verworfen. Gleiche Haltung wie bei validateAndFix /
+// applyUserRates: den KI-Angaben wird nicht vertraut.
+
+export type Beleg = { art: 'diff'; nr: number } | { art: 'zitat'; text: string }
+export type Kandidat = { bereich: string; wenn: string; dann: string; belegt_durch: Beleg }
+export type BestehendeRegel = { id: string; bereich: string; wenn: string }
+export type GepruefterKandidat = {
+  bereich: Bereich
+  wenn: string
+  dann: string
+  belegText: string
+  aendertRegelId: string | null
+}
+
+// Ein Kundensonderwunsch darf keine Dauerregel werden. Doppelt abgesichert:
+// hier im Code und zusätzlich im KI-Auftrag.
+export const AUSNAHME_WOERTER = [
+  'diesmal', 'nur hier', 'nur bei diesem', 'nur dieses mal', 'ausnahmsweise',
+  'einmalig', 'für diesen kunden', 'fuer diesen kunden', 'nur in diesem fall',
+]
+
+export function istAusnahmeNachricht(text: string): boolean {
+  const t = normalisiere(text)
+  return AUSNAHME_WOERTER.some(w => t.includes(normalisiere(w)))
+}
+
+export function beschreibeAenderung(a: Aenderung): string {
+  switch (a.art) {
+    case 'material_ersetzt':      return `"${a.vorher}" → "${a.nachher}" (${a.position})`
+    case 'material_entfernt':     return `Material entfernt: "${a.vorher}" (${a.position})`
+    case 'material_neu':          return `Material ergänzt: "${a.nachher}" (${a.position})`
+    case 'kostenstelle_entfernt': return `Kostenstelle entfernt: ${a.kostenstelle} (${a.position})`
+    case 'kostenstelle_neu':      return `Kostenstelle ergänzt: ${a.kostenstelle} (${a.position})`
+    case 'minuten_geaendert':     return `${a.kostenstelle} ${a.vorher} → ${a.nachher} min (${a.position})`
+    case 'menge_geaendert':       return `Menge "${a.material}" ${a.vorher} → ${a.nachher} (${a.position})`
+  }
+}
+
+// Bewusst exakter Vergleich nach Normalisierung, kein unscharfes Matching:
+// ein Fehltreffer würde die falsche Regel überschreiben, und Ähnlichkeits-
+// schwellen sind nicht sinnvoll testbar.
+export function istGleicheRegel(a: { bereich: string; wenn: string }, b: { bereich: string; wenn: string }): boolean {
+  return normalisiere(a.bereich) === normalisiere(b.bereich)
+    && normalisiere(a.wenn) === normalisiere(b.wenn)
+}
+
+export function pruefeKandidaten(
+  kandidaten: unknown,
+  aenderungen: Aenderung[],
+  nutzerChat: string[],
+  kundenWoerter: string[],
+  bestehendeRegeln: BestehendeRegel[],
+): GepruefterKandidat[] {
+  if (!Array.isArray(kandidaten)) return []
+  const chatNorm = nutzerChat.map(normalisiere)
+  // Mindestlänge 3, damit kurze Kürzel wie "AG" nicht halbe Regeltexte treffen.
+  const kundenNorm = kundenWoerter.map(normalisiere).filter(w => w.length >= 3)
+  const ergebnis: GepruefterKandidat[] = []
+
+  for (const roh of kandidaten) {
+    const k = roh as Partial<Kandidat> | null
+    if (!k || typeof k.dann !== 'string' || k.dann.trim() === '') continue
+
+    const bereich = BEREICHE.find(b => normalisiere(b) === normalisiere(String(k.bereich ?? '')))
+    if (!bereich) continue
+
+    let belegText: string | null = null
+    const beleg = k.belegt_durch
+    if (beleg && beleg.art === 'diff' && typeof beleg.nr === 'number') {
+      const treffer = aenderungen.find(a => a.nr === beleg.nr)
+      if (treffer) belegText = beschreibeAenderung(treffer)
+    } else if (beleg && beleg.art === 'zitat' && typeof beleg.text === 'string' && beleg.text.trim() !== '') {
+      const zitat = normalisiere(beleg.text)
+      if (zitat.length >= 3 && chatNorm.some(m => m.includes(zitat))) {
+        belegText = `Chat: „${beleg.text.trim()}"`
+      }
+    }
+    if (!belegText) continue
+
+    const wenn = String(k.wenn ?? '').trim()
+    const inhalt = normalisiere(`${wenn} ${k.dann}`)
+    if (kundenNorm.some(w => inhalt.includes(w))) continue
+
+    const bestehend = bestehendeRegeln.find(r => istGleicheRegel(r, { bereich, wenn }))
+    ergebnis.push({ bereich, wenn, dann: k.dann.trim(), belegText, aendertRegelId: bestehend?.id ?? null })
+  }
+  return ergebnis
+}
