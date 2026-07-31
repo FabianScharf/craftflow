@@ -170,6 +170,18 @@ export function beschreibeAenderung(a: Aenderung): string {
   }
 }
 
+// Ein Zitat muss ein echter Beleg sein. Zwei Huerden gemeinsam:
+// Mindestlaenge UND vollstaendige Wortfolge. Ohne die Mindestlaenge wuerde ein
+// Alltagswort wie "die" reichen, das in fast jeder Nachricht vorkommt; ohne die
+// Wortgrenze wuerde "machen" auch mitten in "Maschinen" treffen. Beides waere
+// ein Schlupfloch, durch das die KI sich einen Beleg erschleichen kann.
+export const MIN_ZITAT_ZEICHEN = 6
+
+export function enthaeltWortfolge(nachrichtNorm: string, zitatNorm: string): boolean {
+  if (zitatNorm === '') return false
+  return ` ${nachrichtNorm} `.includes(` ${zitatNorm} `)
+}
+
 // Bewusst exakter Vergleich nach Normalisierung, kein unscharfes Matching:
 // ein Fehltreffer würde die falsche Regel überschreiben, und Ähnlichkeits-
 // schwellen sind nicht sinnvoll testbar.
@@ -205,7 +217,7 @@ export function pruefeKandidaten(
       if (treffer) belegText = beschreibeAenderung(treffer)
     } else if (beleg && beleg.art === 'zitat' && typeof beleg.text === 'string' && beleg.text.trim() !== '') {
       const zitat = normalisiere(beleg.text)
-      if (zitat.length >= 3 && chatNorm.some(m => m.includes(zitat))) {
+      if (zitat.length >= MIN_ZITAT_ZEICHEN && chatNorm.some(m => enthaeltWortfolge(m, zitat))) {
         belegText = `Chat: „${beleg.text.trim()}"`
       }
     }

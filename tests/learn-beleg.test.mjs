@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pruefeKandidaten, istAusnahmeNachricht, istGleicheRegel, beschreibeAenderung } from '../src/lib/learn.ts'
+import { pruefeKandidaten, istAusnahmeNachricht, istGleicheRegel, beschreibeAenderung, enthaeltWortfolge, MIN_ZITAT_ZEICHEN } from '../src/lib/learn.ts'
 
 const AEND = [
   { nr: 1, art: 'material_ersetzt', position: 'Garderobe', vorher: 'HPL 6mm', nachher: 'Multiplex Birke 8mm' },
@@ -33,6 +33,29 @@ test('Kandidat mit Zitat aus dem Chat wird übernommen', () => {
 test('Kandidat mit erfundenem Zitat wird verworfen', () => {
   const k = [{ bereich: 'Konstruktion', wenn: '', dann: 'Alles aus Nussbaum', belegt_durch: { art: 'zitat', text: 'immer Nussbaum verwenden' } }]
   assert.deepEqual(pruefeKandidaten(k, AEND, CHAT, [], []), [])
+})
+
+test('Zu kurzes Zitat wird verworfen, auch wenn es im Chat vorkommt', () => {
+  const chat = ['Die Rueckwand soll anders werden']
+  const k = [{ bereich: 'Material', wenn: '', dann: 'Irgendwas', belegt_durch: { art: 'zitat', text: 'die' } }]
+  assert.deepEqual(pruefeKandidaten(k, AEND, chat, [], []), [])
+})
+
+test('Zitat, das nur mitten in einem Wort trifft, wird verworfen', () => {
+  const chat = ['Die Maschinen laufen gut']
+  const k = [{ bereich: 'Zeit', wenn: '', dann: 'Irgendwas', belegt_durch: { art: 'zitat', text: 'maschin' } }]
+  assert.deepEqual(pruefeKandidaten(k, AEND, chat, [], []), [])
+})
+
+test('enthaeltWortfolge trifft nur auf ganze Wortfolgen', () => {
+  assert.equal(enthaeltWortfolge('rueckwand immer multiplex nie hpl', 'nie hpl'), true)
+  assert.equal(enthaeltWortfolge('die maschinen laufen', 'maschin'), false)
+  assert.equal(enthaeltWortfolge('nie hpl', 'nie hpl'), true)
+  assert.equal(enthaeltWortfolge('irgendwas', ''), false)
+})
+
+test('MIN_ZITAT_ZEICHEN hat den festgelegten Wert', () => {
+  assert.equal(MIN_ZITAT_ZEICHEN, 6)
 })
 
 test('Kandidat ohne Beleg wird verworfen', () => {
