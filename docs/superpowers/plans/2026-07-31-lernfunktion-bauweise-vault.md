@@ -795,6 +795,7 @@ Prüfung nach dem Ausführen: Im Table Editor muss `bauweise_regeln` mit aktivem
 - [ ] **Step 3: `src/lib/bauweise.ts` anlegen**
 
 ```ts
+import { after } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { baueRegelBlock, MAX_REGELN_IM_PROMPT } from './learn'
 
@@ -827,13 +828,18 @@ export async function regelBlockFuerNutzer(
   return { block: baueRegelBlock(regeln), ids: regeln.map(r => r.id) }
 }
 
-// Feuere-und-vergiss: darf die Antwort an den Nutzer nicht verzögern und im
-// Fehlerfall nichts kaputt machen.
+// Läuft nach dem Senden der Antwort, verzögert sie also nicht — wird von der
+// Plattform aber garantiert noch ausgeführt. Reines `void promise` wäre hier
+// falsch: Vercel friert die Function nach der Antwort ein und nicht abgewartete
+// Arbeit darf verloren gehen. Dann fehlen `gesendet_zahl`/`zuletzt_gesendet` —
+// und weil die 60er-Priorisierung auf `zuletzt_gesendet` beruht, wäre auch die
+// Auswahl der mitgeschickten Regeln still falsch.
 export function zaehleRegelnHoch(supabase: SupabaseClient, ids: string[]): void {
   if (ids.length === 0) return
-  void supabase
-    .rpc('bauweise_regeln_gesendet', { regel_ids: ids })
-    .then(() => {}, (e: unknown) => console.error('[learn] zaehleRegelnHoch:', e))
+  after(async () => {
+    const { error } = await supabase.rpc('bauweise_regeln_gesendet', { regel_ids: ids })
+    if (error) console.error('[learn] zaehleRegelnHoch:', error.message)
+  })
 }
 ```
 
@@ -892,15 +898,19 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from('bauweise_regeln')
       .update({
-        wenn, dann, beleg: body.beleg ?? '', quelle_text: body.quelle_text ?? '',
+        bereich, wenn, dann, beleg: body.beleg ?? '', quelle_text: body.quelle_text ?? '',
         konflikt_hinweis: false, aktiv: true, updated_at: new Date().toISOString(),
       })
       .eq('id', body.ersetztRegelId)
       .eq('user_id', user.id)
       .select(SPALTEN)
-      .single()
+      .maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ regel: data })
+    if (data) return NextResponse.json({ regel: data })
+    // Kein Treffer: die Regel wurde zwischen Kandidaten-Erzeugung und Bestätigung
+    // gelöscht (oder die id gehört nicht diesem Nutzer). Die bestätigte Regel darf
+    // deswegen nicht verloren gehen — unten normal neu anlegen. `.single()` wäre
+    // hier ein 500er gewesen und hätte die Regel verworfen.
   }
 
   const { data, error } = await supabase
