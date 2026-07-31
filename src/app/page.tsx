@@ -384,6 +384,7 @@ export default function CraftFlow() {
         }).catch(() => {})
       }
       setSaveStatus('saved')
+      void pruefeLernkandidaten()
       setTimeout(() => setSaveStatus('idle'), 3000)
       // Outcome-Tracking initialisieren
       const savedId = currentProjectId ?? row.id
@@ -492,6 +493,18 @@ export default function CraftFlow() {
   const [optimLoading, setOptimLoading] = useState(false)
   const [optimMicStatus, setOptimMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
   const [offerId, setOfferId] = useState<string>(() => crypto.randomUUID())
+
+  // Bauweise-Vault: der unveränderte KI-Erstvorschlag als Vergleichsbasis.
+  // Absichtlich nur im Speicher (Ref) — kein DB-Eintrag nötig, und ein
+  // Seitenwechsel soll das Lernen einfach verfallen lassen.
+  const kiVorschlagRef = useRef<{ positionen: Angebotsposition[] } | null>(null)
+  const [lernKandidaten, setLernKandidaten] = useState<Array<{
+    bereich: string; wenn: string; dann: string; belegText: string
+    aendertRegelId: string | null; quelle_text: string
+  }>>([])
+  const [lernAuswahl, setLernAuswahl] = useState<Record<number, boolean>>({})
+  const [lernWenn, setLernWenn] = useState<Record<number, string>>({})
+  const [lernSpeichert, setLernSpeichert] = useState(false)
   const [versions, setVersions] = useState<OfferVersion[]>([])
   const [versionsOpen, setVersionsOpen] = useState(false)
   const optimMediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -508,6 +521,69 @@ export default function CraftFlow() {
   const checkMediaRecorderRef = useRef<MediaRecorder | null>(null)
   const checkAudioChunksRef = useRef<Blob[]>([])
   const checkChatRef = useRef<HTMLDivElement>(null)
+
+  // Bauweise-Vault: prüft nach dem Speichern/PDF, was der Nutzer geändert hat.
+  // Läuft absichtlich NACH dem eigentlichen Vorgang und feuere-und-vergiss —
+  // ein Fehler hier darf Speichern und PDF nie beeinflussen.
+  const pruefeLernkandidaten = useCallback(async () => {
+    const basis = kiVorschlagRef.current
+    if (!basis) return               // z.B. PDF-/GAEB-Import oder geladenes Projekt
+    if (lernKandidaten.length > 0) return  // Dialog steht schon offen
+    try {
+      const chatVerlauf = [
+        ...optimMessages.filter(m => m.role === 'user').map(m => m.content),
+        ...checkMessages.filter(m => m.role === 'user').map(m => m.content),
+      ]
+      const kundenWoerter = [kunde.name, kunde.ort, kunde.strasse, kunde.zusatz]
+        .filter(Boolean)
+        .flatMap(v => String(v).split(/\s+/))
+      const res = await fetch('/api/learn/candidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kiVorschlag: basis,
+          endstand: { positionen: pos },
+          chatVerlauf,
+          kundenWoerter,
+          projektTitel: [kunde.name.trim(), kunde.projekt.trim()].filter(Boolean).join(' – '),
+        }),
+      })
+      if (!res.ok) return
+      const json = await res.json() as { kandidaten?: typeof lernKandidaten }
+      const k = json.kandidaten ?? []
+      if (k.length === 0) return
+      setLernKandidaten(k)
+      // Neue Regeln vorangehakt; Kandidaten, die eine bestehende Regel ändern,
+      // bewusst NICHT — dem soll der Nutzer aktiv zustimmen.
+      setLernAuswahl(Object.fromEntries(k.map((x, i) => [i, x.aendertRegelId === null])))
+      setLernWenn(Object.fromEntries(k.map((x, i) => [i, x.wenn])))
+    } catch (e) { console.error('[learn] pruefeLernkandidaten', e) }
+  }, [lernKandidaten.length, optimMessages, checkMessages, kunde, pos])
+
+  const lernRegelnSpeichern = useCallback(async () => {
+    setLernSpeichert(true)
+    try {
+      for (let i = 0; i < lernKandidaten.length; i++) {
+        if (!lernAuswahl[i]) continue
+        const k = lernKandidaten[i]
+        await fetch('/api/settings/bauweise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bereich: k.bereich,
+            wenn: lernWenn[i] ?? k.wenn,
+            dann: k.dann,
+            herkunft: 'gelernt',
+            quelle_text: k.quelle_text,
+            beleg: k.belegText,
+            ersetztRegelId: k.aendertRegelId ?? undefined,
+          }),
+        })
+      }
+    } catch (e) { console.error('[learn] lernRegelnSpeichern', e) }
+    setLernSpeichert(false)
+    setLernKandidaten([])
+  }, [lernKandidaten, lernAuswahl, lernWenn])
 
   // ── Help-Assistent ──────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false)
@@ -961,6 +1037,9 @@ export default function CraftFlow() {
           })),
         }))
         setPos(parsedPos)
+        // Vergleichsbasis für den Bauweise-Vault festhalten (tiefe Kopie, damit
+        // späteres Bearbeiten der Positionen den Erstvorschlag nicht verändert).
+        kiVorschlagRef.current = { positionen: JSON.parse(JSON.stringify(parsedPos)) }
       }
 
       const parsedAnschr = data.anschreiben || anschr
@@ -3978,6 +4057,7 @@ export default function CraftFlow() {
               if (currentProjectId) {
                 fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'pdf_export', projectId: currentProjectId, data: { preis_netto: totals.net } }) })
               }
+              void pruefeLernkandidaten()
             }} disabled={pdfGenerating || (usage !== null && !usage.erlaubt)} style={{ width: '100%', background: pdfGenerating ? '#7a5535' : usage !== null && !usage.erlaubt ? '#3a2a1a' : C.copper, color: pdfGenerating ? '#ccc' : usage !== null && !usage.erlaubt ? '#6a4a2a' : C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: pdfGenerating || (usage !== null && !usage.erlaubt) ? 'not-allowed' : 'pointer' }}>
               {pdfGenerating ? '⏳ PDF WIRD ERZEUGT…' : '▶ DOKUMENT ALS PDF ANZEIGEN'}
             </button>
@@ -3986,6 +4066,73 @@ export default function CraftFlow() {
 
 
       </div>
+
+      {lernKandidaten.length > 0 && (
+        <div style={{ position: 'fixed', inset: 0, background: '#000000CC', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 16 }}>
+          <div style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 4, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: 20 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 4 }}>
+              {lernKandidaten.length === 1 ? 'Mir ist eine Sache aufgefallen' : `Mir sind ${lernKandidaten.length} Dinge aufgefallen`}
+            </div>
+            <div style={{ fontSize: 12, color: C.textMid, marginBottom: 16 }}>
+              Was davon ist deine Standardbauweise? Angehakte Punkte merkt sich CraftFlow für künftige Angebote.
+            </div>
+
+            {lernKandidaten.map((k, i) => (
+              <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 3, padding: 12, marginBottom: 10, background: C.gray1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!lernAuswahl[i]}
+                    onChange={() => setLernAuswahl(prev => ({ ...prev, [i]: !prev[i] }))}
+                    style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                    {k.bereich.toUpperCase()}
+                  </span>
+                  {k.aendertRegelId && (
+                    <span style={{ fontSize: 10, color: '#E0B05A', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                      ⚠ ändert bestehende Regel
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: C.textMid, width: 38, flexShrink: 0 }}>Wenn</span>
+                  <input
+                    value={lernWenn[i] ?? ''}
+                    onChange={e => setLernWenn(prev => ({ ...prev, [i]: e.target.value }))}
+                    placeholder="gilt immer"
+                    style={{ flex: 1, background: C.black, color: C.white, border: `1px solid ${C.border}`, borderRadius: 3, padding: '6px 8px', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: C.textMid, width: 38, flexShrink: 0 }}>Dann</span>
+                  <span style={{ fontSize: 12, color: C.white, lineHeight: 1.4 }}>{k.dann}</span>
+                </div>
+                <div style={{ fontSize: 10, color: C.textMid, marginTop: 6 }}>↳ belegt: {k.belegText}</div>
+              </div>
+            ))}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button
+                onClick={() => setLernKandidaten([])}
+                disabled={lernSpeichert}
+                style={{ flex: 1, background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, cursor: lernSpeichert ? 'not-allowed' : 'pointer' }}
+              >
+                Nicht merken
+              </button>
+              <button
+                onClick={lernRegelnSpeichern}
+                disabled={lernSpeichert || Object.values(lernAuswahl).every(v => !v)}
+                style={{ flex: 1, background: Object.values(lernAuswahl).some(v => v) ? C.copper : C.gray2, color: Object.values(lernAuswahl).some(v => v) ? C.black : C.textMid, border: 'none', borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, cursor: lernSpeichert ? 'not-allowed' : 'pointer' }}
+              >
+                {lernSpeichert
+                  ? '…'
+                  : `${Object.values(lernAuswahl).filter(Boolean).length} ${Object.values(lernAuswahl).filter(Boolean).length === 1 ? 'Regel' : 'Regeln'} merken`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {HelpWidget}
     </div>
