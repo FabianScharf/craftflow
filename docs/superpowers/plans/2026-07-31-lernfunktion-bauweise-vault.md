@@ -1313,7 +1313,12 @@ In der Verarbeitung der `/api/analyze`-Antwort, direkt nach `setPos(parsedPos)` 
 
 - [ ] **Step 3: Lern-Prüfung als Funktion**
 
-Neben `saveProject` (nach Zeile 400) einfügen:
+**Platzierung — wichtig:** NICHT direkt neben `saveProject` (ca. Zeile 400). Die beiden
+`useCallback`-Blöcke lesen `pos`, `kunde`, `optimMessages` und `checkMessages` in ihren
+Dependency-Arrays; diese States werden erst weiter unten im Komponentenkörper deklariert.
+Dort platziert, bricht `tsc` mit TS2448/TS2454 (Zugriff vor der Deklaration). Die Blöcke
+gehören hinter die Deklaration aller vier States (in der aktuellen Datei hinter
+`checkChatRef`). Die Auslösepunkte bleiben unverändert.
 
 ```tsx
   // Bauweise-Vault: prüft nach dem Speichern/PDF, was der Nutzer geändert hat.
