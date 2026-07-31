@@ -349,9 +349,23 @@ Schritt 5 ist der eigentliche Beweis, dass das Feature den Zweck erfüllt.
 
 ### 3. Mandantentrennung prüfen
 
-Mit einem zweiten Testkonto: Regeln von Konto A dürfen in Konto B weder im Vault
-auftauchen noch die Kalkulation beeinflussen. Achtung — alle Previews und die Produktion
-teilen dieselbe Supabase-DB (siehe Projekt-CLAUDE.md), Testdaten also hinterher aufräumen.
+Regeln von Konto A dürfen in Konto B weder im Vault auftauchen noch die Kalkulation
+beeinflussen. Das ist der wichtigste Test des Features — im SaaS-Betrieb wäre ein Leck
+hier ein Vertrauensschaden, der sich nicht reparieren lässt.
+
+**Testkonto existiert noch nicht** und muss angelegt werden. Machbar ohne Bezahlplan:
+Ein frisches Konto startet auf `solo` mit 3 Angeboten pro Monat und 14 Tagen Trial
+(`PLAN_LIMITS_ANGEBOTE` in `src/hooks/usePlan.ts:14`); Texteingabe und Kalkulation sind
+auf `solo` freigeschaltet. Für den Test brauchen wir zwei Angebote — das Limit reicht.
+Fotos und PDF-Upload wären gesperrt (ab `starter`), sind für diesen Test aber nicht nötig.
+
+Benötigt wird nur eine zweite E-Mail-Adresse für die Registrierung über `/register`
+(z. B. eine Plus-Adresse wie `anfrage+vaulttest@fscrafted.de`, falls der Mailanbieter das
+unterstützt — sonst eine echte zweite Adresse).
+
+**Achtung:** Alle Previews und die Produktion teilen dieselbe Supabase-DB (siehe
+Projekt-CLAUDE.md). Das Testkonto und seine Regeln landen also auch in der Produktions-DB
+und müssen hinterher aufgeräumt werden.
 
 ## Betroffene Dateien
 
@@ -378,5 +392,7 @@ Das SQL für Tabelle und RLS-Policy muss Fabian im Supabase-Dashboard ausführen
 
 ## Offene Punkte für Fabian
 
-- SQL im Supabase-Dashboard ausführen (Tabelle + RLS-Policies).
-- Zweites Testkonto für den Mandantentrennungs-Test — vorhanden oder neu anlegen?
+- SQL im Supabase-Dashboard ausführen (Tabelle + RLS-Policies). Muss vor dem dev-Test
+  erledigt sein, sonst läuft nichts.
+- Zweites Testkonto über `/register` anlegen (zweite E-Mail-Adresse nötig). Kein
+  Bezahlplan erforderlich, `solo` genügt. Nach dem Test wieder aufräumen.
