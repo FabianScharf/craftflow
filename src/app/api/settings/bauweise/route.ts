@@ -48,15 +48,19 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from('bauweise_regeln')
       .update({
-        wenn, dann, beleg: body.beleg ?? '', quelle_text: body.quelle_text ?? '',
+        bereich, wenn, dann, beleg: body.beleg ?? '', quelle_text: body.quelle_text ?? '',
         konflikt_hinweis: false, aktiv: true, updated_at: new Date().toISOString(),
       })
       .eq('id', body.ersetztRegelId)
       .eq('user_id', user.id)
       .select(SPALTEN)
-      .single()
+      .maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ regel: data })
+    if (data) return NextResponse.json({ regel: data })
+    // Kein Treffer: die Regel wurde zwischen Kandidaten-Erzeugung und Bestätigung
+    // gelöscht (oder die id gehört nicht diesem Nutzer). Die bestätigte Regel darf
+    // deswegen nicht verloren gehen — unten normal neu anlegen. `.single()` wäre
+    // hier ein 500er gewesen und hätte die Regel verworfen.
   }
 
   const { data, error } = await supabase

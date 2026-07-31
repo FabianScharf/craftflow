@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { after } from 'next/server'
 import { baueRegelBlock, MAX_REGELN_IM_PROMPT } from './learn'
 
 // Serverseitige DB-Helfer für den Bauweise-Vault. Bewusst getrennt von
@@ -30,11 +31,16 @@ export async function regelBlockFuerNutzer(
   return { block: baueRegelBlock(regeln), ids: regeln.map(r => r.id) }
 }
 
-// Feuere-und-vergiss: darf die Antwort an den Nutzer nicht verzögern und im
-// Fehlerfall nichts kaputt machen.
+// Läuft nach dem Senden der Antwort, verzögert sie also nicht — wird von der
+// Plattform aber garantiert noch ausgeführt. Reines `void promise` wäre hier
+// falsch: Vercel friert die Function nach der Antwort ein und nicht abgewartete
+// Arbeit darf verloren gehen. Dann fehlen `gesendet_zahl`/`zuletzt_gesendet` —
+// und weil die 60er-Priorisierung auf `zuletzt_gesendet` beruht, wäre auch die
+// Auswahl der mitgeschickten Regeln still falsch.
 export function zaehleRegelnHoch(supabase: SupabaseClient, ids: string[]): void {
   if (ids.length === 0) return
-  void supabase
-    .rpc('bauweise_regeln_gesendet', { regel_ids: ids })
-    .then(() => {}, (e: unknown) => console.error('[learn] zaehleRegelnHoch:', e))
+  after(async () => {
+    const { error } = await supabase.rpc('bauweise_regeln_gesendet', { regel_ids: ids })
+    if (error) console.error('[learn] zaehleRegelnHoch:', error.message)
+  })
 }
