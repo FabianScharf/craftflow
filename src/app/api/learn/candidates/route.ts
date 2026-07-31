@@ -37,11 +37,15 @@ export async function POST(req: NextRequest) {
     if (aenderungen.length === 0 && chat.length === 0) return NextResponse.json(LEER)
 
     // ── 3. Bestehende Regeln für den Abgleich ──
-    const { data: bestehendRoh } = await supabase
+    const { data: bestehendRoh, error: bestehendErr } = await supabase
       .from('bauweise_regeln')
       .select('id, bereich, wenn')
       .eq('user_id', user.id)
       .eq('aktiv', true)
+    // Fehler hier ist nicht fatal (der Abgleich fällt dann aus), darf aber nicht
+    // spurlos verschwinden: sonst degradiert die Konflikt-Erkennung dauerhaft und
+    // still, z.B. bei einer kaputten RLS-Policy.
+    if (bestehendErr) console.error('[learn] bestehende Regeln:', bestehendErr.message)
     const bestehend = (bestehendRoh ?? []) as BestehendeRegel[]
 
     // ── 4. KI formuliert — darf nur beschreiben, was schon belegt ist ──
