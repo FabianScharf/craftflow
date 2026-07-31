@@ -22,7 +22,8 @@
 - `user_id` immer aus `supabase.auth.getUser()`, **niemals** aus dem Request-Body.
 - Rauschfilter-Schwellen exakt: Minuten ab **25 % UND 15 Minuten** absolut, Menge ab **20 %**.
 - Prompt-Obergrenze: **60** aktive Regeln. Aufräum-Hinweis im Vault-UI ab **40**.
-- Lokal läuft die App nicht (`.env.local` enthält nur leere Platzhalter). `npm run dev` nicht versuchen. Verifikation: `npm run test`, `npm run lint`, `npm run build` lokal — Funktionstest live auf der dev-Preview.
+- Lokal läuft die App nicht (`.env.local` enthält nur leere Platzhalter). `npm run dev` nicht versuchen. Verifikation lokal: `npm run test` und `npm run build` — Funktionstest live auf der dev-Preview.
+- **Lint: `npm run lint` hat im Repo KEINE saubere Basis** (Stand 2026-07-31: 513 Fehler, 9414 Warnungen, alle in Bestandsdateien wie `src/hooks/usePlan.ts`). Ein grüner Gesamt-Lint ist also kein erreichbares Ziel und darf kein Abbruchkriterium sein. Verbindlich ist stattdessen: **`npx eslint <die von dir geänderten/neuen Dateien>` muss leer ausgeben.** Bestandsfehler in fremden Dateien nicht mitreparieren — das wäre Scope-Ausweitung.
 
 ## File Structure
 
@@ -343,8 +344,8 @@ Expected: PASS — 14 Tests, `fail 0`
 
 - [ ] **Step 6: Lint prüfen**
 
-Run: `cd ~/Downloads/craftflow && npm run lint`
-Expected: keine Fehler. Falls ESLint die `.mjs`-Testdateien beanstandet (z. B. wegen `no-undef` oder Next-spezifischer Regeln), `"tests/**"` in `eslint.config.mjs` in den `globalIgnores`-Array aufnehmen — mit Kommentar `// Node-Testdateien, laufen nicht im Next-Kontext`. Nichts anderes an der Lint-Konfiguration ändern.
+Run: `cd ~/Downloads/craftflow && npx eslint src/lib/learn.ts tests/learn-diff.test.mjs`
+Expected: leere Ausgabe. Falls ESLint die `.mjs`-Testdateien beanstandet (z. B. wegen `no-undef` oder Next-spezifischer Regeln), `"tests/**"` in `eslint.config.mjs` in den `globalIgnores`-Array aufnehmen — mit Kommentar `// Node-Testdateien, laufen nicht im Next-Kontext`. Nichts anderes an der Lint-Konfiguration ändern.
 
 - [ ] **Step 7: Commit**
 
@@ -930,8 +931,8 @@ export async function DELETE(req: NextRequest) {
 
 - [ ] **Step 5: Build und Lint prüfen**
 
-Run: `cd ~/Downloads/craftflow && npm run lint && npm run build`
-Expected: beides ohne Fehler. `npm run build` ist hier der Typecheck — die Route wird lokal nicht ausgeführt.
+Run: `cd ~/Downloads/craftflow && npm run build && npx eslint <deine geaenderten Dateien>`
+Expected: Build erfolgreich, eslint-Ausgabe leer. `npm run build` ist hier der Typecheck — die Route wird lokal nicht ausgeführt.
 
 - [ ] **Step 6: Commit**
 
@@ -1042,8 +1043,8 @@ Und nach der `if (!res.ok)`-Prüfung (Zeile 217–220), sobald der Call durchgel
 
 - [ ] **Step 5: Build und Lint prüfen**
 
-Run: `cd ~/Downloads/craftflow && npm run lint && npm run build && npm run test`
-Expected: alles ohne Fehler.
+Run: `cd ~/Downloads/craftflow && npm run test && npm run build && npx eslint <deine geaenderten Dateien>`
+Expected: Tests `fail 0`, Build erfolgreich, eslint-Ausgabe leer.
 
 - [ ] **Step 6: Prüfen, dass der Block wirklich am Ende landet**
 
@@ -1209,8 +1210,8 @@ ${chatListe}`
 
 - [ ] **Step 2: Build, Lint und Tests prüfen**
 
-Run: `cd ~/Downloads/craftflow && npm run lint && npm run build && npm run test`
-Expected: alles ohne Fehler.
+Run: `cd ~/Downloads/craftflow && npm run test && npm run build && npx eslint <deine geaenderten Dateien>`
+Expected: Tests `fail 0`, Build erfolgreich, eslint-Ausgabe leer.
 
 - [ ] **Step 3: Commit**
 
@@ -1426,8 +1427,8 @@ Expected: `useRef` und `useCallback` sind in der Import-Liste. Falls nicht, erg�
 
 - [ ] **Step 7: Build, Lint und Tests prüfen**
 
-Run: `cd ~/Downloads/craftflow && npm run lint && npm run build && npm run test`
-Expected: alles ohne Fehler.
+Run: `cd ~/Downloads/craftflow && npm run test && npm run build && npx eslint <deine geaenderten Dateien>`
+Expected: Tests `fail 0`, Build erfolgreich, eslint-Ausgabe leer.
 
 - [ ] **Step 8: Commit**
 
@@ -1688,8 +1689,8 @@ import BauweiseSettings from '@/components/settings/BauweiseSettings'
 
 - [ ] **Step 4: Build, Lint und Tests prüfen**
 
-Run: `cd ~/Downloads/craftflow && npm run lint && npm run build && npm run test`
-Expected: alles ohne Fehler.
+Run: `cd ~/Downloads/craftflow && npm run test && npm run build && npx eslint <deine geaenderten Dateien>`
+Expected: Tests `fail 0`, Build erfolgreich, eslint-Ausgabe leer.
 
 - [ ] **Step 5: Commit**
 
@@ -1741,8 +1742,8 @@ Im Abschnitt „Lokale Umgebung & Testen" bei den Testwegen ergänzen:
 
 - [ ] **Step 2: Vollständige lokale Verifikation**
 
-Run: `cd ~/Downloads/craftflow && npm run test && npm run lint && npm run build`
-Expected: Tests `fail 0`, Lint ohne Fehler, Build erfolgreich. **Ausgabe tatsächlich lesen** — nicht auf Erfolg schließen, ohne sie gesehen zu haben.
+Run: `cd ~/Downloads/craftflow && npm run test && npm run build && npx eslint <deine geaenderten Dateien>`
+Expected: Tests `fail 0`, Build erfolgreich, eslint-Ausgabe auf den geaenderten Dateien leer. **Ausgabe tatsächlich lesen** — nicht auf Erfolg schließen, ohne sie gesehen zu haben.
 
 - [ ] **Step 3: Commit und auf dev pushen**
 
