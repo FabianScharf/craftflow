@@ -232,3 +232,22 @@ export function pruefeKandidaten(
   }
   return ergebnis
 }
+
+// ── Prompt-Block ───────────────────────────────────────────────────────────
+export const MAX_REGELN_IM_PROMPT = 60
+export const WARNUNG_AB_REGELN = 40
+
+// Der Block wird ans ENDE des System-Prompts gehängt und trägt einen
+// ausdrücklichen Vorrang-Satz. Beides ist funktional nötig: steht er vor dem
+// allgemeinen Fachwissen, gewinnt weiter die generische Vorgabe (z. B. 6 mm
+// HPL-Rückwand) und die gelernte Regel bleibt wirkungslos.
+export function baueRegelBlock(regeln: Array<{ bereich: string; wenn: string; dann: string }>): string {
+  if (regeln.length === 0) return ''
+  const zeilen = regeln.slice(0, MAX_REGELN_IM_PROMPT).map(r => {
+    const bedingung = (r.wenn ?? '').trim() === '' ? 'Immer' : `Wenn ${r.wenn.trim()}`
+    return `[${r.bereich}] ${bedingung} → ${(r.dann ?? '').trim()}`
+  })
+  return '\n\n## MEINE BAUWEISE — VERBINDLICHE REGELN DIESES BETRIEBS\n'
+    + zeilen.join('\n')
+    + '\nDiese Regeln haben Vorrang vor allen allgemeinen Vorgaben oben. Widerspricht eine allgemeine Vorgabe einer dieser Regeln, gilt die Regel.'
+}
