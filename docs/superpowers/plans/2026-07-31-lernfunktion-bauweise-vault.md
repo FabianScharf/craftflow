@@ -1300,6 +1300,10 @@ Bei den übrigen `useState`/`useRef`-Deklarationen der Hauptkomponente (in der N
   const [lernWenn, setLernWenn] = useState<Record<number, string>>({})
   const [lernSpeichert, setLernSpeichert] = useState(false)
   const [lernFehler, setLernFehler] = useState('')
+  // Welche Kandidaten schon erfolgreich gespeichert sind. Ohne das würde ein
+  // zweiter Versuch nach einem Teilfehler die bereits gespeicherten Regeln
+  // erneut anlegen — die POST-Route hat für neue Regeln keine Dublettenprüfung.
+  const [lernErledigt, setLernErledigt] = useState<Record<number, boolean>>({})
 ```
 
 - [ ] **Step 2: Erstvorschlag beim Analyse-Ergebnis merken**
@@ -1360,12 +1364,20 @@ gehören hinter die Deklaration aller vier States (in der aktuellen Datei hinter
     } catch (e) { console.error('[learn] pruefeLernkandidaten', e) }
   }, [lernKandidaten.length, optimMessages, checkMessages, kunde, pos])
 
+  // Anzahl der noch offenen (angehakten, nicht gespeicherten) Kandidaten —
+  // steuert Beschriftung und Aktivierung des Bestätigungsknopfes.
+  const lernOffeneAnzahl = lernKandidaten.reduce(
+    (n, _k, i) => n + (lernAuswahl[i] && !lernErledigt[i] ? 1 : 0), 0)
+
   const lernRegelnSpeichern = useCallback(async () => {
     setLernSpeichert(true)
     setLernFehler('')
+    const erledigt: Record<number, boolean> = { ...lernErledigt }
     let fehler = 0
     for (let i = 0; i < lernKandidaten.length; i++) {
-      if (!lernAuswahl[i]) continue
+      // Schon gespeicherte übersprigen: die POST-Route legt neue Regeln ohne
+      // Dublettenprüfung an, ein zweiter Versuch würde sie sonst verdoppeln.
+      if (!lernAuswahl[i] || erledigt[i]) continue
       const k = lernKandidaten[i]
       try {
         const res = await fetch('/api/settings/bauweise', {
@@ -1381,7 +1393,8 @@ gehören hinter die Deklaration aller vier States (in der aktuellen Datei hinter
             ersetztRegelId: k.aendertRegelId ?? undefined,
           }),
         })
-        if (!res.ok) fehler++
+        if (res.ok) erledigt[i] = true
+        else fehler++
       } catch (e) {
         // Einzelne Regel gescheitert — die übrigen trotzdem versuchen, statt die
         // ganze Schleife abzubrechen.
@@ -1389,20 +1402,22 @@ gehören hinter die Deklaration aller vier States (in der aktuellen Datei hinter
         fehler++
       }
     }
+    setLernErledigt(erledigt)
     setLernSpeichert(false)
     if (fehler > 0) {
       // Dialog offen lassen. Still schließen wäre die schlechteste Variante: der
       // Nutzer hat bestätigt, gespeichert wurde nichts, und er wundert sich beim
       // nächsten Angebot, warum die Regel nicht greift.
       setLernFehler(fehler === 1
-        ? 'Eine Regel konnte nicht gespeichert werden. Bitte nochmal versuchen.'
-        : `${fehler} Regeln konnten nicht gespeichert werden. Bitte nochmal versuchen.`)
+        ? 'Eine Regel konnte nicht gespeichert werden. Bitte nochmal versuchen — bereits gespeicherte werden nicht doppelt angelegt.'
+        : `${fehler} Regeln konnten nicht gespeichert werden. Bitte nochmal versuchen — bereits gespeicherte werden nicht doppelt angelegt.`)
       return
     }
     setLernKandidaten([])
     setLernAuswahl({})
     setLernWenn({})
-  }, [lernKandidaten, lernAuswahl, lernWenn])
+    setLernErledigt({})
+  }, [lernKandidaten, lernAuswahl, lernWenn, lernErledigt])
 ```
 
 - [ ] **Step 4: Auslöser einbauen**
@@ -1453,6 +1468,7 @@ ergänzen:
     setLernAuswahl({})
     setLernWenn({})
     setLernFehler('')
+    setLernErledigt({})
 ```
 
 - [ ] **Step 5: Dialog rendern**
@@ -1478,8 +1494,9 @@ Am Ende des JSX der Hauptkomponente, direkt vor `{HelpWidget}` (Zeile 3990):
                   <input
                     type="checkbox"
                     checked={!!lernAuswahl[i]}
+                    disabled={!!lernErledigt[i] || lernSpeichert}
                     onChange={() => setLernAuswahl(prev => ({ ...prev, [i]: !prev[i] }))}
-                    style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }}
+                    style={{ accentColor: C.copper, cursor: lernErledigt[i] ? 'default' : 'pointer', flexShrink: 0 }}
                   />
                   <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
                     {k.bereich.toUpperCase()}
@@ -1487,6 +1504,11 @@ Am Ende des JSX der Hauptkomponente, direkt vor `{HelpWidget}` (Zeile 3990):
                   {k.aendertRegelId && (
                     <span style={{ fontSize: 10, color: '#E0B05A', fontFamily: 'Helvetica Neue,sans-serif' }}>
                       ⚠ ändert bestehende Regel
+                    </span>
+                  )}
+                  {lernErledigt[i] && (
+                    <span style={{ fontSize: 10, color: '#5ABE6A', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                      ✓ gespeichert
                     </span>
                   )}
                 </div>
@@ -1523,12 +1545,10 @@ Am Ende des JSX der Hauptkomponente, direkt vor `{HelpWidget}` (Zeile 3990):
               </button>
               <button
                 onClick={lernRegelnSpeichern}
-                disabled={lernSpeichert || Object.values(lernAuswahl).every(v => !v)}
-                style={{ flex: 1, background: Object.values(lernAuswahl).some(v => v) ? C.copper : C.gray2, color: Object.values(lernAuswahl).some(v => v) ? C.black : C.textMid, border: 'none', borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, cursor: lernSpeichert ? 'not-allowed' : 'pointer' }}
+                disabled={lernSpeichert || lernOffeneAnzahl === 0}
+                style={{ flex: 1, background: lernOffeneAnzahl > 0 ? C.copper : C.gray2, color: lernOffeneAnzahl > 0 ? C.black : C.textMid, border: 'none', borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, cursor: lernSpeichert || lernOffeneAnzahl === 0 ? 'not-allowed' : 'pointer' }}
               >
-                {lernSpeichert
-                  ? '…'
-                  : `${Object.values(lernAuswahl).filter(Boolean).length} ${Object.values(lernAuswahl).filter(Boolean).length === 1 ? 'Regel' : 'Regeln'} merken`}
+                {lernSpeichert ? '…' : `${lernOffeneAnzahl} ${lernOffeneAnzahl === 1 ? 'Regel' : 'Regeln'} merken`}
               </button>
             </div>
           </div>
