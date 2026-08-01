@@ -1361,8 +1361,24 @@ gehören hinter die Deklaration aller vier States (in der aktuellen Datei hinter
       // bewusst NICHT — dem soll der Nutzer aktiv zustimmen.
       setLernAuswahl(Object.fromEntries(k.map((x, i) => [i, x.aendertRegelId === null])))
       setLernWenn(Object.fromEntries(k.map((x, i) => [i, x.wenn])))
+      // Zweite Absicherung gegen stehengebliebene „schon gespeichert"-Marken:
+      // ein frischer Kandidatensatz startet immer ohne Erledigt-Flags.
+      setLernErledigt({})
     } catch (e) { console.error('[learn] pruefeLernkandidaten', e) }
   }, [lernKandidaten.length, optimMessages, checkMessages, kunde, pos])
+
+  // Ein einziger Weg, den Dialog zu schließen — inklusive lernErledigt. Bliebe
+  // ein „schon gespeichert" auf Index n stehen, würde ein späterer, völlig
+  // anderer Kandidat auf demselben Index als erledigt gelten und beim Speichern
+  // stillschweigend übersprungen. Still nicht gespeichert ist schlimmer als
+  // doppelt gespeichert.
+  const lernDialogSchliessen = useCallback(() => {
+    setLernKandidaten([])
+    setLernAuswahl({})
+    setLernWenn({})
+    setLernFehler('')
+    setLernErledigt({})
+  }, [])
 
   // Anzahl der noch offenen (angehakten, nicht gespeicherten) Kandidaten —
   // steuert Beschriftung und Aktivierung des Bestätigungsknopfes.
@@ -1413,11 +1429,8 @@ gehören hinter die Deklaration aller vier States (in der aktuellen Datei hinter
         : `${fehler} Regeln konnten nicht gespeichert werden. Bitte nochmal versuchen — bereits gespeicherte werden nicht doppelt angelegt.`)
       return
     }
-    setLernKandidaten([])
-    setLernAuswahl({})
-    setLernWenn({})
-    setLernErledigt({})
-  }, [lernKandidaten, lernAuswahl, lernWenn, lernErledigt])
+    lernDialogSchliessen()
+  }, [lernKandidaten, lernAuswahl, lernWenn, lernErledigt, lernDialogSchliessen])
 ```
 
 - [ ] **Step 4: Auslöser einbauen**
@@ -1478,7 +1491,7 @@ Am Ende des JSX der Hauptkomponente, direkt vor `{HelpWidget}` (Zeile 3990):
 ```tsx
       {lernKandidaten.length > 0 && (
         <div
-          onClick={e => { if (e.target === e.currentTarget && !lernSpeichert) { setLernKandidaten([]); setLernFehler('') } }}
+          onClick={e => { if (e.target === e.currentTarget && !lernSpeichert) lernDialogSchliessen() }}
           style={{ position: 'fixed', inset: 0, background: '#000000CC', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 16 }}>
           <div style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 4, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: 20 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 4 }}>
@@ -1537,7 +1550,7 @@ Am Ende des JSX der Hauptkomponente, direkt vor `{HelpWidget}` (Zeile 3990):
 
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
               <button
-                onClick={() => { setLernKandidaten([]); setLernFehler('') }}
+                onClick={lernDialogSchliessen}
                 disabled={lernSpeichert}
                 style={{ flex: 1, background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, cursor: lernSpeichert ? 'not-allowed' : 'pointer' }}
               >
