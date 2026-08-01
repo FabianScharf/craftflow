@@ -437,6 +437,7 @@ export default function CraftFlow() {
     setLernAuswahl({})
     setLernWenn({})
     setLernFehler('')
+    setLernErledigt({})
   }
 
   const [kunden, setKunden] = useState<KundeDB[]>(ladeKunden)
@@ -514,6 +515,10 @@ export default function CraftFlow() {
   const [lernWenn, setLernWenn] = useState<Record<number, string>>({})
   const [lernSpeichert, setLernSpeichert] = useState(false)
   const [lernFehler, setLernFehler] = useState('')
+  // Welche Kandidaten schon erfolgreich gespeichert sind. Ohne das würde ein
+  // zweiter Versuch nach einem Teilfehler die bereits gespeicherten Regeln
+  // erneut anlegen — die POST-Route hat für neue Regeln keine Dublettenprüfung.
+  const [lernErledigt, setLernErledigt] = useState<Record<number, boolean>>({})
   const [versions, setVersions] = useState<OfferVersion[]>([])
   const [versionsOpen, setVersionsOpen] = useState(false)
   const optimMediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -569,12 +574,20 @@ export default function CraftFlow() {
     } catch (e) { console.error('[learn] pruefeLernkandidaten', e) }
   }, [lernKandidaten.length, optimMessages, checkMessages, kunde, pos])
 
+  // Anzahl der noch offenen (angehakten, nicht gespeicherten) Kandidaten —
+  // steuert Beschriftung und Aktivierung des Bestätigungsknopfes.
+  const lernOffeneAnzahl = lernKandidaten.reduce(
+    (n, _k, i) => n + (lernAuswahl[i] && !lernErledigt[i] ? 1 : 0), 0)
+
   const lernRegelnSpeichern = useCallback(async () => {
     setLernSpeichert(true)
     setLernFehler('')
+    const erledigt: Record<number, boolean> = { ...lernErledigt }
     let fehler = 0
     for (let i = 0; i < lernKandidaten.length; i++) {
-      if (!lernAuswahl[i]) continue
+      // Schon gespeicherte überspringen: die POST-Route legt neue Regeln ohne
+      // Dublettenprüfung an, ein zweiter Versuch würde sie sonst verdoppeln.
+      if (!lernAuswahl[i] || erledigt[i]) continue
       const k = lernKandidaten[i]
       try {
         const res = await fetch('/api/settings/bauweise', {
@@ -590,7 +603,8 @@ export default function CraftFlow() {
             ersetztRegelId: k.aendertRegelId ?? undefined,
           }),
         })
-        if (!res.ok) fehler++
+        if (res.ok) erledigt[i] = true
+        else fehler++
       } catch (e) {
         // Einzelne Regel gescheitert — die übrigen trotzdem versuchen, statt die
         // ganze Schleife abzubrechen.
@@ -598,20 +612,22 @@ export default function CraftFlow() {
         fehler++
       }
     }
+    setLernErledigt(erledigt)
     setLernSpeichert(false)
     if (fehler > 0) {
       // Dialog offen lassen. Still schließen wäre die schlechteste Variante: der
       // Nutzer hat bestätigt, gespeichert wurde nichts, und er wundert sich beim
       // nächsten Angebot, warum die Regel nicht greift.
       setLernFehler(fehler === 1
-        ? 'Eine Regel konnte nicht gespeichert werden. Bitte nochmal versuchen.'
-        : `${fehler} Regeln konnten nicht gespeichert werden. Bitte nochmal versuchen.`)
+        ? 'Eine Regel konnte nicht gespeichert werden. Bitte nochmal versuchen — bereits gespeicherte werden nicht doppelt angelegt.'
+        : `${fehler} Regeln konnten nicht gespeichert werden. Bitte nochmal versuchen — bereits gespeicherte werden nicht doppelt angelegt.`)
       return
     }
     setLernKandidaten([])
     setLernAuswahl({})
     setLernWenn({})
-  }, [lernKandidaten, lernAuswahl, lernWenn])
+    setLernErledigt({})
+  }, [lernKandidaten, lernAuswahl, lernWenn, lernErledigt])
 
   // ── Help-Assistent ──────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false)
@@ -974,6 +990,7 @@ export default function CraftFlow() {
     setLernAuswahl({})
     setLernWenn({})
     setLernFehler('')
+    setLernErledigt({})
     setScreen('start')
   }, [nummernPrefix, nummernNaechste, dokEinleitung])
 
@@ -4123,8 +4140,9 @@ export default function CraftFlow() {
                   <input
                     type="checkbox"
                     checked={!!lernAuswahl[i]}
+                    disabled={!!lernErledigt[i] || lernSpeichert}
                     onChange={() => setLernAuswahl(prev => ({ ...prev, [i]: !prev[i] }))}
-                    style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }}
+                    style={{ accentColor: C.copper, cursor: lernErledigt[i] ? 'default' : 'pointer', flexShrink: 0 }}
                   />
                   <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
                     {k.bereich.toUpperCase()}
@@ -4132,6 +4150,11 @@ export default function CraftFlow() {
                   {k.aendertRegelId && (
                     <span style={{ fontSize: 10, color: '#E0B05A', fontFamily: 'Helvetica Neue,sans-serif' }}>
                       ⚠ ändert bestehende Regel
+                    </span>
+                  )}
+                  {lernErledigt[i] && (
+                    <span style={{ fontSize: 10, color: '#5ABE6A', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                      ✓ gespeichert
                     </span>
                   )}
                 </div>
@@ -4168,12 +4191,10 @@ export default function CraftFlow() {
               </button>
               <button
                 onClick={lernRegelnSpeichern}
-                disabled={lernSpeichert || Object.values(lernAuswahl).every(v => !v)}
-                style={{ flex: 1, background: Object.values(lernAuswahl).some(v => v) ? C.copper : C.gray2, color: Object.values(lernAuswahl).some(v => v) ? C.black : C.textMid, border: 'none', borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, cursor: lernSpeichert ? 'not-allowed' : 'pointer' }}
+                disabled={lernSpeichert || lernOffeneAnzahl === 0}
+                style={{ flex: 1, background: lernOffeneAnzahl > 0 ? C.copper : C.gray2, color: lernOffeneAnzahl > 0 ? C.black : C.textMid, border: 'none', borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, cursor: lernSpeichert || lernOffeneAnzahl === 0 ? 'not-allowed' : 'pointer' }}
               >
-                {lernSpeichert
-                  ? '…'
-                  : `${Object.values(lernAuswahl).filter(Boolean).length} ${Object.values(lernAuswahl).filter(Boolean).length === 1 ? 'Regel' : 'Regeln'} merken`}
+                {lernSpeichert ? '…' : `${lernOffeneAnzahl} ${lernOffeneAnzahl === 1 ? 'Regel' : 'Regeln'} merken`}
               </button>
             </div>
           </div>
