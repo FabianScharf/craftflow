@@ -76,7 +76,7 @@ ungefragt auf `main`.
 - Echte Keys liegen ausschließlich auf Vercel. **Deployen braucht sie nicht** (läuft
   über GitHub-Push, Vercel baut mit seinen eigenen Keys).
 
-### Zwei bewährte Testwege
+### Drei bewährte Testwege
 1. **Reine Logik ohne Keys/LLM:** Die Preisfunktionen in `src/lib/types.ts` und die
    Nachbearbeitung sind pure Funktionen → in ein Node-Skript kopieren, mit festen
    Eingaben durchrechnen. Bester Weg für exakte Zahlen-Plausibilität.
@@ -99,6 +99,11 @@ ungefragt auf `main`.
      steuern — sauberer als UI-Klicken.
    - `/api/analyze` und `/api/optimize` haben keine eigene Auth-Prüfung, brauchen
      aber die Session-Cookies (Middleware schützt alles außer `PUBLIC_PATHS`).
+3. **Reine Logik mit echten Tests:** `npm run test` führt `tests/*.test.mjs` über Nodes
+   eigenen Test-Runner aus. Node 24 führt die TypeScript-Dateien direkt aus (Type
+   Stripping) — deshalb sind **keine** Test-Pakete installiert und `src/lib/learn.ts`
+   importiert absichtlich nichts. Alles, was Supabase braucht, gehört nach
+   `src/lib/bauweise.ts`, sonst sind die Tests nicht mehr lauffähig.
 
 ## Kalkulations-Engine — verbindliche Invarianten
 - Preis pro Position: Material `= Σ menge·EK·(1+aufschlag)`, Lohn
@@ -113,6 +118,18 @@ ungefragt auf `main`.
   (per `bezeichnung` gekeyt), mit Anti-Doppelzählungs-Regel im Prompt.
 - **Deaktivierte** Kostenstellen werden komplett ausgeschlossen (Frontend sendet
   `deaktivierteKostenstellen`); kein Rückfall mehr auf den Standardsatz.
+- **Bauweise-Vault** (`bauweise_regeln`, pro `user_id`): gelernte Wenn-Dann-Regeln des
+  Nutzers werden **serverseitig** geladen und als **letzter** Block an den System-Prompt
+  von analyze und optimize gehängt, mit ausdrücklichem Vorrang-Satz. Reihenfolge ist
+  funktional — vor dem Standardwissen wäre der Block wirkungslos.
+- Der Vault beeinflusst **nie** `vkStunde`, `aufschlag` oder Preise. Nur Bauweise,
+  Material, Konstruktion, Zeitgefühl.
+- Der Vault wird **nie** über Nutzer hinweg aggregiert oder geteilt — strikt getrennt von
+  `benchmark_zustimmung` / `include_in_benchmark`.
+- Regelkandidaten aus der KI haben **Belegpflicht**: ohne gültigen Verweis auf einen
+  Code-Diff-Eintrag oder ein wörtliches Chat-Zitat werden sie verworfen
+  (`pruefeKandidaten` in `src/lib/learn.ts`). Gleiche Haltung wie bei den KI-Zahlen.
+- Lernen darf Speichern und PDF-Export **nie** blockieren.
 
 ## Settings / Kostenstellen (Regeln & Route)
 - **15 Standard-Kostenstellen:** nicht löschbar, nicht umbenennbar — nur Betrag
