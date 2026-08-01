@@ -26,6 +26,7 @@ export default function BauweiseSettings() {
   const [neuWenn, setNeuWenn] = useState('')
   const [neuDann, setNeuDann] = useState('')
   const [neuFehler, setNeuFehler] = useState('')
+  const [listenFehler, setListenFehler] = useState('')
 
   useEffect(() => { loadRegeln() }, [])
 
@@ -54,22 +55,36 @@ export default function BauweiseSettings() {
       .map(r => r.id),
   )
 
+  // Jede Schreiboperation muss ihren Erfolg prüfen. Ein stiller Fehlschlag ist
+  // hier besonders heimtückisch: die Eingabefelder zeigen weiter den getippten
+  // Text, der Nutzer hält die Regel für gespeichert — und wundert sich beim
+  // nächsten Angebot, warum sie nicht greift.
   const aendern = async (id: string, patch: { wenn?: string; dann?: string; aktiv?: boolean }) => {
-    await fetch('/api/settings/bauweise', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...patch }),
-    })
+    setListenFehler('')
+    try {
+      const res = await fetch('/api/settings/bauweise', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...patch }),
+      })
+      if (!res.ok) setListenFehler('Änderung konnte nicht gespeichert werden.')
+    } catch { setListenFehler('Änderung konnte nicht gespeichert werden.') }
+    // Immer neu laden: so zeigt die Liste im Fehlerfall wieder den echten
+    // Datenbankstand statt der nicht gespeicherten Eingabe.
     void loadRegeln()
   }
 
   const loeschen = async (id: string) => {
     if (!confirm('Regel wirklich löschen?')) return
-    await fetch('/api/settings/bauweise', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    setListenFehler('')
+    try {
+      const res = await fetch('/api/settings/bauweise', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (!res.ok) setListenFehler('Regel konnte nicht gelöscht werden.')
+    } catch { setListenFehler('Regel konnte nicht gelöscht werden.') }
     void loadRegeln()
   }
 
@@ -79,21 +94,32 @@ export default function BauweiseSettings() {
     // gleichem Bereich und gleicher Bedingung, aber widersprüchlichem "Dann"
     // entstehen — die Route selbst prüft das bei manuell angelegten Regeln
     // nicht. Lieber hier blocken und zur bestehenden Regel schicken, als der
-    // KI zwei widersprüchliche Vorgaben mitzugeben.
-    const dupe = regeln.find(r => istGleicheRegel(r, { bereich: neuBereich, wenn: neuWenn }))
+    // KI zwei widersprüchliche Vorgaben mitzugeben. Nur AKTIVE Regeln zählen
+    // als Konflikt — eine bereits abgeschaltete Regel hat keine Wirkung auf
+    // die KI und darf das Anlegen einer neuen, aktiven Regel nicht blockieren.
+    const dupe = aktive.find(r => istGleicheRegel(r, { bereich: neuBereich, wenn: neuWenn }))
     if (dupe) {
       setNeuFehler(
-        `Für „${neuBereich}"${neuWenn.trim() ? ` bei „${neuWenn.trim()}"` : ' (gilt immer)'} gibt es schon eine Regel `
+        `Für „${neuBereich}"${neuWenn.trim() ? ` bei „${neuWenn.trim()}"` : ' (gilt immer)'} gibt es schon eine aktive Regel `
         + `(„${dupe.dann}"). Bitte bearbeite diese Regel oben, statt eine zweite, widersprüchliche anzulegen.`,
       )
       return
     }
     setNeuFehler('')
-    await fetch('/api/settings/bauweise', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bereich: neuBereich, wenn: neuWenn, dann: neuDann, herkunft: 'manuell' }),
-    })
+    let ok = false
+    try {
+      const res = await fetch('/api/settings/bauweise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bereich: neuBereich, wenn: neuWenn, dann: neuDann, herkunft: 'manuell' }),
+      })
+      ok = res.ok
+    } catch { ok = false }
+    if (!ok) {
+      // Eingabe stehen lassen, damit der Nutzer sie nicht neu tippen muss.
+      setNeuFehler('Regel konnte nicht gespeichert werden. Bitte nochmal versuchen.')
+      return
+    }
     setNeuWenn(''); setNeuDann(''); setNeuOffen(false)
     void loadRegeln()
   }
@@ -116,6 +142,10 @@ export default function BauweiseSettings() {
           Du hast {aktive.length} aktive Regeln. Ab {MAX_REGELN_IM_PROMPT} werden nicht mehr alle
           mitgeschickt — räume am besten auf, was nicht mehr stimmt.
         </div>
+      )}
+
+      {listenFehler && (
+        <div style={{ fontSize: 11, color: '#E05A5A', marginBottom: 14, lineHeight: 1.5 }}>{listenFehler}</div>
       )}
 
       {regeln.length === 0 && (
