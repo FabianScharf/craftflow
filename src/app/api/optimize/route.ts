@@ -234,7 +234,8 @@ export async function POST(req: NextRequest) {
       const err = await res.text()
       throw new Error(`Claude ${res.status}: ${err.slice(0, 300)}`)
     }
-    if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds)
+    try { if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds) }
+    catch (e) { console.error('[learn] zaehleRegelnHoch:', e) }
 
     const data = await res.json() as { content?: Array<{ text?: string }> }
     const raw = data.content?.[0]?.text ?? ''

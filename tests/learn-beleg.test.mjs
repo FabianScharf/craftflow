@@ -118,3 +118,13 @@ test('Nicht-Array als Kandidatenliste bricht nicht', () => {
   assert.deepEqual(pruefeKandidaten(null, AEND, CHAT, [], []), [])
   assert.deepEqual(pruefeKandidaten('kaputt', AEND, CHAT, [], []), [])
 })
+
+test('Zwei Kandidaten mit gleichem bereich+wenn im selben Durchlauf: nur der erste bleibt', () => {
+  const k = [
+    { bereich: 'Material', wenn: 'Korpus mit Rückwand', dann: 'Rückwand 8mm Multiplex', belegt_durch: { art: 'diff', nr: 1 } },
+    { bereich: 'material', wenn: 'Korpus mit Rückwand.', dann: 'Rückwand 6mm HPL', belegt_durch: { art: 'zitat', text: 'nie HPL' } },
+  ]
+  const r = pruefeKandidaten(k, AEND, CHAT, [], [])
+  assert.equal(r.length, 1)
+  assert.equal(r[0].dann, 'Rückwand 8mm Multiplex')
+})

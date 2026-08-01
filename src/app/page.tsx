@@ -583,6 +583,10 @@ export default function CraftFlow() {
   // stillschweigend übersprungen. Still nicht gespeichert ist schlimmer als
   // doppelt gespeichert.
   const lernDialogSchliessen = useCallback(() => {
+    // Pro Angebot wird genau einmal gefragt. Ohne dieses Leeren käme der Dialog
+    // bei jedem weiteren Speichern desselben Angebots erneut — samt einem
+    // weiteren kostenpflichtigen KI-Aufruf.
+    kiVorschlagRef.current = null
     setLernKandidaten([])
     setLernAuswahl({})
     setLernWenn({})
@@ -1502,6 +1506,10 @@ export default function CraftFlow() {
       const json = await res.json()
       if (json.data?.positionen) setPos(json.data.positionen)
       if (json.data?.kunde) setKunde(json.data.kunde)
+      // Ein Rollback ist keine Bauweise-Gewohnheit, sondern eine Rücknahme —
+      // der alte KI-Erstvorschlag darf danach nicht mehr als Vergleichsbasis
+      // dienen, sonst würde ein Zurückrudern als "gelernte Regel" erscheinen.
+      kiVorschlagRef.current = null
     } catch (e) { console.error('[restoreVersion]', e) }
   }, [])
 

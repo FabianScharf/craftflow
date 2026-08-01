@@ -122,6 +122,20 @@ ${chatListe}`
       : []
     const geprueft = pruefeKandidaten(rohKandidaten, aenderungen, chat, kundenWoerter, bestehend)
 
+    // Regeln, zu denen es einen widersprechenden Kandidaten gibt, markieren.
+    // Das ist laut Design das verlässlichste Signal dafür, dass eine Regel nicht
+    // mehr greift — der Nutzer sieht es im Vault. Fehler hier sind nicht fatal:
+    // die Kandidaten sind trotzdem brauchbar.
+    const konfliktIds = [...new Set(geprueft.map(k => k.aendertRegelId).filter((id): id is string => !!id))]
+    if (konfliktIds.length > 0) {
+      const { error: markErr } = await supabase
+        .from('bauweise_regeln')
+        .update({ konflikt_hinweis: true })
+        .in('id', konfliktIds)
+        .eq('user_id', user.id)
+      if (markErr) console.error('[learn] konflikt_hinweis:', markErr.message)
+    }
+
     const titel = (body.projektTitel ?? '').trim()
     const datum = new Date().toLocaleDateString('de-DE')
     const quelle = titel ? `gelernt am ${datum} aus Angebot „${titel}"` : `gelernt am ${datum}`

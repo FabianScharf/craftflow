@@ -121,6 +121,9 @@ export default function BauweiseSettings() {
       return
     }
     setNeuWenn(''); setNeuDann(''); setNeuOffen(false)
+    // Ein erfolgreiches Anlegen räumt einen alten PUT/DELETE-Fehler ab — sonst
+    // stünde die Fehlermeldung über einer Liste, die gerade sauber aktualisiert wurde.
+    setListenFehler('')
     void loadRegeln()
   }
 

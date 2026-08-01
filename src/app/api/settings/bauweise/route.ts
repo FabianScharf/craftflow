@@ -8,6 +8,13 @@ function pruefeBereich(wert: unknown): Bereich | null {
   return BEREICHE.find(b => normalisiere(b) === normalisiere(String(wert ?? ''))) ?? null
 }
 
+// Beide Felder landen wortwörtlich in jedem künftigen System-Prompt. Der
+// KI-Pfad ist über max_tokens begrenzt, der Handeingabe-Pfad nicht — deshalb
+// hier kappen statt ablehnen: der Nutzer soll seine Eingabe nicht wegen einer
+// Längengrenze verlieren.
+const MAX_WENN_ZEICHEN = 300
+const MAX_DANN_ZEICHEN = 400
+
 export async function GET() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
@@ -37,9 +44,9 @@ export async function POST(req: NextRequest) {
 
   const bereich = pruefeBereich(body.bereich)
   if (!bereich) return NextResponse.json({ error: 'Unbekannter Bereich' }, { status: 400 })
-  const dann = (body.dann ?? '').trim()
+  const dann = (body.dann ?? '').trim().slice(0, MAX_DANN_ZEICHEN)
   if (!dann) return NextResponse.json({ error: 'dann erforderlich' }, { status: 400 })
-  const wenn = (body.wenn ?? '').trim()
+  const wenn = (body.wenn ?? '').trim().slice(0, MAX_WENN_ZEICHEN)
   const herkunft = body.herkunft === 'manuell' ? 'manuell' : 'gelernt'
 
   // Ersetzt der Kandidat eine bestehende Regel, wird diese aktualisiert statt
@@ -85,9 +92,9 @@ export async function PUT(req: NextRequest) {
   if (!body.id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if (body.wenn != null) patch.wenn = body.wenn.trim()
+  if (body.wenn != null) patch.wenn = body.wenn.trim().slice(0, MAX_WENN_ZEICHEN)
   if (body.dann != null) {
-    const dann = body.dann.trim()
+    const dann = body.dann.trim().slice(0, MAX_DANN_ZEICHEN)
     if (!dann) return NextResponse.json({ error: 'dann darf nicht leer sein' }, { status: 400 })
     patch.dann = dann
   }

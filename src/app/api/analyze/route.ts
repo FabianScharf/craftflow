@@ -931,7 +931,8 @@ export async function POST(req: NextRequest) {
         { status: 502 }
       )
     }
-    if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds)
+    try { if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds) }
+    catch (e) { console.error('[learn] zaehleRegelnHoch:', e) }
 
     const data = await response.json()
     // Extended thinking liefert mehrere Content-Blöcke — wir nehmen nur den text-Block

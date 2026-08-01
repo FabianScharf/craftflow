@@ -62,12 +62,14 @@ export function diffOffer(kiVorschlag: LernOffer, endstand: LernOffer): Aenderun
   const roh: AenderungRoh[] = []
   const alt = kiVorschlag?.positionen ?? []
   const neu = endstand?.positionen ?? []
+  let gepaart = 0
 
   for (const posAlt of alt) {
     if (posAlt.id == null) continue
     const posNeu = neu.find(x => x.id === posAlt.id)
     // Gelöschte Position sagt nichts über Bauweise aus → ignorieren.
     if (!posNeu) continue
+    gepaart++
     const titel = posNeu.titel ?? posAlt.titel ?? ''
 
     // ── Material: erst über id paaren, dann über normalisierte Bezeichnung ──
@@ -124,6 +126,14 @@ export function diffOffer(kiVorschlag: LernOffer, endstand: LernOffer): Aenderun
         roh.push({ art: 'kostenstelle_neu', position: titel, kostenstelle: ks })
       }
     }
+  }
+
+  // Positionen werden strikt über die id gepaart. Werden Positionen irgendwann
+  // renummeriert, findet keine einzige Paarung statt — der Diff bleibt leer,
+  // ohne dass sich das von "nichts zu lernen" unterscheiden ließe. Darum hier
+  // ausdrücklich warnen statt still zu bleiben.
+  if (alt.length > 0 && gepaart === 0) {
+    console.warn('[learn] keine Position gepaart — Diff leer')
   }
 
   return roh.map((a, i) => ({ ...a, nr: i + 1 }) as Aenderung)
@@ -202,6 +212,7 @@ export function pruefeKandidaten(
   // Mindestlänge 3, damit kurze Kürzel wie "AG" nicht halbe Regeltexte treffen.
   const kundenNorm = kundenWoerter.map(normalisiere).filter(w => w.length >= 3)
   const ergebnis: GepruefterKandidat[] = []
+  const gesehen = new Set<string>()
 
   for (const roh of kandidaten) {
     const k = roh as Partial<Kandidat> | null
@@ -226,6 +237,13 @@ export function pruefeKandidaten(
     const wenn = String(k.wenn ?? '').trim()
     const inhalt = normalisiere(`${wenn} ${k.dann}`)
     if (kundenNorm.some(w => inhalt.includes(w))) continue
+
+    // Innerhalb eines Durchlaufs nur ein Kandidat je bereich+wenn — sonst landen
+    // zwei Regeln mit gleichem Schlüssel und womöglich widersprüchlichem "dann"
+    // im Vault.
+    const schluessel = `${bereich}|${normalisiere(wenn)}`
+    if (gesehen.has(schluessel)) continue
+    gesehen.add(schluessel)
 
     const bestehend = bestehendeRegeln.find(r => istGleicheRegel(r, { bereich, wenn }))
     ergebnis.push({ bereich, wenn, dann: k.dann.trim(), belegText, aendertRegelId: bestehend?.id ?? null })

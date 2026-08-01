@@ -21,6 +21,34 @@ create table if not exists bauweise_regeln (
 
 create index if not exists bauweise_regeln_user_idx on bauweise_regeln (user_id, aktiv);
 
+-- updated_at hat keinen Trigger — wird bewusst explizit von den Routes gesetzt
+-- (POST/PUT in src/app/api/settings/bauweise/route.ts), nicht automatisch.
+comment on column bauweise_regeln.updated_at is
+  'Kein DB-Trigger. Wird explizit von den Routes (POST/PUT /api/settings/bauweise) gesetzt.';
+
+-- Check-Constraints als Verteidigung in der Tiefe hinter der Routen-Validierung
+-- (pruefeBereich in src/app/api/settings/bauweise/route.ts). Idempotent: nur
+-- anlegen, wenn noch nicht vorhanden, damit das Skript gefahrlos erneut
+-- ausgeführt werden kann.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'bauweise_regeln_bereich_check'
+  ) then
+    alter table bauweise_regeln
+      add constraint bauweise_regeln_bereich_check
+      check (bereich in ('Material', 'Konstruktion', 'Zeit', 'Oberfläche', 'Montage', 'Sonstiges'));
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'bauweise_regeln_herkunft_check'
+  ) then
+    alter table bauweise_regeln
+      add constraint bauweise_regeln_herkunft_check
+      check (herkunft in ('gelernt', 'manuell'));
+  end if;
+end $$;
+
 alter table bauweise_regeln enable row level security;
 
 drop policy if exists "eigene Regeln lesen"   on bauweise_regeln;
@@ -39,6 +67,7 @@ create or replace function bauweise_regeln_gesendet(regel_ids uuid[])
 returns void
 language sql
 security invoker
+set search_path = public
 as $$
   update bauweise_regeln
      set gesendet_zahl    = gesendet_zahl + 1,
