@@ -1631,6 +1631,8 @@ export default function BauweiseSettings() {
   const [neuBereich, setNeuBereich] = useState<string>(BEREICHE[0])
   const [neuWenn, setNeuWenn] = useState('')
   const [neuDann, setNeuDann] = useState('')
+  const [neuFehler, setNeuFehler] = useState('')
+  const [listenFehler, setListenFehler] = useState('')
 
   const laden = useCallback(async () => {
     const res = await fetch('/api/settings/bauweise')
@@ -1657,32 +1659,56 @@ export default function BauweiseSettings() {
       .map(r => r.id),
   )
 
+  // Jede Schreiboperation muss ihren Erfolg pruefen. Ein stiller Fehlschlag ist
+  // hier besonders heimtueckisch: die Eingabefelder zeigen weiter den getippten
+  // Text, der Nutzer haelt die Regel fuer gespeichert — und wundert sich beim
+  // naechsten Angebot, warum sie nicht greift.
   const aendern = async (id: string, patch: { wenn?: string; dann?: string; aktiv?: boolean }) => {
-    await fetch('/api/settings/bauweise', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...patch }),
-    })
+    setListenFehler('')
+    try {
+      const res = await fetch('/api/settings/bauweise', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...patch }),
+      })
+      if (!res.ok) setListenFehler('Änderung konnte nicht gespeichert werden.')
+    } catch { setListenFehler('Änderung konnte nicht gespeichert werden.') }
+    // Immer neu laden: so zeigt die Liste im Fehlerfall wieder den echten
+    // Datenbankstand statt der nicht gespeicherten Eingabe.
     void laden()
   }
 
   const loeschen = async (id: string) => {
     if (!confirm('Regel wirklich löschen?')) return
-    await fetch('/api/settings/bauweise', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    setListenFehler('')
+    try {
+      const res = await fetch('/api/settings/bauweise', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (!res.ok) setListenFehler('Regel konnte nicht gelöscht werden.')
+    } catch { setListenFehler('Regel konnte nicht gelöscht werden.') }
     void laden()
   }
 
   const anlegen = async () => {
     if (!neuDann.trim()) return
-    await fetch('/api/settings/bauweise', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bereich: neuBereich, wenn: neuWenn, dann: neuDann, herkunft: 'manuell' }),
-    })
+    setNeuFehler('')
+    let ok = false
+    try {
+      const res = await fetch('/api/settings/bauweise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bereich: neuBereich, wenn: neuWenn, dann: neuDann, herkunft: 'manuell' }),
+      })
+      ok = res.ok
+    } catch { ok = false }
+    if (!ok) {
+      // Eingabe stehen lassen, damit der Nutzer sie nicht neu tippen muss.
+      setNeuFehler('Regel konnte nicht gespeichert werden. Bitte nochmal versuchen.')
+      return
+    }
     setNeuWenn(''); setNeuDann(''); setNeuOffen(false)
     void laden()
   }
