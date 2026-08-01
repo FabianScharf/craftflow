@@ -7,6 +7,7 @@ import { PlanGate } from '@/components/PlanGate'
 
 import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
 import { EmailSettings } from '@/components/settings/EmailSettings'
+import BauweiseSettings from '@/components/settings/BauweiseSettings'
 import { type Plan, usePlan } from '@/hooks/usePlan'
 
 const C = {
@@ -78,7 +79,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 
 export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse } = usePlan()
-  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
   const [bpMsg, setBpMsg] = useState('')
@@ -441,6 +442,7 @@ export default function SettingsPage() {
     { id: 'briefpapier',      label: 'Briefpapier',     icon: '📄' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
+    { id: 'bauweise',         label: 'Meine Bauweise',  icon: '🧠' },
     { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' as Plan },
     { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'pro'     as Plan },
     { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
@@ -1099,6 +1101,11 @@ export default function SettingsPage() {
                 >+ Neue Gruppe</button>
               )}
             </div>
+          )}
+
+          {/* BEREICH — MEINE BAUWEISE */}
+          {section === 'bauweise' && (
+            <BauweiseSettings />
           )}
 
           {/* BEREICH 5 — LIEFERANTEN */}
