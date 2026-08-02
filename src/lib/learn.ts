@@ -195,9 +195,20 @@ export function enthaeltWortfolge(nachrichtNorm: string, zitatNorm: string): boo
 // Bewusst exakter Vergleich nach Normalisierung, kein unscharfes Matching:
 // ein Fehltreffer würde die falsche Regel überschreiben, und Ähnlichkeits-
 // schwellen sind nicht sinnvoll testbar.
+//
+// Ausnahme: Ein leeres `wenn` („gilt immer") ist KEINE Identität. Ein Bereich
+// enthält viele unabhängige Immer-Regeln — „Rückwand immer Multiplex" und
+// „Kanten immer ABS" sind beide Material und beide immer, aber verschiedene
+// Regeln. Würden sie als dieselbe gelten, gäbe es pro Bereich nur eine einzige
+// Immer-Regel, also sechs im ganzen Betrieb. Preis dieser Entscheidung: eine
+// Immer-Regel wird nie als „ersetzt bestehende" erkannt; ändert der Nutzer
+// seine Meinung, entsteht eine zweite, die er im Vault selbst löscht. Sichtbar
+// aufräumen ist besser als still verlieren.
 export function istGleicheRegel(a: { bereich: string; wenn: string }, b: { bereich: string; wenn: string }): boolean {
-  return normalisiere(a.bereich) === normalisiere(b.bereich)
-    && normalisiere(a.wenn) === normalisiere(b.wenn)
+  const wennA = normalisiere(a.wenn)
+  const wennB = normalisiere(b.wenn)
+  if (wennA === '' || wennB === '') return false
+  return normalisiere(a.bereich) === normalisiere(b.bereich) && wennA === wennB
 }
 
 export function pruefeKandidaten(
@@ -241,7 +252,12 @@ export function pruefeKandidaten(
     // Innerhalb eines Durchlaufs nur ein Kandidat je bereich+wenn — sonst landen
     // zwei Regeln mit gleichem Schlüssel und womöglich widersprüchlichem "dann"
     // im Vault.
-    const schluessel = `${bereich}|${normalisiere(wenn)}`
+    // Bei „gilt immer" (leeres wenn) unterscheidet erst das `dann` die Regeln —
+    // sonst fielen zwei verschiedene Immer-Regeln desselben Bereichs zusammen.
+    const wennNorm = normalisiere(wenn)
+    const schluessel = wennNorm === ''
+      ? `${bereich}||${normalisiere(k.dann)}`
+      : `${bereich}|${wennNorm}`
     if (gesehen.has(schluessel)) continue
     gesehen.add(schluessel)
 

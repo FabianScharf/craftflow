@@ -471,9 +471,12 @@ test('Kandidat, der eine bestehende Regel ändert, wird markiert', () => {
   assert.equal(pruefeKandidaten(k, AEND, CHAT, [], bestehend)[0].aendertRegelId, null)
 })
 
-test('Zwei leere wenn gelten als gleich', () => {
-  assert.equal(istGleicheRegel({ bereich: 'Zeit', wenn: '' }, { bereich: 'Zeit', wenn: '  ' }), true)
+test('Leeres wenn ("gilt immer") gilt NIE als dieselbe Regel', () => {
+  // Entscheidung Fabian 2026-08-02: ein Bereich enthaelt viele unabhaengige
+  // Immer-Regeln. Waeren zwei leere wenn gleich, gaebe es pro Bereich nur eine.
+  assert.equal(istGleicheRegel({ bereich: 'Zeit', wenn: '' }, { bereich: 'Zeit', wenn: '  ' }), false)
   assert.equal(istGleicheRegel({ bereich: 'Zeit', wenn: '' }, { bereich: 'Material', wenn: '' }), false)
+  assert.equal(istGleicheRegel({ bereich: 'Zeit', wenn: '' }, { bereich: 'Zeit', wenn: 'bei Eiche' }), false)
 })
 
 test('Ausnahme-Nachrichten werden erkannt', () => {
@@ -558,9 +561,13 @@ export function enthaeltWortfolge(nachrichtNorm: string, zitatNorm: string): boo
 // Bewusst exakter Vergleich nach Normalisierung, kein unscharfes Matching:
 // ein Fehltreffer würde die falsche Regel überschreiben, und Ähnlichkeits-
 // schwellen sind nicht sinnvoll testbar.
+// Ausnahme: Ein leeres `wenn` („gilt immer") ist KEINE Identität — sonst gäbe
+// es pro Bereich nur eine einzige Immer-Regel. Siehe Spec, Schritt 6.
 export function istGleicheRegel(a: { bereich: string; wenn: string }, b: { bereich: string; wenn: string }): boolean {
-  return normalisiere(a.bereich) === normalisiere(b.bereich)
-    && normalisiere(a.wenn) === normalisiere(b.wenn)
+  const wennA = normalisiere(a.wenn)
+  const wennB = normalisiere(b.wenn)
+  if (wennA === '' || wennB === '') return false
+  return normalisiere(a.bereich) === normalisiere(b.bereich) && wennA === wennB
 }
 
 export function pruefeKandidaten(

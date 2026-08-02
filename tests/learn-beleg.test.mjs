@@ -97,9 +97,53 @@ test('Kandidat, der eine bestehende Regel ändert, wird markiert', () => {
   assert.equal(pruefeKandidaten(k, AEND, CHAT, [], bestehend)[0].aendertRegelId, null)
 })
 
-test('Zwei leere wenn gelten als gleich', () => {
-  assert.equal(istGleicheRegel({ bereich: 'Zeit', wenn: '' }, { bereich: 'Zeit', wenn: '  ' }), true)
+test('Leeres wenn ("gilt immer") gilt NIE als dieselbe Regel', () => {
+  // Ein Bereich enthält viele unabhängige Immer-Regeln ("Rückwand immer
+  // Multiplex", "Kanten immer ABS"). Würden zwei leere wenn als dieselbe Regel
+  // gelten, gäbe es pro Bereich nur eine einzige Immer-Regel — über alle sechs
+  // Bereiche also sechs im ganzen Betrieb.
+  assert.equal(istGleicheRegel({ bereich: 'Zeit', wenn: '' }, { bereich: 'Zeit', wenn: '  ' }), false)
   assert.equal(istGleicheRegel({ bereich: 'Zeit', wenn: '' }, { bereich: 'Material', wenn: '' }), false)
+  assert.equal(istGleicheRegel({ bereich: 'Zeit', wenn: '' }, { bereich: 'Zeit', wenn: 'bei Eiche' }), false)
+})
+
+test('Gleiche nicht-leere Bedingung gilt weiterhin als dieselbe Regel', () => {
+  assert.equal(istGleicheRegel(
+    { bereich: 'Material', wenn: 'Korpus mit Rückwand' },
+    { bereich: 'material', wenn: 'korpus mit rückwand.' },
+  ), true)
+  assert.equal(istGleicheRegel(
+    { bereich: 'Material', wenn: 'Korpus mit Rückwand' },
+    { bereich: 'Material', wenn: 'Schrank ohne Rückwand' },
+  ), false)
+})
+
+test('Zwei verschiedene Immer-Regeln im selben Bereich bleiben beide erhalten', () => {
+  const k = [
+    { bereich: 'Material', wenn: '', dann: 'Rückwand immer 8mm Multiplex Birke', belegt_durch: { art: 'diff', nr: 1 } },
+    { bereich: 'Material', wenn: '', dann: 'Kanten immer ABS 2mm', belegt_durch: { art: 'diff', nr: 2 } },
+  ]
+  const r = pruefeKandidaten(k, AEND, CHAT, [], [])
+  assert.equal(r.length, 2)
+  assert.deepEqual(r.map(x => x.dann), ['Rückwand immer 8mm Multiplex Birke', 'Kanten immer ABS 2mm'])
+  assert.deepEqual(r.map(x => x.aendertRegelId), [null, null])
+})
+
+test('Immer-Regel ersetzt nie eine bestehende Immer-Regel', () => {
+  const bestehend = [{ id: 'r1', bereich: 'Material', wenn: '' }]
+  const k = [{ bereich: 'Material', wenn: '', dann: 'Kanten immer ABS 2mm', belegt_durch: { art: 'diff', nr: 1 } }]
+  const r = pruefeKandidaten(k, AEND, CHAT, [], bestehend)
+  assert.equal(r.length, 1)
+  assert.equal(r[0].aendertRegelId, null)
+})
+
+test('Wortgleiche Immer-Regeln im selben Durchlauf fallen trotzdem zusammen', () => {
+  const k = [
+    { bereich: 'Material', wenn: '', dann: 'Kanten immer ABS 2mm', belegt_durch: { art: 'diff', nr: 1 } },
+    { bereich: 'material', wenn: '  ', dann: 'Kanten immer ABS 2mm.', belegt_durch: { art: 'diff', nr: 2 } },
+  ]
+  const r = pruefeKandidaten(k, AEND, CHAT, [], [])
+  assert.equal(r.length, 1)
 })
 
 test('Ausnahme-Nachrichten werden erkannt', () => {

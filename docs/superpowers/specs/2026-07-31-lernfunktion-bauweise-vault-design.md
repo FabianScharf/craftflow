@@ -201,10 +201,23 @@ Doppelt abgesichert, weil ein Kundensonderwunsch sonst zur Dauerregel wird:
 Ein Kandidat gilt als Änderung einer bestehenden Regel, wenn eine aktive Regel desselben
 Nutzers **denselben `bereich`** hat **und** ihr `wenn` als gleich gilt. „Gleich" heißt
 konkret: beide `wenn` auf Kleinschreibung normalisiert, Mehrfach-Leerzeichen und
-Satzzeichen entfernt, dann Zeichenketten-Vergleich — plus der Sonderfall, dass zwei leere
-`wenn` (beide „gilt immer") ebenfalls als gleich zählen. Kein unscharfes Matching, keine
+Satzzeichen entfernt, dann Zeichenketten-Vergleich. Kein unscharfes Matching, keine
 Ähnlichkeitsschwelle: das wäre nicht testbar und würde bei Fehltreffern die falsche Regel
 überschreiben.
+
+**Ein leeres `wenn` („gilt immer") ist ausdrücklich KEINE Identität** (Entscheidung Fabian,
+2026-08-02). Ein Bereich enthält viele unabhängige Immer-Regeln: „Rückwand immer Multiplex"
+und „Kanten immer ABS" sind beide *Material* und beide *immer*, aber verschiedene Regeln.
+Würden zwei leere `wenn` als gleich zählen, könnte es pro Bereich nur eine einzige
+Immer-Regel geben — über alle sechs Bereiche also sechs im ganzen Betrieb. Das ist für
+einen Schreiner viel zu wenig, und die zweite Regel würde beim Anlegen abgewiesen bzw. im
+selben Durchlauf still verworfen.
+
+Preis dieser Entscheidung: Eine Immer-Regel wird nie als „ersetzt bestehende" erkannt.
+Ändert der Nutzer seine Meinung zu einer Immer-Regel, entsteht eine zweite, die er im Vault
+selbst löscht — sichtbares Aufräumen statt stillem Wissensverlust. Innerhalb eines
+Kandidaten-Durchlaufs unterscheidet bei leerem `wenn` das `dann`, wortgleiche Vorschläge
+fallen also weiterhin zusammen.
 
 Solche Kandidaten werden als **„ändert bestehende Regel"** markiert, im Dialog **nicht**
 vorangehakt, und die bestehende Regel bekommt `konflikt_hinweis = true`. Bestätigt der
