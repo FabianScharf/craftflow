@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { C } from '@/lib/types'
-import { BEREICHE, WARNUNG_AB_REGELN, MAX_REGELN_IM_PROMPT, istGleicheRegel } from '@/lib/learn'
+import { BEREICHE, WARNUNG_AB_REGELN, MAX_REGELN_IM_PROMPT, istGleicheRegel, normalisiere } from '@/lib/learn'
 
 type Regel = {
   id: string
@@ -97,11 +97,19 @@ export default function BauweiseSettings() {
     // KI zwei widersprüchliche Vorgaben mitzugeben. Nur AKTIVE Regeln zählen
     // als Konflikt — eine bereits abgeschaltete Regel hat keine Wirkung auf
     // die KI und darf das Anlegen einer neuen, aktiven Regel nicht blockieren.
-    const dupe = aktive.find(r => istGleicheRegel(r, { bereich: neuBereich, wenn: neuWenn }))
+    // Bei „gilt immer" (leere Bedingung) sind mehrere Regeln je Bereich
+    // ausdrücklich erlaubt — „Rückwand immer Multiplex" und „Kanten immer ABS"
+    // sind beide Material und beide immer. Dort unterscheidet erst das „Dann",
+    // sonst ließe sich dieselbe Immer-Regel beliebig oft doppelt anlegen.
+    const istImmer = neuWenn.trim() === ''
+    const dupe = aktive.find(r => istImmer
+      ? normalisiere(r.bereich) === normalisiere(neuBereich) && normalisiere(r.dann) === normalisiere(neuDann)
+      : istGleicheRegel(r, { bereich: neuBereich, wenn: neuWenn }))
     if (dupe) {
-      setNeuFehler(
-        `Für „${neuBereich}"${neuWenn.trim() ? ` bei „${neuWenn.trim()}"` : ' (gilt immer)'} gibt es schon eine aktive Regel `
-        + `(„${dupe.dann}"). Bitte bearbeite diese Regel oben, statt eine zweite, widersprüchliche anzulegen.`,
+      setNeuFehler(istImmer
+        ? `Diese Regel gibt es für „${neuBereich}" schon (gilt immer, „${dupe.dann}"). Bitte bearbeite die bestehende Regel oben.`
+        : `Für „${neuBereich}" bei „${neuWenn.trim()}" gibt es schon eine aktive Regel `
+          + `(„${dupe.dann}"). Bitte bearbeite diese Regel oben, statt eine zweite, widersprüchliche anzulegen.`,
       )
       return
     }
