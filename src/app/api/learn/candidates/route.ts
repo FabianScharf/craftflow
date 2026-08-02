@@ -126,15 +126,21 @@ ${chatListe}`
     // Das ist laut Design das verlässlichste Signal dafür, dass eine Regel nicht
     // mehr greift — der Nutzer sieht es im Vault. Fehler hier sind nicht fatal:
     // die Kandidaten sind trotzdem brauchbar.
-    const konfliktIds = [...new Set(geprueft.map(k => k.aendertRegelId).filter((id): id is string => !!id))]
-    if (konfliktIds.length > 0) {
-      const { error: markErr } = await supabase
-        .from('bauweise_regeln')
-        .update({ konflikt_hinweis: true })
-        .in('id', konfliktIds)
-        .eq('user_id', user.id)
-      if (markErr) console.error('[learn] konflikt_hinweis:', markErr.message)
-    }
+    // Eigenes try/catch: ein GEWORFENER Fehler (statt eines zurückgegebenen)
+    // würde sonst im äußeren catch landen und die bereits berechneten — und
+    // bereits bezahlten — Kandidaten verwerfen. Der Dialog erschiene dann nicht,
+    // obwohl der KI-Aufruf erfolgreich war.
+    try {
+      const konfliktIds = [...new Set(geprueft.map(k => k.aendertRegelId).filter((id): id is string => !!id))]
+      if (konfliktIds.length > 0) {
+        const { error: markErr } = await supabase
+          .from('bauweise_regeln')
+          .update({ konflikt_hinweis: true })
+          .in('id', konfliktIds)
+          .eq('user_id', user.id)
+        if (markErr) console.error('[learn] konflikt_hinweis:', markErr.message)
+      }
+    } catch (e) { console.error('[learn] konflikt_hinweis:', e) }
 
     const titel = (body.projektTitel ?? '').trim()
     const datum = new Date().toLocaleDateString('de-DE')
