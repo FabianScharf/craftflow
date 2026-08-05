@@ -215,15 +215,30 @@ selben Durchlauf still verworfen.
 
 Preis dieser Entscheidung: Eine Immer-Regel wird nie als „ersetzt bestehende" erkannt.
 Ändert der Nutzer seine Meinung zu einer Immer-Regel, entsteht eine zweite, die er im Vault
-selbst löscht — sichtbares Aufräumen statt stillem Wissensverlust. Innerhalb eines
-Kandidaten-Durchlaufs unterscheidet bei leerem `wenn` das `dann`, wortgleiche Vorschläge
-fallen also weiterhin zusammen.
+selbst löscht — sichtbares Aufräumen statt stillem Wissensverlust.
 
-Solche Kandidaten werden als **„ändert bestehende Regel"** markiert, im Dialog **nicht**
+Damit daraus kein unbemerkter Widerspruch wird, greifen drei Absicherungen:
+
+- **Im selben Kandidaten-Durchlauf** unterscheidet bei leerem `wenn` das `dann`;
+  wortgleiche Vorschläge fallen weiterhin zusammen.
+- **Bei Handeingabe** im Vault blockiert die Dublettenprüfung eine Immer-Regel, deren
+  `bereich` und normalisiertes `dann` mit einer bestehenden **aktiven** Regel übereinstimmen.
+- **Im Lern-Dialog** trägt ein Immer-Kandidat das Kennzeichen `weitereImmerRegel`, sobald im
+  selben Bereich schon eine aktive Immer-Regel steht. Solche Kandidaten sind **nicht
+  vorangehakt** und zeigen den Hinweis „⚠ zusätzlich zu bestehenden Immer-Regeln". Das ist
+  nötig, weil `aendertRegelId` für Immer-Regeln bauartbedingt immer `null` ist — ohne dieses
+  Kennzeichen entstünde mit einem einzigen Klick ein zweiter, womöglich widersprüchlicher
+  Dauer-Eintrag, ganz ohne Warnung.
+
+Kandidaten, die eine bestehende Regel **ersetzen** (also mit nicht-leerer, übereinstimmender
+Bedingung), werden als **„ändert bestehende Regel"** markiert, im Dialog **nicht**
 vorangehakt, und die bestehende Regel bekommt `konflikt_hinweis = true`. Bestätigt der
-Nutzer, wird die bestehende Regel aktualisiert statt eine zweite angelegt.
+Nutzer, wird die bestehende Regel aktualisiert statt eine zweite angelegt. Für Immer-Regeln
+gibt es diesen Ersatz-Pfad nicht — dort übernimmt das `weitereImmerRegel`-Kennzeichen die
+Rolle der bewussten Zustimmung.
 
-Ohne diesen Schritt sammeln sich widersprüchliche Regeln und die KI würfelt.
+Zweck des ganzen Schritts: Ohne ihn sammeln sich widersprüchliche Regeln unbemerkt an und
+die KI entscheidet selbst, welcher sie folgt.
 
 ## Dialog beim Speichern
 

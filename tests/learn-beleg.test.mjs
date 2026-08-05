@@ -116,6 +116,14 @@ test('Gleiche nicht-leere Bedingung gilt weiterhin als dieselbe Regel', () => {
     { bereich: 'Material', wenn: 'Korpus mit Rückwand' },
     { bereich: 'Material', wenn: 'Schrank ohne Rückwand' },
   ), false)
+  // Der bereich-Teil der Identität braucht eine eigene Absicherung mit nicht-leerem
+  // wenn: bei leerem wenn greift der Kurzschluss, bevor bereich verglichen wird.
+  // Ohne diese Zeile bliebe die Testsuite grün, wenn der bereich-Vergleich wegfiele —
+  // ein Kandidat würde dann eine Regel aus einem fremden Bereich überschreiben.
+  assert.equal(istGleicheRegel(
+    { bereich: 'Material', wenn: 'bei Eiche' },
+    { bereich: 'Zeit', wenn: 'bei Eiche' },
+  ), false)
 })
 
 test('Zwei verschiedene Immer-Regeln im selben Bereich bleiben beide erhalten', () => {
@@ -129,12 +137,32 @@ test('Zwei verschiedene Immer-Regeln im selben Bereich bleiben beide erhalten', 
   assert.deepEqual(r.map(x => x.aendertRegelId), [null, null])
 })
 
-test('Immer-Regel ersetzt nie eine bestehende Immer-Regel', () => {
+test('Immer-Regel ersetzt nie eine bestehende Immer-Regel, wird aber markiert', () => {
   const bestehend = [{ id: 'r1', bereich: 'Material', wenn: '' }]
   const k = [{ bereich: 'Material', wenn: '', dann: 'Kanten immer ABS 2mm', belegt_durch: { art: 'diff', nr: 1 } }]
   const r = pruefeKandidaten(k, AEND, CHAT, [], bestehend)
   assert.equal(r.length, 1)
   assert.equal(r[0].aendertRegelId, null)
+  // Kein Ersatz, aber der Dialog muss den Haken offen lassen — sonst entsteht
+  // mit einem Klick eine zweite Dauer-Regel im selben Bereich.
+  assert.equal(r[0].weitereImmerRegel, true)
+})
+
+test('weitereImmerRegel bleibt false ohne bestehende Immer-Regel im Bereich', () => {
+  const k = [{ bereich: 'Material', wenn: '', dann: 'Kanten immer ABS 2mm', belegt_durch: { art: 'diff', nr: 1 } }]
+  assert.equal(pruefeKandidaten(k, AEND, CHAT, [], [])[0].weitereImmerRegel, false)
+  // Eine Immer-Regel in einem ANDEREN Bereich zählt nicht.
+  const anderer = [{ id: 'r9', bereich: 'Zeit', wenn: '' }]
+  assert.equal(pruefeKandidaten(k, AEND, CHAT, [], anderer)[0].weitereImmerRegel, false)
+  // Eine bedingte Regel im selben Bereich zählt ebenfalls nicht.
+  const bedingt = [{ id: 'r8', bereich: 'Material', wenn: 'bei Eiche' }]
+  assert.equal(pruefeKandidaten(k, AEND, CHAT, [], bedingt)[0].weitereImmerRegel, false)
+})
+
+test('Bedingte Kandidaten tragen weitereImmerRegel nie', () => {
+  const k = [{ bereich: 'Material', wenn: 'Korpus mit Rückwand', dann: 'Rückwand 8mm', belegt_durch: { art: 'diff', nr: 1 } }]
+  const bestehend = [{ id: 'r1', bereich: 'Material', wenn: '' }]
+  assert.equal(pruefeKandidaten(k, AEND, CHAT, [], bestehend)[0].weitereImmerRegel, false)
 })
 
 test('Wortgleiche Immer-Regeln im selben Durchlauf fallen trotzdem zusammen', () => {

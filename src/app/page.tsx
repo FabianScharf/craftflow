@@ -509,7 +509,7 @@ export default function CraftFlow() {
   const kiVorschlagRef = useRef<{ positionen: Angebotsposition[] } | null>(null)
   const [lernKandidaten, setLernKandidaten] = useState<Array<{
     bereich: string; wenn: string; dann: string; belegText: string
-    aendertRegelId: string | null; quelle_text: string
+    aendertRegelId: string | null; quelle_text: string; weitereImmerRegel: boolean
   }>>([])
   const [lernAuswahl, setLernAuswahl] = useState<Record<number, boolean>>({})
   const [lernWenn, setLernWenn] = useState<Record<number, string>>({})
@@ -569,7 +569,12 @@ export default function CraftFlow() {
       setLernKandidaten(k)
       // Neue Regeln vorangehakt; Kandidaten, die eine bestehende Regel ändern,
       // bewusst NICHT — dem soll der Nutzer aktiv zustimmen.
-      setLernAuswahl(Object.fromEntries(k.map((x, i) => [i, x.aendertRegelId === null])))
+      // Nicht vorangehakt, wenn der Kandidat eine bestehende Regel ersetzen würde —
+      // oder wenn er eine weitere Immer-Regel in einem Bereich wäre, in dem schon
+      // eine steht. Immer-Regeln ersetzen einander nie, also entstünde sonst mit
+      // einem Klick ein zweiter Dauer-Eintrag, womöglich widersprüchlich.
+      setLernAuswahl(Object.fromEntries(k.map((x, i) =>
+        [i, x.aendertRegelId === null && !x.weitereImmerRegel])))
       setLernWenn(Object.fromEntries(k.map((x, i) => [i, x.wenn])))
       // Zweite Absicherung gegen stehengebliebene „schon gespeichert"-Marken:
       // ein frischer Kandidatensatz startet immer ohne Erledigt-Flags.
@@ -4171,6 +4176,11 @@ export default function CraftFlow() {
                   {k.aendertRegelId && (
                     <span style={{ fontSize: 10, color: '#E0B05A', fontFamily: 'Helvetica Neue,sans-serif' }}>
                       ⚠ ändert bestehende Regel
+                    </span>
+                  )}
+                  {!k.aendertRegelId && k.weitereImmerRegel && (
+                    <span style={{ fontSize: 10, color: '#E0B05A', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                      ⚠ zusätzlich zu bestehenden Immer-Regeln
                     </span>
                   )}
                   {lernErledigt[i] && (

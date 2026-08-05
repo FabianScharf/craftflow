@@ -101,7 +101,10 @@ export default function BauweiseSettings() {
     // ausdrücklich erlaubt — „Rückwand immer Multiplex" und „Kanten immer ABS"
     // sind beide Material und beide immer. Dort unterscheidet erst das „Dann",
     // sonst ließe sich dieselbe Immer-Regel beliebig oft doppelt anlegen.
-    const istImmer = neuWenn.trim() === ''
+    // `normalisiere` statt `trim`: sonst gilt eine Bedingung wie „-" hier als
+    // gesetzt, in der Library aber als leer — und die Regel ließe sich beliebig
+    // oft doppelt anlegen, weil dann keine der beiden Prüfungen greift.
+    const istImmer = normalisiere(neuWenn) === ''
     const dupe = aktive.find(r => istImmer
       ? normalisiere(r.bereich) === normalisiere(neuBereich) && normalisiere(r.dann) === normalisiere(neuDann)
       : istGleicheRegel(r, { bereich: neuBereich, wenn: neuWenn }))

@@ -154,6 +154,12 @@ export type GepruefterKandidat = {
   dann: string
   belegText: string
   aendertRegelId: string | null
+  // true, wenn dieser Kandidat eine Immer-Regel ist und im selben Bereich schon
+  // eine aktive Immer-Regel steht. Diese Kandidaten werden im Dialog NICHT
+  // vorangehakt: da Immer-Regeln einander nie ersetzen, entstünde sonst mit
+  // einem Klick ein zweiter, womöglich widersprüchlicher Dauer-Eintrag — ohne
+  // Warnung, weil `aendertRegelId` hier bauartbedingt immer null ist.
+  weitereImmerRegel: boolean
 }
 
 // Ein Kundensonderwunsch darf keine Dauerregel werden. Doppelt abgesichert:
@@ -262,7 +268,13 @@ export function pruefeKandidaten(
     gesehen.add(schluessel)
 
     const bestehend = bestehendeRegeln.find(r => istGleicheRegel(r, { bereich, wenn }))
-    ergebnis.push({ bereich, wenn, dann: k.dann.trim(), belegText, aendertRegelId: bestehend?.id ?? null })
+    const weitereImmerRegel = wennNorm === '' && bestehendeRegeln.some(r =>
+      normalisiere(r.bereich) === normalisiere(bereich) && normalisiere(r.wenn) === '')
+    ergebnis.push({
+      bereich, wenn, dann: k.dann.trim(), belegText,
+      aendertRegelId: bestehend?.id ?? null,
+      weitereImmerRegel,
+    })
   }
   return ergebnis
 }
