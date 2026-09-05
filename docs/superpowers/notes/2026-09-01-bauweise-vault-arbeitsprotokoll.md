@@ -13,6 +13,55 @@ Die Engine-Invarianten stehen in der Projekt-`CLAUDE.md`.
 
 ---
 
+## 0. Live-Test bestanden (2026-09-05)
+
+Alle sechs Schritte auf der dev-Preview durchgefuehrt, mit zwei getrennten Konten.
+
+| # | Pruefung | Ergebnis |
+|---|---|---|
+| 1 | Angebot ohne Regeln unveraendert | bestanden |
+| 2 | Lern-Dialog kommt, mit Beleg aus dem Chat | bestanden |
+| 3 | Regel sichtbar unter Einstellungen -> Meine Bauweise | bestanden |
+| 4 | Neues Angebot uebernimmt die Regel von allein | bestanden |
+| 5 | Regel abschalten -> Rueckfall auf KI-Standard | bestanden |
+| 6 | Zweites Konto sieht die Regel NICHT | bestanden |
+
+Zu 5: Nach dem Abschalten kam HDF 8 mm statt der urspruenglichen 6 mm. Kein Fehler —
+die Staerke war nie Teil der Regel, die KI waehlt sie projektabhaengig (Garderobenschrank
+2600x2400 statt Kuechenunterschrank 600). Entscheidend ist das Material: HDF statt
+Spanplatte, also greift die Regel nicht mehr.
+
+### Dabei gefundener Fehler: fehlende Tabellenrechte (behoben)
+
+`POST /api/settings/bauweise` schlug reproduzierbar fehl ("Eine Regel konnte nicht
+gespeichert werden"). Ursache durch Vergleich mit der funktionierenden Tabelle `projects`
+gefunden:
+
+| Tabelle | Rechte fuer `authenticated` |
+|---|---|
+| `projects` | DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE |
+| `bauweise_regeln` | REFERENCES, TRIGGER, TRUNCATE |
+
+Es fehlten SELECT, INSERT, UPDATE, DELETE. Supabase vergibt sie bei neuen Tabellen nicht
+zuverlaessig automatisch. Behoben per `grant ... to authenticated` und dauerhaft in
+`docs/sql/2026-07-31-bauweise-regeln.sql` aufgenommen.
+
+Ein Schema-Reload (`notify pgrst`) war NICHT die Ursache — als erste Hypothese geprueft
+und verworfen.
+
+### Offene Punkte aus dem Test
+
+1. **Lern-Dialog sitzt am falschen Ort** (Fabian, 2026-09-05): Die Abfrage gehoert in die
+   KI-Optimierung, nicht an den Speichern-Schritt. Revidiert die Entscheidung vom
+   2026-07-31 ("gesammelt beim Speichern, ein Dialog"). Umbau vor dem main-Merge.
+2. **Fehlermeldungen werden verschluckt**: Das Frontend zeigt nur "konnte nicht gespeichert
+   werden", die echte Ursache aus `error.message` bleibt unsichtbar. Hat bei der Suche
+   nach dem Rechte-Fehler rund 20 Minuten gekostet.
+3. **KI verspricht zu frueh**: Im Chat antwortet sie "Ich merke mir das als deinen
+   Standard" — gespeichert wird aber erst nach Bestaetigung im Dialog.
+
+---
+
 ## 1. Was noch zu tun ist
 
 | # | Schritt | Wer |

@@ -49,6 +49,14 @@ begin
   end if;
 end $$;
 
+-- Zugriffsrechte fuer eingeloggte Nutzer. NICHT weglassen: Supabase vergibt sie
+-- bei neuen Tabellen nicht zuverlaessig automatisch. Ohne diese Zeile existiert die
+-- Tabelle, die Policies greifen, und trotzdem scheitert jedes Speichern.
+-- Festgestellt am 2026-09-05: bauweise_regeln hatte nur REFERENCES/TRIGGER/TRUNCATE,
+-- waehrend die funktionierende Tabelle projects zusaetzlich
+-- SELECT/INSERT/UPDATE/DELETE besass.
+grant select, insert, update, delete on table bauweise_regeln to authenticated;
+
 alter table bauweise_regeln enable row level security;
 
 drop policy if exists "eigene Regeln lesen"   on bauweise_regeln;
