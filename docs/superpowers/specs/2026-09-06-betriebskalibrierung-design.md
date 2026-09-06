@@ -107,17 +107,17 @@ Die sieben Schritte heute:
 | 3 | So beschreibst du ein Projekt (Teil 2) | bleibt |
 | 4 | Deine KI-Werkzeuge | bleibt |
 | 5 | **Kostenstellen einrichten** | **wird zu: Die fünf Fragen zum Betrieb** |
-| 6 | **Materialaufschlag einstellen** | **wird zu: Die Musterbeschreibung mit Preisfrage** |
-| 7 | Bessere Ergebnisse bekommen | bleibt, ergänzt um den Zeitfaktor |
+| 6 | **Materialaufschlag einstellen** | **wird zu: Grundmöbel + Preisfrage** |
+| 7 | *(neu)* | **Die drei Differenzfragen: Lack, Massivholz, Montage** |
+| 8 | Bessere Ergebnisse bekommen | bleibt, ergänzt um die vier Faktoren |
 
 Schritt 5 und 6 erklären heute nur, wo die Einstellungen liegen — mit dem bekannten
-Ergebnis. Künftig **stellen sie ein**. Die Schrittzahl bleibt gleich, der Nutzer
-verlässt die Erst-Anmeldung aber mit echten Werten statt mit einer Aufgabe, die er
-nicht erledigt.
+Ergebnis. Künftig **stellen sie ein**. Der Ablauf wächst um einen Schritt auf acht,
+der Nutzer verlässt die Erst-Anmeldung dafür mit echten Werten statt mit einer
+Aufgabe, die er nicht erledigt.
 
-Die Musterbeschreibung in Schritt 6 knüpft dabei unmittelbar an Schritt 2 und 3 an:
-Dort wird erklärt, was in eine Beschreibung gehört — hier steht das fertige Beispiel
-dazu. Erklärung und Beispiel gehören zusammen, statt sich zu wiederholen.
+Die Beschreibung des Grundmöbels bleibt in Schritt 7 sichtbar, damit sich die drei
+Differenzfragen sichtbar darauf beziehen.
 
 **Überspringbar** mit ehrlichem Hinweis („dann rechne ich mit Branchenwerten, das kann
 daneben liegen"). Jederzeit nachholbar unter *Einstellungen → Mein Betrieb*.
@@ -142,67 +142,118 @@ Frage 5 rechnet nichts. Sie beantwortet Fabian die Frage, die ihm heute fehlt: w
 viele Nutzer überhaupt Mengengeschäft machen. Das entscheidet den Wert des zweiten
 Vorhabens. Die Schreiner sagen ihm das im Gespräch nicht.
 
-### 3 · Die Musterbeschreibung
+### 3 · Die Referenz und die vier Fragen
 
-Ein festes Möbel, vollständig beschrieben. Der Text ist zugleich die **Vorlage**, wie
-der Nutzer künftig selbst beschreiben soll — das greift die schlechte Eingabequalität
-an derselben Stelle an:
+**Ein** Grundmöbel, vollständig beschrieben. Alle weiteren Fragen beziehen sich
+darauf. „Was kommt dazu?" ist ungleich leichter zu beantworten als ein neuer
+Gesamtpreis — und isoliert genau eine Größe.
+
+Der Text ist zugleich die **Vorlage**, wie der Nutzer künftig selbst beschreiben soll,
+und knüpft damit unmittelbar an die Schritte 2 und 3 an: Dort steht, was in eine
+Beschreibung gehört; hier steht das fertige Beispiel dazu.
 
 > **Einbauschrank Flur**, 2,00 m breit × 2,40 m hoch × 0,60 m tief.
 > Korpus und Fronten Egger Dekorspanplatte 19 mm weiß, Kanten ABS 1 mm.
-> 4 Drehtüren mit Topfscharnieren, je Fach 2 Einlegeböden, Sockel 100 mm.
-> Rückwand. Lieferung und Montage beim Kunden, 20 km entfernt, Neubau, gerade Wände.
+> 4 Drehtüren mit Topfscharnieren, 2 Schubkästen auf Systemauszügen, Kleiderstange,
+> je Fach 2 Einlegeböden, Sockel 100 mm, Rückwand.
+> Lieferung und Montage beim Kunden, 20 km entfernt, Neubau, gerade Wände.
 
 Hervorgehoben werden die fünf Dinge, die CraftFlow immer braucht: **Möbelart, Maße,
 Material, Ausstattung, Montage.**
 
-Frage: *Was nimmst du für so einen Schrank, netto?*
+Fabians Einwand, der zu dieser Fassung geführt hat: Ein karg beschriebener Dekorschrank
+hat **zu wenig Aussagekraft**. „Wirklich relevante Fragen sind Lack-Oberflächen,
+Massivholzbearbeitung und dessen Oberfläche und die Kalkulation der Montage."
+Deshalb die Ausstattung im Grundmöbel und deshalb drei Differenzfragen.
+
+#### Frage 1 — das Grundmöbel
+
+*Was nimmst du für so einen Schrank, netto?*
 ◯ unter 1.200 € ◯ 1.200–1.600 € ◯ 1.600–2.100 € ◯ 2.100–2.700 € ◯ über 2.700 €
 
-Darunter sichtbar, nicht im Kleingedruckten: **Diese Angabe sieht niemand außer dir.**
-Schreiner reden ungern über ihre Preise; in der eigenen App ist das etwas anderes —
-aber nur, wenn das unmissverständlich dasteht.
+#### Frage 2 bis 4 — die drei Bereiche, die wirklich streuen
+
+| Bereich | Frage | Antwortmöglichkeiten |
+|---|---|---|
+| **Lack** | Derselbe Schrank, aber alles weiß lackiert seidenmatt statt Dekor. Was kommt dazu? | +200–400 · +400–700 · +700–1.100 · +1.100–1.600 · mehr · *mache ich nicht* |
+| **Massivholz** | Derselbe Schrank in Eiche massiv, geölt. Was nimmst du? | unter 2.500 · 2.500–3.500 · 3.500–4.500 · 4.500–6.000 · über 6.000 · *mache ich nicht* |
+| **Montage** | Derselbe Schrank im Altbau: Wände nicht im Lot, Dielenboden, zweiter Stock ohne Aufzug. Wie lange bist du dran? | halber Tag · ein Tag · anderthalb Tage · zwei Tage · länger · *montiere ich nicht* |
+
+Die Montage wird **in Tagen** gefragt. So denkt ein Schreiner darüber — nicht in
+Stunden und nicht in Euro.
+
+**„Mache ich nicht"** ist kein Ausweichen, sondern eine echte Antwort: Für diesen
+Bereich bleibt der Branchenwert stehen, und CraftFlow fragt nicht wieder danach.
+
+Alle vier Fragen stehen **im Onboarding**, nicht verteilt über die spätere Nutzung.
+Fabians Begründung: „Dann weiß man, um was es geht, und hat das Gefühl, es hat einen
+Nutzen. Nur wenn du alle Informationen hast, kannst du saubere Rückschlüsse ziehen und
+auf alle zukünftigen Kalkulationen anwenden." Eine Teilkalibrierung würde bis zur
+Vervollständigung schiefe Angebote erzeugen.
+
+Sie verteilen sich auf zwei Bildschirme, weil vier Preisfragen unter einer langen
+Beschreibung zu viel für einen sind — die Beschreibung bleibt dabei sichtbar.
+
+Unter den Preisfragen, sichtbar und nicht im Kleingedruckten: **Diese Angaben sieht
+niemand außer dir.** Schreiner reden ungern über ihre Preise; in der eigenen App ist
+das etwas anderes — aber nur, wenn das unmissverständlich dasteht.
 
 Die Bänder sind gleichmäßig gespreizt und **nicht** um das eigene Ergebnis herum
 gebaut, sonst ankert die Vorgabe die Antwort.
 
 ### 4 · Was daraus wird
 
-**Frage 1 und 2** bestimmen, welche Kostenstellen es überhaupt gibt und mit welchen
-Startsätzen. Kein CNC im Betrieb heißt: keine CNC-Stunden — die Arbeit wandert zur
-Handarbeit, nicht in den Papierkorb.
+**Frage 1 und 2 des Betriebsteils** bestimmen, welche Kostenstellen es überhaupt gibt
+und mit welchen Startsätzen. Kein CNC im Betrieb heißt: keine CNC-Stunden — die Arbeit
+wandert zur Handarbeit, nicht in den Papierkorb.
 
-**Die Preisantwort** erzeugt einen **Zeitfaktor**. Wichtig: Der Musterschrank wird
-**zuerst mit den Einstellungen aus Frage 1 und 2 gerechnet** — sonst korrigiert der
+**Die vier Preisfragen** erzeugen **vier Faktoren**, nicht einen. Ein einziger Faktor
+aus einem einzigen Möbel wäre Scheingenauigkeit — die Streuung zwischen Betrieben ist
+bei Lack und Massivholz um ein Vielfaches größer als beim Korpusbau.
+
+| Faktor | wirkt auf | aus Frage |
+|---|---|---|
+| **Werkstatt** | Zuschnitt, Bekantung, CNC, Zusammenbau, Warenhandling, Verpacken | Grundmöbel |
+| **Oberfläche** | Kostenstelle Oberfläche | Lack |
+| **Massivholz** | Zuschlag auf Werkstatt- und Oberflächenzeit bei Massivholz | Massivholz |
+| **Montage** | Montage, Lieferung & Fahrt | Montage |
+
+Das liegt genau auf den bestehenden `KOSTENSTELLEN_GRUPPEN` — es passt also auch
+technisch, ohne neue Struktur.
+
+**Die Rechnung, für jeden Faktor dieselbe Form.** Wichtig: Das Grundmöbel wird
+**zuerst mit den Einstellungen aus dem Betriebsteil gerechnet** — sonst korrigiert der
 Faktor ein zweites Mal, was die Kostenstellen schon korrigiert haben.
 
-Die Rechnung, ausgeschrieben:
-
 ```
-Zeitfaktor = (Preis des Nutzers − Material-VK − Fixkosten-Sockel)
-             ────────────────────────────────────────────────────
-                        unser skalierbarer Lohnanteil
+Faktor = (Zahl des Nutzers − unser Materialanteil − nicht skalierbarer Sockel)
+         ─────────────────────────────────────────────────────────────────────
+                    unser skalierbarer Zeitanteil in diesem Bereich
 ```
 
-Beispiel: CraftFlow rechnet den Musterschrank mit 2.150 € — davon 650 € Material,
-110 € Fixkosten-Sockel (Besprechung, Planung, Konstruktion, Arbeitsvorbereitung) und
-1.390 € skalierbarer Lohn. Der Nutzer wählt „1.600–2.100" → Mitte 1.850 €.
+Beispiel Grundmöbel: CraftFlow rechnet 2.150 € — davon 650 € Material, 110 €
+Fixkosten-Sockel (Besprechung, Planung, Konstruktion, Arbeitsvorbereitung) und 1.390 €
+skalierbarer Lohn. Der Nutzer wählt „1.600–2.100" → Mitte 1.850 €.
 
     (1.850 − 650 − 110) ÷ 1.390 = **0,78**
 
-Ab da rechnet CraftFlow seine Werkstatt- und Montagezeiten 22 % knapper als den
-Branchenrichtwert. Material und Fixkosten-Sockel bleiben unangetastet — deshalb
-stehen sie oben in der Formel, sonst träfe der kalibrierte Preis sein Band nicht.
+Ab da rechnet CraftFlow seine Werkstattzeiten 22 % knapper als den Branchenrichtwert.
+Material und Fixkosten-Sockel bleiben unangetastet — deshalb stehen sie oben in der
+Formel, sonst träfe der kalibrierte Preis sein Band nicht.
+
+Bei **Lack** und **Massivholz** wird zusätzlich der Materialunterschied abgezogen
+(Lack, Eiche statt Dekor), bevor der Rest auf die Zeit geht. Bei der **Montage** ist
+die Rechnung am einfachsten: seine Tage gegen unsere Montagestunden, direkt.
 
 **Warum auf die Zeit und nicht auf den Stundensatz:** Die Diagnose sagt, der Fehler
 liegt bei den Zeiten (8,8 h gegen 5,5–6,5 h Richtwert). Und der Stundensatz bleibt so
 eine ehrliche Zahl, mit der sich dem Nutzer etwas sagen lässt — sonst wäre der
 Hinweis aus Abschnitt 5 sinnlos.
 
-Gedeckelt auf **0,6 bis 1,4**, damit ein Fehlklick nicht die Kalkulation kippt.
-Sichtbar und änderbar in den Einstellungen, mit Klartext: „Zeitfaktor 0,78 — ich
-rechne deine Zeiten 22 % knapper als den Branchenrichtwert, weil du es so kalibriert
-hast."
+Jeder Faktor ist gedeckelt auf **0,6 bis 1,4**, damit ein Fehlklick nicht die
+Kalkulation kippt. Alle vier sind in den Einstellungen sichtbar und änderbar, in
+Klartext: „Werkstatt 0,78 — ich rechne deine Werkstattzeiten 22 % knapper als den
+Branchenrichtwert, weil du es so kalibriert hast."
 
 ### 5 · Der ehrliche Hinweis
 
@@ -263,8 +314,8 @@ Stellschraube vorbei.
 
 ## Prüfkriterien
 
-1. Ein Solo-Betrieb ohne Maschinen bekommt nach der Kalibrierung für den
-   Musterschrank einen Preis **innerhalb** des von ihm gewählten Bandes. Das ist die
+1. Ein Solo-Betrieb ohne Maschinen bekommt nach der Kalibrierung für **jedes** der
+   vier Referenzszenarien einen Preis innerhalb des von ihm gewählten Bandes. Das ist die
    Selbstprobe: Wer den Faktor aus einer Rechnung ableitet, muss dieselbe Rechnung
    damit auch treffen.
 2. Derselbe Betrieb bekommt für den Rollcontainer aus dem Testangebot einen Preis
@@ -283,8 +334,11 @@ Stellschraube vorbei.
 8. Ein zweites Konto sieht die Kalibrierung des ersten nicht.
 9. Der Deckungshinweis erscheint **einmal** und blockiert nichts.
 10. Die Fixkosten-Minima je Position werden vom Zeitfaktor **nicht** verändert.
-11. Beim ersten Start erscheint **eine** Einführung, nicht zwei. Die Schrittzahl
-    bleibt bei sieben.
+11. Beim ersten Start erscheint **eine** Einführung, nicht zwei. Acht Schritte,
+    davon zwei für die Kalibrierung.
+15. „Mache ich nicht" lässt den Branchenwert stehen und wird nicht erneut gefragt.
+16. Jeder der vier Faktoren wirkt nur auf seine Kostenstellen — ein Lackfaktor darf
+    die Montagezeit nicht verändern.
 12. Wer die Erst-Anmeldung durchläuft, hat danach echte Werte in den Einstellungen
     stehen — nicht nur die Aufforderung, welche einzutragen.
 13. Der Hilfe-Assistent beantwortet „Warum ist der Preis so hoch?" und führt zur
