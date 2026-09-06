@@ -189,7 +189,13 @@ function parseGaebText(text: string): { positions: import('@/lib/types').Angebot
 /* ── Haupt-Komponente ─────────────────────────────── */
 
 export default function CraftFlow() {
-  const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft, isBlocked } = usePlan()
+  const { canUse: planCanUse, loading: planLaedt, usage, incrementUsage, isInTrial, trialDaysLeft, isBlocked } = usePlan()
+  // Solange der Tarif noch geladen wird, steht er auf 'solo'. Wer die Sperren
+  // direkt daran haengt, laesst Schloesser aufblitzen, die gar nicht gelten —
+  // ein Neukunde in der Testphase liest "AB STARTER" und glaubt, die beworbene
+  // Testphase gelte nicht fuer ihn. Deshalb waehrend des Ladens nichts sperren.
+  // PlanGate loest dasselbe Problem mit `if (loading) return null`.
+  const darfNutzen = (p: Parameters<typeof planCanUse>[0]) => planLaedt || planCanUse(p)
   const [pwLoading, setPwLoading] = useState<string | null>(null)
   const [pwError, setPwError] = useState<string | null>(null)
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'pdf-preview' | 'projekte'>('start')
@@ -2714,27 +2720,27 @@ export default function CraftFlow() {
               <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {/* Fotos – ab Starter */}
                 <div
-                  onClick={() => { if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPhotoRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{planCanUse('starter') ? '📷' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: planCanUse('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
-                  {!planCanUse('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
+                  onClick={() => { if (planLaedt) return; if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPhotoRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('starter') ? C.copper + '55' : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{darfNutzen('starter') ? '📷' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: darfNutzen('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
+                  {!darfNutzen('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
                 </div>
                 {/* PDFs – ab Starter */}
                 <div
-                  onClick={() => { if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPdfRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{planCanUse('starter') ? '📄' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: planCanUse('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
-                  {!planCanUse('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
+                  onClick={() => { if (planLaedt) return; if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPdfRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('starter') ? C.copper + '55' : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{darfNutzen('starter') ? '📄' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: darfNutzen('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
+                  {!darfNutzen('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
                 </div>
                 {/* GAEB – ab Enterprise */}
                 <div
-                  onClick={() => { if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startGaebRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('enterprise') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('enterprise') ? C.copper + '55' : C.border}`, opacity: planCanUse('enterprise') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{planCanUse('enterprise') ? '🏗' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: planCanUse('enterprise') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
-                  {!planCanUse('enterprise') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB ENTERPRISE</span>}
+                  onClick={() => { if (planLaedt) return; if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startGaebRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('enterprise') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('enterprise') ? C.copper + '55' : C.border}`, opacity: darfNutzen('enterprise') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{darfNutzen('enterprise') ? '🏗' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: darfNutzen('enterprise') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
+                  {!darfNutzen('enterprise') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB ENTERPRISE</span>}
                 </div>
               </div>
             </div>
@@ -3048,15 +3054,15 @@ export default function CraftFlow() {
                 style={{
                   flex: 1, minWidth: 160,
                   background: allInquiryStatus === 'done' ? '#1a3a1a' : 'transparent',
-                  color: !planCanUse('starter') ? C.textMid : allInquiryStatus === 'done' ? '#90EE90' : allInquiryStatus === 'loading' ? C.textMid : C.copper,
-                  border: `1px solid ${!planCanUse('starter') ? C.border : allInquiryStatus === 'done' ? '#3a6a3a' : allInquiryStatus === 'error' ? '#8b2222' : C.copper}`,
+                  color: !darfNutzen('starter') ? C.textMid : allInquiryStatus === 'done' ? '#90EE90' : allInquiryStatus === 'loading' ? C.textMid : C.copper,
+                  border: `1px solid ${!darfNutzen('starter') ? C.border : allInquiryStatus === 'done' ? '#3a6a3a' : allInquiryStatus === 'error' ? '#8b2222' : C.copper}`,
                   borderRadius: 3, padding: '8px 12px',
                   cursor: allInquiryStatus === 'loading' ? 'wait' : 'pointer',
                   fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
-                  opacity: !planCanUse('starter') ? 0.6 : 1,
+                  opacity: !darfNutzen('starter') ? 0.6 : 1,
                 }}
               >
-                {!planCanUse('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Suche Lieferanten…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
+                {!darfNutzen('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Suche Lieferanten…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
               </button>
               {/* Export Dropdown */}
               <div style={{ position: 'relative' }}>
@@ -3065,9 +3071,9 @@ export default function CraftFlow() {
                     if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }
                     setExportMenuOpen(o => !o)
                   }}
-                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: planCanUse('starter') ? C.textMid : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap', opacity: planCanUse('starter') ? 1 : 0.6 }}
+                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: darfNutzen('starter') ? C.textMid : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap', opacity: darfNutzen('starter') ? 1 : 0.6 }}
                 >
-                  {planCanUse('starter') ? `↓ Export ${exportMenuOpen ? '▲' : '▼'}` : '🔒 Export'}
+                  {darfNutzen('starter') ? `↓ Export ${exportMenuOpen ? '▲' : '▼'}` : '🔒 Export'}
                 </button>
                 {exportMenuOpen && (
                   <>
@@ -3083,7 +3089,7 @@ export default function CraftFlow() {
                         { label: '⬛ CSV – Übersicht', action: () => { exportCSV(); setExportMenuOpen(false) } },
                         { label: '{ } JSON', action: () => { exportJSON(); setExportMenuOpen(false) } },
                         {
-                          label: planCanUse('enterprise') ? '🏗 GAEB DA84 (.X84)' : '🔒 GAEB DA84 — Enterprise',
+                          label: darfNutzen('enterprise') ? '🏗 GAEB DA84 (.X84)' : '🔒 GAEB DA84 — Enterprise',
                           action: () => { if (planCanUse('enterprise')) { exportGAEB(); setExportMenuOpen(false) } else { window.location.href = '/settings#plan' } },
                         },
                       ].map(item => (
@@ -3147,7 +3153,7 @@ export default function CraftFlow() {
                 {(allInquiryResult.missingGroups?.length ?? 0) > 0 && (
                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                     Kein Lieferant für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')}
-                    {!planCanUse('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
+                    {!darfNutzen('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
                   </div>
                 )}
                 {(allInquiryResult.suggestedSuppliers?.length ?? 0) > 0 && (
@@ -3395,7 +3401,7 @@ export default function CraftFlow() {
                             )}
                             {ist === 'loading' && (
                               <div style={{ fontSize: 12, color: C.textMid, padding: '6px 0' }}>
-                                {planCanUse('enterprise') ? '⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…' : '⟳ Suche passende Lieferanten…'}
+                                {darfNutzen('enterprise') ? '⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…' : '⟳ Suche passende Lieferanten…'}
                               </div>
                             )}
                             {ist === 'error' && (
@@ -3447,7 +3453,7 @@ export default function CraftFlow() {
                                 {(res.missingGroups?.length ?? 0) > 0 && (
                                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                                     Kein Lieferant für: {res.missingGroups.map(g => g.gruppe).join(', ')}
-                                    {!planCanUse('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
+                                    {!darfNutzen('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
                                   </div>
                                 )}
                                 {(res.suggestedSuppliers?.length ?? 0) > 0 && (
