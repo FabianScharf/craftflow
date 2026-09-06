@@ -57,6 +57,18 @@ Wer CNC abschaltet, verliert die Stunden für die Griffmulden ersatzlos. Das Ang
 wird zu billig, die Arbeit fällt trotzdem an — und erzeugt genau die zweite
 Beschwerde. **Die einzige heute vorhandene Stellschraube erzeugt das zweite Problem.**
 
+### Erklären reicht nachweislich nicht
+
+Die Erst-Anmeldung existiert bereits (`ONBOARDING_STEPS` in `src/app/page.tsx`,
+Abschluss über `onboarding_abgeschlossen` im Betriebsprofil) und hat **sieben
+Schritte**. Zwei davon heißen „Kostenstellen einrichten" und „Materialaufschlag
+einstellen".
+
+CraftFlow zeigt den Nutzern also längst, wo die Stellschrauben sitzen — und sie
+landen trotzdem mit Handwerkskammer-Werten in der Kalkulation und nennen das Ergebnis
+utopisch. **Das ist der Beleg dafür, dass Erklären nicht genügt.** Die Kalibrierung
+erklärt deshalb nicht, sie stellt ein.
+
 ### Die Zeitschätzung liegt über der eigenen Wissensbasis
 
 Gegenprobe mit den Zeitrichtwerten aus der Projekt-`CLAUDE.md`: Korpus 2,5–4 h, drei
@@ -80,13 +92,37 @@ Systemschubladen 1–1,75 h, Fronten 0,5–1 h, Montage 0,75 h, Planung ~1 h —
 
 ## Aufbau
 
-### 1 · Wann
+### 1 · Wann — eingebaut in die bestehende Erst-Anmeldung
 
-Beim ersten Start: fünf Fragen, dann die Musterbeschreibung. Überspringbar mit
-ehrlichem Hinweis („dann rechne ich mit Branchenwerten, das kann daneben liegen").
-Jederzeit nachholbar unter *Einstellungen → Mein Betrieb*.
+**Es entsteht kein zweiter Einführungsablauf.** Die Kalibrierung wird Teil der
+vorhandenen Erst-Anmeldung, sonst bekommt der Nutzer beim ersten Start zwei
+Einführungen nebeneinander.
 
-Zweiter Einstieg **vom Ergebnis aus**: Unter jeder Kalkulation steht „Passt der Preis
+Die sieben Schritte heute:
+
+| # | Schritt | bleibt / ändert sich |
+|---|---|---|
+| 1 | Willkommen | bleibt |
+| 2 | So beschreibst du ein Projekt | bleibt |
+| 3 | So beschreibst du ein Projekt (Teil 2) | bleibt |
+| 4 | Deine KI-Werkzeuge | bleibt |
+| 5 | **Kostenstellen einrichten** | **wird zu: Die fünf Fragen zum Betrieb** |
+| 6 | **Materialaufschlag einstellen** | **wird zu: Die Musterbeschreibung mit Preisfrage** |
+| 7 | Bessere Ergebnisse bekommen | bleibt, ergänzt um den Zeitfaktor |
+
+Schritt 5 und 6 erklären heute nur, wo die Einstellungen liegen — mit dem bekannten
+Ergebnis. Künftig **stellen sie ein**. Die Schrittzahl bleibt gleich, der Nutzer
+verlässt die Erst-Anmeldung aber mit echten Werten statt mit einer Aufgabe, die er
+nicht erledigt.
+
+Die Musterbeschreibung in Schritt 6 knüpft dabei unmittelbar an Schritt 2 und 3 an:
+Dort wird erklärt, was in eine Beschreibung gehört — hier steht das fertige Beispiel
+dazu. Erklärung und Beispiel gehören zusammen, statt sich zu wiederholen.
+
+**Überspringbar** mit ehrlichem Hinweis („dann rechne ich mit Branchenwerten, das kann
+daneben liegen"). Jederzeit nachholbar unter *Einstellungen → Mein Betrieb*.
+
+**Zweiter Einstieg vom Ergebnis aus:** Unter jeder Kalkulation steht „Passt der Preis
 nicht zu deinem Betrieb? Fünf Fragen, dann rechne ich mit deinen Werten." Der Nutzer
 kalibriert dort, wo er den größten Grund dazu hat — genau an der Stelle, an der der
 abgesprungene Kunde stattdessen die App geschlossen hat.
@@ -199,6 +235,21 @@ Einkaufspreise, eigene Bauweise. Beides greift an verschiedenen Stellen und stö
 sich nicht: Die Kalibrierung wirkt auf Zeiten und Kostenstellen, der Vault auf
 Bauweise und Material.
 
+### 8 · Die Hilfe muss davon wissen
+
+Der Hilfe-Assistent (`src/app/api/assistant/route.ts`) trägt eine eigene
+Wissensbasis und beantwortet heute schon „Wie ändere ich den Stundensatz?". Er lernt
+zwei Dinge dazu:
+
+- **„Warum ist der Preis so hoch?"** → Erklärung der Zusammensetzung und der Weg zur
+  Kalibrierung. Das ist die Frage des abgesprungenen Kunden, und heute hat der
+  Assistent darauf keine Antwort.
+- **„Was ist der Zeitfaktor?"** → Klartext, wie er entstanden ist und wie man ihn
+  ändert.
+
+Ohne das erklärt die Hilfe weiterhin nur die Kostenstellen und läuft an der neuen
+Stellschraube vorbei.
+
 ## Bewusst nicht Teil dieses Vorhabens
 
 - **Mengengeschäft.** 100 Spinde folgen anderen Gesetzen: Rüsten fällt einmal an statt
@@ -232,6 +283,12 @@ Bauweise und Material.
 8. Ein zweites Konto sieht die Kalibrierung des ersten nicht.
 9. Der Deckungshinweis erscheint **einmal** und blockiert nichts.
 10. Die Fixkosten-Minima je Position werden vom Zeitfaktor **nicht** verändert.
-11. Fabians Vorbehalt, ausdrücklich: „wenn es genau so funktioniert" — der Faktor muss
+11. Beim ersten Start erscheint **eine** Einführung, nicht zwei. Die Schrittzahl
+    bleibt bei sieben.
+12. Wer die Erst-Anmeldung durchläuft, hat danach echte Werte in den Einstellungen
+    stehen — nicht nur die Aufforderung, welche einzutragen.
+13. Der Hilfe-Assistent beantwortet „Warum ist der Preis so hoch?" und führt zur
+    Kalibrierung.
+14. Fabians Vorbehalt, ausdrücklich: „wenn es genau so funktioniert" — der Faktor muss
     an echten Zahlen nachgerechnet werden, bevor etwas live geht. Rechenweg in einem
     Testskript, nicht nur im Kopf.
