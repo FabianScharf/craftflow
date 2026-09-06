@@ -7,6 +7,7 @@ import {
   WERKZEUGE, pruefePreisInhalt,
   unbelegteWoerter, bereinigeWenn, baueBelegquellen,
 } from '@/lib/lernwerkzeuge'
+import { brauchbarerText } from '@/lib/chatantwort'
 
 export const maxDuration = 120
 
@@ -35,7 +36,7 @@ INHALTLICHE REGELN:
 - Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung
 
 LERNEN – WANN DU FRAGST:
-- Sagt der Nutzer ausdrücklich "immer", "standardmäßig", "grundsätzlich" oder ähnlich, zeige am Ende deiner "message" den GENAUEN Regeltext in Anführungszeichen und frage, ob der Wortlaut so passt.
+- Sagt der Nutzer ausdrücklich "immer", "standardmäßig", "grundsätzlich" oder ähnlich, nenne am Ende deiner "message" den GENAUEN Regeltext und frage, ob der Wortlaut so passt. Setze ihn in typografische Anführungszeichen „so“ — gerade Anführungszeichen zerlegen das JSON. Auch diese Rückfrage ist ein JSON-Objekt, niemals blanker Text.
 - Ändert er dasselbe Merkmal zum ZWEITEN Mal in diesem Angebot, frage ebenfalls.
 - Höchstens EINE Frage pro Antwort. Nie eine Frage wiederholen, die er gerade verneint hat.
 - Stimmt er zu, rufe regel_merken bzw. preis_merken auf — mit EXAKT dem Wortlaut, den du ihm gezeigt hast. Ohne Zustimmung nie.
@@ -444,6 +445,18 @@ export async function POST(req: NextRequest) {
         message: (zusatz ? zusatz + '\n\n' : '')
           + 'Dauerhaft merken konnte ich das nicht: ' + werkzeugFehler[werkzeugFehler.length - 1]
           + ' Sag es bitte noch einmal in deinen Worten, dann merke ich genau das.',
+        updatedOffer: null,
+      })
+    }
+    // Das Modell vergisst den JSON-Umschlag gelegentlich und antwortet in
+    // Fliesstext — inhaltlich richtig. Frueher landete das im Muell und der
+    // Nutzer las "nicht verwertbar" (von Fabian mehrfach gemeldet, Rohtext im
+    // Vercel-Log vom 2026-09-06 15:11 belegt). Jetzt geht der Text durch.
+    const prosa = brauchbarerText(raw)
+    if (prosa) {
+      return NextResponse.json({
+        success: true,
+        message: (zusatz ? zusatz + '\n\n' : '') + prosa,
         updatedOffer: null,
       })
     }
