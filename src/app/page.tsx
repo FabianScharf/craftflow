@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { usePlan } from '@/hooks/usePlan'
 import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
@@ -361,6 +361,7 @@ export default function CraftFlow() {
 
   useEffect(() => { currentProjectIdRef.current = currentProjectId }, [currentProjectId])
 
+
   async function saveProject() {
     setSaveStatus('saving')
     const title = [kunde.name.trim(), kunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
@@ -390,6 +391,7 @@ export default function CraftFlow() {
         }).catch(() => {})
       }
       setSaveStatus('saved')
+      setGespeicherterStand(standJetzt)
       setTimeout(() => setSaveStatus('idle'), 3000)
       // Outcome-Tracking initialisieren
       const savedId = currentProjectId ?? row.id
@@ -446,6 +448,39 @@ export default function CraftFlow() {
   const [angebotsdatum, setAngebotsdatum] = useState('')
   const [anschr, setAnschr] = useState('vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
   const [widerruf, setWiderruf] = useState(true)
+  // ── Ungespeicherte Handarbeit erkennen ────────────────────────────────────
+  // Vergleicht, was auf dem Bildschirm steht, mit dem zuletzt gesicherten Stand.
+  // Bewusst ueber einen Vergleich statt ueber ein Flag an jedem Eingabefeld:
+  // Ein vergessenes Feld waere ein stiller Datenverlust, und genau das ist am
+  // 2026-09-07 passiert.
+  //
+  // KI-Aenderungen tauchen hier nie als "ungespeichert" auf — die werden sofort
+  // automatisch gesichert und setzen den Vergleichsstand gleich mit.
+  const standJetzt = useMemo(
+    () => JSON.stringify({ kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum }),
+    [kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum])
+  const [gespeicherterStand, setGespeicherterStand] = useState('')
+  // Gemerktes Ziel: was passieren soll, wenn der Nutzer die Nachfrage beantwortet.
+  const [verlassenZiel, setVerlassenZiel] = useState<null | (() => void)>(null)
+  const ungespeichert = gespeicherterStand !== '' && standJetzt !== gespeicherterStand
+
+  // Faengt jeden Weg aus dem Angebot ab. Ohne das merkt der Nutzer erst, dass
+  // etwas fehlte, wenn er zurueckkommt — und dann ist es zu spaet.
+  // (setVerlassenZiel(() => aktion): React deutet eine Funktion sonst als
+  //  Updater, deshalb die zusaetzliche Huelle.)
+  const mitPruefung = useCallback((aktion: () => void) => {
+    if (ungespeichert) setVerlassenZiel(() => aktion)
+    else aktion()
+  }, [ungespeichert])
+
+  // Tab schliessen oder neu laden: Hier kann nur der Browser fragen, mit
+  // seinem eigenen Standardtext. Ein eigener Dialog ist dort nicht moeglich.
+  useEffect(() => {
+    if (!ungespeichert) return
+    const warnen = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warnen)
+    return () => window.removeEventListener('beforeunload', warnen)
+  }, [ungespeichert])
   const [pdfHTML, setPdfHTML] = useState('')
   const [pdfGenerating, setPdfGenerating] = useState(false)
 
@@ -994,6 +1029,12 @@ export default function CraftFlow() {
         const projectId = currentProjectIdRef.current
         const title = [parsedKunde.name.trim(), parsedKunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
         const payload = { kunde: parsedKunde, pos: parsedPos, docNr, docTyp, anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today() }
+        // Der frisch analysierte Stand gilt als gesichert — sonst meldet die App
+        // sofort "ungespeicherte Aenderungen", obwohl der Nutzer nichts getan hat.
+        setGespeicherterStand(JSON.stringify({
+          kunde: parsedKunde, pos: parsedPos, docNr, docTyp,
+          anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today(),
+        }))
         fetch(
           projectId ? `/api/projects/${projectId}` : '/api/projects',
           {
@@ -1362,6 +1403,12 @@ export default function CraftFlow() {
               },
             }),
           }).catch(e => console.error('[optimize] Autosave', e))
+          // Gilt als gesichert. Sonst haetten KI-Aenderungen die Warnung
+          // ausgeloest, obwohl sie laengst in der Datenbank stehen.
+          setGespeicherterStand(JSON.stringify({
+            kunde: neueKunde, pos: json.updatedOffer.positionen, docNr, docTyp,
+            anschr, widerruf, angebotsdatum: angebotsdatum || today(),
+          }))
         }
       }
 
@@ -2317,6 +2364,61 @@ export default function CraftFlow() {
     </div>
   ) : null
 
+  // ── Speicherleiste ────────────────────────────────────────────────────────
+  // Fest am unteren Rand, nicht im Reiter "Angebot" versteckt. Wer in der
+  // Kalkulation arbeitet, soll den Knopf sehen, ohne ihn zu suchen.
+  // Erscheint nur, wenn wirklich etwas von Hand geaendert wurde.
+  const SpeicherLeiste = ungespeichert ? (
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2500, background: C.darkbg, borderTop: `1px solid ${C.copper}66`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
+        Nicht gespeicherte Änderungen
+      </span>
+      <button
+        onClick={() => void saveProject()}
+        disabled={saveStatus === 'saving'}
+        style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '9px 22px', fontSize: 12, fontWeight: 800, fontFamily: 'Helvetica Neue,sans-serif', cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer' }}
+      >
+        {saveStatus === 'saving' ? '…' : 'Speichern'}
+      </button>
+    </div>
+  ) : null
+
+  // ── Nachfrage beim Verlassen ──────────────────────────────────────────────
+  // Drei Wege, weil zwei nicht reichen: Wer weggeht, will entweder sichern,
+  // bewusst verwerfen — oder hat sich verklickt und will zurueck.
+  const VerlassenDialog = verlassenZiel ? (
+    <div style={{ position: 'fixed', inset: 0, background: '#000000CC', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 16 }}>
+      <div style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 4, maxWidth: 420, width: '100%', padding: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 6 }}>
+          Nicht gespeicherte Änderungen
+        </div>
+        <div style={{ fontSize: 12, color: C.textMid, marginBottom: 18, lineHeight: 1.6 }}>
+          Du hast im Angebot etwas von Hand geändert. Wenn du jetzt weitergehst, ohne zu speichern, ist es weg.
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={async () => { const w = verlassenZiel; setVerlassenZiel(null); await saveProject(); w?.() }}
+            style={{ flex: '1 1 130px', background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '11px 0', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+          >
+            Speichern und weiter
+          </button>
+          <button
+            onClick={() => { const w = verlassenZiel; setGespeicherterStand(standJetzt); setVerlassenZiel(null); w?.() }}
+            style={{ flex: '1 1 110px', background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '11px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Verwerfen
+          </button>
+          <button
+            onClick={() => setVerlassenZiel(null)}
+            style={{ flex: '1 1 90px', background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '11px 0', fontSize: 12, cursor: 'pointer' }}
+          >
+            Zurück
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   const HelpWidget = (
     <>
       {!helpOpen && (
@@ -2939,9 +3041,11 @@ export default function CraftFlow() {
   ]
 
   return (
-    <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+    <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white, paddingBottom: ungespeichert ? 68 : 0 }}>
       {OnboardingModal}
       {TrialBanner}
+      {SpeicherLeiste}
+      {VerlassenDialog}
 
       {/* Header */}
       <div style={{ background: C.darkbg, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
@@ -2956,9 +3060,9 @@ export default function CraftFlow() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-          <button onClick={resetAll} style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }} title="Neues Angebot">✏️</button>
-          <button onClick={() => setScreen(previousScreen)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">📋</button>
-          <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">⚙️</button>
+          <button onClick={() => mitPruefung(resetAll)} style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }} title="Neues Angebot">✏️</button>
+          <button onClick={() => mitPruefung(() => setScreen(previousScreen))} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">📋</button>
+          <button onClick={() => mitPruefung(() => { window.location.href = '/settings' })} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">⚙️</button>
           {userEmail && (
             <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">🚪</button>
           )}
