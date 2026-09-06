@@ -71,10 +71,50 @@ function belegt(woerter: string[], quelle: string): boolean {
   return inhalt.every(w => kommtVor(w, quelle))
 }
 
+// Nennt die Woerter, die nicht belegt sind. Ohne diese Liste bekam die KI nur
+// ein pauschales "abgelehnt" zurueck und riet beim naechsten Versuch — drei
+// bezahlte Runden lang, am Ende sah der Nutzer nur "nicht verwertbar"
+// (gemessen 2026-09-06). Wer ablehnt, muss sagen, woran es lag.
+export function unbelegteWoerter(text: string, belegquellen: string[]): string[] {
+  const quelle = belegquellen.map(normalisiere).join(' ')
+  const inhalt = inhaltsWoerter(text).filter(w => !FUELLWOERTER.has(w))
+  const offen = quelle === '' ? inhalt : inhalt.filter(w => !kommtVor(w, quelle))
+  // Satzzeichen haengen an den Woertern (normalisiere laesst . und , stehen).
+  // Fuer die Rueckmeldung stoeren sie — geprueft wird weiterhin das volle Wort.
+  return [...new Set(offen.map(w => w.replace(/^[.,]+|[.,]+$/g, '')).filter(w => w !== ''))]
+}
+
 export function pruefeRegelInhalt(dann: string, belegquellen: string[]): boolean {
   const quelle = belegquellen.map(normalisiere).join(' ')
   if (quelle === '') return false
   return belegt(inhaltsWoerter(dann), quelle)
+}
+
+// Das Modell hat am 2026-09-06 seine eigene Werkzeug-Syntax in das Feld
+// geschrieben: `</parameter><parameter name="dann">...`. Der Text stand danach
+// als Bedingung im Vault und waere in JEDE Kalkulation gewandert. Geprueft wird
+// nicht der Sinn, nur die Form — Spitzklammern haben in einer Bedingung nichts
+// zu suchen.
+const MARKUP = /[<>]|parameter\s+name=/i
+const WENN_MAXLAENGE = 120
+
+export function bereinigeWenn(wenn: string): string {
+  const s = (wenn ?? '').replace(/\s+/g, ' ').trim()
+  if (s === '') return ''
+  if (MARKUP.test(s)) return ''
+  return s.length > WENN_MAXLAENGE ? s.slice(0, WENN_MAXLAENGE).trim() : s
+}
+
+// Fabians Entscheidung 2026-09-06: Er bestaetigt den Wortlaut, bevor gespeichert
+// wird. Damit zaehlt auch, was die KI ihm gezeigt hat — aber ausschliesslich aus
+// FRUEHEREN Runden. `chatHistory` enthaelt nie die Antwort, in der das Werkzeug
+// gerade laeuft; die KI kann also nicht im selben Zug erfinden und speichern.
+export function baueBelegquellen(
+  angebotstexte: string[],
+  chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  message: string,
+): string[] {
+  return [...angebotstexte, ...chatHistory.map(m => m.content), message]
 }
 
 export function pruefePreisInhalt(bezeichnung: string, ek: number, belegquellen: string[]): boolean {

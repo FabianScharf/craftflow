@@ -3,7 +3,10 @@ import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
 import { regelBlockFuerNutzer, zaehleRegelnHoch, speichereRegel } from '@/lib/bauweise'
 import { preisBlockFuerNutzer, speicherePreis } from '@/lib/preisspeicher'
-import { WERKZEUGE, pruefeRegelInhalt, pruefePreisInhalt } from '@/lib/lernwerkzeuge'
+import {
+  WERKZEUGE, pruefePreisInhalt,
+  unbelegteWoerter, bereinigeWenn, baueBelegquellen,
+} from '@/lib/lernwerkzeuge'
 
 export const maxDuration = 120
 
@@ -32,15 +35,17 @@ INHALTLICHE REGELN:
 - Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung
 
 LERNEN – WANN DU FRAGST:
-- Sagt der Nutzer ausdrücklich "immer", "standardmäßig", "grundsätzlich" oder ähnlich, frage am Ende deiner "message", ob du das dauerhaft merken sollst.
+- Sagt der Nutzer ausdrücklich "immer", "standardmäßig", "grundsätzlich" oder ähnlich, zeige am Ende deiner "message" den GENAUEN Regeltext in Anführungszeichen und frage, ob der Wortlaut so passt.
 - Ändert er dasselbe Merkmal zum ZWEITEN Mal in diesem Angebot, frage ebenfalls.
 - Höchstens EINE Frage pro Antwort. Nie eine Frage wiederholen, die er gerade verneint hat.
-- Stimmt er zu, rufe regel_merken bzw. preis_merken auf. Ohne Zustimmung nie.
+- Stimmt er zu, rufe regel_merken bzw. preis_merken auf — mit EXAKT dem Wortlaut, den du ihm gezeigt hast. Ohne Zustimmung nie.
+- Formuliere den Regeltext aus seinen Worten. Lehnt ein Werkzeug ab, nennt dir die Antwort die beanstandeten Wörter: formuliere ohne sie und rufe es erneut auf.
 - Nennt er einen Einkaufspreis und will ihn dauerhaft, nutze preis_merken.
 - Existiert zu einem Material bereits ein fixierter Preis und er ändert ihn, frage, ob der hinterlegte Preis nachgezogen werden soll. Für dieses Angebot gilt sein Wert in jedem Fall.
 
 WAS DU NIE ZUSAGEN DARFST:
-Du kannst dir NUR Bauweise-Regeln und Einkaufspreise merken. Stundensätze, Materialaufschläge und Verkaufspreise kannst du NICHT dauerhaft merken. Sage dort niemals "merke ich mir", sondern: "Für dieses Angebot übernommen – dauerhaft merken kann ich mir das nicht, das stellst du unter Einstellungen ein."`
+Du kannst dir NUR Bauweise-Regeln und Einkaufspreise merken. Stundensätze, Materialaufschläge und Verkaufspreise kannst du NICHT dauerhaft merken. Sage dort niemals "merke ich mir", sondern: "Für dieses Angebot übernommen – dauerhaft merken kann ich mir das nicht, das stellst du unter Einstellungen ein."
+Behaupte NIE eine Änderung am Angebot, die du nicht lieferst. Schreibst du "für dieses Angebot übernommen" oder "trage ich ein", dann MUSS im selben Zug updatedOffer mit genau dieser Änderung kommen. Kannst oder willst du nichts ändern, sage nur, was künftig gilt.`
 
 // Sammelt alles, was im Angebot wirklich steht — Belegquelle fuer den
 // Erfindungsschutz. Nur was hier oder in den Nutzernachrichten vorkommt, darf
@@ -62,7 +67,10 @@ function sammleAngebotstexte(offer: unknown): string[] {
   return texte
 }
 
-type WerkzeugAntwort = { ok: boolean; text: string; meldung: string }
+// `grund` ist der Klartext fuer den Nutzer, wenn am Ende gar nichts geklappt
+// hat. `meldung` meldet Erfolge sofort; eine Ablehnung darf die KI erst noch
+// selbst ausbuegeln, ohne dass es im Chat rauscht.
+type WerkzeugAntwort = { ok: boolean; text: string; meldung: string; grund?: string }
 
 // Fuehrt einen Werkzeugaufruf aus. Prueft VOR dem Speichern, ob der Inhalt
 // belegt ist. Wird abgelehnt, bekommt die KI den Grund als Fehler zurueck —
@@ -80,15 +88,21 @@ async function fuehreWerkzeugAus(
 
   if (name === 'regel_merken') {
     const bereich = String(input.bereich ?? '')
-    const wenn = String(input.wenn ?? '')
+    const wenn = bereinigeWenn(String(input.wenn ?? ''))
     const dann = String(input.dann ?? '').trim()
-    if (!dann) return { ok: false, text: 'Feld "dann" ist leer.', meldung: '' }
-    if (!pruefeRegelInhalt(dann, belegquellen)) {
+    if (!dann) {
+      return { ok: false, text: 'Feld "dann" ist leer.', meldung: '',
+        grund: 'Es kam kein Regeltext an.' }
+    }
+    const offen = unbelegteWoerter(dann, belegquellen)
+    if (offen.length > 0) {
       return {
         ok: false,
-        text: 'Abgelehnt: Die Regel enthaelt Inhalte, die weder im Angebot noch im Chat vorkommen. '
-          + 'Formuliere sie ausschliesslich aus dem, was tatsaechlich da steht, oder frage nach.',
+        text: 'Abgelehnt: Diese Woerter kommen weder im Angebot noch im bisherigen Chat vor: '
+          + offen.join(', ') + '. Formuliere die Regel ausschliesslich aus dem, was wirklich '
+          + 'dasteht — oder zeige dem Nutzer deinen Wortlaut und frage, ob er so passt.',
         meldung: '',
+        grund: 'Die Regel enthielt Woerter, die so nicht gefallen sind: ' + offen.join(', ') + '.',
       }
     }
     const beleg = String(input.quelle ?? '') === 'wiederholung'
@@ -114,6 +128,7 @@ async function fuehreWerkzeugAus(
         text: 'Abgelehnt: Material oder Betrag kommen weder im Angebot noch im Chat vor. '
           + 'Einkaufspreise nie schaetzen — frage den Nutzer nach dem Preis.',
         meldung: '',
+        grund: 'Material oder Betrag kamen im Chat nicht vor.',
       }
     }
     const r = await speicherePreis(supabase, userId, { bezeichnung, ek, einheit })
@@ -324,16 +339,19 @@ export async function POST(req: NextRequest) {
 
     // Belegquellen für den Erfindungsschutz: was wirklich im Angebot steht und
     // was der Nutzer wirklich geschrieben hat. Nichts anderes darf gemerkt werden.
-    const belegquellen: string[] = [
-      ...sammleAngebotstexte(offerData),
-      ...chatHistory.filter(m => m.role === 'user').map(m => m.content),
-      message,
-    ]
+    // Fabians Entscheidung 2026-09-06: Er bestaetigt den Wortlaut. Deshalb zaehlt
+    // auch, was die KI ihm in FRUEHEREN Runden gezeigt hat — `chatHistory` enthaelt
+    // nie die laufende Antwort, sie kann also nicht im selben Zug erfinden und
+    // speichern. Vorher zaehlten nur Nutzernachrichten; jede eigene Formulierung
+    // der KI fiel damit durch, auch eine voellig treue (gemessen 2026-09-06).
+    const belegquellen: string[] = baueBelegquellen(
+      sammleAngebotstexte(offerData), chatHistory, message)
 
     type Block = Record<string, unknown> & { type: string }
     type ApiMsg = { role: 'user' | 'assistant'; content: string | Block[] }
     const verlauf: ApiMsg[] = [...messages]
     const werkzeugMeldungen: string[] = []
+    const werkzeugFehler: string[] = []
     let data: { content?: Block[]; stop_reason?: string } = {}
 
     // Höchstens drei Runden. Ohne Obergrenze wäre eine Schleife aus Aufruf und
@@ -378,6 +396,7 @@ export async function POST(req: NextRequest) {
           : { ok: false, text: 'Nicht eingeloggt, nichts gespeichert.', meldung: '' }
         ergebnisse.push({ type: 'tool_result', tool_use_id: a.id, content: r.text, is_error: !r.ok })
         if (r.meldung) werkzeugMeldungen.push(r.meldung)
+        if (!r.ok && r.grund) werkzeugFehler.push(r.grund)
       }
 
       verlauf.push({ role: 'assistant', content: data.content ?? [] })
@@ -415,6 +434,18 @@ export async function POST(req: NextRequest) {
     // Normalfall: Das Modell hat gehandelt statt geredet.
     if (raw.trim() === '' && zusatz) {
       return NextResponse.json({ success: true, message: zusatz, updatedOffer: null })
+    }
+    // Hat ein Werkzeug abgelehnt, ist das der wahre Grund. Ohne diesen Zweig las
+    // der Nutzer "nicht verwertbar" und erfuhr nie, dass seine Regel abgelehnt
+    // wurde — der Fehler, an dem der Live-Test am 2026-09-06 haengenblieb.
+    if (werkzeugFehler.length > 0) {
+      return NextResponse.json({
+        success: true,
+        message: (zusatz ? zusatz + '\n\n' : '')
+          + 'Dauerhaft merken konnte ich das nicht: ' + werkzeugFehler[werkzeugFehler.length - 1]
+          + ' Sag es bitte noch einmal in deinen Worten, dann merke ich genau das.',
+        updatedOffer: null,
+      })
     }
     return NextResponse.json({
       success: true,
