@@ -242,3 +242,25 @@ gelesenes Angebot ins Formular zu schreiben waere schlimmer als keine Aenderung.
   Der Live-Test belegte den Bedarf: "ca. 60 EUR" steht als harte 60,00 € in der
   Preisliste.
 - Kriterien 1, 3, 4, 8, 11.
+
+### Zweitkonto-Test 2026-09-06 — bestanden (Kriterien 8 und 11)
+
+Der Test, der laut Spec ueber die Freigabe entscheidet. Fabian hat sich zweimal
+umgemeldet, gelesen wurde jeweils ueber `/api/settings/bauweise`,
+`/api/settings/materialpreise` und `/api/projects` aus der laufenden Sitzung.
+
+| | Testkonto `9a174b25…` | Arbeitskonto `7ca5f21e…` |
+|---|---|---|
+| Bauweise-Regeln | 2 | **0** |
+| Materialpreise | 2 | **0** |
+| Projekte | 4 | 25 (voellig andere) |
+
+Kein Uebersprung in beide Richtungen, und nach der Rueckmeldung ins Testkonto war
+dort alles unveraendert vorhanden.
+
+**Zusatzbefund:** Ohne Anmeldung liefern alle drei Schnittstellen einen Redirect auf
+`/login`, keine Daten. Die Middleware greift auch fuer die neuen Routen.
+
+**Fuer die Uebergabe wichtig:** Alles heute Gelernte liegt im **Testkonto**. Fabians
+Arbeitskonto hat null Regeln und null Preise — nach `dev → main` faengt es leer an.
+Das ist richtig so, sollte ihn aber nicht ueberraschen.
