@@ -215,6 +215,7 @@ Schritt 2: Holzart-Faktor anwenden (siehe Tabelle unten):
   Fichte/Kiefer: ×1,0 | Buche: ×1,15 | Eiche: ×1,3 | Nussbaum: ×1,4 | Kirsche: ×1,3
 Schritt 3: Ergebnis aufteilen auf 03_02_Zuschnitt (40 %) und 03_06_Zusammenbau (60 %)
 Schritt 4: Zusätzlich Verleimen einplanen: 45 min je m² Leimfläche (in 03_06_Zusammenbau)
+WICHTIG: Dieses Ergebnis ist VERBINDLICH, keine Untergrenze. Zuschnitt + Zusammenbau zusammen dürfen inklusive Holzart-Faktor, Verleimen und Beschlägen höchstens das Doppelte der Basis (lfm × 5 h) erreichen.
 
 Beispiel Massivholz Eiche, 3,6 lfm raumhoch:
   Basis: 3,6 × 5 h = 18 h × 1,3 (Eiche) = 23,4 h = 1.404 min
@@ -225,6 +226,7 @@ Schritt 1: Laufmeter = Breite des Möbels in Meter (z.B. 2,40 m breit = 2,4 lfm)
 Schritt 2: Werkstattzeit gesamt = Laufmeter × 4,5 h/lfm
 Schritt 3: Aufteilen: 40 % → 03_02_Zuschnitt, 60 % → 03_06_Zusammenbau
   (Beschläge kommen in Schritt 4 oben drauf)
+WICHTIG: Dieses Ergebnis ist VERBINDLICH, keine Untergrenze. Zuschnitt + Zusammenbau zusammen dürfen inklusive aller Beschlagszuschläge höchstens das 1,5-Fache der Basis erreichen. Wer mehr braucht, hat sich verrechnet.
 
 Beispiel Dekormöbel Einbauschrank 3,6 lfm raumhoch:
   Basis: 3,6 × 4,5 h = 16,2 h = 972 min
@@ -248,12 +250,12 @@ Schritt 2 – OBERFLÄCHE vs. BEKANTUNG:
 □ Dekormöbel: Hat Oberfläche maximal 30 Minuten?
 
 Schritt 3 – WERKSTATTZEITEN:
-□ Zuschnitt + Zusammenbau gesamt: mind. lfm × 270 min (Dekor) oder lfm × 390 min (Massivholz Eiche)?
+□ Zuschnitt + Zusammenbau gesamt im BAND: lfm × 270 bis 405 min (Dekor) oder lfm × 390 bis 600 min (Massivholz Eiche)? Beides sind harte Grenzen — zu viel ist genauso falsch wie zu wenig.
 □ Zusammenbau: Jede Tür +20 min, Schiebetür +45 min, Klappe +35 min, Schublade +30 min, Griff +8 min korrekt addiert?
 □ Sind alle 4 Fixkosten (Besprechung, Planung, Konstruktion, Arbeitsvorbereitung) vorhanden?
 
 Schritt 4 – MONTAGE:
-□ Wenn Montage vorhanden: mindestens lfm × 90 min?
+□ Wenn Montage vorhanden: lfm × 90 bis 150 min (Neubau) bzw. lfm × 150 bis 240 min (Altbau, schiefe Wände)?
 □ Altbau oder schiefe Wände erwähnt? Dann +25 % Puffer.
 
 Schritt 5 – GESAMTPREIS:
@@ -522,6 +524,8 @@ const FIXKOSTEN_MINIMA: Record<string, number> = {
   'Arbeitsvorbereitung': 20,
 }
 
+import { kappeZeiten, ALTBAU_RE } from '@/lib/zeitpruefung'
+
 const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
 
 type AZ = { kostenstelle: string; minuten: number; vkStunde: number }
@@ -707,6 +711,18 @@ function validateAndFix(
       montage.minuten = Math.max(montage.minuten, Math.round(lm * 90))
     }
 
+    // 6b. Zeiten auf die Pflichtrechnung deckeln.
+    //     Gemessen 2026-09-06: Die KI rechnete am Referenzschrank das Doppelte
+    //     dessen, was der Prompt selbst vorschreibt (1.350 statt ~690 min fuer
+    //     Zuschnitt + Zusammenbau). Der Grund steht in src/lib/zeitpruefung.ts.
+    //     Deterministisch nach der KI-Antwort, wie bei vkStunde und aufschlag.
+    const altbau = ALTBAU_RE.test(String(pos.beschreibung ?? '') + ' ' + String(pos.titel ?? ''))
+    const gekappt = kappeZeiten(az, lm, massiv, altbau)
+    if (gekappt.hinweise.length > 0) {
+      az = gekappt.zeilen as typeof az
+      console.warn('[analyze] Zeiten gekappt:', gekappt.hinweise.join(' '))
+    }
+
     // 7. Plausibility check — flags (does NOT silently alter numbers) positions
     //    whose total WORKSHOP TIME is far outside the lm-based time floor.
     //    Deliberately rate-independent: checking price/lfm here would punish
@@ -716,11 +732,16 @@ function validateAndFix(
     //    Vorfall). Time is what must be plausible; price is minutes × rate.
     let warnung: string | undefined
     if (lm > 0) {
-      const flexKs = ['Zuschnitt', 'Zusammenbau', 'Oberfläche', 'Bekantung', 'CNC', 'Montage', 'Produktion']
+      // Montage gehoert NICHT hierher: Sie stand frueher im Zaehler, waehrend der
+      // Erwartungswert eine reine Werkstattzeit ist — die Pruefung war dadurch von
+      // sich aus zu grosszuegig. Montage wird in kappeZeiten() eigens geprueft.
+      const flexKs = ['Zuschnitt', 'Zusammenbau', 'Oberfläche', 'Bekantung', 'CNC', 'Produktion']
       const flexMinutes = az.filter(a => flexKs.includes(a.kostenstelle)).reduce((s, a) => s + a.minuten, 0)
       const expectedMin = lm * (massiv ? 5 : 4.5) * 60
 
-      if (flexMinutes > expectedMin * 4 || flexMinutes < expectedMin * 0.3) {
+      // Frueher das VIERFACHE. Am Referenzschrank lag die Abweichung bei 2,5x und
+      // lief damit stillschweigend durch (gemessen 2026-09-06).
+      if (flexMinutes > expectedMin * 2 || flexMinutes < expectedMin * 0.3) {
         const hours = Math.round(flexMinutes / 60)
         const expectedHours = Math.round(expectedMin / 60)
         warnung = `Werkstattzeit (${hours} h) liegt weit außerhalb des Zeitrichtwerts für ${lm.toFixed(1)} lfm ` +
