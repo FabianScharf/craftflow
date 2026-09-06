@@ -1,6 +1,6 @@
 # Umbau Lernabfrage + Materialpreise — Arbeitsstand
 
-**Stand:** 2026-09-06 · **Branch:** `dev` = `7ddbb0c` (gepusht) · **`main`:** unberührt
+**Stand:** 2026-09-06 · **Branch:** `dev` = zuletzt gepusht, siehe `git log` · **`main`:** unberührt
 
 > **Alles gebaut, NICHTS davon live getestet.** Das ist der wichtigste Satz dieser
 > Datei. Der Live-Test auf der dev-Preview steht komplett aus.
@@ -105,3 +105,59 @@ Zwölf Kriterien in der Spec. Die entscheidenden:
    entscheidet
 
 Erst danach `dev → main`.
+
+
+---
+
+## Stand nach dem ersten echten Praxistest (2026-09-06 abends)
+
+### Was nachweislich funktioniert
+
+- **Testphasen-Countdown**: zeigt korrekt "13 Tage" (Screenshot).
+- **Hinweisbalken** ist sichtbar.
+- Die **Optimierung selbst** laeuft: Materialaenderungen kommen an, die KI stellt
+  Rueckfragen.
+
+### Was noch offen oder unklar ist
+
+1. **"Antwort konnte nicht verarbeitet werden"** trat auf, nachdem der Nutzer einen
+   Preis genannt hatte ("Eine Eiche Lade in der Groesse kostet ca. 60 EUR pro Stueck").
+   Ursache nicht abschliessend geklaert — ohne Zugriff auf die Vercel-Logs nicht
+   feststellbar, ob ein Werkzeug lief, abgelehnt wurde oder das Modell schlicht kein
+   JSON lieferte.
+   **Behoben wurde jedenfalls:** Der Fehlerpfad verschluckte die Werkzeug-Meldungen.
+   Ein gerade fixierter Preis waere stillschweigend verlorengegangen. Ausserdem
+   verlangt der Prompt jetzt ausdruecklich, nach jedem Werkzeug-Ergebnis das JSON zu
+   liefern. Beim naechsten Test sollte im Chat stehen, was tatsaechlich passiert ist.
+2. **Unbeantwortet:** Hat die KI gefragt, ob sie "Massivholzladen immer als Zukauf von
+   Wuerth" merken soll? Das ist der Kernfall der Lernfunktion und muss beim naechsten
+   Test gezielt geprueft werden.
+3. **Speicherleiste und Verlassen-Nachfrage** sind seit dem `loadProject`-Fix
+   ungetestet.
+
+### Offene Konzeptfrage: variable Preise
+
+Der Nutzer brachte einen Fall, den die Materialpreisliste konstruktiv nicht abdeckt:
+
+> "Massivholzladen kaufe ich immer bei Wuerth fertig ein." + "kostet ca. 60 EUR,
+> kommt auf Groesse und Holzart an."
+
+Darin stecken **zwei verschiedene Dinge**:
+
+| Aussage | Art | Wohin |
+|---|---|---|
+| "kaufe ich **immer** fertig ein" | Bauweise, gilt dauerhaft | Bauweise-Vault — genau dafuer gebaut |
+| "**ca.** 60 EUR, je nach Groesse und Holzart" | Preis, variabel | Als feste Zahl unbrauchbar |
+
+Die Preisliste kennt nur `bezeichnung -> preis`, keine Bedingungen. Ein fixiertes
+"Massivholzlade = 60 EUR" waere falsch, sobald Buche statt Eiche gebaut wird.
+
+**Vorschlag, noch nicht entschieden:**
+- Typische Faelle einzeln hinterlegen ("Massivholzlade Eiche 600 mm = 60 EUR") statt
+  einen Durchschnitt zu fixieren. Die Liste darf beliebig viele Zeilen haben.
+- Unsichere Angaben ("ca.", "je nach", "kommt darauf an") erkennt die KI und fixiert
+  sie **nicht**, sondern fragt im naechsten Angebot nach der Groesse.
+
+**Fabian wurde gefragt**, ob das seiner Arbeitsweise entspricht oder ob er eher
+Staffelpreise braucht (ein Material, mehrere Groessen und Preise). Antwort steht aus —
+hier weitermachen.
