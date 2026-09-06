@@ -1336,6 +1336,33 @@ export default function CraftFlow() {
         nettoNachher = json.updatedOffer.positionen.reduce(
           (sum: number, p: Angebotsposition) => sum + calcAngebotspos(p), 0
         )
+
+        // Den neuen Stand sofort sichern. Vorher wurde nur die VORHERIGE
+        // Fassung als Version weggeschrieben und die Anzeige aktualisiert —
+        // der neue Stand stand nirgends in der Datenbank. Wer das Projekt
+        // verliess, ohne "Änderungen speichern" zu druecken, verlor alles,
+        // was die KI geaendert hatte (gemeldet 2026-09-07).
+        // Feuere-und-vergiss wie nach der Erstanalyse: Ein Speicherfehler darf
+        // den Chat nicht unterbrechen, deshalb kein await und kein throw.
+        const zielId = currentProjectIdRef.current
+        if (zielId) {
+          const neueKunde = json.updatedOffer.kunde ?? kunde
+          const neuerTitel = [neueKunde?.name?.trim(), neueKunde?.projekt?.trim()]
+            .filter(Boolean).join(' – ') || 'Ohne Titel'
+          fetch(`/api/projects/${zielId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: neuerTitel,
+              data: {
+                kunde: neueKunde,
+                pos: json.updatedOffer.positionen,
+                docNr, docTyp, anschr, widerruf,
+                angebotsdatum: angebotsdatum || today(),
+              },
+            }),
+          }).catch(e => console.error('[optimize] Autosave', e))
+        }
       }
 
       // Tracking — fire & forget
