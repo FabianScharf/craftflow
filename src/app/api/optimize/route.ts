@@ -14,6 +14,7 @@ const SYSTEM_BASE = `Du bist Kalkulationsassistent für FS Crafted (Schreiner, R
 KRITISCH – AUSGABEFORMAT:
 Dein TEXT besteht aus GENAU EINEM gültigen JSON-Objekt. Kein Text davor, kein Text danach, keine Erklärungen, keine Backticks.
 AUSNAHME: Werkzeugaufrufe (regel_merken, preis_merken) sind kein Text. Sie stehen NICHT im JSON, sondern werden als Werkzeug ausgeführt. Du darfst ein Werkzeug aufrufen UND im selben Zug dein JSON liefern.
+Nach jedem Werkzeug-Ergebnis lieferst du IMMER dein JSON-Objekt — auch wenn du nur bestätigst, dass etwas gemerkt wurde. Ohne JSON kommt beim Nutzer nichts an.
 
 Analyse / Info / Rückfrage:
 {"message":"Text ohne Markdown","updatedOffer":null}
@@ -403,10 +404,23 @@ export async function POST(req: NextRequest) {
       const zusatz = werkzeugMeldungen.length > 0 ? '\n\n' + werkzeugMeldungen.join(' ') : ''
       return NextResponse.json({ success: true, message: String(parsed.message ?? '') + zusatz, updatedOffer })
     }
-    console.error('[optimize] unparsable response:', raw.slice(0, 500))
+    console.error('[optimize] unparsable response:', { stop: data.stop_reason, raw: raw.slice(0, 500) })
+
+    // Auch hier muss durchkommen, was die Werkzeuge getan haben. Sonst wird ein
+    // gespeicherter Preis stillschweigend verschluckt und der Nutzer glaubt,
+    // es sei nichts passiert — der Fehler vom 2026-09-05 in neuem Gewand.
+    const zusatz = werkzeugMeldungen.length > 0 ? werkzeugMeldungen.join(' ') : ''
+
+    // Ein leerer Text bei gelaufenen Werkzeugen ist kein Fehler, sondern der
+    // Normalfall: Das Modell hat gehandelt statt geredet.
+    if (raw.trim() === '' && zusatz) {
+      return NextResponse.json({ success: true, message: zusatz, updatedOffer: null })
+    }
     return NextResponse.json({
       success: true,
-      message: 'Antwort konnte nicht verarbeitet werden. Bitte die Anfrage anders formulieren oder erneut senden.',
+      message: (zusatz ? zusatz + '\n\n' : '')
+        + 'Die Antwort kam nicht in verwertbarer Form zurück. Am Angebot wurde nichts geändert. '
+        + 'Formuliere die Anfrage bitte anders oder sende sie erneut.',
       updatedOffer: null,
     })
   } catch (error: unknown) {
