@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { regelBlockFuerNutzer, zaehleRegelnHoch, speichereRegel } from '@/lib/bauweise'
 import { preisBlockFuerNutzer, speicherePreis } from '@/lib/preisspeicher'
 import {
-  WERKZEUGE, pruefePreisInhalt,
+  WERKZEUGE, pruefePreisInhalt, unsichereBetragsangabe,
   unbelegteWoerter, bereinigeWenn, baueBelegquellen,
 } from '@/lib/lernwerkzeuge'
 import { brauchbarerText, notNachricht } from '@/lib/chatantwort'
@@ -42,6 +42,8 @@ LERNEN – WANN DU FRAGST:
 - Stimmt er zu, rufe regel_merken bzw. preis_merken auf — mit EXAKT dem Wortlaut, den du ihm gezeigt hast. Ohne Zustimmung nie.
 - Formuliere den Regeltext aus seinen Worten. Lehnt ein Werkzeug ab, nennt dir die Antwort die beanstandeten Wörter: formuliere ohne sie und rufe es erneut auf.
 - Nennt er einen Einkaufspreis und will ihn dauerhaft, nutze preis_merken.
+- Nennt er den Preis nur ungefähr ("ca.", "etwa", "je nach", "kommt drauf an", eine Spanne), fixiere ihn NIE. Frage nach dem konkreten Fall — Holzart, Größe, Ausführung — und fixiere erst den Preis, der eindeutig dazu gehört.
+- Die Bezeichnung muss den Fall eindeutig treffen. Hängt der Preis von Holzart oder Größe ab, gehören beide hinein, z. B. "Massivholzlade Eiche 600 mm". Mehrere typische Größen dürfen einzeln nebeneinander stehen.
 - Existiert zu einem Material bereits ein fixierter Preis und er ändert ihn, frage, ob der hinterlegte Preis nachgezogen werden soll. Für dieses Angebot gilt sein Wert in jedem Fall.
 
 WAS DU NIE ZUSAGEN DARFST:
@@ -80,6 +82,10 @@ async function fuehreWerkzeugAus(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   belegquellen: string[],
+  // Getrennt von den Belegquellen: fuer die Unsicherheitspruefung zaehlen NUR die
+  // eigenen Worte des Nutzers. Das Angebot enthaelt die EK-Zahlen, die KI wuerde
+  // sich sonst selbst bestaetigen.
+  nutzertexte: string[],
   name: string,
   input: Record<string, unknown>,
 ): Promise<WerkzeugAntwort> {
@@ -123,6 +129,16 @@ async function fuehreWerkzeugAus(
     const ek = Number(input.ek)
     const einheit = String(input.einheit ?? 'Stk')
     if (!bezeichnung) return { ok: false, text: 'Feld "bezeichnung" ist leer.', meldung: '' }
+    if (unsichereBetragsangabe(ek, nutzertexte)) {
+      return {
+        ok: false,
+        text: 'Abgelehnt: Der Preis wurde nur ungefaehr genannt ("ca.", "je nach", "kommt drauf an"). '
+          + 'Frage nach dem konkreten Fall — Holzart, Groesse, Ausfuehrung — und fixiere erst den '
+          + 'Preis, der eindeutig dazu gehoert. Mehrere typische Faelle duerfen einzeln nebeneinander stehen.',
+        meldung: '',
+        grund: 'Den Preis hast du nur ungefähr genannt. Sag mir den genauen Fall — Holzart und Größe — dann fixiere ich ihn.',
+      }
+    }
     if (!pruefePreisInhalt(bezeichnung, ek, belegquellen)) {
       return {
         ok: false,
@@ -347,6 +363,10 @@ export async function POST(req: NextRequest) {
     // der KI fiel damit durch, auch eine voellig treue (gemessen 2026-09-06).
     const belegquellen: string[] = baueBelegquellen(
       sammleAngebotstexte(offerData), chatHistory, message)
+    const nutzertexte: string[] = [
+      ...chatHistory.filter(m => m.role === 'user').map(m => m.content),
+      message,
+    ]
 
     type Block = Record<string, unknown> & { type: string }
     type ApiMsg = { role: 'user' | 'assistant'; content: string | Block[] }
@@ -392,7 +412,7 @@ export async function POST(req: NextRequest) {
       for (const a of aufrufe) {
         const r = supabaseFuerZaehler
           ? await fuehreWerkzeugAus(
-              supabaseFuerZaehler, nutzerId, belegquellen,
+              supabaseFuerZaehler, nutzerId, belegquellen, nutzertexte,
               String(a.name ?? ''), (a.input ?? {}) as Record<string, unknown>)
           : { ok: false, text: 'Nicht eingeloggt, nichts gespeichert.', meldung: '' }
         ergebnisse.push({ type: 'tool_result', tool_use_id: a.id, content: r.text, is_error: !r.ok })

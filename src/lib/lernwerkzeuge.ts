@@ -184,3 +184,56 @@ export const WERKZEUGE = [
     },
   },
 ] as const
+
+// ── Unsichere Preisangaben ────────────────────────────────────────────────────
+//
+// Ein Preis, den der Nutzer nur ungefaehr genannt hat, darf NICHT fixiert werden.
+// Gemessen am 2026-09-06: Aus „Eine Eiche Lade in der Groesse kostet ca. 60 EUR"
+// wurde eine harte 60,00 EUR in der Preisliste — falsch, sobald Buche statt Eiche
+// gebaut wird. Fabians Entscheidung: typische Faelle einzeln hinterlegen
+// („Massivholzlade Eiche 600 mm"), unsichere Angaben gar nicht fixieren, sondern
+// im naechsten Angebot nachfragen.
+//
+// Geprueft werden AUSSCHLIESSLICH die eigenen Worte des Nutzers. Das Angebot taugt
+// hier nicht als Quelle: `sammleAngebotstexte` schiebt die EK-Zahlen mit hinein —
+// die KI wuerde sich selbst bestaetigen, nachdem sie den Betrag dort eingetragen hat.
+
+// Wortgrenzen sind Pflicht, nicht Kosmetik: ohne sie steckt „rund" in „Grundierung"
+// und „ab" in „Abstand" — jede zweite Angabe waere faelschlich unsicher.
+const UNSICHER_DAVOR = /(\bca\b\.?|\bcirca\b|\bzirka\b|\bungef(ä|ae)hr\b|\betwa\b|\brund\b|\bgrob\b|\bsch(ä|ae)tzungsweise\b|\bum die\b|\bso um\b|\birgendwo\b|\bzwischen\b|\bbis\b|\bab\b)/i
+// Nach dem Betrag steht die Einschraenkung meist als Nebensatz: „60 EUR, kommt auf
+// Groesse und Holzart an".
+const UNSICHER_DANACH = /(\bje nach\b|\bkommt (drauf|darauf|auf)\b|\bvariiert\b|\bunterschiedlich\b|\baufw(ä|ae)rts\b|\bplus\s*\/?\s*minus\b|\babh(ä|ae)ngig\b|\bungef(ä|ae)hr\b)/i
+const FENSTER_DAVOR = 35
+const FENSTER_DANACH = 55
+
+// Der Betrag kann als 60, 60,00 oder 60.00 dastehen. Die Lookarounds verhindern,
+// dass die 60 aus „160" gefunden wird.
+function betragsMuster(ek: number): RegExp {
+  const punkt = ek.toFixed(2)
+  const teile = [punkt, punkt.replace('.', ',')]
+  if (Number.isInteger(ek)) teile.push(String(ek))
+  const alt = teile.map(t => t.replace(/\./g, '\\.')).join('|')
+  return new RegExp(`(?<![\\d.,])(?:${alt})(?![\\d])`, 'g')
+}
+
+export function unsichereBetragsangabe(ek: number, nutzertexte: string[]): boolean {
+  if (!Number.isFinite(ek)) return false
+  const muster = betragsMuster(ek)
+  let gefunden = false
+  for (const roh of nutzertexte) {
+    const s = String(roh ?? '')
+    muster.lastIndex = 0
+    let treffer: RegExpExecArray | null
+    while ((treffer = muster.exec(s)) !== null) {
+      gefunden = true
+      const i = treffer.index
+      const davor = s.slice(Math.max(0, i - FENSTER_DAVOR), i)
+      const danach = s.slice(i + treffer[0].length, i + treffer[0].length + FENSTER_DANACH)
+      // Eine einzige klare Nennung genuegt — wer erst schaetzt und dann nachsieht,
+      // soll seinen genauen Preis fixieren duerfen.
+      if (!UNSICHER_DAVOR.test(davor) && !UNSICHER_DANACH.test(danach)) return false
+    }
+  }
+  return gefunden
+}
