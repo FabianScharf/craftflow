@@ -264,3 +264,30 @@ dort alles unveraendert vorhanden.
 **Fuer die Uebergabe wichtig:** Alles heute Gelernte liegt im **Testkonto**. Fabians
 Arbeitskonto hat null Regeln und null Preise — nach `dev → main` faengt es leer an.
 Das ist richtig so, sollte ihn aber nicht ueberraschen.
+
+### Frageverhalten 2026-09-06 — Kriterien 1, 3, 4 bestanden
+
+| Eingabe | Erwartet | Ergebnis |
+|---|---|---|
+| „Für dieses Angebot bitte aufgesetzte Griffe statt Griffmulden." | keine Merken-Frage | keine — nur eine sachliche Rückfrage nach dem Griffmodell |
+| „Das Kantenband bitte in ABS 1 mm." | keine Merken-Frage | keine |
+| „Nimm für das Kantenband doch ABS 2 mm." (**zweite** Änderung am selben Merkmal) | fragt | „Da du das Kantenband jetzt zum zweiten Mal geändert hast – soll ich mir merken: Kantenband wird standardmäßig in ABS 2 mm ausgeführt?" |
+| „Nein, das gilt nur für dieses Angebot." | keine Regel, kein Nachbohren | keine Regel angelegt, Frage nicht wiederholt |
+
+Jede Antwort enthielt **genau eine** Frage (Kriterium 4).
+
+**Achtung bei kuenftigen Tests:** Ein *Zurücknehmen* (A → B → A) loest die
+Wiederholungsfrage nicht aus und ist auch kein fairer Test dafuer — ein Hin und Her
+ist ein schwacher Beleg fuer einen Standard. Zwei echte Aenderungen am selben
+Merkmal loesen sie aus.
+
+### Gesamtstand der zwoelf Pruefkriterien
+
+Bestanden: 1, 2, 3, 4, 5 (als Funktionstest: „7 %" faellt durch), 7, 8, 9, 10, 11, 12.
+Offen: **6** — „Schlaegt das Speichern fehl, steht der Grund im Chat" ist gebaut
+(`werkzeugFehler` in `/api/optimize`), liess sich von aussen aber nicht gezielt
+ausloesen. Ein echter Datenbankfehler waere dafuer noetig.
+
+**Damit ist der Live-Test abgeschlossen.** `dev → main` haengt nur noch an Fabians
+Freigabe. Die Materialpreis-Tabelle ist in der gemeinsamen Datenbank vorhanden und
+fuer andere Konten lesbar — belegt durch den Zweitkonto-Test (Status 200, leere Liste).
