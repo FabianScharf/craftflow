@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
 import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
+import { preisBlockFuerNutzer } from '@/lib/preisspeicher'
 
 export const maxDuration = 300
 
@@ -845,6 +846,7 @@ export async function POST(req: NextRequest) {
     // nicht sendet, kann nicht manipuliert werden.
     let firmenStandort = ''
     let regelBlock = ''
+    let preisBlock = ''
     let regelIds: string[] = []
     let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
     try {
@@ -863,6 +865,12 @@ export async function POST(req: NextRequest) {
         try {
           const r = await regelBlockFuerNutzer(supabase, user.id)
           regelBlock = r.block
+          // Fixierte Einkaufspreise gehören GERADE hierher: Ein neues Angebot
+          // entsteht über diese Route. Nur im Optimieren zu wirken hieße, die
+          // Preise erst nach dem Schätzen zu korrigieren statt vorher richtig
+          // zu rechnen.
+          try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
+          catch (e) { console.error('[preise] Preise laden (analyze):', e) }
           regelIds = r.ids
           supabaseFuerZaehler = supabase
         } catch (e) { console.error('[learn] Regeln laden (analyze):', e) }
@@ -900,6 +908,7 @@ export async function POST(req: NextRequest) {
     // nach dem allgemeinen Fachwissen kommen, sonst gewinnt weiter die
     // generische Vorgabe (z. B. 6 mm HPL-Rückwand).
     systemPrompt += regelBlock
+    systemPrompt += preisBlock
 
     const model = 'claude-sonnet-4-6'
     const reqBody = JSON.stringify({

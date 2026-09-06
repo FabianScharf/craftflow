@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
-import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
+import { regelBlockFuerNutzer, zaehleRegelnHoch, speichereRegel } from '@/lib/bauweise'
+import { preisBlockFuerNutzer, speicherePreis } from '@/lib/preisspeicher'
+import { WERKZEUGE, pruefeRegelInhalt, pruefePreisInhalt } from '@/lib/lernwerkzeuge'
 
 export const maxDuration = 120
 
@@ -25,7 +27,104 @@ INHALTLICHE REGELN:
 - updatedOffer: IMMER alle Positionen zurückgeben (nicht nur geänderte)
 - IDs beibehalten: id, material[].id, arbeitszeit[].id
 - Holzart: in beschreibung UND material[].bezeichnung eintragen
-- Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung`
+- Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung
+
+LERNEN – WANN DU FRAGST:
+- Sagt der Nutzer ausdrücklich "immer", "standardmäßig", "grundsätzlich" oder ähnlich, frage am Ende deiner "message", ob du das dauerhaft merken sollst.
+- Ändert er dasselbe Merkmal zum ZWEITEN Mal in diesem Angebot, frage ebenfalls.
+- Höchstens EINE Frage pro Antwort. Nie eine Frage wiederholen, die er gerade verneint hat.
+- Stimmt er zu, rufe regel_merken bzw. preis_merken auf. Ohne Zustimmung nie.
+- Nennt er einen Einkaufspreis und will ihn dauerhaft, nutze preis_merken.
+- Existiert zu einem Material bereits ein fixierter Preis und er ändert ihn, frage, ob der hinterlegte Preis nachgezogen werden soll. Für dieses Angebot gilt sein Wert in jedem Fall.
+
+WAS DU NIE ZUSAGEN DARFST:
+Du kannst dir NUR Bauweise-Regeln und Einkaufspreise merken. Stundensätze, Materialaufschläge und Verkaufspreise kannst du NICHT dauerhaft merken. Sage dort niemals "merke ich mir", sondern: "Für dieses Angebot übernommen – dauerhaft merken kann ich mir das nicht, das stellst du unter Einstellungen ein."`
+
+// Sammelt alles, was im Angebot wirklich steht — Belegquelle fuer den
+// Erfindungsschutz. Nur was hier oder in den Nutzernachrichten vorkommt, darf
+// gemerkt werden.
+function sammleAngebotstexte(offer: unknown): string[] {
+  const texte: string[] = []
+  const o = offer as { positionen?: Array<Record<string, unknown>> } | null
+  for (const pos of o?.positionen ?? []) {
+    if (typeof pos.titel === 'string') texte.push(pos.titel)
+    if (typeof pos.beschreibung === 'string') texte.push(pos.beschreibung)
+    for (const m of (pos.material as Array<Record<string, unknown>> | undefined) ?? []) {
+      if (typeof m.bezeichnung === 'string') texte.push(m.bezeichnung)
+      if (typeof m.ek === 'number') texte.push(String(m.ek))
+    }
+    for (const a of (pos.arbeitszeit as Array<Record<string, unknown>> | undefined) ?? []) {
+      if (typeof a.kostenstelle === 'string') texte.push(a.kostenstelle)
+    }
+  }
+  return texte
+}
+
+type WerkzeugAntwort = { ok: boolean; text: string; meldung: string }
+
+// Fuehrt einen Werkzeugaufruf aus. Prueft VOR dem Speichern, ob der Inhalt
+// belegt ist. Wird abgelehnt, bekommt die KI den Grund als Fehler zurueck —
+// sie darf es dann nicht stillschweigend erneut versuchen.
+async function fuehreWerkzeugAus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  belegquellen: string[],
+  name: string,
+  input: Record<string, unknown>,
+): Promise<WerkzeugAntwort> {
+  if (!userId) {
+    return { ok: false, text: 'Nicht eingeloggt, nichts gespeichert.', meldung: '' }
+  }
+
+  if (name === 'regel_merken') {
+    const bereich = String(input.bereich ?? '')
+    const wenn = String(input.wenn ?? '')
+    const dann = String(input.dann ?? '').trim()
+    if (!dann) return { ok: false, text: 'Feld "dann" ist leer.', meldung: '' }
+    if (!pruefeRegelInhalt(dann, belegquellen)) {
+      return {
+        ok: false,
+        text: 'Abgelehnt: Die Regel enthaelt Inhalte, die weder im Angebot noch im Chat vorkommen. '
+          + 'Formuliere sie ausschliesslich aus dem, was tatsaechlich da steht, oder frage nach.',
+        meldung: '',
+      }
+    }
+    const beleg = String(input.quelle ?? '') === 'wiederholung'
+      ? 'Zweimal im selben Angebot geaendert'
+      : 'Vom Nutzer im Chat gesagt'
+    const r = await speichereRegel(supabase, userId, { bereich, wenn, dann, beleg })
+    if (!r.ok) return { ok: false, text: `Speichern fehlgeschlagen: ${r.grund}`, meldung: `Regel nicht gespeichert: ${r.grund}` }
+    return {
+      ok: true,
+      text: r.aktualisiert ? 'Bestehende Regel aktualisiert.' : 'Regel gespeichert.',
+      meldung: r.aktualisiert ? 'Regel aktualisiert.' : 'Regel gemerkt.',
+    }
+  }
+
+  if (name === 'preis_merken') {
+    const bezeichnung = String(input.bezeichnung ?? '').trim()
+    const ek = Number(input.ek)
+    const einheit = String(input.einheit ?? 'Stk')
+    if (!bezeichnung) return { ok: false, text: 'Feld "bezeichnung" ist leer.', meldung: '' }
+    if (!pruefePreisInhalt(bezeichnung, ek, belegquellen)) {
+      return {
+        ok: false,
+        text: 'Abgelehnt: Material oder Betrag kommen weder im Angebot noch im Chat vor. '
+          + 'Einkaufspreise nie schaetzen — frage den Nutzer nach dem Preis.',
+        meldung: '',
+      }
+    }
+    const r = await speicherePreis(supabase, userId, { bezeichnung, ek, einheit })
+    if (!r.ok) return { ok: false, text: `Speichern fehlgeschlagen: ${r.grund}`, meldung: `Preis nicht gespeichert: ${r.grund}` }
+    return {
+      ok: true,
+      text: r.aktualisiert ? 'Bestehenden Preis aktualisiert.' : 'Preis fixiert.',
+      meldung: r.aktualisiert ? 'Preis aktualisiert.' : 'Preis fixiert.',
+    }
+  }
+
+  return { ok: false, text: `Unbekanntes Werkzeug: ${name}`, meldung: '' }
+}
 
 function looksLikeOffer(p: unknown): p is { positionen?: unknown; kunde?: unknown } {
   return !!p && typeof p === 'object' && ('positionen' in p || 'kunde' in p)
@@ -157,8 +256,10 @@ export async function POST(req: NextRequest) {
     // serverseitig geladen, nicht vom Frontend geschickt.
     let firmenStandort = ''
     let regelBlock = ''
+    let preisBlock = ''
     let regelIds: string[] = []
     let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
+    let nutzerId = ''
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -172,12 +273,16 @@ export async function POST(req: NextRequest) {
           const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
+        nutzerId = user.id
         try {
           const r = await regelBlockFuerNutzer(supabase, user.id)
           regelBlock = r.block
           regelIds = r.ids
           supabaseFuerZaehler = supabase
         } catch (e) { console.error('[learn] Regeln laden (optimize):', e) }
+        // Getrennter Block: Bauweise-Regeln dürfen nie Preise setzen, Preise nie Bauweise.
+        try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
+        catch (e) { console.error('[preise] Preise laden (optimize):', e) }
       }
     } catch { /* kein Profil → Default */ }
 
@@ -208,44 +313,94 @@ export async function POST(req: NextRequest) {
     // nach dem allgemeinen Fachwissen kommen, sonst gewinnt weiter die
     // generische Vorgabe (z. B. 6 mm HPL-Rückwand).
     system += regelBlock
+    system += preisBlock
 
     const messages: ChatMsg[] = [
       ...chatHistory,
       { role: 'user', content: message },
     ]
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 6000,
-        temperature: 0.2,
-        system,
-        messages,
-      }),
-    })
+    // Belegquellen für den Erfindungsschutz: was wirklich im Angebot steht und
+    // was der Nutzer wirklich geschrieben hat. Nichts anderes darf gemerkt werden.
+    const belegquellen: string[] = [
+      ...sammleAngebotstexte(offerData),
+      ...chatHistory.filter(m => m.role === 'user').map(m => m.content),
+      message,
+    ]
 
-    if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`Claude ${res.status}: ${err.slice(0, 300)}`)
+    type Block = Record<string, unknown> & { type: string }
+    type ApiMsg = { role: 'user' | 'assistant'; content: string | Block[] }
+    const verlauf: ApiMsg[] = [...messages]
+    const werkzeugMeldungen: string[] = []
+    let data: { content?: Block[]; stop_reason?: string } = {}
+
+    // Höchstens drei Runden. Ohne Obergrenze wäre eine Schleife aus Aufruf und
+    // Ablehnung ein offenes Kostenrisiko — jede Runde ist ein bezahlter Aufruf.
+    for (let runde = 0; runde < 3; runde++) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 6000,
+          temperature: 0.2,
+          system,
+          tools: WERKZEUGE,
+          messages: verlauf,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.text()
+        throw new Error(`Claude ${res.status}: ${err.slice(0, 300)}`)
+      }
+
+      data = await res.json() as { content?: Block[]; stop_reason?: string }
+      if (data.stop_reason !== 'tool_use') break
+
+      const aufrufe = (data.content ?? []).filter(b => b.type === 'tool_use')
+      if (aufrufe.length === 0) break
+
+      // Alle Ergebnisse gehören in EINE Nutzernachricht. Aufgeteilt auf mehrere
+      // gewöhnt man dem Modell parallele Werkzeugaufrufe ab.
+      const ergebnisse: Block[] = []
+      for (const a of aufrufe) {
+        const r = supabaseFuerZaehler
+          ? await fuehreWerkzeugAus(
+              supabaseFuerZaehler, nutzerId, belegquellen,
+              String(a.name ?? ''), (a.input ?? {}) as Record<string, unknown>)
+          : { ok: false, text: 'Nicht eingeloggt, nichts gespeichert.', meldung: '' }
+        ergebnisse.push({ type: 'tool_result', tool_use_id: a.id, content: r.text, is_error: !r.ok })
+        if (r.meldung) werkzeugMeldungen.push(r.meldung)
+      }
+
+      verlauf.push({ role: 'assistant', content: data.content ?? [] })
+      verlauf.push({ role: 'user', content: ergebnisse })
     }
+
     try { if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds) }
     catch (e) { console.error('[learn] zaehleRegelnHoch:', e) }
 
-    const data = await res.json() as { content?: Array<{ text?: string }> }
-    const raw = data.content?.[0]?.text ?? ''
+    // Alle Textblöcke zusammen — bei Werkzeugnutzung kann die Antwort aus
+    // mehreren bestehen, content[0] allein würde Text verlieren.
+    const raw = (data.content ?? [])
+      .filter(b => b.type === 'text')
+      .map(b => String(b.text ?? ''))
+      .join('')
 
     const parsed = extractJSON(raw)
     if (parsed) {
       const updatedOffer = parsed.updatedOffer
         ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen, deaktiviert)
         : null
-      return NextResponse.json({ success: true, message: parsed.message, updatedOffer })
+      // Was das Werkzeug getan hat, gehört sichtbar in den Chat — auch und
+      // gerade der Fehlerfall. Fehler verschlucken war der Fehler von gestern.
+      const zusatz = werkzeugMeldungen.length > 0 ? '\n\n' + werkzeugMeldungen.join(' ') : ''
+      return NextResponse.json({ success: true, message: String(parsed.message ?? '') + zusatz, updatedOffer })
     }
     console.error('[optimize] unparsable response:', raw.slice(0, 500))
     return NextResponse.json({

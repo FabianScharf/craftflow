@@ -44,3 +44,47 @@ export function zaehleRegelnHoch(supabase: SupabaseClient, ids: string[]): void 
     if (error) console.error('[learn] zaehleRegelnHoch:', error.message)
   })
 }
+
+// Speichert eine gelernte Regel direkt. Wird vom Werkzeug `regel_merken` in
+// /api/optimize genutzt — ein HTTP-Selbstaufruf der eigenen Settings-Route
+// waere ein unnoetiger Umweg samt zweiter Auth-Pruefung.
+//
+// Gleicher Bereich + gleiches `wenn` => aktualisieren statt eine zweite,
+// womoeglich widersprechende Regel anzulegen. Ausnahme: ein leeres `wenn`
+// ("gilt immer") ist keine Identitaet — siehe istGleicheRegel in learn.ts.
+export async function speichereRegel(
+  supabase: SupabaseClient,
+  userId: string,
+  r: { bereich: string; wenn: string; dann: string; beleg: string },
+): Promise<{ ok: true; aktualisiert: boolean } | { ok: false; grund: string }> {
+  const jetzt = new Date().toISOString()
+  const wenn = r.wenn.trim()
+
+  let vorhandenId: string | null = null
+  if (wenn !== '') {
+    const { data, error } = await supabase
+      .from('bauweise_regeln')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('bereich', r.bereich)
+      .ilike('wenn', wenn)
+      .maybeSingle()
+    if (error) return { ok: false, grund: error.message }
+    vorhandenId = (data as { id: string } | null)?.id ?? null
+  }
+
+  const { error } = vorhandenId
+    ? await supabase.from('bauweise_regeln')
+        .update({ dann: r.dann, beleg: r.beleg, aktiv: true, konflikt_hinweis: false, updated_at: jetzt })
+        .eq('id', vorhandenId).eq('user_id', userId)
+    : await supabase.from('bauweise_regeln')
+        .insert({
+          user_id: userId, bereich: r.bereich, wenn, dann: r.dann,
+          herkunft: 'gelernt', beleg: r.beleg, quelle_text: r.beleg,
+        })
+
+  // Der echte Grund muss zurueck — siehe Vorfall 2026-09-05 (fehlende Rechte,
+  // sichtbar war nur "konnte nicht gespeichert werden").
+  if (error) return { ok: false, grund: error.message }
+  return { ok: true, aktualisiert: !!vorhandenId }
+}
