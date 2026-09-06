@@ -384,7 +384,6 @@ export default function CraftFlow() {
         }).catch(() => {})
       }
       setSaveStatus('saved')
-      void pruefeLernkandidaten()
       setTimeout(() => setSaveStatus('idle'), 3000)
       // Outcome-Tracking initialisieren
       const savedId = currentProjectId ?? row.id
@@ -429,15 +428,6 @@ export default function CraftFlow() {
     setPreviousScreen(from)
     setScreen('app')
     setTab('kalkulation')
-    // Bauweise-Vault: Vergleichsbasis und offene Kandidaten gehören zum bisherigen
-    // Angebot. Ohne Zurücksetzen würde das nächste Angebot gegen den Erstvorschlag
-    // des vorigen verglichen.
-    kiVorschlagRef.current = null
-    setLernKandidaten([])
-    setLernAuswahl({})
-    setLernWenn({})
-    setLernFehler('')
-    setLernErledigt({})
   }
 
   const [kunden, setKunden] = useState<KundeDB[]>(ladeKunden)
@@ -503,22 +493,6 @@ export default function CraftFlow() {
   const [optimMicStatus, setOptimMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
   const [offerId, setOfferId] = useState<string>(() => crypto.randomUUID())
 
-  // Bauweise-Vault: der unveränderte KI-Erstvorschlag als Vergleichsbasis.
-  // Absichtlich nur im Speicher (Ref) — kein DB-Eintrag nötig, und ein
-  // Seitenwechsel soll das Lernen einfach verfallen lassen.
-  const kiVorschlagRef = useRef<{ positionen: Angebotsposition[] } | null>(null)
-  const [lernKandidaten, setLernKandidaten] = useState<Array<{
-    bereich: string; wenn: string; dann: string; belegText: string
-    aendertRegelId: string | null; quelle_text: string; weitereImmerRegel: boolean
-  }>>([])
-  const [lernAuswahl, setLernAuswahl] = useState<Record<number, boolean>>({})
-  const [lernWenn, setLernWenn] = useState<Record<number, string>>({})
-  const [lernSpeichert, setLernSpeichert] = useState(false)
-  const [lernFehler, setLernFehler] = useState('')
-  // Welche Kandidaten schon erfolgreich gespeichert sind. Ohne das würde ein
-  // zweiter Versuch nach einem Teilfehler die bereits gespeicherten Regeln
-  // erneut anlegen — die POST-Route hat für neue Regeln keine Dublettenprüfung.
-  const [lernErledigt, setLernErledigt] = useState<Record<number, boolean>>({})
   const [versions, setVersions] = useState<OfferVersion[]>([])
   const [versionsOpen, setVersionsOpen] = useState(false)
   const optimMediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -539,117 +513,6 @@ export default function CraftFlow() {
   // Bauweise-Vault: prüft nach dem Speichern/PDF, was der Nutzer geändert hat.
   // Läuft absichtlich NACH dem eigentlichen Vorgang und feuere-und-vergiss —
   // ein Fehler hier darf Speichern und PDF nie beeinflussen.
-  const pruefeLernkandidaten = useCallback(async () => {
-    const basis = kiVorschlagRef.current
-    if (!basis) return               // z.B. PDF-/GAEB-Import oder geladenes Projekt
-    if (lernKandidaten.length > 0) return  // Dialog steht schon offen
-    try {
-      const chatVerlauf = [
-        ...optimMessages.filter(m => m.role === 'user').map(m => m.content),
-        ...checkMessages.filter(m => m.role === 'user').map(m => m.content),
-      ]
-      const kundenWoerter = [kunde.name, kunde.ort, kunde.strasse, kunde.zusatz]
-        .filter(Boolean)
-        .flatMap(v => String(v).split(/\s+/))
-      const res = await fetch('/api/learn/candidates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kiVorschlag: basis,
-          endstand: { positionen: pos },
-          chatVerlauf,
-          kundenWoerter,
-          projektTitel: [kunde.name.trim(), kunde.projekt.trim()].filter(Boolean).join(' – '),
-        }),
-      })
-      if (!res.ok) return
-      const json = await res.json() as { kandidaten?: typeof lernKandidaten }
-      const k = json.kandidaten ?? []
-      if (k.length === 0) return
-      setLernKandidaten(k)
-      // Neue Regeln vorangehakt; Kandidaten, die eine bestehende Regel ändern,
-      // bewusst NICHT — dem soll der Nutzer aktiv zustimmen.
-      // Nicht vorangehakt, wenn der Kandidat eine bestehende Regel ersetzen würde —
-      // oder wenn er eine weitere Immer-Regel in einem Bereich wäre, in dem schon
-      // eine steht. Immer-Regeln ersetzen einander nie, also entstünde sonst mit
-      // einem Klick ein zweiter Dauer-Eintrag, womöglich widersprüchlich.
-      setLernAuswahl(Object.fromEntries(k.map((x, i) =>
-        [i, x.aendertRegelId === null && !x.weitereImmerRegel])))
-      setLernWenn(Object.fromEntries(k.map((x, i) => [i, x.wenn])))
-      // Zweite Absicherung gegen stehengebliebene „schon gespeichert"-Marken:
-      // ein frischer Kandidatensatz startet immer ohne Erledigt-Flags.
-      setLernErledigt({})
-    } catch (e) { console.error('[learn] pruefeLernkandidaten', e) }
-  }, [lernKandidaten.length, optimMessages, checkMessages, kunde, pos])
-
-  // Ein einziger Weg, den Dialog zu schließen — inklusive lernErledigt. Bliebe
-  // ein „schon gespeichert" auf Index n stehen, würde ein späterer, völlig
-  // anderer Kandidat auf demselben Index als erledigt gelten und beim Speichern
-  // stillschweigend übersprungen. Still nicht gespeichert ist schlimmer als
-  // doppelt gespeichert.
-  const lernDialogSchliessen = useCallback(() => {
-    // Pro Angebot wird genau einmal gefragt. Ohne dieses Leeren käme der Dialog
-    // bei jedem weiteren Speichern desselben Angebots erneut — samt einem
-    // weiteren kostenpflichtigen KI-Aufruf.
-    kiVorschlagRef.current = null
-    setLernKandidaten([])
-    setLernAuswahl({})
-    setLernWenn({})
-    setLernFehler('')
-    setLernErledigt({})
-  }, [])
-
-  // Anzahl der noch offenen (angehakten, nicht gespeicherten) Kandidaten —
-  // steuert Beschriftung und Aktivierung des Bestätigungsknopfes.
-  const lernOffeneAnzahl = lernKandidaten.reduce(
-    (n, _k, i) => n + (lernAuswahl[i] && !lernErledigt[i] ? 1 : 0), 0)
-
-  const lernRegelnSpeichern = useCallback(async () => {
-    setLernSpeichert(true)
-    setLernFehler('')
-    const erledigt: Record<number, boolean> = { ...lernErledigt }
-    let fehler = 0
-    for (let i = 0; i < lernKandidaten.length; i++) {
-      // Schon gespeicherte überspringen: die POST-Route legt neue Regeln ohne
-      // Dublettenprüfung an, ein zweiter Versuch würde sie sonst verdoppeln.
-      if (!lernAuswahl[i] || erledigt[i]) continue
-      const k = lernKandidaten[i]
-      try {
-        const res = await fetch('/api/settings/bauweise', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bereich: k.bereich,
-            wenn: lernWenn[i] ?? k.wenn,
-            dann: k.dann,
-            herkunft: 'gelernt',
-            quelle_text: k.quelle_text,
-            beleg: k.belegText,
-            ersetztRegelId: k.aendertRegelId ?? undefined,
-          }),
-        })
-        if (res.ok) erledigt[i] = true
-        else fehler++
-      } catch (e) {
-        // Einzelne Regel gescheitert — die übrigen trotzdem versuchen, statt die
-        // ganze Schleife abzubrechen.
-        console.error('[learn] Regel speichern', e)
-        fehler++
-      }
-    }
-    setLernErledigt(erledigt)
-    setLernSpeichert(false)
-    if (fehler > 0) {
-      // Dialog offen lassen. Still schließen wäre die schlechteste Variante: der
-      // Nutzer hat bestätigt, gespeichert wurde nichts, und er wundert sich beim
-      // nächsten Angebot, warum die Regel nicht greift.
-      setLernFehler(fehler === 1
-        ? 'Eine Regel konnte nicht gespeichert werden. Bitte nochmal versuchen — bereits gespeicherte werden nicht doppelt angelegt.'
-        : `${fehler} Regeln konnten nicht gespeichert werden. Bitte nochmal versuchen — bereits gespeicherte werden nicht doppelt angelegt.`)
-      return
-    }
-    lernDialogSchliessen()
-  }, [lernKandidaten, lernAuswahl, lernWenn, lernErledigt, lernDialogSchliessen])
 
   // ── Help-Assistent ──────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false)
@@ -1004,15 +867,6 @@ export default function CraftFlow() {
     setGaebPrompt(null)
     setGaebProjektName('')
     setGaebPositionenCount(0)
-    // Bauweise-Vault: Vergleichsbasis und offene Kandidaten gehören zum bisherigen
-    // Angebot. Ohne Zurücksetzen würde das nächste Angebot gegen den Erstvorschlag
-    // des vorigen verglichen.
-    kiVorschlagRef.current = null
-    setLernKandidaten([])
-    setLernAuswahl({})
-    setLernWenn({})
-    setLernFehler('')
-    setLernErledigt({})
     setScreen('start')
   }, [nummernPrefix, nummernNaechste, dokEinleitung])
 
@@ -1114,7 +968,6 @@ export default function CraftFlow() {
         setPos(parsedPos)
         // Vergleichsbasis für den Bauweise-Vault festhalten (tiefe Kopie, damit
         // späteres Bearbeiten der Positionen den Erstvorschlag nicht verändert).
-        kiVorschlagRef.current = { positionen: JSON.parse(JSON.stringify(parsedPos)) }
       }
 
       const parsedAnschr = data.anschreiben || anschr
@@ -1511,10 +1364,6 @@ export default function CraftFlow() {
       const json = await res.json()
       if (json.data?.positionen) setPos(json.data.positionen)
       if (json.data?.kunde) setKunde(json.data.kunde)
-      // Ein Rollback ist keine Bauweise-Gewohnheit, sondern eine Rücknahme —
-      // der alte KI-Erstvorschlag darf danach nicht mehr als Vergleichsbasis
-      // dienen, sonst würde ein Zurückrudern als "gelernte Regel" erscheinen.
-      kiVorschlagRef.current = null
     } catch (e) { console.error('[restoreVersion]', e) }
   }, [])
 
@@ -2674,9 +2523,6 @@ export default function CraftFlow() {
                 URL.revokeObjectURL(pdfPreviewUrl)
                 setPdfPreviewUrl('')
                 setScreen('app')
-                // Bauweise-Vault: erst jetzt prüfen — der Nutzer verlässt die PDF-Vorschau
-                // und landet wieder auf dem Screen, auf dem der Dialog sichtbar ist.
-                void pruefeLernkandidaten()
               }}
               style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 3, padding: '7px 16px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}
             >
@@ -4148,89 +3994,6 @@ export default function CraftFlow() {
 
       </div>
 
-      {lernKandidaten.length > 0 && (
-        <div
-          onClick={e => { if (e.target === e.currentTarget && !lernSpeichert) lernDialogSchliessen() }}
-          style={{ position: 'fixed', inset: 0, background: '#000000CC', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 16 }}>
-          <div style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 4, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: 20 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 4 }}>
-              {lernKandidaten.length === 1 ? 'Mir ist eine Sache aufgefallen' : `Mir sind ${lernKandidaten.length} Dinge aufgefallen`}
-            </div>
-            <div style={{ fontSize: 12, color: C.textMid, marginBottom: 16 }}>
-              Was davon ist deine Standardbauweise? Angehakte Punkte merkt sich CraftFlow für künftige Angebote.
-            </div>
-
-            {lernKandidaten.map((k, i) => (
-              <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 3, padding: 12, marginBottom: 10, background: C.gray1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!lernAuswahl[i]}
-                    disabled={!!lernErledigt[i] || lernSpeichert}
-                    onChange={() => setLernAuswahl(prev => ({ ...prev, [i]: !prev[i] }))}
-                    style={{ accentColor: C.copper, cursor: lernErledigt[i] ? 'default' : 'pointer', flexShrink: 0 }}
-                  />
-                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
-                    {k.bereich.toUpperCase()}
-                  </span>
-                  {k.aendertRegelId && (
-                    <span style={{ fontSize: 10, color: '#E0B05A', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                      ⚠ ändert bestehende Regel
-                    </span>
-                  )}
-                  {!k.aendertRegelId && k.weitereImmerRegel && (
-                    <span style={{ fontSize: 10, color: '#E0B05A', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                      ⚠ zusätzlich zu bestehenden Immer-Regeln
-                    </span>
-                  )}
-                  {lernErledigt[i] && (
-                    <span style={{ fontSize: 10, color: '#5ABE6A', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                      ✓ gespeichert
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: C.textMid, width: 38, flexShrink: 0 }}>Wenn</span>
-                  <input
-                    value={lernWenn[i] ?? ''}
-                    onChange={e => setLernWenn(prev => ({ ...prev, [i]: e.target.value }))}
-                    placeholder="gilt immer"
-                    style={{ flex: 1, background: C.black, color: C.white, border: `1px solid ${C.border}`, borderRadius: 3, padding: '6px 8px', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: C.textMid, width: 38, flexShrink: 0 }}>Dann</span>
-                  <span style={{ fontSize: 12, color: C.white, lineHeight: 1.4 }}>{k.dann}</span>
-                </div>
-                <div style={{ fontSize: 10, color: C.textMid, marginTop: 6 }}>↳ belegt: {k.belegText}</div>
-              </div>
-            ))}
-
-            {lernFehler && (
-              <div style={{ border: '1px solid #6a3a3a', background: '#2a1a1a', borderRadius: 3, padding: 10, marginTop: 10, fontSize: 11, color: '#E05A5A' }}>
-                {lernFehler}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button
-                onClick={lernDialogSchliessen}
-                disabled={lernSpeichert}
-                style={{ flex: 1, background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, cursor: lernSpeichert ? 'not-allowed' : 'pointer' }}
-              >
-                Nicht merken
-              </button>
-              <button
-                onClick={lernRegelnSpeichern}
-                disabled={lernSpeichert || lernOffeneAnzahl === 0}
-                style={{ flex: 1, background: lernOffeneAnzahl > 0 ? C.copper : C.gray2, color: lernOffeneAnzahl > 0 ? C.black : C.textMid, border: 'none', borderRadius: 3, padding: '11px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, cursor: lernSpeichert || lernOffeneAnzahl === 0 ? 'not-allowed' : 'pointer' }}
-              >
-                {lernSpeichert ? '…' : `${lernOffeneAnzahl} ${lernOffeneAnzahl === 1 ? 'Regel' : 'Regeln'} merken`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {HelpWidget}
     </div>
