@@ -436,6 +436,25 @@ export default function CraftFlow() {
     setPreviousScreen(from)
     setScreen('app')
     setTab('kalkulation')
+
+    // Der geladene Stand IST der gespeicherte Stand. Ohne diese Zeile bliebe
+    // der Vergleichswert leer, und ein leerer Vergleichswert heisst "nichts zu
+    // vergleichen" — die Speicherleiste und die Nachfrage beim Verlassen waeren
+    // in jedem geladenen Projekt wirkungslos. Genau das ist am 2026-09-06
+    // passiert: Zeiten aendern loeste keine Warnung aus.
+    //
+    // Bewusst aus den GELADENEN Daten gebildet, nicht aus dem State: setKunde
+    // und setPos wirken erst im naechsten Rendern, standJetzt waere hier noch
+    // der Stand des vorigen Angebots.
+    setGespeicherterStand(JSON.stringify({
+      kunde: d.kunde ?? kunde,
+      pos: d.pos ?? pos,
+      docNr: d.docNr ?? docNr,
+      docTyp: d.docTyp ?? docTyp,
+      anschr: d.anschr ?? anschr,
+      widerruf: typeof d.widerruf === 'boolean' ? d.widerruf : widerruf,
+      angebotsdatum: d.angebotsdatum ?? angebotsdatum,
+    }))
   }
 
   const [kunden, setKunden] = useState<KundeDB[]>(ladeKunden)
@@ -867,6 +886,12 @@ export default function CraftFlow() {
   }, [checkMessages])
 
   const resetAll = useCallback(() => {
+    // Frisches Angebot: Der Vergleichsstand des vorigen darf nicht stehen
+    // bleiben, sonst meldet die App sofort "ungespeicherte Aenderungen" auf
+    // einem leeren Formular. Leerer Wert heisst "noch nichts zu vergleichen";
+    // sobald die Analyse durchlaeuft, wird automatisch gespeichert und der
+    // Vergleichsstand dabei gesetzt.
+    setGespeicherterStand('')
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
     if (optimMediaRecorderRef.current?.state === 'recording') optimMediaRecorderRef.current.stop()
     if (checkMediaRecorderRef.current?.state === 'recording') checkMediaRecorderRef.current.stop()
