@@ -2271,6 +2271,19 @@ export default function CraftFlow() {
   }
 
   /* ── Help-Widget (alle Screens) ───────────────────── */
+  // Der Testphasen-Hinweis gehört in JEDE Ansicht. Vorher steckte er fest im
+  // Startbildschirm — wer in "Meine Projekte" wechselte, sah plötzlich nichts
+  // mehr davon und musste raten, wie lange die Testphase noch läuft.
+  const TrialBanner = isInTrial ? (
+    <div onClick={() => window.location.href = '/settings#plan'} style={{ background: `${C.copper}18`, borderBottom: `1px solid ${C.copper}55`, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer' }}>
+      <span style={{ fontSize: 14 }}>🎁</span>
+      <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
+        <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet
+      </span>
+      <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>Plan wählen →</span>
+    </div>
+  ) : null
+
   const HelpWidget = (
     <>
       {!helpOpen && (
@@ -2363,6 +2376,7 @@ export default function CraftFlow() {
     }
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+        {TrialBanner}
         {/* Header */}
         <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2571,15 +2585,7 @@ export default function CraftFlow() {
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {OnboardingModal}
-        {isInTrial && (
-          <div onClick={() => window.location.href = '/settings#plan'} style={{ background: `${C.copper}18`, borderBottom: `1px solid ${C.copper}55`, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer' }}>
-            <span style={{ fontSize: 14 }}>🎁</span>
-            <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
-              <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet
-            </span>
-            <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>Plan wählen →</span>
-          </div>
-        )}
+        {TrialBanner}
         <style>{`
           @keyframes cfpulse {
             0%, 100% { transform: scale(1); opacity: 0.5; }
@@ -2902,6 +2908,7 @@ export default function CraftFlow() {
   return (
     <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
       {OnboardingModal}
+      {TrialBanner}
 
       {/* Header */}
       <div style={{ background: C.darkbg, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
