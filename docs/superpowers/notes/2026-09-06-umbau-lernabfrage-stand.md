@@ -1,6 +1,6 @@
 # Umbau Lernabfrage + Materialpreise — Arbeitsstand
 
-**Stand:** 2026-09-06 · **Branch:** `dev` = `59e7ee1` (gepusht) · **`main`:** unberührt
+**Stand:** 2026-09-06 · **Branch:** `dev` = `7ddbb0c` (gepusht) · **`main`:** unberührt
 
 > **Alles gebaut, NICHTS davon live getestet.** Das ist der wichtigste Satz dieser
 > Datei. Der Live-Test auf der dev-Preview steht komplett aus.
@@ -65,6 +65,20 @@ Fabians Entscheidung: **KI-Änderungen automatisch, Handarbeit bewusst.**
 - Während der Tarif lädt, steht er auf `solo`; die Upload-Knöpfe zeigten „AB STARTER“.
   Ein Neukunde in der Testphase liest das und glaubt, sie gelte nicht für ihn. Optik
   hängt jetzt an `darfNutzen()`, die Klickprüfung bleibt an `planCanUse()`.
+
+### Nachtrag: Die Warnung wirkte zunaechst gar nicht (`7ddbb0c`)
+
+Sofort beim ersten Test gemeldet: Zeiten aendern, weggehen — keine Nachfrage, Aenderungen
+weg. Ursache: `loadProject` setzte den Vergleichsstand nicht. Ein leerer Vergleichsstand
+bedeutet in der Pruefung "nichts zu vergleichen", also galt nie etwas als ungespeichert —
+und zwar in **jedem** aus der Liste geoeffneten Projekt, also im Normalfall.
+`resetAll` fehlte aus demselben Grund (dort waere der Stand des vorigen Angebots stehen
+geblieben und haette auf einem leeren Formular sofort gewarnt).
+
+**Lehre:** Wer einen "hat sich etwas geaendert"-Vergleich einbaut, muss JEDEN Weg
+durchgehen, auf dem Daten in den Zustand gelangen — nicht nur die, die man gerade
+gebaut hat. Die Wege hier: laden, neu anlegen, Analyse, Optimierung (setzen den Stand);
+Rollback und Handarbeit (setzen ihn bewusst nicht).
 
 ## Beinahe-Unfall, zur Warnung
 
