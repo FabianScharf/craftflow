@@ -161,3 +161,84 @@ Die Preisliste kennt nur `bezeichnung -> preis`, keine Bedingungen. Ein fixierte
 **Fabian wurde gefragt**, ob das seiner Arbeitsweise entspricht oder ob er eher
 Staffelpreise braucht (ein Material, mehrere Groessen und Preise). Antwort steht aus —
 hier weitermachen.
+
+---
+
+## Live-Test 2026-09-06 nachmittags — durchgefuehrt, drei Fehler gefunden und behoben
+
+Getestet auf der dev-Vorschau, ferngesteuerter Chrome + `puppeteer-core`.
+Stand am Ende: `dev` = `a37e6f0`, `main` weiterhin unberuehrt.
+
+### Bestanden
+
+| Kriterium | Beleg |
+|---|---|
+| 2 — Die KI fragt bei einer "immer"-Aussage | zeigt den Wortlaut und fragt nach |
+| 2 — und speichert nach "ja" | Regel steht in der Datenbank, `wenn` sauber |
+| 5 der Notiz — neues Angebot uebernimmt Gelerntes | Rueckwand 8 mm **ohne** Nennung, Movento 26,27 €, Massivholzlade 60,00 € |
+| 7 — kein Dialog mehr beim Speichern | — |
+| 9/10 — Preis fixiert, mit Datum, aenderbar, abschaltbar | — |
+| 12 — keine Zusagen, die sie nicht halten kann | "dauerhaft merken kann ich mir das nicht" beim Stundensatz |
+| Speicherleiste bei Handarbeit + Nachfrage beim Verlassen | drei Wege: Speichern / Verwerfen / Zurueck |
+
+Offen bleiben: 1, 3, 4 (Frageverhalten im Detail), 8 und 11 (zweites Konto),
+5 und 6 der Spec (Erfindungsschutz, Speicherfehler — von aussen kaum ausloesbar).
+
+### Fehler 1: Ablehnung war unsichtbar und traf treue Formulierungen (`6eb180c`)
+
+Auf "ja" kam "Die Antwort kam nicht in verwertbarer Form zurueck". Das Vercel-Log
+zeigte `stop: 'tool_use', raw: ''` — das Werkzeug lief also sehr wohl. Der
+Beleg-Test lehnte ab, weil **ein gewoehnliches Wort** ("ansetzen") nicht
+woertlich gefallen war; Ablehnungen gaben `meldung: ''` zurueck, die Schleife
+lief dreimal, der Nutzer erfuhr nie den Grund.
+
+Nachgerechnet mit den echten Saetzen: "Kleinmaterial mit 5 % der Materialkosten
+ansetzen" faellt durch, "5 % der Materialkosten als Kleinmaterial" nicht.
+
+**Fabians Entscheidung:** Er bestaetigt kuenftig den Wortlaut. Damit zaehlen auch
+fruehere KI-Nachrichten als Belegquelle — `chatHistory` traegt nie die laufende
+Antwort, erfinden und speichern in einem Zug bleibt also ausgeschlossen.
+
+### Fehler 2: Steuerzeichen im "Wenn"-Feld (`6eb180c`)
+
+Wirklich in der Datenbank gelandet:
+`"wenn": "</parameter>\n<parameter name=\"dann\">5 % der Materialkosten ..."`
+Das Modell schrieb seine eigene Werkzeug-Syntax in das Feld. Geprueft wurde nur
+`dann`, nie `wenn` — der Muell waere in jede Kalkulation gewandert.
+`bereinigeWenn()` verwirft jetzt alles mit Spitzklammern.
+
+### Fehler 3: Brauchbare Antworten wurden weggeworfen (`b600496`, `a37e6f0`)
+
+Der Fehler, den Fabian seit Tagen sah. Das Log zeigt: Die Antwort war jedes Mal
+inhaltlich richtig, nur die Verpackung kaputt — mal reiner Text statt JSON, mal
+JSON, das an **einem einzigen geraden Anfuehrungszeichen** zerbrach.
+
+**Selbst verursacht und wieder zurueckgenommen:** Die Anweisung, den Regeltext in
+typografische Anfuehrungszeichen zu setzen, brachte das Modell dazu, mit `„` zu
+oeffnen und mit `"` zu schliessen — danach scheiterte sogar die Eingangsanalyse.
+
+`notNachricht()` rettet die Nachricht aus zerbrochenem JSON, `brauchbarerText()`
+laesst reinen Fliesstext durch. **`updatedOffer` wird nie gerettet**: Ein halb
+gelesenes Angebot ins Formular zu schreiben waere schlimmer als keine Aenderung.
+
+### Lehren
+
+1. **Wer ablehnt, muss sagen woran es lag.** Ein stiller Fehlschlag kostete drei
+   bezahlte Aufrufe pro Versuch und war von aussen nicht zu diagnostizieren.
+2. **Die Vercel-Laufzeitlogs sind erreichbar**, ohne CLI: `/api/logs/request-logs`
+   mit der angemeldeten Browser-Sitzung, Feld `logs` je Anfrage. Das hat zwei
+   falsche Hypothesen in Minuten widerlegt — vorher wurde geraten.
+3. **Formatvorgaben an ein Modell koennen das Format zerstoeren.** Die Bitte um
+   typografische Anfuehrungszeichen erzeugte gemischte Paare.
+4. **Beim Fernsteuern nie den ersten `×`-Knopf im Dokument klicken.** Das ist die
+   Loeschtaste der ersten Materialzeile, nicht der Panel-Schliesser — eine Zeile
+   verschwand und sah nach einem Programmfehler aus.
+
+### Noch offen
+
+- **Fabians Entscheidung zu variablen Preisen ist getroffen** (2026-09-06):
+  typische Faelle einzeln hinterlegen, unsichere Angaben ("ca.", "je nach") gar
+  nicht fixieren, sondern nachfragen. **Gebaut ist das noch nicht.**
+  Der Live-Test belegte den Bedarf: "ca. 60 EUR" steht als harte 60,00 € in der
+  Preisliste.
+- Kriterien 1, 3, 4, 8, 11.
