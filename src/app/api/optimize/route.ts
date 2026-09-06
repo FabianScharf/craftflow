@@ -7,7 +7,7 @@ import {
   WERKZEUGE, pruefePreisInhalt,
   unbelegteWoerter, bereinigeWenn, baueBelegquellen,
 } from '@/lib/lernwerkzeuge'
-import { brauchbarerText } from '@/lib/chatantwort'
+import { brauchbarerText, notNachricht } from '@/lib/chatantwort'
 
 export const maxDuration = 120
 
@@ -36,7 +36,7 @@ INHALTLICHE REGELN:
 - Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung
 
 LERNEN – WANN DU FRAGST:
-- Sagt der Nutzer ausdrücklich "immer", "standardmäßig", "grundsätzlich" oder ähnlich, nenne am Ende deiner "message" den GENAUEN Regeltext und frage, ob der Wortlaut so passt. Setze ihn in typografische Anführungszeichen „so“ — gerade Anführungszeichen zerlegen das JSON. Auch diese Rückfrage ist ein JSON-Objekt, niemals blanker Text.
+- Sagt der Nutzer ausdrücklich "immer", "standardmäßig", "grundsätzlich" oder ähnlich, nenne am Ende deiner "message" den GENAUEN Regeltext und frage, ob der Wortlaut so passt. Schreibe den Regeltext OHNE Anführungszeichen — hinter einen Doppelpunkt in eine eigene Zeile. Auch diese Rückfrage ist ein JSON-Objekt, niemals blanker Text.
 - Ändert er dasselbe Merkmal zum ZWEITEN Mal in diesem Angebot, frage ebenfalls.
 - Höchstens EINE Frage pro Antwort. Nie eine Frage wiederholen, die er gerade verneint hat.
 - Stimmt er zu, rufe regel_merken bzw. preis_merken auf — mit EXAKT dem Wortlaut, den du ihm gezeigt hast. Ohne Zustimmung nie.
@@ -452,6 +452,17 @@ export async function POST(req: NextRequest) {
     // Fliesstext — inhaltlich richtig. Frueher landete das im Muell und der
     // Nutzer las "nicht verwertbar" (von Fabian mehrfach gemeldet, Rohtext im
     // Vercel-Log vom 2026-09-06 15:11 belegt). Jetzt geht der Text durch.
+    // Zerbricht das JSON an einem einzelnen Zeichen, ist die Nachricht selbst
+    // meist tadellos. Sie zu retten ist besser, als einen bezahlten Aufruf und
+    // die Wartezeit des Nutzers wegzuwerfen.
+    const gerettet = notNachricht(raw)
+    if (gerettet) {
+      return NextResponse.json({
+        success: true,
+        message: (zusatz ? zusatz + '\n\n' : '') + gerettet.message,
+        updatedOffer: null,
+      })
+    }
     const prosa = brauchbarerText(raw)
     if (prosa) {
       return NextResponse.json({
