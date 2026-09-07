@@ -206,6 +206,8 @@ export default function CraftFlow() {
   const [onboardingStep, setOnboardingStep] = useState(0)
   // Antworten der Betriebskalibrierung. Werden am Ende der Erst-Anmeldung
   // gespeichert; wer ueberspringt, speichert nichts und rechnet mit Branchenwerten.
+  // null = noch nicht geprueft, false = nicht kalibriert, true = kalibriert
+  const [istKalibriert, setIstKalibriert] = useState<boolean | null>(null)
   const [kalib, setKalib] = useState({
     mitarbeiter: '', maschinen: [] as string[], schwerpunkt: '',
     montage_selbst: '', stueckzahlen: '',
@@ -2231,6 +2233,20 @@ export default function CraftFlow() {
     },
   ]
 
+  // Einmal pro Sitzung nachsehen. Nur fuer den Hinweis unter der Kalkulation —
+  // gerechnet wird ohnehin serverseitig mit dem, was in der Datenbank steht.
+  useEffect(() => {
+    let abgebrochen = false
+    fetch('/api/settings/kalibrierung')
+      .then(r => (r.ok ? r.json() : null))
+      .then((j: { kalibrierung?: { abgeschlossen?: boolean } | null } | null) => {
+        if (abgebrochen) return
+        setIstKalibriert(Boolean(j?.kalibrierung?.abgeschlossen))
+      })
+      .catch(() => { if (!abgebrochen) setIstKalibriert(null) })
+    return () => { abgebrochen = true }
+  }, [])
+
   const finishOnboarding = (goToSettings: boolean) => {
     fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
     // Kalibrierung nur speichern, wenn ueberhaupt etwas beantwortet wurde. Wer
@@ -3830,6 +3846,26 @@ export default function CraftFlow() {
             <button onClick={addPos} style={{ width: '100%', background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 4, padding: '11px 0', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 12 }}>
               + Position hinzufügen
             </button>
+
+            {/* Passt der Preis nicht? Genau hier hat der abgesprungene Testkunde die
+                App geschlossen — statt eines Auswegs stand da nichts. */}
+            {istKalibriert === false && (
+              <div style={{ background: '#1A1A1A', border: `1px solid ${C.copper}44`, borderRadius: 4,
+                padding: '14px 16px', marginBottom: 12 }}>
+                <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 5 }}>
+                  Passt der Preis nicht zu deinem Betrieb?
+                </div>
+                <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
+                  Ich rechne gerade mit Branchenwerten. Beantworte unter
+                  Einstellungen → Mein Betrieb neun kurze Fragen, dann rechne ich mit deinen.
+                </div>
+                <button onClick={() => { window.location.href = '/settings' }}
+                  style={{ background: 'transparent', border: `1px solid ${C.copper}`, borderRadius: 4,
+                    color: C.copper, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  Jetzt einrichten
+                </button>
+              </div>
+            )}
 
             <button onClick={() => setTab('angebot')} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '15px 0', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1, cursor: 'pointer' }}>
               → Weiter zum Angebot
