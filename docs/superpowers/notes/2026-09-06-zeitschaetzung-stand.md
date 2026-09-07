@@ -80,23 +80,29 @@ Verifikation: 115 Tests grün, `npx tsc --noEmit` sauber. Die vier eslint-Meldun
 `analyze/route.ts` sind Bestand (`prefer-const` auf einer Destrukturierung, die nicht
 angefasst wurde).
 
-## OFFEN — die Frage an Fabian
+## Erledigt am 2026-09-07: Prüfung über die Stückliste
 
-**Möbel ohne Laufmeter werden weiterhin nicht geprüft.** Ein Rollcontainer, ein Tisch,
-ein Sideboard haben keine sinnvollen Laufmeter; `lm` ist dort 0, weder Untergrenze
-noch Deckelung greifen. Der Rollcontainer vom Vortag lief mit 8,8 h durch.
+Fabian hat den empfohlenen Weg gewählt. Möbel **ohne** Laufmeter bekommen ihre
+Obergrenze jetzt aus der Stückliste: Plattenfläche plus gezählte Beschläge.
 
-Eine Faustformel dafür wurde bewusst **nicht** im Alleingang erfunden:
+**Die Formel ist nicht geraten, sondern an zwei wirklich gemessenen Kalkulationen
+geeicht** (beide nach dem Laufmeter-Fix):
 
-1. **Nach Stückliste** *(Empfehlung)*. Fabians Zeitrichtwerte sind pro Stück
-   formuliert — Korpus 30–60 min, Systemschubkasten 20–35 min, Drehtür 15–25 min —
-   und der Prompt rechnet bereits so. Gibt die KI die Stückzahlen zusätzlich als
-   Zahlenfelder aus, kann die Engine die Erwartung daraus bilden, für **jedes** Möbel.
-   `countHardware()` in `analyze` tut das heute schon aus dem Text; sauberer wären
-   Zahlenfelder. Könnte den Laufmeter-Weg langfristig ablösen statt ergänzen.
-2. **Nach Plattenfläche.** Schnell gebaut, ignoriert aber die Ausstattung — drei
-   Schubladen einzubauen ist echte Zeit, die in keiner Plattenfläche steckt.
-3. **Vorerst nur warnen** und Fälle sammeln.
+| Möbel | gemessen | Formel | Abweichung |
+|---|---|---|---|
+| Referenzschrank 16,1 m², 4 Drehtüren, 2 Schubkästen, 8 Einlegeböden | 695 min | 739 min | 6 % |
+| Rollcontainer 1,64 m², 3 Schubkästen | 216 min | 234 min | 8 % |
+
+Beide Abweichungen sind als Test festgeschrieben (`tests/stueckliste.test.mjs`).
+Kippt die Formel bei einer späteren Änderung, fällt es sofort auf.
+
+Die Zeitanteile stammen aus Fabians eigenen Richtwerten: Korpus 30–60 min, Rückwand
+15–25 min, Systemschublade 20–35 min plus Front 10–20 min, Drehtür 15–25 min,
+Einlegeboden 10–20 min. Dazu Rüstzeit am Sägewerk und Flächenanteile.
+
+**Das Band ist bewusst weit** — der Deckel liegt bei der doppelten Erwartung. Diese
+Schätzung ist gröber als die Laufmeter-Rechnung, sie kennt weder Massivholz noch
+Sonderausstattung. Sie soll Ausreißer um Faktor zwei abfangen, nicht feinsteuern.
 
 ## Noch nicht angefasst
 
