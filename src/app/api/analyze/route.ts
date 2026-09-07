@@ -536,7 +536,7 @@ import { parseLaufmeter } from '@/lib/laufmeter'
 import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { bucheUm } from '@/lib/handarbeit'
 import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
-import { abzuschaltendeKostenstellen } from '@/lib/kalibrierung'
+import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
 
 const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
 
@@ -818,6 +818,7 @@ export async function POST(req: NextRequest) {
     // auftauchen (auch nicht über Fixkosten-/Workshop-Floor-Fallbacks).
     // Wird im Auth-Block weiter unten aus den Betriebsfragen gefuellt.
     const ausBetrieb: string[] = []
+    let lackBlock = ''
     const deaktiviert = new Set<string>(
       (Array.isArray(deaktivierteKostenstellen) ? deaktivierteKostenstellen as string[] : []).map(c => normalizeKsId(c))
     )
@@ -905,6 +906,7 @@ export async function POST(req: NextRequest) {
         try {
           const kal = await ladeKalibrierung(supabase, user.id)
           for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
+          lackBlock = lackBlockFuer(kal)
         } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
         const { data: profil } = await supabase
           .from('betriebsprofil')
@@ -965,6 +967,8 @@ export async function POST(req: NextRequest) {
     // nach dem allgemeinen Fachwissen kommen, sonst gewinnt weiter die
     // generische Vorgabe (z. B. 6 mm HPL-Rückwand).
     systemPrompt += regelBlock
+    // Ohne eigene Lackierkabine wird Lackieren zugekauft — nie geschaetzt.
+    systemPrompt += lackBlock
     systemPrompt += preisBlock
 
     const model = 'claude-sonnet-4-6'

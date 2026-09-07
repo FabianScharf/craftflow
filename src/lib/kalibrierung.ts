@@ -194,6 +194,35 @@ export function abzuschaltendeKostenstellen(a: Betriebsantworten | null | undefi
   return aus
 }
 
+// ── Lackierung ohne eigene Kabine ────────────────────────────────────────────
+//
+// Fabians Entscheidung 2026-09-07: "Lackierte Teile kosten je nach Qualitaet und
+// Region sehr unterschiedlich" — deshalb KEIN Richtpreis, sondern eine konkrete
+// Nachfrage, wenn es in der Kalkulation gebraucht wird.
+//
+// Warum nicht einfach die Kostenstelle "Oberflaeche" abschalten: Oelen, Wachsen und
+// Schleifen brauchen keine Kabine. Wer nicht lackieren kann, kauft NUR das Lackieren
+// zu — das ist eine Materialposition, kein Zeitposten.
+//
+// Warum keine harte Rueckfrage: Die wuerde die ganze Kalkulation blockieren. Fuer
+// einen fehlenden Quadratmeterpreis ist das zu grob. Stattdessen entsteht eine
+// sichtbare Zeile mit 0 EUR, deren Bezeichnung sagt, was zu tun ist.
+
+export const LACK_BEZEICHNUNG = 'Lackierung (Zukauf) — Quadratmeterpreis eintragen'
+
+export function lackBlockFuer(a: Betriebsantworten | null | undefined): string {
+  if (!a || !Array.isArray(a.maschinen)) return ''
+  if (a.maschinen.includes('lackierkabine')) return ''
+  return `
+
+== DIESER BETRIEB HAT KEINE LACKIERKABINE ==
+Er lackiert nicht selbst. Lackierte Oberflaechen kauft er zu.
+- Bei lackierten Teilen KEINE Zeit auf der Kostenstelle "Oberfläche" ansetzen.
+- Stattdessen eine Materialposition anlegen: bezeichnung "${LACK_BEZEICHNUNG}", einheit "m²", menge = zu lackierende Sichtflaeche in m².
+- Den Quadratmeterpreis kennst du NICHT und darfst ihn NICHT schaetzen. Lackierte Teile kosten je nach Qualitaet und Region sehr unterschiedlich. Steht in der Preisliste kein fixierter Preis dafuer, setze ekPreis auf 0 — der Nutzer traegt ihn ein.
+- Oelen, Wachsen und Schleifen macht er weiterhin selbst. Dafuer bleibt "Oberfläche" mit ihrer Zeit.`
+}
+
 const MIN_FAKTOR = 0.6
 const MAX_FAKTOR = 1.4
 

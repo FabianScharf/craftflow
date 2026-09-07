@@ -167,3 +167,35 @@ test('Ohne Kalibrierung wird nichts abgeschaltet', () => {
   assert.deepEqual(abzuschaltendeKostenstellen(null), [])
   assert.deepEqual(abzuschaltendeKostenstellen(undefined), [])
 })
+
+import { lackBlockFuer, LACK_BEZEICHNUNG } from '../src/lib/kalibrierung.ts'
+
+test('Mit Lackierkabine gibt es keinen Zusatzblock', () => {
+  assert.equal(lackBlockFuer({ maschinen: ['cnc', 'lackierkabine'] }), '')
+})
+
+test('Ohne Lackierkabine entsteht ein Block', () => {
+  const b = lackBlockFuer({ maschinen: ['cnc'] })
+  assert.match(b, /KEINE LACKIERKABINE/)
+  assert.match(b, /KEINE Zeit auf der Kostenstelle "Oberfläche"/)
+})
+
+test('Der Block verbietet ausdrücklich das Schätzen', () => {
+  const b = lackBlockFuer({ maschinen: [] })
+  assert.match(b, /NICHT schaetzen/)
+  assert.match(b, /ekPreis auf 0/)
+})
+
+test('Ölen und Wachsen bleiben ausdrücklich Eigenleistung', () => {
+  assert.match(lackBlockFuer({ maschinen: [] }), /Oelen, Wachsen und Schleifen macht er weiterhin selbst/)
+})
+
+test('Die Bezeichnung sagt dem Nutzer, was zu tun ist', () => {
+  assert.match(LACK_BEZEICHNUNG, /Quadratmeterpreis eintragen/)
+  assert.ok(lackBlockFuer({ maschinen: [] }).includes(LACK_BEZEICHNUNG))
+})
+
+test('Ohne Kalibrierung kein Block', () => {
+  assert.equal(lackBlockFuer(null), '')
+  assert.equal(lackBlockFuer({}), '')
+})

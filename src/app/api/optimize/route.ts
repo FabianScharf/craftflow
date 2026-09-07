@@ -11,7 +11,7 @@ import { brauchbarerText, notNachricht } from '@/lib/chatantwort'
 import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { bucheUm } from '@/lib/handarbeit'
 import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
-import { abzuschaltendeKostenstellen } from '@/lib/kalibrierung'
+import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
 
 export const maxDuration = 120
 
@@ -319,6 +319,7 @@ export async function POST(req: NextRequest) {
     let nutzerId = ''
     let faktoren: Faktoren = KEINE_FAKTOREN
     const ausBetrieb: string[] = []
+    let lackBlock = ''
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -342,6 +343,7 @@ export async function POST(req: NextRequest) {
         try {
           const kal = await ladeKalibrierung(supabase, user.id)
           for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
+          lackBlock = lackBlockFuer(kal)
         } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
         try {
           const r = await regelBlockFuerNutzer(supabase, user.id)
@@ -386,6 +388,8 @@ export async function POST(req: NextRequest) {
     // nach dem allgemeinen Fachwissen kommen, sonst gewinnt weiter die
     // generische Vorgabe (z. B. 6 mm HPL-Rückwand).
     system += regelBlock
+    // Ohne eigene Lackierkabine wird Lackieren zugekauft — nie geschaetzt.
+    system += lackBlock
     system += preisBlock
 
     const messages: ChatMsg[] = [
