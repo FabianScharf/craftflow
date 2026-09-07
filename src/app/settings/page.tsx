@@ -464,11 +464,11 @@ export default function SettingsPage() {
       {/* Die Leiste der App — dieselbe wie auf jeder anderen Seite, damit man von hier
           aus direkt weiterarbeiten kann, statt erst zurueckgehen zu muessen. */}
       <AppHeader
+        titel="EINSTELLUNGEN"
         aktiv="einstellungen"
         logoUrl={logoPreview}
         firmenName={profil.firma_name ?? ''}
         isMobile={isMobile}
-        userEmail={userEmail}
         onLogout={logout}
       />
 

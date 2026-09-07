@@ -17,7 +17,7 @@ import {
 import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
 import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 // Ein Zeichen, eine Definition — sonst steht irgendwann ein zweites CF daneben.
-import { LogoMark } from '@/components/AppHeader'
+import { AppHeader } from '@/components/AppHeader'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -182,7 +182,7 @@ function parseGaebText(text: string): { positions: import('@/lib/types').Angebot
 /* ── Haupt-Komponente ─────────────────────────────── */
 
 export default function CraftFlow() {
-  const { canUse: planCanUse, loading: planLaedt, usage, incrementUsage, isInTrial, trialDaysLeft, isBlocked } = usePlan()
+  const { canUse: planCanUse, loading: planLaedt, usage, incrementUsage, isBlocked } = usePlan()
   // Solange der Tarif noch geladen wird, steht er auf 'solo'. Wer die Sperren
   // direkt daran haengt, laesst Schloesser aufblitzen, die gar nicht gelten —
   // ein Neukunde in der Testphase liest "AB STARTER" und glaubt, die beworbene
@@ -2557,15 +2557,9 @@ export default function CraftFlow() {
   // Der Testphasen-Hinweis gehört in JEDE Ansicht. Vorher steckte er fest im
   // Startbildschirm — wer in "Meine Projekte" wechselte, sah plötzlich nichts
   // mehr davon und musste raten, wie lange die Testphase noch läuft.
-  const TrialBanner = isInTrial ? (
-    <div onClick={() => window.location.href = '/settings#plan'} style={{ background: `${C.copper}18`, borderBottom: `1px solid ${C.copper}55`, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer' }}>
-      <span style={{ fontSize: 14 }}>🎁</span>
-      <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
-        <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet
-      </span>
-      <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>Plan wählen →</span>
-    </div>
-  ) : null
+  // Der Testversions-Hinweis ist in die Leiste gewandert (src/components/AppHeader.tsx).
+  // Er stand vorher in jedem Bildschirm einzeln — und fehlte deshalb in den
+  // Einstellungen und auf dem PDF-Bildschirm.
 
   // ── Speicherleiste ────────────────────────────────────────────────────────
   // Fest am unteren Rand, nicht im Reiter "Angebot" versteckt. Wer in der
@@ -2714,7 +2708,6 @@ export default function CraftFlow() {
     }
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
-        {TrialBanner}
 
         {/* Rückfrage vor dem Löschen — in unserer Oberfläche, nicht im Browser-Dialog */}
         {loeschFrage && (
@@ -2774,21 +2767,11 @@ export default function CraftFlow() {
           </div>
         )}
 
-        {/* Header */}
-        <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <LogoMark size={32} userLogoUrl={profilLogoUrl} />
-            <div style={{ color: brandAccent, fontSize: 14, fontWeight: 800, letterSpacing: 3 }}>MEINE PROJEKTE</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-            <button onClick={resetAll} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Neues Angebot">✏️</button>
-            <button onClick={() => setScreen('projekte')} style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }} title="Meine Projekte">📋</button>
-            <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">⚙️</button>
-            {userEmail && (
-              <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">🚪</button>
-            )}
-          </div>
-        </div>
+        <AppHeader
+          titel="MEINE PROJEKTE" aktiv="projekte"
+          logoUrl={profilLogoUrl} firmenName={profilFirmaName} isMobile={isMobile}
+          onNeu={resetAll} onProjekte={() => setScreen('projekte')} onLogout={logout}
+        />
 
         {/* Filter + Sort */}
         {projects.length > 0 && (
@@ -2987,7 +2970,6 @@ export default function CraftFlow() {
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {OnboardingModal}
-        {TrialBanner}
         <style>{`
           @keyframes cfpulse {
             0%, 100% { transform: scale(1); opacity: 0.5; }
@@ -2999,36 +2981,11 @@ export default function CraftFlow() {
           }
         `}</style>
 
-        {/* Header */}
-        <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
-            <LogoMark size={34} userLogoUrl={profilLogoUrl} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ color: brandAccent, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
-              {profilFirmaName && !isMobile && <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{profilFirmaName.toUpperCase()}</div>}
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-            <button
-              onClick={resetAll}
-              style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }}
-              title="Neues Angebot"
-            >
-              ✏️
-            </button>
-            <button onClick={() => setScreen('projekte')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">
-              📋
-            </button>
-            <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">
-              ⚙️
-            </button>
-            {userEmail && (
-              <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">
-                🚪
-              </button>
-            )}
-          </div>
-        </div>
+        <AppHeader
+          aktiv="neu"
+          logoUrl={profilLogoUrl} firmenName={profilFirmaName} isMobile={isMobile}
+          onNeu={resetAll} onProjekte={() => setScreen('projekte')} onLogout={logout}
+        />
 
         <div style={{ padding: '0 16px 40px', maxWidth: 500, margin: '0 auto', boxSizing: 'border-box' }}>
 
@@ -3310,31 +3267,17 @@ export default function CraftFlow() {
   return (
     <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white, paddingBottom: ungespeichert ? 68 : 0 }}>
       {OnboardingModal}
-      {TrialBanner}
       {SpeicherLeiste}
       {VerlassenDialog}
 
-      {/* Header */}
-      <div style={{ background: C.darkbg, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 }}>
-          <LogoMark size={30} userLogoUrl={profilLogoUrl} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ color: brandAccent, fontSize: 13, fontWeight: 800, letterSpacing: 2, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
-            {profilFirmaName && <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 1, whiteSpace: 'nowrap' }}>{profilFirmaName.toUpperCase()}</div>}
-          </div>
-          <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 6 }}>
-            {kunde.name || '–'}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-          <button onClick={() => mitPruefung(resetAll)} style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }} title="Neues Angebot">✏️</button>
-          <button onClick={() => mitPruefung(() => setScreen(previousScreen))} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">📋</button>
-          <button onClick={() => mitPruefung(() => { window.location.href = '/settings' })} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">⚙️</button>
-          {userEmail && (
-            <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">🚪</button>
-          )}
-        </div>
-      </div>
+      <AppHeader
+        aktiv="neu" zusatz={kunde.name || '–'}
+        logoUrl={profilLogoUrl} firmenName={profilFirmaName} isMobile={isMobile}
+        onNeu={() => mitPruefung(resetAll)}
+        onProjekte={() => mitPruefung(() => setScreen(previousScreen))}
+        onEinstellungen={() => mitPruefung(() => { window.location.href = '/settings' })}
+        onLogout={logout}
+      />
 
       {/* Tabs */}
       <div style={{ display: 'flex', background: C.darkbg, borderBottom: `1px solid ${C.border}` }}>

@@ -39,16 +39,30 @@ export const LogoMark = ({ size = 36, userLogoUrl }: { size?: number; userLogoUr
     )
 
 type Props = {
+  /** Steht neben dem Zeichen. CRAFTFLOW, MEINE PROJEKTE, EINSTELLUNGEN. */
+  titel?: string
   /** Welcher Knopf gerade die aktive Ansicht ist — er wird kupfern hervorgehoben. */
   aktiv?: 'neu' | 'projekte' | 'einstellungen'
   logoUrl?: string | null
-  firmenName?: string
+  firmenName?: string | null
+  /** Zusatz rechts vom Titel — auf dem PDF-Bildschirm der Kundenname. */
+  zusatz?: React.ReactNode
   isMobile?: boolean
-  userEmail?: string
   onLogout?: () => void
+  /**
+   * Eigene Handler statt eines Seitenwechsels. Innerhalb von page.tsx wird die
+   * Ansicht umgeschaltet statt neu geladen — und auf dem PDF-Bildschirm laufen
+   * alle drei durch die Rueckfrage bei ungespeicherten Aenderungen.
+   */
+  onNeu?: () => void
+  onProjekte?: () => void
+  onEinstellungen?: () => void
 }
 
-export function AppHeader({ aktiv, logoUrl, firmenName, isMobile = false, userEmail, onLogout }: Props) {
+export function AppHeader({
+  titel = 'CRAFTFLOW', aktiv, logoUrl, firmenName, zusatz, isMobile = false,
+  onLogout, onNeu, onProjekte, onEinstellungen,
+}: Props) {
   // Der Testversions-Hinweis gehoert zur Leiste, nicht zu einer einzelnen Seite —
   // sonst fehlt er dort, wo man ihn zuletzt vermutet. Fabian am 2026-09-08:
   // "Es fehlt auch der Banner mit der Testversion."
@@ -89,7 +103,7 @@ export function AppHeader({ aktiv, logoUrl, firmenName, isMobile = false, userEm
         <LogoMark size={34} userLogoUrl={logoUrl} />
         <div style={{ minWidth: 0 }}>
           <div style={{ color: FARBE.accent, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>
-            CRAFTFLOW
+            {titel}
           </div>
           {firmenName && !isMobile && (
             <div style={{ color: FARBE.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>
@@ -97,16 +111,25 @@ export function AppHeader({ aktiv, logoUrl, firmenName, isMobile = false, userEm
             </div>
           )}
         </div>
+        {zusatz && (
+          <div style={{ color: '#F5F2EE', fontSize: 11, fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 6 }}>
+            {zusatz}
+          </div>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-        <button onClick={() => { window.location.href = '/' }} style={knopf(aktiv === 'neu')} title="Neues Angebot">✏️</button>
+        <button onClick={onNeu ?? (() => { window.location.href = '/' })}
+          style={knopf(aktiv === 'neu')} title="Neues Angebot">✏️</button>
         {/* Von einer eigenen Route aus fuehrt kein setScreen zurueck — die Startseite
             liest ?ansicht=projekte und oeffnet die Liste direkt. */}
-        <button onClick={() => { window.location.href = '/?ansicht=projekte' }} style={knopf(aktiv === 'projekte')} title="Meine Projekte">📋</button>
-        <button onClick={() => { window.location.href = '/settings' }} style={knopf(aktiv === 'einstellungen')} title="Einstellungen">⚙️</button>
-        {userEmail && onLogout && (
-          <button onClick={onLogout} style={knopf(false)} title="Abmelden">🚪</button>
-        )}
+        <button onClick={onProjekte ?? (() => { window.location.href = '/?ansicht=projekte' })}
+          style={knopf(aktiv === 'projekte')} title="Meine Projekte">📋</button>
+        <button onClick={onEinstellungen ?? (() => { window.location.href = '/settings' })}
+          style={knopf(aktiv === 'einstellungen')} title="Einstellungen">⚙️</button>
+        {/* Immer da, auch bevor die E-Mail geladen ist. Vorher erschien der Knopf
+            verzoegert und die ganze Zeile sprang dabei — Fabian am 2026-09-08:
+            "der Button zum ausloggen lädt verzögert. das ist nicht gut." */}
+        <button onClick={onLogout} style={knopf(false)} title="Abmelden">🚪</button>
       </div>
     </div>
     </>
