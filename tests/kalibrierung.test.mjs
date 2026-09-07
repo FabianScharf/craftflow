@@ -386,3 +386,14 @@ test('Der Randhinweis haengt an genau den Baendern, die auf dem Deckel liegen', 
   assert.ok(!RANDBAENDER.includes('b3'))
   assert.ok(RANDHINWEIS.length > 40)
 })
+
+test('Eine Referenz fragt entweder alles je Stück oder nichts', () => {
+  // Gemischt gefragt — zwei Fragen je Tuer, zwei fuer fuenf Tueren — laedt zum
+  // Verlesen ein, und ein verlesener Preis ist ein falscher Faktor. Genau so sah es
+  // beim ersten Wurf am 2026-09-07 aus.
+  for (const r of Object.values(REFERENZEN)) {
+    const teiler = r.fragenliste.map(f => r.teiler?.[f.schluessel] ?? 1)
+    assert.equal(new Set(teiler).size, 1,
+      `${r.name}: gemischte Teiler ${JSON.stringify(teiler)}`)
+  }
+})

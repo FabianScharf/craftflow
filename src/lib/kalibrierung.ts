@@ -114,7 +114,13 @@ type ReferenzSpec = {
    * Tuer — die echte Marktbreite, und ein Schreiner bietet Tueren ohnehin so an.
    */
   ohneMaterial?: Fragenschluessel[]
-  /** Label je Stueck statt fuer alles zusammen (Innentueren: 5). */
+  /**
+   * Label je Stueck statt fuer alles zusammen (Innentueren: 5).
+   *
+   * Gilt fuer ALLE Fragen einer Referenz oder fuer keine. Gemischt gefragt — zwei
+   * Fragen je Tuer, zwei fuer fuenf Tueren — laedt zum Verlesen ein, und ein
+   * verlesener Preis ist ein falscher Faktor.
+   */
   teiler?: Partial<Record<Fragenschluessel, number>>
 }
 
@@ -207,12 +213,12 @@ const SPECS: Record<string, ReferenzSpec> = {
     flaecheM2: 20,
     // Material macht hier 56 % (Grundfrage) bzw. 61 % (Massivholzfrage) aus.
     ohneMaterial: ['grund', 'massiv'],
-    teiler: { grund: 5, massiv: 5 },
+    teiler: { grund: 5, lack: 5, massiv: 5, montage: 5 },
     fragen: {
       grund: 'Was nimmst du fürs Einpassen einer Tür, wenn der Kunde Tür und Zarge selbst stellt?',
-      lack: 'Dieselben Türen, aber von dir weiß lackiert seidenmatt statt beschichtet gekauft. Was kommt dazu?',
+      lack: 'Dieselben Türen, aber von dir weiß lackiert seidenmatt statt beschichtet gekauft. Was kommt je Tür dazu?',
       massiv: 'Dieselben Türen in Eiche massiv, geölt: Was nimmst du je Tür für deine Arbeit, ohne das Holz?',
-      montage: 'Dieselben fünf Türen im Altbau: alte Zargen raus, Wände nicht im Lot, Böden schief. Wie lange bist du dran?',
+      montage: 'Eine Tür im Altbau: alte Zarge raus, Wand nicht im Lot, Boden schief. Wie lange bist du an der einen Tür?',
     },
     fragenHinweis: {
       grund: 'Nur deine Arbeit — Türblatt und Zarge zahlt der Kunde extra. So misst CraftFlow dein Tempo und nicht deinen Einkauf.',
@@ -393,7 +399,7 @@ function baueBaender(r: Bandbasis): Record<string, Band[]> {
   // Sockel und ohne Montage.
   const lackZeitwert = (r.lackMinuten / 60) * STANDARDSAETZE['Oberfläche']
   alle.lack = skala(r.lackMaterialEk * (1 + STANDARDAUFSCHLAG), lackZeitwert,
-    n => eur(rund(n))).map(b => ({ ...b, text: `+ ${b.text}` }))
+    label('lack')).map(b => ({ ...b, text: `+ ${b.text}` }))
 
   // Massivholzfrage: wieder ein Gesamtpreis, aber mit Massivholzmaterial, laengerer
   // Werkstattzeit und Oberflaeche statt Bekantung.
@@ -407,7 +413,9 @@ function baueBaender(r: Bandbasis): Record<string, Band[]> {
   // Faktor die reine Montagezeit gegen unsere Altbau-Erwartung stellt.
   const basisMontage = r.montage.find(p => p.kostenstelle === 'Montage')?.minuten ?? 240
   const erwartet = basisMontage * r.altbauFaktor
-  alle.montage = skala(0, erwartet, dauerFormen(erwartet))
+  const tMontage = r.teiler?.montage ?? 1
+  alle.montage = skala(0, erwartet,
+    dauerFormen(erwartet / tMontage).map(fo => (n: number) => fo(n / tMontage)))
 
   // Nur die Fragen behalten, die dieses Moebel wirklich stellt. Die Grundfrage
   // stellt jedes.
