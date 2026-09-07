@@ -171,6 +171,13 @@ export interface Angebotsposition {
   beschreibung: string
   material: MaterialPosten[]
   arbeitszeit: ArbeitsPosten[]
+  /**
+   * Anzahl gleicher Stuecke dieser Position. Material und Zeiten stehen fuer EIN
+   * Stueck — hochgerechnet wird ausschliesslich in den Preisfunktionen unten.
+   * So kann die Stueckzahl nirgends doppelt gerechnet werden, und beim Bearbeiten
+   * sieht man weiter die Werte fuer ein Stueck.
+   */
+  stueckzahl?: number
 }
 
 // ── Firmendaten ──────────────────────────────────────
@@ -277,16 +284,107 @@ export const KOSTENSTELLEN_LABELS: Record<KostenstelleId, string> = {
   'Lieferung':         'Lieferung & Fahrt',
 }
 
+// Die Stueckzahl wirkt AUSSCHLIESSLICH hier. Diese drei Funktionen sind die einzige
+// Quelle der Wahrheit fuer alle Preise (PDF, Angebot, Uebersicht, Export) — wer sie
+// woanders einbaut, riskiert doppelte Multiplikation.
+//
+// Was bei Serie passiert, steht in src/lib/serie.ts: Fixkosten einmal statt je
+// Stueck, Werkstattzeit mit Lernkurve, Montage flacher, Material guenstiger.
+
+// ── Serienfertigung ──────────────────────────────────
+// Liegt hier und nicht in einer eigenen Datei, weil types.ts NICHTS importieren
+// darf: Node loest verschachtelte .ts-Importe in den Tests nicht auf, und die
+// Preisfunktionen unten brauchen diese Logik.
+//
+// Fabian am 2026-09-07: "Wenn jemand 100 gleiche Moebel kalkuliert haben moechte,
+// muessen wir etwas einbauen, das Synergien mitkalkuliert. Das sollte sinnvoll
+// gestaffelt sein."
+//
+// DREI DINGE aendern sich, nicht eines:
+//
+// 1. EINMALIGE KOSTEN fallen einmal an, nicht je Stueck. Besprechung, Planung,
+//    Konstruktion, Arbeitsvorbereitung. Wer 100 Spinde baut, plant sie einmal.
+//    Das mitzumultiplizieren war bei groesseren Serien der dickste Fehler.
+// 2. WERKSTATTZEIT sinkt je Stueck — Lernkurve. Anschlag steht, Handgriffe sitzen,
+//    Stapelzuschnitt statt Einzelteil. Die Staffel unten entspricht einer
+//    90-Prozent-Lernkurve, dem Standardwert fuer wiederkehrende Fertigung mit
+//    Maschinenunterstuetzung.
+// 3. MATERIAL wird guenstiger — weniger Verschnitt durch Schachteln ueber mehrere
+//    Stueck, dazu Staffelpreise beim Lieferanten.
+//
+// Die MONTAGE folgt einer eigenen, flacheren Kurve: Jedes Stueck muss einzeln
+// aufgestellt werden, nur Anfahrt und Einrichten fallen einmal an.
+//
+// Von Fabian am 2026-09-07 geprueft und so freigegeben.
+
+export const FIXKOSTEN_KS = ['Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung']
+export const MONTAGE_KS = ['Montage', 'Lieferung']
+
+type Staffel = Array<[schwelle: number, wert: number]>
+
+const ZEIT_STAFFEL: Staffel = [
+  [1, 1.00], [2, 0.92], [3, 0.85], [5, 0.78], [10, 0.70], [25, 0.62], [50, 0.55], [100, 0.50],
+]
+const MONTAGE_STAFFEL: Staffel = [
+  [1, 1.00], [2, 0.97], [3, 0.94], [5, 0.90], [10, 0.85], [25, 0.82], [50, 0.80], [100, 0.78],
+]
+const MATERIAL_STAFFEL: Staffel = [
+  [1, 0], [5, 0.03], [10, 0.05], [25, 0.08], [100, 0.10],
+]
+
+function ausStaffel(staffel: Staffel, n: number): number {
+  let wert = staffel[0][1]
+  for (const [schwelle, w] of staffel) if (n >= schwelle) wert = w
+  return wert
+}
+
+/** Ganze Zahl, mindestens 1. Unsinn im Feld darf die Kalkulation nicht kippen. */
+export function stueckzahlVon(p: { stueckzahl?: number } | null | undefined): number {
+  const n = Math.floor(Number(p?.stueckzahl ?? 1))
+  return Number.isFinite(n) && n > 1 ? n : 1
+}
+
+export function serienFaktor(n: number): number { return ausStaffel(ZEIT_STAFFEL, stueckzahlVon({ stueckzahl: n })) }
+export function montageFaktor(n: number): number { return ausStaffel(MONTAGE_STAFFEL, stueckzahlVon({ stueckzahl: n })) }
+export function materialRabatt(n: number): number { return ausStaffel(MATERIAL_STAFFEL, stueckzahlVon({ stueckzahl: n })) }
+
+/**
+ * Der Faktor, mit dem eine einzelne Zeitzeile hochzurechnen ist.
+ * Fixkosten: 1 (einmal fuer die ganze Position, unabhaengig von der Stueckzahl).
+ */
+export function zeitFaktorFuer(kostenstelle: string, n: number): number {
+  if (FIXKOSTEN_KS.includes(kostenstelle)) return 1
+  if (MONTAGE_KS.includes(kostenstelle)) return n * montageFaktor(n)
+  return n * serienFaktor(n)
+}
+
+/** Klartext fuer die Oberflaeche, damit sichtbar ist was passiert. */
+export function serienHinweis(n: number): string {
+  if (n <= 1) return ''
+  const zeit = Math.round((1 - serienFaktor(n)) * 100)
+  const mat = Math.round(materialRabatt(n) * 100)
+  const teile = [`Planung fällt einmal an statt ${n}×`]
+  if (zeit > 0) teile.push(`Werkstattzeit je Stück ${zeit} % kürzer`)
+  if (mat > 0) teile.push(`Material ${mat} % günstiger`)
+  return teile.join(' · ')
+}
+
 export function materialkostenPos(p: Angebotsposition): number {
-  return p.material.reduce((s, m) => s + m.menge * m.ekPreis * (1 + m.aufschlag), 0)
+  const n = stueckzahlVon(p)
+  const einStueck = p.material.reduce((s, m) => s + m.menge * m.ekPreis * (1 + m.aufschlag), 0)
+  return einStueck * n * (1 - materialRabatt(n))
 }
 
 export function arbeitszeitPreisPos(p: Angebotsposition): number {
-  return p.arbeitszeit.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
+  const n = stueckzahlVon(p)
+  return p.arbeitszeit.reduce(
+    (s, a) => s + (a.minuten / 60) * a.vkStunde * zeitFaktorFuer(normalizeKsId(a.kostenstelle), n), 0)
 }
 
 export function stundenPos(p: Angebotsposition): number {
-  return p.arbeitszeit.reduce((s, a) => s + a.minuten / 60, 0)
+  const n = stueckzahlVon(p)
+  return p.arbeitszeit.reduce(
+    (s, a) => s + (a.minuten / 60) * zeitFaktorFuer(normalizeKsId(a.kostenstelle), n), 0)
 }
 
 export function calcAngebotspos(p: Angebotsposition): number {
