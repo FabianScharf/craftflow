@@ -93,6 +93,41 @@ export const BAENDER: Record<string, Band[]> = {
   ],
 }
 
+// Die fuenf Betriebsfragen. Liegen hier, damit Erst-Anmeldung und Einstellungen
+// dieselbe Quelle nutzen — zwei Listen wuerden auseinanderlaufen.
+export const BETRIEBSFRAGEN: Record<string, Band[]> = {
+  mitarbeiter: [
+    { schluessel: 'solo', text: 'nur ich',    mitte: null },
+    { schluessel: '2-3',  text: '2 bis 3',    mitte: null },
+    { schluessel: '4-10', text: '4 bis 10',   mitte: null },
+    { schluessel: 'mehr', text: 'mehr',       mitte: null },
+  ],
+  maschinen: [
+    { schluessel: 'formatsaege',   text: 'Formatkreissäge',      mitte: null },
+    { schluessel: 'kantenanleim',  text: 'Kantenanleimmaschine', mitte: null },
+    { schluessel: 'cnc',           text: 'CNC',                  mitte: null },
+    { schluessel: 'lackierkabine', text: 'Lackierkabine',        mitte: null },
+    { schluessel: 'keine',         text: 'keine davon',          mitte: null },
+  ],
+  schwerpunkt: [
+    { schluessel: 'moebel',      text: 'Möbel nach Maß',                 mitte: null },
+    { schluessel: 'innenausbau', text: 'Innenausbau und Einbauschränke', mitte: null },
+    { schluessel: 'kuechen',     text: 'Küchen',                         mitte: null },
+    { schluessel: 'tueren',      text: 'Türen und Böden',                mitte: null },
+    { schluessel: 'gemischt',    text: 'gemischt',                       mitte: null },
+  ],
+  montage_selbst: [
+    { schluessel: 'immer',    text: 'immer',    mitte: null },
+    { schluessel: 'manchmal', text: 'manchmal', mitte: null },
+    { schluessel: 'nie',      text: 'nie',      mitte: null },
+  ],
+  stueckzahlen: [
+    { schluessel: 'einzel',   text: 'fast nur Einzelstücke', mitte: null },
+    { schluessel: 'gemischt', text: 'gemischt',              mitte: null },
+    { schluessel: 'serien',   text: 'oft Serien',            mitte: null },
+  ],
+}
+
 const MIN_FAKTOR = 0.6
 const MAX_FAKTOR = 1.4
 

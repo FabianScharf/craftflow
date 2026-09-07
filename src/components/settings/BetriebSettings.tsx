@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { C } from '@/lib/types'
-import { BAENDER } from '@/lib/kalibrierung'
+import { BAENDER, BETRIEBSFRAGEN } from '@/lib/kalibrierung'
 
 // Einstellungen -> Mein Betrieb. Zeigt dieselben neun Fragen wie die Erst-Anmeldung
 // und die vier daraus abgeleiteten Faktoren in Klartext.
@@ -35,37 +35,6 @@ const LEER: Kalibrierung = {
   faktor_werkstatt: 1, faktor_oberflaeche: 1, faktor_massivholz: 1, faktor_montage: 1,
   abgeschlossen: false, hinweis_gezeigt: false,
 }
-
-export const MITARBEITER = [
-  { wert: 'solo',  text: 'nur ich' },
-  { wert: '2-3',   text: '2 bis 3' },
-  { wert: '4-10',  text: '4 bis 10' },
-  { wert: 'mehr',  text: 'mehr' },
-]
-export const MASCHINEN = [
-  { wert: 'formatsaege',  text: 'Formatkreissäge' },
-  { wert: 'kantenanleim', text: 'Kantenanleimmaschine' },
-  { wert: 'cnc',          text: 'CNC' },
-  { wert: 'lackierkabine', text: 'Lackierkabine' },
-  { wert: 'keine',        text: 'keine davon' },
-]
-export const SCHWERPUNKT = [
-  { wert: 'moebel',      text: 'Möbel nach Maß' },
-  { wert: 'innenausbau', text: 'Innenausbau und Einbauschränke' },
-  { wert: 'kuechen',     text: 'Küchen' },
-  { wert: 'tueren',      text: 'Türen und Böden' },
-  { wert: 'gemischt',    text: 'gemischt' },
-]
-export const MONTAGE_SELBST = [
-  { wert: 'immer',     text: 'immer' },
-  { wert: 'manchmal',  text: 'manchmal' },
-  { wert: 'nie',       text: 'nie' },
-]
-export const STUECKZAHLEN = [
-  { wert: 'einzel',   text: 'fast nur Einzelstücke' },
-  { wert: 'gemischt', text: 'gemischt' },
-  { wert: 'serien',   text: 'oft Serien' },
-]
 
 const FAKTOR_TEXTE: Array<{ feld: keyof Kalibrierung; name: string; was: string }> = [
   { feld: 'faktor_werkstatt',   name: 'Werkstatt',  was: 'Zuschnitt, Bekantung, CNC, Zusammenbau' },
@@ -129,6 +98,9 @@ export default function BetriebSettings() {
     await laden()
   }
 
+  const liste = (frage: string) =>
+    (BETRIEBSFRAGEN[frage] ?? []).map(b => ({ wert: b.schluessel, text: b.text }))
+
   const knopf = (aktiv: boolean) => ({
     background: aktiv ? '#2A2018' : '#1C1C1C',
     border: `1px solid ${aktiv ? C.copper : '#2E2E2E'}`,
@@ -169,14 +141,14 @@ export default function BetriebSettings() {
           padding: '10px 14px', color: '#FFB0B0', fontSize: 13, marginBottom: 20 }}>{fehler}</div>
       )}
 
-      {gruppe('Wie viele arbeiten in der Werkstatt mit?', '', MITARBEITER, k.mitarbeiter,
+      {gruppe('Wie viele arbeiten in der Werkstatt mit?', '', liste('mitarbeiter'), k.mitarbeiter,
         w => setK({ ...k, mitarbeiter: w }))}
 
       <div style={{ marginBottom: 26 }}>
         <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Welche Maschinen hast du?</div>
         <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10 }}>Mehrfachauswahl</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {MASCHINEN.map(m => {
+          {liste('maschinen').map(m => {
             const an = k.maschinen.includes(m.wert)
             return (
               <button key={m.wert} style={knopf(an)} onClick={() => setK({ ...k,
@@ -188,13 +160,13 @@ export default function BetriebSettings() {
         </div>
       </div>
 
-      {gruppe('Was baust du hauptsächlich?', '', SCHWERPUNKT, k.schwerpunkt,
+      {gruppe('Was baust du hauptsächlich?', '', liste('schwerpunkt'), k.schwerpunkt,
         w => setK({ ...k, schwerpunkt: w }))}
-      {gruppe('Montierst du selbst beim Kunden?', '', MONTAGE_SELBST, k.montage_selbst,
+      {gruppe('Montierst du selbst beim Kunden?', '', liste('montage_selbst'), k.montage_selbst,
         w => setK({ ...k, montage_selbst: w }))}
       {gruppe('Einzelstücke oder auch größere Stückzahlen?',
         'Diese Frage ändert deine Kalkulation nicht — sie hilft uns zu verstehen, wofür CraftFlow gebraucht wird.',
-        STUECKZAHLEN, k.stueckzahlen, w => setK({ ...k, stueckzahlen: w }))}
+        liste('stueckzahlen'), k.stueckzahlen, w => setK({ ...k, stueckzahlen: w }))}
 
       <div style={{ height: 1, background: '#2E2E2E', margin: '30px 0' }} />
 

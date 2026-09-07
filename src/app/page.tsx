@@ -14,6 +14,7 @@ import {
   type DbKostenstelle, type DbMaterialgruppe,
 } from '@/lib/types'
 import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
+import { BAENDER, BETRIEBSFRAGEN } from '@/lib/kalibrierung'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -203,6 +204,13 @@ export default function CraftFlow() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingStep, setOnboardingStep] = useState(0)
+  // Antworten der Betriebskalibrierung. Werden am Ende der Erst-Anmeldung
+  // gespeichert; wer ueberspringt, speichert nichts und rechnet mit Branchenwerten.
+  const [kalib, setKalib] = useState({
+    mitarbeiter: '', maschinen: [] as string[], schwerpunkt: '',
+    montage_selbst: '', stueckzahlen: '',
+    antwort_grund: '', antwort_lack: '', antwort_massiv: '', antwort_montage: '',
+  })
 
   const [brandAccent, setBrandAccent] = useState(C.copper)
   const [brandPrimary, setBrandPrimary] = useState(C.black)
@@ -1948,6 +1956,34 @@ export default function CraftFlow() {
   /* ══════════════════════════════════════════════════
      ONBOARDING MODAL
   ══════════════════════════════════════════════════ */
+  const kalibKnopf = (aktiv: boolean) => ({
+    background: aktiv ? '#2A2018' : '#1C1C1C',
+    border: `1px solid ${aktiv ? C.copper : '#2E2E2E'}`,
+    color: aktiv ? C.white : '#B0B0B0',
+    borderRadius: 7, padding: '9px 12px', fontSize: 12, cursor: 'pointer',
+    textAlign: 'left' as const,
+  })
+
+  const kalibWahl = (
+    quelle: Record<string, Array<{ schluessel: string; text: string }>>,
+    frage: string, aktuell: string, setzen: (w: string) => void,
+  ) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      {(quelle[frage] ?? []).map(b => (
+        <button key={b.schluessel} onClick={() => setzen(b.schluessel)}
+          style={kalibKnopf(aktuell === b.schluessel)}>{b.text}</button>
+      ))}
+    </div>
+  )
+
+  const kalibFrage = (titel: string, kind: React.ReactNode, hinweis = '') => (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: hinweis ? 3 : 8 }}>{titel}</div>
+      {hinweis && <div style={{ color: '#7A7A7A', fontSize: 11, marginBottom: 8, lineHeight: 1.5 }}>{hinweis}</div>}
+      {kind}
+    </div>
+  )
+
   const ONBOARDING_STEPS = [
     {
       icon: '✦',
@@ -2071,68 +2107,85 @@ export default function CraftFlow() {
       ),
     },
     {
-      icon: '⏱',
-      label: 'Stundensätze',
-      title: 'Kostenstellen einrichten',
+      icon: '🏗',
+      label: 'Dein Betrieb',
+      title: 'Fünf Fragen zu deinem Betrieb',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>
-            Die KI kalkuliert mit deinen Stundensätzen. Standardwerte sind vorausgefüllt — passe sie einmalig an deinen Betrieb an.
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
+            Damit CraftFlow mit deinen Zeiten rechnet statt mit Branchenwerten.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7, marginBottom: 16 }}>
-            {[
-              ['Produktion', '65 €/h'],
-              ['Zuschnitt', '72 €/h'],
-              ['Oberfläche', '72 €/h'],
-              ['Montage', '65 €/h'],
-              ['Bekantung', '100 €/h'],
-              ['CNC', '120 €/h'],
-            ].map(([name, rate]) => (
-              <div key={name} style={{ background: '#1C1C1C', borderRadius: 7, padding: '9px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#8A8A8A', fontSize: 12 }}>{name}</span>
-                <span style={{ color: C.copper, fontSize: 12, fontWeight: 700 }}>{rate}</span>
-              </div>
-            ))}
+          {kalibFrage('Wie viele arbeiten in der Werkstatt mit?',
+            kalibWahl(BETRIEBSFRAGEN, 'mitarbeiter', kalib.mitarbeiter, w => setKalib({ ...kalib, mitarbeiter: w })))}
+          {kalibFrage('Welche Maschinen hast du?',
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+              {(BETRIEBSFRAGEN.maschinen ?? []).map(m => {
+                const an = kalib.maschinen.includes(m.schluessel)
+                return (
+                  <button key={m.schluessel} style={kalibKnopf(an)} onClick={() => setKalib({ ...kalib,
+                    maschinen: an ? kalib.maschinen.filter(x => x !== m.schluessel) : [...kalib.maschinen, m.schluessel] })}>
+                    {m.text}
+                  </button>
+                )
+              })}
+            </div>, 'Mehrfachauswahl')}
+          {kalibFrage('Was baust du hauptsächlich?',
+            kalibWahl(BETRIEBSFRAGEN, 'schwerpunkt', kalib.schwerpunkt, w => setKalib({ ...kalib, schwerpunkt: w })))}
+          {kalibFrage('Montierst du selbst beim Kunden?',
+            kalibWahl(BETRIEBSFRAGEN, 'montage_selbst', kalib.montage_selbst, w => setKalib({ ...kalib, montage_selbst: w })))}
+          {kalibFrage('Einzelstücke oder auch größere Stückzahlen?',
+            kalibWahl(BETRIEBSFRAGEN, 'stueckzahlen', kalib.stueckzahlen, w => setKalib({ ...kalib, stueckzahlen: w })),
+            'Diese Frage ändert deine Kalkulation nicht — sie hilft uns zu verstehen, wofür CraftFlow gebraucht wird.')}
+        </div>
+      ),
+    },
+    {
+      icon: '📐',
+      label: 'Referenz',
+      title: 'Was nimmst du für diesen Schrank?',
+      content: (
+        <div>
+          <div style={{ background: '#1C1C1C', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+            <div style={{ color: '#B0B0B0', fontSize: 12.5, lineHeight: 1.7 }}>
+              <b style={{ color: C.white }}>Einbauschrank Flur</b>, 2,00 m breit × 2,40 m hoch × 0,60 m tief.<br />
+              Korpus und Fronten <b style={{ color: C.white }}>Egger Dekorspanplatte 19 mm weiß</b>, Kanten ABS 1 mm.<br />
+              <b style={{ color: C.white }}>4 Drehtüren</b> mit Topfscharnieren, <b style={{ color: C.white }}>2 Schubkästen</b> auf
+              Systemauszügen, Kleiderstange, je Fach 2 Einlegeböden, Sockel 100 mm, Rückwand.<br />
+              <b style={{ color: C.white }}>Lieferung und Montage</b> beim Kunden, 20 km, Neubau, gerade Wände.
+            </div>
           </div>
-          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 15 }}>⚙️</span>
-            <span style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>
-              Alle Kostenstellen anpassen unter <span style={{ color: C.copper }}>Einstellungen → Kostenstellen</span>
-            </span>
+          <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6, marginBottom: 16 }}>
+            Genau diese fünf Dinge braucht CraftFlow immer: Möbelart, Maße, Material,
+            Ausstattung, Montage. So sieht eine gute Beschreibung aus.
+          </div>
+          {kalibFrage('Was nimmst du für so einen Schrank, netto?',
+            kalibWahl(BAENDER, 'grund', kalib.antwort_grund, w => setKalib({ ...kalib, antwort_grund: w })))}
+          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8,
+            padding: '10px 14px', color: '#8A8A8A', fontSize: 12 }}>
+            🔒 Diese Angabe sieht niemand außer dir.
           </div>
         </div>
       ),
     },
     {
-      icon: '📦',
-      label: 'Material',
-      title: 'Materialaufschlag einstellen',
+      icon: '🎨',
+      label: 'Bereiche',
+      title: 'Derselbe Schrank, drei Varianten',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
-            Ein Aufschlag auf alle Materialkosten deckt Beschaffung, Lager und Verschnitt ab.
+          <p style={{ color: '#9A9A9A', fontSize: 12.5, lineHeight: 1.6, marginBottom: 16 }}>
+            Hier streuen die Betriebe am stärksten. Weißt du eine Zahl gerade nicht, sag es —
+            geraten ist schlechter als offen gelassen.
           </p>
-          <div style={{ background: '#1C1C1C', borderRadius: 10, padding: '14px 20px', textAlign: 'center', marginBottom: 12 }}>
-            <div style={{ color: C.copper, fontSize: 42, fontWeight: 900, lineHeight: 1, letterSpacing: -1 }}>30%</div>
-            <div style={{ color: '#6A6A6A', fontSize: 12, marginTop: 5 }}>Standardaufschlag auf Einkaufspreis</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
-            {[
-              ['Standardplatten / Zukaufteile', '15–20 %'],
-              ['Allgemein (Richtwert)', '20–30 %'],
-              ['Massivholz / Sonderbestellung', '25–35 %'],
-            ].map(([label, val]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: '#1A1A1A', borderRadius: 7 }}>
-                <span style={{ color: '#8A8A8A', fontSize: 12 }}>{label}</span>
-                <span style={{ color: '#C0C0C0', fontSize: 12, fontWeight: 600 }}>{val}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 15 }}>⚙️</span>
-            <span style={{ color: '#7A7A7A', fontSize: 12 }}>
-              Anpassen unter <span style={{ color: C.copper }}>Einstellungen → Warenaufschläge</span>
-            </span>
+          {kalibFrage('Alles weiß lackiert seidenmatt statt Dekor. Was kommt dazu?',
+            kalibWahl(BAENDER, 'lack', kalib.antwort_lack, w => setKalib({ ...kalib, antwort_lack: w })))}
+          {kalibFrage('In Eiche massiv, geölt. Was nimmst du?',
+            kalibWahl(BAENDER, 'massiv', kalib.antwort_massiv, w => setKalib({ ...kalib, antwort_massiv: w })))}
+          {kalibFrage('Im Altbau: Wände nicht im Lot, Dielenboden, zweiter Stock ohne Aufzug. Wie lange bist du dran?',
+            kalibWahl(BAENDER, 'montage', kalib.antwort_montage, w => setKalib({ ...kalib, antwort_montage: w })))}
+          <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6 }}>
+            Bei &bdquo;weiß ich gerade nicht&ldquo; rechne ich in diesem Bereich mit dem Branchenwert.
+            Du kannst es jederzeit unter Einstellungen → Mein Betrieb nachtragen.
           </div>
         </div>
       ),
@@ -2180,6 +2233,14 @@ export default function CraftFlow() {
 
   const finishOnboarding = (goToSettings: boolean) => {
     fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
+    // Kalibrierung nur speichern, wenn ueberhaupt etwas beantwortet wurde. Wer
+    // ueberspringt, bekommt keinen Datensatz und rechnet mit Branchenwerten —
+    // eine uebersprungene Frage darf nie wie eine beantwortete wirken.
+    // Feuere-und-vergiss: Ein Speicherfehler darf die Erst-Anmeldung nicht blockieren.
+    if (Object.values(kalib).some(v => (Array.isArray(v) ? v.length > 0 : v !== ''))) {
+      fetch('/api/settings/kalibrierung', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(kalib) }).catch(e => console.error('[onboarding] Kalibrierung', e))
+    }
     setShowOnboarding(false)
     setOnboardingStep(0)
     if (goToSettings) window.location.href = '/settings'
