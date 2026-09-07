@@ -1,5 +1,7 @@
 'use client'
 
+import { usePlan } from '@/hooks/usePlan'
+
 // Die obere Leiste — dieselbe auf jeder Seite.
 //
 // Fabian am 2026-09-08: "Die obere Zeile bleibt fast immer gleich, außer wenn man
@@ -47,6 +49,11 @@ type Props = {
 }
 
 export function AppHeader({ aktiv, logoUrl, firmenName, isMobile = false, userEmail, onLogout }: Props) {
+  // Der Testversions-Hinweis gehoert zur Leiste, nicht zu einer einzelnen Seite —
+  // sonst fehlt er dort, wo man ihn zuletzt vermutet. Fabian am 2026-09-08:
+  // "Es fehlt auch der Banner mit der Testversion."
+  const { isInTrial, trialDaysLeft } = usePlan()
+
   const knopf = (an: boolean): React.CSSProperties => ({
     background: an ? FARBE.accent : 'transparent',
     color: an ? FARBE.black : FARBE.textMid,
@@ -58,6 +65,21 @@ export function AppHeader({ aktiv, logoUrl, firmenName, isMobile = false, userEm
   })
 
   return (
+    <>
+    {isInTrial && (
+      <div
+        onClick={() => { window.location.href = '/settings#plan' }}
+        style={{ background: `${FARBE.accent}18`, borderBottom: `1px solid ${FARBE.accent}55`,
+          padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: 10, cursor: 'pointer' }}
+      >
+        <span style={{ fontSize: 14 }}>🎁</span>
+        <span style={{ fontSize: 12, color: FARBE.accent, fontFamily: 'Helvetica Neue,sans-serif' }}>
+          <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet
+        </span>
+        <span style={{ fontSize: 11, color: FARBE.textMid, marginLeft: 4 }}>Plan wählen →</span>
+      </div>
+    )}
     <div style={{
       background: FARBE.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', borderBottom: `2px solid ${FARBE.accent}`, gap: 8,
@@ -87,5 +109,6 @@ export function AppHeader({ aktiv, logoUrl, firmenName, isMobile = false, userEm
         )}
       </div>
     </div>
+    </>
   )
 }

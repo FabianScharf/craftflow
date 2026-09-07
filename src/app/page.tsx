@@ -2223,7 +2223,7 @@ export default function CraftFlow() {
       content: (
         <div>
           <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
-            Damit CraftFlow mit deinen Zeiten rechnet statt mit den CraftFlow-Werten.
+            Damit hier deine Zeiten gelten und nicht die CraftFlow-Werte.
           </p>
           {kalibFrage('Welche Maschinen hast du?',
             kalibMehrfach('maschinen', kalib.maschinen, w => setKalib({ ...kalib, maschinen: w })),

@@ -472,21 +472,25 @@ export default function SettingsPage() {
         onLogout={logout}
       />
 
-      {/* Zweite Zeile: Bereichstitel und auf dem Handy der Weg zurueck zur Liste. */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 44, gap: 12, background: C.black }}>
-        <button
-          onClick={() => {
-            if (isMobile && mobileShowContent) { setMobileShowContent(false) }
-            else { window.location.href = '/' }
-          }}
-          style={{ background: 'none', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}
-        >←</button>
-        <span style={{ color: C.copper, fontWeight: 800, letterSpacing: 2, fontSize: 13 }}>
-          {isMobile && mobileShowContent
-            ? navItems.find(n => n.id === section)?.label ?? 'EINSTELLUNGEN'
-            : 'EINSTELLUNGEN'}
-        </span>
-      </div>
+      {/* Zweite Zeile NUR auf dem Handy, und dort nur innerhalb eines Bereichs.
+          Fabian am 2026-09-08: "Die Zeile mit dem Pfeil zurück und nochmal
+          Einstellungen muss weg. Man hat ja jetzt über die Header Zeile den
+          Zugriff." Stimmt — am Rechner ist sie ueberfluessig.
+          Am Handy ist dieser Pfeil aber der einzige Weg von einem Bereich zurueck
+          zur Liste: Dort wird entweder die Liste ODER der Inhalt gezeigt, nie
+          beides. Ohne ihn kaeme man aus "Kostenstellen" nicht mehr heraus, ohne
+          die Einstellungen ganz zu verlassen. */}
+      {isMobile && mobileShowContent && (
+        <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 44, gap: 12, background: C.black }}>
+          <button
+            onClick={() => setMobileShowContent(false)}
+            style={{ background: 'none', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}
+          >←</button>
+          <span style={{ color: C.copper, fontWeight: 800, letterSpacing: 2, fontSize: 13 }}>
+            {navItems.find(n => n.id === section)?.label ?? 'EINSTELLUNGEN'}
+          </span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', maxWidth: 960, margin: '0 auto' }}>
 

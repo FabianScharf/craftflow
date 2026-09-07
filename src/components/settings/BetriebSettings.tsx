@@ -216,7 +216,7 @@ export default function BetriebSettings() {
     <div>
       <h2 style={{ color: C.white, fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Mein Betrieb</h2>
       <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
-        Aus diesen Angaben rechnet CraftFlow mit deinen Zeiten statt mit den CraftFlow-Werten.
+        Aus diesen Angaben gelten deine Zeiten statt der CraftFlow-Werte.
         Deine Preise sieht niemand außer dir.
       </p>
 
@@ -290,7 +290,7 @@ export default function BetriebSettings() {
 
       <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Deine Zeitfaktoren</div>
       <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-        So rechnet CraftFlow deine Zeiten gegenüber den CraftFlow-Werten. Du kannst
+        Deine Zeiten im Verhältnis zu den CraftFlow-Werten. Du kannst
         jeden Wert von Hand überschreiben — dann gilt deine Zahl statt der abgeleiteten.
       </p>
 
