@@ -59,3 +59,45 @@ test('Zusatzfelder wie vkStunde bleiben erhalten', () => {
 test('Leere Liste bleibt leer', () => {
   assert.deepEqual(wendeFaktorenAn([], KEINE_FAKTOREN, false), [])
 })
+
+test('Azubistunden und eigene Kostenstellen werden mitkalibriert', () => {
+  // GEFUNDEN AM 2026-09-07: Vorher zaehlte eine Liste der sieben Werkstatt-
+  // Kostenstellen auf, alles ausserhalb blieb unangetastet. Azubi und jede
+  // frei benannte eigene Kostenstelle bekamen damit gar keinen Faktor — wer viel
+  // darueber laufen laesst, wurde still nicht kalibriert.
+  const f = { werkstatt: 0.7, oberflaeche: 1, massivholz: 1, montage: 1 }
+  const raus = wendeFaktorenAn([
+    { kostenstelle: 'Azubi', minuten: 120 },
+    { kostenstelle: 'Polieren von Hand', minuten: 90 },
+    { kostenstelle: 'Furnieren', minuten: 60 },
+  ], f, false)
+  assert.equal(raus[0].minuten, 84)
+  assert.equal(raus[1].minuten, 63)
+  assert.equal(raus[2].minuten, 42)
+})
+
+test('Der Fixsockel bleibt unangetastet — auch bei extremen Faktoren', () => {
+  const f = { werkstatt: 0.6, oberflaeche: 0.6, massivholz: 1.4, montage: 0.6 }
+  const rein = [
+    { kostenstelle: 'Besprechung', minuten: 20 },
+    { kostenstelle: 'Planung', minuten: 30 },
+    { kostenstelle: 'Konstruktion', minuten: 60 },
+    { kostenstelle: 'Arbeitsvorbereitung', minuten: 45 },
+  ]
+  assert.deepEqual(wendeFaktorenAn(rein, f, true), rein)
+})
+
+test('Genau vier Kostenstellen skalieren nicht — der Rest immer', () => {
+  // Die Regel in einem Satz: Benannt wird, was NICHT skaliert. Faellt dieser Test,
+  // ist jemand zur alten Aufzaehlung zurueckgekehrt.
+  const f = { werkstatt: 0.5, oberflaeche: 0.5, massivholz: 1, montage: 0.5 }
+  const alle = [
+    'Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung', 'Produktion',
+    'Warenhandling', 'Zuschnitt', 'Bekantung', 'CNC', 'Oberfläche', 'Zusammenbau',
+    'Verpacken', 'Azubi', 'Montage', 'Lieferung', 'Irgendeine eigene Stelle',
+  ].map(k => ({ kostenstelle: k, minuten: 100 }))
+  const unveraendert = wendeFaktorenAn(alle, f, false)
+    .filter(z => z.minuten === 100).map(z => z.kostenstelle)
+  assert.deepEqual(unveraendert,
+    ['Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung'])
+})

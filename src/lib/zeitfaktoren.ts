@@ -5,8 +5,17 @@
 // veraendert: Er deckt einen Grundaufwand ab, der nicht mit der Betriebsgroesse
 // skaliert. Steht so in der Spec, Abschnitt 6.
 
-const WERKSTATT_KS = new Set([
-  'Zuschnitt', 'Bekantung', 'CNC', 'Zusammenbau', 'Warenhandling', 'Produktion', 'Verpacken',
+// UMGEKEHRTE LOGIK, und zwar mit Absicht: Benannt wird, was NICHT skalieren darf.
+// Alles andere ist Werkstattzeit und bekommt den Werkstattfaktor.
+//
+// GEFUNDEN AM 2026-09-07: Vorher war es andersherum — eine Liste der sieben
+// Werkstatt-Kostenstellen, alles ausserhalb blieb unangetastet. Damit bekamen
+// AZUBI-Stunden und JEDE EIGENE Kostenstelle des Nutzers ("Polieren von Hand",
+// "Furnieren") gar keinen Faktor. Wer viel darueber laufen laesst, wurde still
+// nicht kalibriert. Eine Aufzaehlung, die vollstaendig sein muss, ist bei frei
+// benennbaren Kostenstellen prinzipiell nicht zu halten.
+const FIXSOCKEL_KS = new Set([
+  'Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung',
 ])
 const OBERFLAECHE_KS = new Set(['Oberfläche'])
 const MONTAGE_KS = new Set(['Montage', 'Lieferung'])
@@ -26,9 +35,12 @@ export function wendeFaktorenAn<T extends Zeitzeile>(
   const massivZuschlag = massiv ? f.massivholz : 1
   return zeilen.map(z => {
     let faktor = 1
-    if (WERKSTATT_KS.has(z.kostenstelle))        faktor = f.werkstatt * massivZuschlag
+    if (FIXSOCKEL_KS.has(z.kostenstelle))        faktor = 1
     else if (OBERFLAECHE_KS.has(z.kostenstelle)) faktor = f.oberflaeche * massivZuschlag
     else if (MONTAGE_KS.has(z.kostenstelle))     faktor = f.montage
+    // Zuschnitt, Bekantung, CNC, Zusammenbau, Warenhandling, Produktion, Verpacken,
+    // Azubi — und jede eigene Kostenstelle des Nutzers.
+    else                                          faktor = f.werkstatt * massivZuschlag
     if (faktor === 1) return z
     return { ...z, minuten: Math.max(0, Math.round(z.minuten * faktor)) }
   })

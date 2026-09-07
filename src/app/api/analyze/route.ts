@@ -920,15 +920,24 @@ export async function POST(req: NextRequest) {
         try {
           const r = await regelBlockFuerNutzer(supabase, user.id)
           regelBlock = r.block
-          // Fixierte Einkaufspreise gehören GERADE hierher: Ein neues Angebot
-          // entsteht über diese Route. Nur im Optimieren zu wirken hieße, die
-          // Preise erst nach dem Schätzen zu korrigieren statt vorher richtig
-          // zu rechnen.
-          try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
-          catch (e) { console.error('[preise] Preise laden (analyze):', e) }
           regelIds = r.ids
           supabaseFuerZaehler = supabase
         } catch (e) { console.error('[learn] Regeln laden (analyze):', e) }
+        // Getrennter Block: Bauweise-Regeln dürfen nie Preise setzen, Preise nie
+        // Bauweise — und der Ausfall des einen darf den anderen nicht mitreißen.
+        //
+        // GEFUNDEN AM 2026-09-07: Das Laden der Preisliste stand INNERHALB des
+        // try-Blocks der Bauweise-Regeln. Ein Fehler beim Laden der Regeln liess
+        // damit stillschweigend auch die fixierten Einkaufspreise verschwinden —
+        // die Kalkulation haette dann mit geschaetzten Preisen weitergerechnet,
+        // ohne dass es jemand merkt. In optimize war es von Anfang an getrennt.
+        //
+        // Fixierte Einkaufspreise gehören GERADE hierher: Ein neues Angebot
+        // entsteht über diese Route. Nur im Optimieren zu wirken hiesse, die
+        // Preise erst nach dem Schaetzen zu korrigieren statt vorher richtig zu
+        // rechnen.
+        try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
+        catch (e) { console.error('[preise] Preise laden (analyze):', e) }
       }
     } catch { /* kein Profil / nicht eingeloggt → Default-Verhalten */ }
 

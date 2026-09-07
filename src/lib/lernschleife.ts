@@ -44,18 +44,28 @@ const RATIO_MAX = 3
 const MIN_FAKTOR = 0.6
 const MAX_FAKTOR = 1.4
 
-// Welche Kostenstelle zu welchem Bereich zaehlt. Absichtlich dieselbe Aufteilung wie
-// in zeitfaktoren.ts — was der Faktor veraendert, muss die Schleife auch beobachten.
+// Welche Kostenstelle zu welchem Bereich zaehlt. MUSS dieselbe Aufteilung sein wie in
+// zeitfaktoren.ts — was der Faktor veraendert, muss die Schleife auch beobachten.
+// Sonst korrigiert der Nutzer Zeiten, die nie gelernt werden.
+//
+// Deshalb hier dieselbe umgekehrte Logik: Benannt wird, was NICHT dazugehoert.
+// GEFUNDEN AM 2026-09-07: Beide Listen zaehlten die sieben Werkstattstellen auf.
+// Azubistunden und eigene Kostenstellen wurden dadurch weder kalibriert noch
+// gelernt. Ein Test haelt die beiden Module jetzt aneinander.
+const FIXSOCKEL_KS = new Set([
+  'Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung',
+])
 const BEREICH_JE_KS: Record<string, Bereich> = {
-  Zuschnitt: 'werkstatt', Bekantung: 'werkstatt', CNC: 'werkstatt',
-  Zusammenbau: 'werkstatt', Warenhandling: 'werkstatt', Produktion: 'werkstatt',
-  Verpacken: 'werkstatt',
   'Oberfläche': 'oberflaeche',
   Montage: 'montage', Lieferung: 'montage',
 }
 
 export function bereichFuer(kostenstelle: string): Bereich | null {
-  return BEREICH_JE_KS[kostenstelle] ?? null
+  if (!kostenstelle) return null
+  if (FIXSOCKEL_KS.has(kostenstelle)) return null
+  // Zuschnitt, Bekantung, CNC, Zusammenbau, Warenhandling, Produktion, Verpacken,
+  // Azubi — und jede eigene Kostenstelle des Nutzers.
+  return BEREICH_JE_KS[kostenstelle] ?? 'werkstatt'
 }
 
 export function median(zahlen: number[]): number {

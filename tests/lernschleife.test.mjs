@@ -156,3 +156,34 @@ test('Leere oder fehlende Angebote stuerzen nicht ab', () => {
   assert.deepEqual(beobachtungenAus({}, {}), [])
   assert.deepEqual(beobachtungenAus(undefined, angebot({ zuschnitt: 1, zusammenbau: 1, montage: 1 })), [])
 })
+
+// ── Die beiden Module muessen dieselbe Aufteilung benutzen (2026-09-07) ──────
+
+import { wendeFaktorenAn } from '../src/lib/zeitfaktoren.ts'
+
+test('Was der Faktor verändert, beobachtet die Schleife auch', () => {
+  // DIE KOPPLUNG: Veraendert der Werkstattfaktor eine Kostenstelle, muss die
+  // Lernschleife sie als "werkstatt" beobachten — sonst korrigiert der Nutzer
+  // Zeiten, die nie gelernt werden, und die Faktoren laufen auseinander.
+  //
+  // Vorher zaehlten BEIDE Module die sieben Werkstattstellen einzeln auf. Azubi und
+  // jede eigene Kostenstelle fielen durch beide Raster.
+  const kostenstellen = [
+    'Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung', 'Produktion',
+    'Warenhandling', 'Zuschnitt', 'Bekantung', 'CNC', 'Oberfläche', 'Zusammenbau',
+    'Verpacken', 'Azubi', 'Montage', 'Lieferung', 'Polieren von Hand', 'Furnieren',
+  ]
+  for (const ks of kostenstellen) {
+    const nurWerkstatt = { werkstatt: 0.5, oberflaeche: 1, massivholz: 1, montage: 1 }
+    const [zeile] = wendeFaktorenAn([{ kostenstelle: ks, minuten: 100 }], nurWerkstatt, false)
+    const wirdSkaliert = zeile.minuten !== 100
+    const wirdBeobachtet = bereichFuer(ks) === 'werkstatt'
+    assert.equal(wirdSkaliert, wirdBeobachtet,
+      `${ks}: Faktor wirkt=${wirdSkaliert}, Schleife beobachtet=${wirdBeobachtet}`)
+  }
+})
+
+test('Der Fixsockel wird weder skaliert noch gelernt', () => {
+  for (const ks of ['Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung'])
+    assert.equal(bereichFuer(ks), null, `${ks} wird gelernt, obwohl es ein Sockel ist`)
+})

@@ -397,3 +397,22 @@ test('Eine Referenz fragt entweder alles je Stück oder nichts', () => {
       `${r.name}: gemischte Teiler ${JSON.stringify(teiler)}`)
   }
 })
+
+test('Jede Referenz hat ihren eigenen Preis — keine zwei gleich', () => {
+  // VON FABIAN GEFUNDEN AM 2026-09-07: In "Mein Betrieb" stand ueber JEDEM
+  // Referenzmoebel derselbe Ankerpreis (2.134 EUR) — der des Einbauschranks. Der
+  // Text folgte den Klicks, der Preis kam vom GESPEICHERTEN Schwerpunkt. Zwei
+  // Quellen fuer dieselbe Aussage.
+  //
+  // Der Bau ist jetzt so, dass beides aus demselben ref kommt. Dieser Test faellt,
+  // sobald zwei Referenzen ununterscheidbar werden — dann waere die Anzeige
+  // wieder nicht zu pruefen.
+  const preise = Object.values(REFERENZEN)
+    .map(r => Math.round(referenzPreis(SAETZE, AUFSCHLAG, r).gesamt))
+  assert.equal(new Set(preise).size, preise.length,
+    `Doppelte Referenzpreise: ${preise.join(', ')}`)
+  // Und sie liegen weit auseinander, nicht nur zufaellig ein Euro.
+  const sortiert = [...preise].sort((a, b) => a - b)
+  assert.ok(sortiert[sortiert.length - 1] / sortiert[0] > 3,
+    `Spanne zu eng: ${sortiert.join(', ')}`)
+})

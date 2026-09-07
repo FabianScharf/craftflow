@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { C } from '@/lib/types'
-import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
+import { BETRIEBSFRAGEN, referenzFuer, referenzPreis, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 
 // Einstellungen -> Mein Betrieb. Zeigt dieselben neun Fragen wie die Erst-Anmeldung
 // und die vier daraus abgeleiteten Faktoren in Klartext.
@@ -58,8 +58,10 @@ export default function BetriebSettings() {
   const [gespeichert, setGespeichert] = useState(false)
   const [schleife, setSchleife] = useState<{ angebote: number; begruendung: string[] } | null>(null)
   const [schleifeLaeuft, setSchleifeLaeuft] = useState(false)
-  // Was CraftFlow fuer das Referenzmoebel mit SEINEN Saetzen rechnet.
-  const [anker, setAnker] = useState<{ preis: number; ohneMaterial: boolean; teiler: number } | null>(null)
+  // SEINE Stundensaetze und SEIN Materialaufschlag — daraus rechnet die Oberflaeche
+  // den Ankerpreis, mit DEMSELBEN ref wie der Text darueber.
+  const [saetze, setSaetze] = useState<Record<string, number> | null>(null)
+  const [aufschlag, setAufschlag] = useState(0.30)
 
   useEffect(() => { void laden() }, [])
 
@@ -68,9 +70,11 @@ export default function BetriebSettings() {
     if (res.ok) {
       const j = await res.json() as {
         kalibrierung?: Kalibrierung | null
-        referenz?: { preis: number; ohneMaterial: boolean; teiler: number }
+        saetze?: Record<string, number>
+        aufschlag?: number
       }
-      if (j.referenz) setAnker(j.referenz)
+      if (j.saetze) setSaetze(j.saetze)
+      if (typeof j.aufschlag === 'number') setAufschlag(j.aufschlag)
       if (j.kalibrierung) {
         setK({ ...LEER, ...j.kalibrierung,
           maschinen: Array.isArray(j.kalibrierung.maschinen) ? j.kalibrierung.maschinen : [],
@@ -185,6 +189,20 @@ export default function BetriebSettings() {
   // Zahlen gerechnet als hier gefragt wurde.
   const ref = referenzFuer(k.schwerpunkt)
 
+  // Der Ankerpreis kommt aus DEMSELBEN ref wie der Text — deshalb kann er nicht mehr
+  // zu einem anderen Moebel gehoeren. Bei Fragen ohne Material ist es der reine
+  // Arbeitspreis, bei Referenzen mit Teiler der Wert je Stueck.
+  const anker = (() => {
+    if (!saetze) return null
+    const p = referenzPreis(saetze, aufschlag, ref)
+    const ohneMaterial = (ref.ohneMaterial ?? []).includes('grund')
+    const teiler = ref.teiler?.grund ?? 1
+    return {
+      preis: Math.round((ohneMaterial ? p.gesamt - p.material : p.gesamt) / teiler),
+      ohneMaterial, teiler,
+    }
+  })()
+
   const schluesselZuFeld: Record<string, keyof Kalibrierung> = {
     grund: 'antwort_grund', lack: 'antwort_lack',
     massiv: 'antwort_massiv', montage: 'antwort_montage',
@@ -240,9 +258,7 @@ export default function BetriebSettings() {
         {anker && (
           <div style={{ color: '#8A8A8A', fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
             Mit deinen Stundensätzen rechnet CraftFlow dafür zurzeit{' '}
-            <b style={{ color: C.copper }}>
-              {Math.round(anker.preis / anker.teiler).toLocaleString('de-DE')} €
-            </b>
+            <b style={{ color: C.copper }}>{anker.preis.toLocaleString('de-DE')} €</b>
             {anker.teiler > 1 ? ' je Stück' : ''}
             {anker.ohneMaterial ? ' für die Arbeit, ohne Material' : ' netto'}.
             Weicht deine Zahl stark ab, passt CraftFlow die Zeiten an.
