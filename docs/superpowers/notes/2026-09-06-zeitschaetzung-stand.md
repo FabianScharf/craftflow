@@ -1,95 +1,112 @@
 # Zeitschätzung geraderücken — Arbeitsstand
 
-**Stand:** in der Nacht auf 2026-09-07 · **Branch:** `dev` · **`main`:** unberührt
+**Stand:** Nacht auf 2026-09-07 · **Branch:** `dev` · **`main`:** unberührt
 
 Vorgezogen vor die Betriebskalibrierung
 (`docs/superpowers/specs/2026-09-06-betriebskalibrierung-design.md`), auf Fabians
-Entscheidung: Der Schätzfehler trifft alle Nutzer gleichermaßen, auch die, die nie ein
-Onboarding ausfüllen. Die Kalibrierung soll die Spreizung *zwischen* Betrieben
-abbilden — nicht einen Fehler ausbügeln, der allen gemeinsam ist.
+Entscheidung: Der Fehler trifft alle Nutzer gleichermaßen, auch die, die nie ein
+Onboarding ausfüllen.
 
-## Der Befund
+## Das Ergebnis zuerst
 
-Referenzschrank, gemessen auf der dev-Vorschau: Einbauschrank Flur, 2,00 × 2,40 ×
-0,60 m, Egger Dekor weiß, 4 Drehtüren, 2 Schubkästen, Kleiderstange, Sockel, Montage
-im Neubau.
+Referenzschrank: Einbauschrank Flur, 2,00 × 2,40 × 0,60 m, Egger Dekor weiß,
+4 Drehtüren, 2 Schubkästen, Kleiderstange, Sockel, Montage im Neubau.
 
-| | Pflichtrechnung im Prompt | CraftFlow |
+| | vorher | nachher |
 |---|---|---|
-| Zuschnitt + Zusammenbau | 2 lfm × 4,5 h = 540 min, plus Beschläge ≈ **690 min** | **1.350 min** |
-| Gesamtstunden | — | **36,3 h** |
-| Netto | — | **3.042 €** |
+| Zuschnitt + Zusammenbau | 1.350 min | **695 min** |
+| Montage | 450 min | **240 min** |
+| Gesamtstunden | 36,3 h | **24,7 h** |
+| **Netto** | **3.042 €** | **2.315 €** |
 
-Fabians Faustregel für 2 lfm Einbauschrank inklusive Montage: 1.200–2.000 €.
-CraftFlow lag **50 % über der oberen Grenze**.
+Fabians Faustregel für 2 lfm Einbauschrank inklusive Montage: 1.200–2.000 €. Der Rest
+des Abstands ist Sache der Betriebskalibrierung — das ist genau die Spreizung zwischen
+Betrieben, für die sie gedacht ist.
 
-**Die Ursache:** Die Selbstprüfungs-Checkliste im Prompt nannte ausschließlich
-Untergrenzen — „Zuschnitt + Zusammenbau gesamt: **mind.** lfm × 270 min". Der KI wurde
-gesagt, wie wenig es sein darf, nie wie viel es höchstens sein darf. Sie schoss auf
-der sicheren Seite über und erfüllte die Prüfliste dabei mühelos.
+## Die Ursache — und eine widerlegte Zwischendiagnose
 
-**Warum es nie auffiel:** Die eingebaute Plausibilitätsprüfung (`analyze/route.ts`)
-- schlug erst beim **Vierfachen** an,
-- korrigierte auch dann nichts (Kommentar: „does NOT silently alter numbers"),
-- verglich Werkstatt **plus** Montage gegen einen reinen Werkstatt-Richtwert und war
-  dadurch von sich aus zu großzügig,
-- und prüfte ohne Laufmeter (`if (lm > 0)`) überhaupt nicht.
+**Erste, falsche Vermutung:** „Die KI überschreitet ihre eigene Pflichtrechnung um das
+Doppelte." Das sah zwingend aus: Der Prompt schreibt 2 lfm × 4,5 h = 540 min plus
+Beschläge ≈ 690 min vor, gerechnet wurden 1.350.
+
+**Was den Verdacht kippte:** Zwei unabhängige Läufe am selben Schrank ergaben
+Zuschnitt + Zusammenbau von **exakt 1.350 min** — einmal als 420 + 930, einmal als
+429 + 921. Auf die Minute dieselbe Summe bei zwei verschiedenen Aufteilungen. Ein
+Sprachmodell trifft dieselbe Summe nicht zweimal zufällig. Also kam sie nicht von der
+KI, sondern aus dem Code.
+
+**Die wirkliche Ursache:** `parseLaufmeter` sammelte jede Zahl mit Meter-Einheit und
+addierte sie:
+
+```
+"2,00 m breit x 2,40 m hoch x 0,60 m tief"  →  2,00 + 2,40 + 0,60 = 5,00 lfm
+```
+
+Aus 5 statt 2 Laufmetern baut `analyze` eine **Mindest-Werkstattzeit** von
+lm × 4,5 h = 1.350 min und **skaliert Zuschnitt und Zusammenbau darauf hoch**
+(`analyze/route.ts`, Schritt 4). Der Motor hat die Zahlen der KI aufgeblasen, nicht
+umgekehrt.
+
+Betroffen ist damit **jede** Beschreibung, die Breite, Höhe und Tiefe in Metern nennt
+— also der Normalfall. Das ist die Ursache der „utopischen Preise", über die Fabians
+Testkunden abgesprungen sind.
+
+Verwandter Vorfall 2026-07-04: Damals wurden m²-Angaben als Meter gezählt, Preise bis
+zum Sechsfachen. Dieselbe Familie von Fehlern, dieselbe Funktion.
 
 ## Was gebaut ist
 
 | Was | Wo |
 |---|---|
-| Obergrenzen in der Pflichtrechnung, ausdrücklich „VERBINDLICH, keine Untergrenze" | Prompt in `analyze/route.ts` |
-| Checkliste nennt **Bänder** statt Mindestwerte, für Werkstatt und Montage | ebenda |
-| `kappeZeiten()` — deckelt anteilig nach der KI-Antwort | `src/lib/zeitpruefung.ts` |
+| `parseLaufmeter` neu, mit Tests — **die eigentliche Reparatur** | `src/lib/laufmeter.ts` |
+| Obergrenzen in der Pflichtrechnung („VERBINDLICH, keine Untergrenze") | Prompt in `analyze/route.ts` |
+| Checkliste nennt **Bänder** statt nur Mindestwerte | ebenda |
+| `kappeZeiten()` — Sicherheitsnetz, deckelt anteilig | `src/lib/zeitpruefung.ts` |
 | Montage raus aus dem Zähler der Plausibilitätsprüfung, Schwelle 4× → 2× | `analyze/route.ts` |
 
-Die Deckelung greift **deterministisch nach** der KI-Antwort, an derselben Stelle, an
-der schon `vkStunde` und `aufschlag` überschrieben werden. Gürtel und Hosenträger:
-Der Prompt sagt es, die Engine setzt es durch.
+**Die neue Laufmeter-Erkennung**, in dieser Reihenfolge:
+1. Explizite Breitenangabe („2,00 m breit", „240 cm breit") schlägt alles.
+2. Maßkette „2000 × 2400 × 600 mm" → erste Zahl ist die Breite. Ohne diese Regel
+   bliebe von der Millimeter-Schreibweise nur die **Tiefe** übrig.
+3. Sonst weiter summieren — mehrere Schränke nebeneinander sind ein echter Fall
+   („Schrank 2,40 m und Sideboard 1,80 m") — aber Höhe und Tiefe überspringen.
 
-Gedeckelt wird **anteilig** — die Aufteilung, die die KI zwischen Zuschnitt und
-Zusammenbau gewählt hat, bleibt erhalten, nur die Summe stimmt wieder.
+**Die Deckelung hat bei der Nachmessung gar nicht gegriffen** (695 < 810, 240 < 300).
+Sie musste nicht: Die KI lag von sich aus richtig, sobald die Laufmeter stimmten. Sie
+bleibt als Sicherheitsnetz und für den Fall, dass ein Modellwechsel die Zeiten
+verschiebt.
 
-Grenzen: Zuschnitt + Zusammenbau höchstens 1,5 × Basis (Dekor) bzw. 2,0 × Basis
-(Massivholz, wegen Holzart-Faktor bis ×1,4 und Verleimen). Montage höchstens
-2,5 h/lfm (Neubau) bzw. 4,0 h/lfm (Altbau, per Regex im Text erkannt).
-
-Verifikation: 105 Tests grün, `npx tsc --noEmit` sauber. Die vier eslint-Meldungen in
-`analyze/route.ts` sind Bestand (vorher Zeile 753, jetzt 774, `prefer-const` auf einer
-Destrukturierung, die ich nicht angefasst habe).
+Verifikation: 115 Tests grün, `npx tsc --noEmit` sauber. Die vier eslint-Meldungen in
+`analyze/route.ts` sind Bestand (`prefer-const` auf einer Destrukturierung, die nicht
+angefasst wurde).
 
 ## OFFEN — die Frage an Fabian
 
 **Möbel ohne Laufmeter werden weiterhin nicht geprüft.** Ein Rollcontainer, ein Tisch,
-ein Sideboard haben keine sinnvollen Laufmeter; `lm` ist dort 0 und die Deckelung
-greift nicht. Genau dieser Fall lief heute Vormittag mit 8,8 h durch.
+ein Sideboard haben keine sinnvollen Laufmeter; `lm` ist dort 0, weder Untergrenze
+noch Deckelung greifen. Der Rollcontainer vom Vortag lief mit 8,8 h durch.
 
-Eine Faustformel dafür wurde bewusst **nicht** im Alleingang erfunden. Drei Wege
-stehen zur Wahl:
+Eine Faustformel dafür wurde bewusst **nicht** im Alleingang erfunden:
 
-1. **Nach Stückliste** *(fachlich am saubersten)*. Fabians Zeitrichtwerte sind ohnehin
-   pro Stück formuliert: Korpus 30–60 min, Systemschubkasten 20–35 min, Drehtür
-   15–25 min. Der Prompt rechnet bereits so („jede Tür +20 min, Schublade +30 min").
-   Wenn die KI die Stückzahlen zusätzlich als Zahlenfelder ausgibt, kann die Engine
-   die Erwartung daraus bilden — und zwar für **jedes** Möbel, mit oder ohne
-   Laufmeter. Kostet eine Erweiterung des Antwortformats.
-2. **Nach Plattenfläche.** Aus dem Material ist die m²-Zahl bekannt. Grobe Formel
-   „Grundzeit + x min/m²". Schnell gebaut, ignoriert aber die Ausstattung — drei
+1. **Nach Stückliste** *(Empfehlung)*. Fabians Zeitrichtwerte sind pro Stück
+   formuliert — Korpus 30–60 min, Systemschubkasten 20–35 min, Drehtür 15–25 min —
+   und der Prompt rechnet bereits so. Gibt die KI die Stückzahlen zusätzlich als
+   Zahlenfelder aus, kann die Engine die Erwartung daraus bilden, für **jedes** Möbel.
+   `countHardware()` in `analyze` tut das heute schon aus dem Text; sauberer wären
+   Zahlenfelder. Könnte den Laufmeter-Weg langfristig ablösen statt ergänzen.
+2. **Nach Plattenfläche.** Schnell gebaut, ignoriert aber die Ausstattung — drei
    Schubladen einzubauen ist echte Zeit, die in keiner Plattenfläche steckt.
-3. **Vorerst nur warnen**, nicht kappen, und die Fälle sammeln, bis genug Datenpunkte
-   für eine belastbare Formel da sind.
-
-Empfehlung: **Weg 1**, weil er die Wissensbasis nutzt, die ohnehin im Produkt steckt,
-und weil er den lfm-Weg langfristig ablösen könnte statt ihn zu ergänzen.
+3. **Vorerst nur warnen** und Fälle sammeln.
 
 ## Noch nicht angefasst
 
-- `analyze/route.ts:623` löscht die Arbeit abgeschalteter Kostenstellen weiterhin
+- `analyze/route.ts` löscht die Arbeit abgeschalteter Kostenstellen weiterhin
   **ersatzlos**, statt sie zur Handarbeit umzubuchen. Steht im Kalibrierungs-Entwurf,
   Abschnitt 6.
 - Die Vermischung von Netto- und Bruttozeit (Kammersatz auf produktive Stunden,
-  Schätzung auf Bruttozeit). Die Deckelung entschärft das der Größenordnung nach,
-  löst es aber nicht sauber.
-- `optimize` hat gar keine Zeitprüfung. Wer im Chat Änderungen machen lässt, kann die
-  Deckelung damit umgehen.
+  Schätzung auf Bruttozeit). Größenordnung 25–30 % auf der Lohnseite.
+- `optimize` hat **gar keine** Zeitprüfung und kennt die Laufmeter nicht. Wer im Chat
+  Änderungen machen lässt, umgeht Untergrenze und Deckelung.
+- **Die Untergrenze selbst ist ungeprüft.** Sie hat den Schaden angerichtet, weil ihre
+  Eingangsgröße falsch war. Ob lm × 4,5 h als Untergrenze überhaupt sinnvoll ist —
+  oder ob sie ganz weg sollte, jetzt wo es eine Obergrenze gibt — ist offen.

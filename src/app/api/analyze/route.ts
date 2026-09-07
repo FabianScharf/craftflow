@@ -550,13 +550,9 @@ function isMassivholz(pos: Pos): boolean {
   return MASSIVHOLZ_RE.test(matText) || MASSIVHOLZ_RE.test(pos.beschreibung ?? '') || MASSIVHOLZ_RE.test(pos.titel ?? '')
 }
 
-// Sums all explicit metre values in text (e.g. "3,20m + 1,80m", "3.6 lfm").
-// Falls back to a width in cm ("360cm breit") if no metre values are found.
-// Returns total linear metres, or 0 if nothing parseable.
-// Capped at MAX_PLAUSIBLE_LM: the AI's own material/time breakdown in the
-// Beschreibung is full of "X,XX m²" area figures, and without the cap those
-// used to get summed up as if they were linear metres (see 2026-07-04 incident).
-// parseLaufmeter liegt in src/lib/laufmeter.ts — dort steht auch, warum.
+// parseLaufmeter liegt in src/lib/laufmeter.ts. Dort steht auch, warum: Die alte
+// Fassung hier addierte Breite, Hoehe und Tiefe zu einer Summe und blies darueber
+// die Mindest-Werkstattzeit auf (gemessen 2026-09-07).
 
 // Maps legacy numeric IDs and AI label variants to canonical clean IDs
 const KS_ALIASES: Record<string, string> = {
