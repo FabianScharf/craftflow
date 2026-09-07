@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { berechneFaktoren, deckele } from '@/lib/kalibrierung'
+import { berechneFaktoren, deckele, referenzFuer } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
 
 export async function GET() {
@@ -54,9 +54,17 @@ export async function PUT(req: NextRequest) {
     massiv:  text('antwort_massiv'),
     montage: text('antwort_montage'),
   }
+  const schwerpunkt = Array.isArray(b.schwerpunkt) ? (b.schwerpunkt as unknown[]).map(String) : []
+
+  // Das Referenzmoebel richtet sich nach dem Schwerpunkt — ein Treppenbauer wird an
+  // einer Treppe gemessen, nicht an einem Flurschrank. Dieselbe Ableitung nutzt die
+  // Oberflaeche, um die Baender anzuzeigen; sonst wuerde gegen andere Zahlen
+  // gerechnet als gefragt wurde.
+  const ref = referenzFuer(schwerpunkt)
+
   // Die Faktoren entstehen IMMER serverseitig. Sie steuern Preise — was aus dem
   // Browser kommt, wird dafuer nie uebernommen. Gleiche Haltung wie bei vkStunde.
-  const f = berechneFaktoren(antworten, saetze, aufschlag)
+  const f = berechneFaktoren(antworten, saetze, aufschlag, ref)
 
   // Ausnahme: ein von Hand gesetzter Faktor aus den Einstellungen. Er ueberschreibt
   // die Ableitung bewusst — steht so im Reiter "Mein Betrieb" — und wird gedeckelt.
@@ -66,7 +74,7 @@ export async function PUT(req: NextRequest) {
   const r = await speichereKalibrierung(supabase, user.id, {
     mitarbeiter:     text('mitarbeiter'),
     maschinen:       Array.isArray(b.maschinen) ? (b.maschinen as unknown[]).map(String) : [],
-    schwerpunkt:     Array.isArray(b.schwerpunkt) ? (b.schwerpunkt as unknown[]).map(String) : [],
+    schwerpunkt,
     montage_selbst:  text('montage_selbst'),
     stueckzahlen:    text('stueckzahlen'),
     antwort_grund:   antworten.grund,

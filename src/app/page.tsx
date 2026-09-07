@@ -15,7 +15,7 @@ import {
   type DbKostenstelle, type DbMaterialgruppe,
 } from '@/lib/types'
 import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
-import { BAENDER, BETRIEBSFRAGEN } from '@/lib/kalibrierung'
+import { BETRIEBSFRAGEN, referenzFuer } from '@/lib/kalibrierung'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -1995,6 +1995,16 @@ export default function CraftFlow() {
 
   // Mehrfachauswahl mit Erlaeuterung je Eintrag — ohne den Zusatz war unklar, was
   // wohin gehoert.
+  // Das Referenzmoebel folgt dem Schwerpunkt aus Schritt 5 — ein Treppenbauer wird
+  // an einer Treppe gefragt, nicht an einem Flurschrank. Dieselbe Ableitung nutzt
+  // die Route beim Rechnen, sonst wuerde gegen andere Zahlen gerechnet als gefragt.
+  const refMoebel = referenzFuer(kalib.schwerpunkt)
+  const refDiff = refMoebel.fragenliste.filter(f => f.schluessel !== 'grund')
+  const refGrund = refMoebel.fragenliste.find(f => f.schluessel === 'grund')
+  const kalibFeld: Record<string, 'antwort_grund' | 'antwort_lack' | 'antwort_massiv' | 'antwort_montage'> = {
+    grund: 'antwort_grund', lack: 'antwort_lack', massiv: 'antwort_massiv', montage: 'antwort_montage',
+  }
+
   const kalibMehrfach = (frage: string, gewaehlt: string[], setzen: (w: string[]) => void) => (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
       {(BETRIEBSFRAGEN[frage] ?? []).map(b => {
@@ -2182,24 +2192,23 @@ export default function CraftFlow() {
     {
       icon: '📐',
       label: 'Referenz',
-      title: 'Was nimmst du für diesen Schrank?',
+      title: `Was nimmst du für ${refMoebel.name === 'Innentüren' ? 'diese Türen' : 'dieses Stück'}?`,
       content: (
         <div>
           <div style={{ background: '#1C1C1C', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-            <div style={{ color: '#B0B0B0', fontSize: 12.5, lineHeight: 1.7 }}>
-              <b style={{ color: C.white }}>Einbauschrank Flur</b>, 2,00 m breit × 2,40 m hoch × 0,60 m tief.<br />
-              Korpus und Fronten <b style={{ color: C.white }}>Egger Dekorspanplatte 19 mm weiß</b>, Kanten ABS 1 mm.<br />
-              <b style={{ color: C.white }}>4 Drehtüren</b> mit Topfscharnieren, <b style={{ color: C.white }}>2 Schubkästen</b> auf
-              Systemauszügen, Kleiderstange, je Fach 2 Einlegeböden, Sockel 100 mm, Rückwand.<br />
-              <b style={{ color: C.white }}>Lieferung und Montage</b> beim Kunden, 20 km, Neubau, gerade Wände.
+            <div style={{ color: C.copper, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
+              {refMoebel.name}
             </div>
+            <div style={{ color: '#B0B0B0', fontSize: 12.5, lineHeight: 1.7 }}>{refMoebel.text}</div>
           </div>
           <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6, marginBottom: 16 }}>
-            Genau diese fünf Dinge braucht CraftFlow immer: Möbelart, Maße, Material,
-            Ausstattung, Montage. So sieht eine gute Beschreibung aus.
+            Das Möbel richtet sich nach dem, was du gerade angekreuzt hast. Genau diese fünf
+            Dinge braucht CraftFlow immer: Möbelart, Maße, Material, Ausstattung, Montage.
+            So sieht eine gute Beschreibung aus.
           </div>
-          {kalibFrage('Was nimmst du für so einen Schrank, netto?',
-            kalibWahl(BAENDER, 'grund', kalib.antwort_grund, w => setKalib({ ...kalib, antwort_grund: w })))}
+          {refGrund && kalibFrage(refGrund.text,
+            kalibWahl({ grund: refGrund.baender }, 'grund', kalib.antwort_grund,
+              w => setKalib({ ...kalib, antwort_grund: w })))}
           <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8,
             padding: '10px 14px', color: '#8A8A8A', fontSize: 12 }}>
             🔒 Diese Angabe sieht niemand außer dir.
@@ -2210,19 +2219,19 @@ export default function CraftFlow() {
     {
       icon: '🎨',
       label: 'Bereiche',
-      title: 'Derselbe Schrank, drei Varianten',
+      title: `Dasselbe Stück, ${refDiff.length === 2 ? 'zwei' : 'drei'} Varianten`,
       content: (
         <div>
           <p style={{ color: '#9A9A9A', fontSize: 12.5, lineHeight: 1.6, marginBottom: 16 }}>
             Hier streuen die Betriebe am stärksten. Weißt du eine Zahl gerade nicht, sag es —
             geraten ist schlechter als offen gelassen.
           </p>
-          {kalibFrage('Alles weiß lackiert seidenmatt statt Dekor. Was kommt dazu?',
-            kalibWahl(BAENDER, 'lack', kalib.antwort_lack, w => setKalib({ ...kalib, antwort_lack: w })))}
-          {kalibFrage('In Eiche massiv, geölt. Was nimmst du?',
-            kalibWahl(BAENDER, 'massiv', kalib.antwort_massiv, w => setKalib({ ...kalib, antwort_massiv: w })))}
-          {kalibFrage('Im Altbau: Wände nicht im Lot, Dielenboden, zweiter Stock ohne Aufzug. Wie lange bist du dran?',
-            kalibWahl(BAENDER, 'montage', kalib.antwort_montage, w => setKalib({ ...kalib, antwort_montage: w })))}
+          {refDiff.map(f => (
+            <div key={f.schluessel}>
+              {kalibFrage(f.text, kalibWahl({ [f.schluessel]: f.baender }, f.schluessel,
+                kalib[kalibFeld[f.schluessel]], w => setKalib({ ...kalib, [kalibFeld[f.schluessel]]: w })))}
+            </div>
+          ))}
           <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6 }}>
             Bei &bdquo;weiß ich gerade nicht&ldquo; rechne ich in diesem Bereich mit dem Branchenwert.
             Du kannst es jederzeit unter Einstellungen → Mein Betrieb nachtragen.

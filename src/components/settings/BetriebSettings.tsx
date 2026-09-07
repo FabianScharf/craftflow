@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { C } from '@/lib/types'
-import { BAENDER, BETRIEBSFRAGEN } from '@/lib/kalibrierung'
+import { BETRIEBSFRAGEN, referenzFuer } from '@/lib/kalibrierung'
 
 // Einstellungen -> Mein Betrieb. Zeigt dieselben neun Fragen wie die Erst-Anmeldung
 // und die vier daraus abgeleiteten Faktoren in Klartext.
@@ -168,6 +168,18 @@ export default function BetriebSettings() {
     </div>
   )
 
+  // Das Referenzmoebel folgt dem Schwerpunkt — sofort, ohne Speichern. Dieselbe
+  // Ableitung nutzt die Route beim Rechnen (referenzFuer), sonst wuerde gegen andere
+  // Zahlen gerechnet als hier gefragt wurde.
+  const ref = referenzFuer(k.schwerpunkt)
+
+  const schluesselZuFeld: Record<string, keyof Kalibrierung> = {
+    grund: 'antwort_grund', lack: 'antwort_lack',
+    massiv: 'antwort_massiv', montage: 'antwort_montage',
+  }
+  const antwort = (frage: string) => String(k[schluesselZuFeld[frage]] ?? '')
+  const setzeAntwort = (frage: string, w: string) => setK({ ...k, [schluesselZuFeld[frage]]: w })
+
   if (laedt) return <div style={{ color: '#7A7A7A', fontSize: 13 }}>Lädt …</div>
 
   return (
@@ -205,35 +217,22 @@ export default function BetriebSettings() {
       <div style={{ height: 1, background: '#2E2E2E', margin: '30px 0' }} />
 
       <div style={{ background: '#1C1C1C', borderRadius: 8, padding: 16, marginBottom: 22 }}>
-        <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Das Referenzmöbel</div>
-        <div style={{ color: '#B0B0B0', fontSize: 13, lineHeight: 1.7 }}>
-          <b>Einbauschrank Flur</b>, 2,00 m breit × 2,40 m hoch × 0,60 m tief.<br />
-          Korpus und Fronten <b>Egger Dekorspanplatte 19 mm weiß</b>, Kanten ABS 1 mm.<br />
-          <b>4 Drehtüren</b> mit Topfscharnieren, <b>2 Schubkästen</b> auf Systemauszügen,
-          Kleiderstange, je Fach 2 Einlegeböden, Sockel 100 mm, Rückwand.<br />
-          <b>Lieferung und Montage</b> beim Kunden, 20 km entfernt, Neubau, gerade Wände.
+        <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+          Das Referenzmöbel: {ref.name}
         </div>
+        <div style={{ color: '#B0B0B0', fontSize: 13, lineHeight: 1.7 }}>{ref.text}</div>
         <div style={{ color: '#7A7A7A', fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
-          Genau diese fünf Dinge braucht CraftFlow immer: Möbelart, Maße, Material,
-          Ausstattung, Montage.
+          Es richtet sich nach dem, was du oben angekreuzt hast. Genau diese fünf Dinge
+          braucht CraftFlow immer: Möbelart, Maße, Material, Ausstattung, Montage.
         </div>
       </div>
 
-      {gruppe('Was nimmst du für so einen Schrank, netto?', '',
-        BAENDER.grund.map(b => ({ wert: b.schluessel, text: b.text })),
-        k.antwort_grund, w => setK({ ...k, antwort_grund: w }))}
-
-      {gruppe('Derselbe Schrank, aber alles weiß lackiert seidenmatt statt Dekor. Was kommt dazu?', '',
-        BAENDER.lack.map(b => ({ wert: b.schluessel, text: b.text })),
-        k.antwort_lack, w => setK({ ...k, antwort_lack: w }))}
-
-      {gruppe('Derselbe Schrank in Eiche massiv, geölt. Was nimmst du?', '',
-        BAENDER.massiv.map(b => ({ wert: b.schluessel, text: b.text })),
-        k.antwort_massiv, w => setK({ ...k, antwort_massiv: w }))}
-
-      {gruppe('Derselbe Schrank im Altbau: Wände nicht im Lot, Dielenboden, zweiter Stock ohne Aufzug. Wie lange bist du dran?',
-        '', BAENDER.montage.map(b => ({ wert: b.schluessel, text: b.text })),
-        k.antwort_montage, w => setK({ ...k, antwort_montage: w }))}
+      {ref.fragenliste.map(f => (
+        <div key={f.schluessel}>
+          {gruppe(f.text, '', f.baender.map(b => ({ wert: b.schluessel, text: b.text })),
+            antwort(f.schluessel), w => setzeAntwort(f.schluessel, w))}
+        </div>
+      ))}
 
       <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.6, marginBottom: 24 }}>
         &bdquo;Weiß ich gerade nicht&ldquo; ist eine gültige Antwort: Dann rechne ich in diesem
