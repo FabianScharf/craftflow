@@ -501,7 +501,13 @@ Antworte NUR mit gültigem JSON, keine Backticks, kein Markdown:
       ]
     }
   ]
-}`
+}
+
+STÜCKZAHL – WICHTIG:
+- "stueckzahl" ist die Anzahl GLEICHER Stücke dieser Position. Ohne Angabe: 1.
+- Material und Zeiten gibst du IMMER für EIN Stück an. Rechne die Stückzahl NIEMALS selbst ein — CraftFlow rechnet sie hoch, und zwar mit Mengensynergien, die du nicht kennst.
+- Ausnahme: Besprechung, Planung, Konstruktion und Arbeitsvorbereitung gibst du für die GESAMTE Position an, nicht je Stück. Wer zehn Spinde baut, plant sie einmal.
+- Verschiedene Ausführungen sind verschiedene Positionen. "10 Spinde 40 cm breit und 5 Spinde 60 cm breit" sind ZWEI Positionen mit stueckzahl 10 und 5 — nicht eine mit 15.`
 
 // ---------------------------------------------------------------------------
 // Server-side validation — enforces FS Crafted rules deterministically after

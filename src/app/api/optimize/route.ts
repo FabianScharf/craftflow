@@ -35,6 +35,7 @@ INHALTLICHE REGELN:
 - Fehlende Angaben als einfache Liste mit "→" als Aufzählungszeichen
 - updatedOffer: IMMER alle Positionen zurückgeben (nicht nur geänderte)
 - IDs beibehalten: id, material[].id, arbeitszeit[].id
+- "stueckzahl" beibehalten, wenn sie vorhanden ist. Material und Zeiten stehen für EIN Stück — rechne die Stückzahl niemals selbst ein. Nur wenn der Nutzer die Anzahl ausdrücklich ändert, setzt du "stueckzahl" neu.
 - Holzart: in beschreibung UND material[].bezeichnung eintragen
 - Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung
 

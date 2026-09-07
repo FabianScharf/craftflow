@@ -7,6 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 import {
   C,
   calcAngebotspos, materialkostenPos, arbeitszeitPreisPos, materialkostenGesamt, stundenGesamt, eur, today, inDays,
+  serienHinweis,
   ladeKunden, speichereKunden,
   DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS, KOSTENSTELLEN_GRUPPEN, KOSTENSTELLEN_GRUPPEN_ORDER,
   type Kunde, type KundeDB,
@@ -606,7 +607,7 @@ export default function CraftFlow() {
   const startGaebRef = useRef<HTMLInputElement>(null)
 
   const updK = (f: keyof Kunde, v: string) => setKunde(prev => ({ ...prev, [f]: v }))
-  const updPosF = (id: number, f: 'titel' | 'beschreibung', v: string) =>
+  const updPosF = (id: number, f: 'titel' | 'beschreibung' | 'stueckzahl', v: string | number) =>
     setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } as Angebotsposition : p))
   const addPos = () => setPos(prev => [...prev, defaultAngebotspos(Date.now())])
   const delPos = (id: number) => setPos(prev => prev.filter(p => p.id !== id))
@@ -3530,9 +3531,33 @@ export default function CraftFlow() {
                         onClick={e => e.stopPropagation()}
                         style={{ flex: 1, background: 'transparent', border: 'none', fontSize: 14, fontWeight: 700, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', minWidth: 0, cursor: 'text' }}
                       />
+                      {/* Stueckzahl. Material und Zeiten stehen fuer EIN Stueck —
+                          hochgerechnet wird ausschliesslich in den Preisfunktionen. */}
+                      <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <input
+                          type="number" min={1} step={1}
+                          value={p.stueckzahl ?? 1}
+                          onChange={e => updPosF(p.id, 'stueckzahl', Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                          title="Anzahl gleicher Stücke"
+                          style={{ width: 46, background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 3, color: (p.stueckzahl ?? 1) > 1 ? C.copper : C.textMid, fontSize: 12, padding: '3px 5px', textAlign: 'right', fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
+                        />
+                        <span style={{ fontSize: 11, color: C.textMid }}>Stk</span>
+                      </div>
                       <div style={{ fontWeight: 800, fontSize: 14, color: C.copper, whiteSpace: 'nowrap' }}>{eur(gesamt)}</div>
                       <button onClick={e => { e.stopPropagation(); delPos(p.id) }} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>✕</button>
                     </div>
+
+                    {/* Serienhinweis: Material und Zeiten unten stehen fuer EIN Stueck.
+                        Ohne diesen Satz wundert sich der Nutzer ueber den Gesamtpreis. */}
+                    {(p.stueckzahl ?? 1) > 1 && (
+                      <div style={{ marginTop: 8, padding: '8px 10px', background: `${C.copper}12`,
+                        border: `1px solid ${C.copper}33`, borderRadius: 3, fontSize: 11,
+                        color: C.textMid, lineHeight: 1.6 }}>
+                        <b style={{ color: C.copper }}>{p.stueckzahl}× gleiche Stücke.</b>{' '}
+                        Material und Zeiten unten gelten für <b>ein</b> Stück.{' '}
+                        {serienHinweis(p.stueckzahl ?? 1)}
+                      </div>
+                    )}
 
                     {/* Aufklappbarer Inhalt */}
                     {isExpanded && <>
