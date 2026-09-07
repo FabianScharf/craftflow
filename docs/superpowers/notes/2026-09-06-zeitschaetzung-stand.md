@@ -19,9 +19,18 @@ Referenzschrank: Einbauschrank Flur, 2,00 × 2,40 × 0,60 m, Egger Dekor weiß,
 | Gesamtstunden | 36,3 h | **24,7 h** |
 | **Netto** | **3.042 €** | **2.315 €** |
 
-Fabians Faustregel für 2 lfm Einbauschrank inklusive Montage: 1.200–2.000 €. Der Rest
-des Abstands ist Sache der Betriebskalibrierung — das ist genau die Spreizung zwischen
-Betrieben, für die sie gedacht ist.
+**Gegenprobe mit Fabians Faustregel** (korrigiert am 2026-09-07: seine ~2.000 € für
+2 lfm gelten **ohne** Montage):
+
+| | |
+|---|---|
+| CraftFlow nach dem Fix | 2.315 € |
+| davon Montage + Lieferung | − 336 € |
+| **ohne Montage** | **1.979 €** |
+| **Fabians Faustregel** | **~2.000 €** |
+
+Ein Prozent Abweichung. Die Basis stimmt damit; was bleibt, ist die Spreizung zwischen
+Betrieben — genau die Aufgabe der Kalibrierung.
 
 ## Die Ursache — und eine widerlegte Zwischendiagnose
 
@@ -104,15 +113,22 @@ Einlegeboden 10–20 min. Dazu Rüstzeit am Sägewerk und Flächenanteile.
 Schätzung ist gröber als die Laufmeter-Rechnung, sie kennt weder Massivholz noch
 Sonderausstattung. Sie soll Ausreißer um Faktor zwei abfangen, nicht feinsteuern.
 
+## Inzwischen ebenfalls erledigt (2026-09-07)
+
+- **Abgeschaltete Kostenstellen löschen die Arbeit nicht mehr.** Sie wandert zur
+  Handarbeit, mit Zeitzuschlag 1,6 — `src/lib/handarbeit.ts`, in `analyze` **und**
+  `optimize`.
+- **`optimize` war das Schlupfloch** und hat jetzt die Zeitfaktoren der Kalibrierung
+  sowie das Umbuchen. Eine eigene Laufmeter-Prüfung hat es weiterhin nicht.
+
 ## Noch nicht angefasst
 
-- `analyze/route.ts` löscht die Arbeit abgeschalteter Kostenstellen weiterhin
-  **ersatzlos**, statt sie zur Handarbeit umzubuchen. Steht im Kalibrierungs-Entwurf,
-  Abschnitt 6.
 - Die Vermischung von Netto- und Bruttozeit (Kammersatz auf produktive Stunden,
-  Schätzung auf Bruttozeit). Größenordnung 25–30 % auf der Lohnseite.
-- `optimize` hat **gar keine** Zeitprüfung und kennt die Laufmeter nicht. Wer im Chat
-  Änderungen machen lässt, umgeht Untergrenze und Deckelung.
+  Schätzung auf Bruttozeit). Größenordnung 25–30 % auf der Lohnseite. Die Messung von
+  1.979 € gegen Fabians ~2.000 € spricht dafür, dass es in der Praxis aufgeht — sauber
+  getrennt ist es trotzdem nicht.
 - **Die Untergrenze selbst ist ungeprüft.** Sie hat den Schaden angerichtet, weil ihre
-  Eingangsgröße falsch war. Ob lm × 4,5 h als Untergrenze überhaupt sinnvoll ist —
-  oder ob sie ganz weg sollte, jetzt wo es eine Obergrenze gibt — ist offen.
+  Eingangsgröße falsch war. Ob lm × 4,5 h als Untergrenze überhaupt sinnvoll ist — oder
+  ob sie weg sollte, jetzt wo es eine Obergrenze gibt — ist offen.
+- `optimize` kennt die Laufmeter nicht und prüft deshalb keine Zeiten. Wer dort
+  Änderungen machen lässt, umgeht Unter- und Obergrenze weiterhin.
