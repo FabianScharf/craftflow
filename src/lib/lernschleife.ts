@@ -141,19 +141,31 @@ export function lerneFaktoren(alt: Faktoren, beobachtungen: Beobachtung[]): Lern
 
 type LernPos = {
   id?: number | string
+  titel?: string
   arbeitszeit?: Array<{ kostenstelle?: string; minuten?: number }>
 }
 type LernOffer = { positionen?: LernPos[] } | null | undefined
+
+const titelGleich = (a?: string, b?: string) =>
+  !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase()
 
 export function beobachtungenAus(vorschlag: LernOffer, endstand: LernOffer): Beobachtung[] {
   const alt = vorschlag?.positionen ?? []
   const neu = endstand?.positionen ?? []
   const ergebnis: Beobachtung[] = []
 
-  for (const pA of alt) {
-    if (pA.id == null) continue
-    const pB = neu.find(x => x.id === pA.id)
-    if (!pB) continue
+  alt.forEach((pA, i) => {
+    // Zuerst ueber die id. Sie wird aber beim Analysieren neu vergeben
+    // (Date.now() + i in page.tsx) — wer sein Angebot ein zweites Mal analysieren
+    // laesst, haette sonst keine einzige Beobachtung mehr beigetragen, ohne dass
+    // es irgendwo auffaellt.
+    //
+    // Ausweichweg: gleiche Anzahl Positionen UND gleicher Titel an derselben
+    // Stelle. Beides zusammen, damit nie zwei verschiedene Moebel verglichen
+    // werden — eine Fehlpaarung waere schlimmer als eine fehlende Beobachtung.
+    const pB = neu.find(x => x.id != null && x.id === pA.id)
+      ?? (alt.length === neu.length && titelGleich(pA.titel, neu[i]?.titel) ? neu[i] : undefined)
+    if (!pB) return
 
     // Je Bereich summieren, nicht je Kostenstelle: Wer Zeit von Zuschnitt nach
     // Zusammenbau schiebt, hat nichts ueber seine Geschwindigkeit gesagt.
@@ -173,6 +185,6 @@ export function beobachtungenAus(vorschlag: LernOffer, endstand: LernOffer): Beo
       const nachher = sB[bereich] ?? 0
       if (vorher > 0) ergebnis.push({ bereich, vorher, nachher })
     }
-  }
+  })
   return ergebnis
 }

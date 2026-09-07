@@ -1109,6 +1109,27 @@ export default function CraftFlow() {
             setCurrentProjectId(row.id)
             currentProjectIdRef.current = row.id
           }
+
+          // Die Erstfassung der KI als Version festhalten — das ist der Bezugspunkt
+          // der Lernschleife.
+          //
+          // GEFUNDEN AM 2026-09-07: Eine Version entstand bisher NUR, wenn der
+          // Nutzer den Optimieren-Chat benutzt hat. Wer die Zeiten von Hand in der
+          // Tabelle korrigiert — der naheliegendste Weg — lieferte der Lernschleife
+          // gar nichts: Sie vergleicht Version 1 mit dem Endstand, und ohne
+          // Version 1 ueberspringt sie das Projekt stillschweigend. Damit lernte
+          // CraftFlow ausgerechnet aus den haeufigsten Korrekturen nicht.
+          //
+          // Feuere und vergiss: Ein Fehler hier darf das Angebot nie aufhalten.
+          fetch('/api/offer-versions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              offerId: row.id,
+              description: 'Erstfassung der KI',
+              data: { positionen: parsedPos, kunde: parsedKunde },
+            }),
+          }).catch(() => {})
           setProjects(prev => {
             const exists = prev.find(p => p.id === row.id)
             return exists ? prev.map(p => p.id === row.id ? row : p) : [row, ...prev]

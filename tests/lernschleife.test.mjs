@@ -187,3 +187,25 @@ test('Der Fixsockel wird weder skaliert noch gelernt', () => {
   for (const ks of ['Besprechung', 'Planung', 'Konstruktion', 'Arbeitsvorbereitung'])
     assert.equal(bereichFuer(ks), null, `${ks} wird gelernt, obwohl es ein Sockel ist`)
 })
+
+test('Neue ids nach erneuter Analyse werfen das Angebot nicht aus der Schleife', () => {
+  // Die id ist Date.now() + i, clientseitig vergeben. Wer sein Angebot ein zweites
+  // Mal analysieren laesst, bekommt neue ids — und haette bis zum 2026-09-07 keine
+  // einzige Beobachtung mehr beigetragen, ohne dass es auffaellt.
+  const pos = (id, minuten) => ({
+    id, titel: 'Einbauschrank Flur',
+    arbeitszeit: [{ kostenstelle: 'Zuschnitt', minuten }],
+  })
+  const b = beobachtungenAus({ positionen: [pos(111, 200)] }, { positionen: [pos(999, 240)] })
+  assert.deepEqual(b, [{ bereich: 'werkstatt', vorher: 200, nachher: 240 }])
+})
+
+test('Der Ausweichweg paart niemals zwei verschiedene Möbel', () => {
+  const a = { id: 1, titel: 'Einbauschrank', arbeitszeit: [{ kostenstelle: 'Zuschnitt', minuten: 200 }] }
+  const b = { id: 2, titel: 'Küchenzeile',   arbeitszeit: [{ kostenstelle: 'Zuschnitt', minuten: 900 }] }
+  assert.deepEqual(beobachtungenAus({ positionen: [a] }, { positionen: [b] }), [],
+    'Unterschiedliche Titel duerfen nicht gepaart werden')
+  // Unterschiedliche Anzahl: ebenfalls kein Ausweichweg.
+  const c = { id: 3, titel: 'Einbauschrank', arbeitszeit: [{ kostenstelle: 'Zuschnitt', minuten: 240 }] }
+  assert.deepEqual(beobachtungenAus({ positionen: [a] }, { positionen: [c, b] }), [])
+})
