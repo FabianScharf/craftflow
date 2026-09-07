@@ -102,12 +102,11 @@ export const BAENDER: Record<string, Band[]> = {
 // Die fuenf Betriebsfragen. Liegen hier, damit Erst-Anmeldung und Einstellungen
 // dieselbe Quelle nutzen — zwei Listen wuerden auseinanderlaufen.
 export const BETRIEBSFRAGEN: Record<string, Band[]> = {
-  mitarbeiter: [
-    { schluessel: 'solo', text: 'nur ich',    mitte: null },
-    { schluessel: '2-3',  text: '2 bis 3',    mitte: null },
-    { schluessel: '4-10', text: '4 bis 10',   mitte: null },
-    { schluessel: 'mehr', text: 'mehr',       mitte: null },
-  ],
+  // Die Mitarbeiterzahl wurde am 2026-09-07 entfernt. Fuer den Preis ist sie fast
+  // egal: Er ist Personenstunden mal Satz, egal ob einer acht Stunden arbeitet oder
+  // zwei je vier. Eine Frage, die nichts bewirkt, kostet nur Anmeldungen.
+  // Die Spalte in der Datenbank bleibt — sie stoert nicht und laesst sich spaeter
+  // wieder nutzen, falls Zweimann-Montage einmal eine Rolle spielt.
   maschinen: [
     { schluessel: 'formatsaege',   text: 'Formatkreissäge',      mitte: null },
     { schluessel: 'kantenanleim',  text: 'Kantenanleimmaschine', mitte: null },

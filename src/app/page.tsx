@@ -348,9 +348,18 @@ export default function CraftFlow() {
   const [projectSort, setProjectSort] = useState<'newest' | 'oldest' | 'az'>('newest')
 
   const updateProjectStatus = useCallback(async (id: string, status: string) => {
+    const vorher = projects.find(p => p.id === id)?.status
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status } : p))
     setStatusDropdown(null)
-    await fetch(`/api/projects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    // Die Antwort MUSS geprueft werden. Vorher wurde sie verworfen — die Liste zeigte
+    // den neuen Status, die Datenbank behielt den alten, und nach dem Neuladen war er
+    // wieder da (gefunden im Check-Up 2026-09-07).
+    const res = await fetch(`/api/projects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    if (!res.ok) {
+      setProjects(prev => prev.map(p => p.id === id ? { ...p, status: vorher ?? p.status } : p))
+      alert('Der Status konnte nicht gespeichert werden. Bitte noch einmal versuchen.')
+      return
+    }
     // Tracking: Status-Änderung + Tage seit Erstellung
     setProjects(current => {
       const proj = current.find(p => p.id === id)
@@ -364,6 +373,20 @@ export default function CraftFlow() {
       }).catch(() => {})
       return current
     })
+    // projects wird fuer den Rueckfall bei Fehlschlag gebraucht.
+  }, [projects])
+
+  // Loeschen gab es bis 2026-09-07 gar nicht — weder hier noch in der Schnittstelle.
+  // Aufgefallen im Check-Up, als Testprojekte nicht wegzubekommen waren.
+  const deleteProject = useCallback(async (id: string, titel: string) => {
+    if (!window.confirm(`„${titel}" wirklich löschen?\n\nDas Angebot und alle gespeicherten Fassungen davon sind danach weg. Das lässt sich nicht rückgängig machen.`)) return
+    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({})) as { error?: string }
+      alert(`Löschen fehlgeschlagen: ${j.error ?? res.status}`)
+      return
+    }
+    setProjects(prev => prev.filter(p => p.id !== id))
   }, [])
 
   useEffect(() => {
@@ -2136,14 +2159,12 @@ export default function CraftFlow() {
     {
       icon: '🏗',
       label: 'Dein Betrieb',
-      title: 'Fünf Fragen zu deinem Betrieb',
+      title: 'Vier Fragen zu deinem Betrieb',
       content: (
         <div>
           <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
             Damit CraftFlow mit deinen Zeiten rechnet statt mit Branchenwerten.
           </p>
-          {kalibFrage('Wie viele arbeiten in der Werkstatt mit?',
-            kalibWahl(BETRIEBSFRAGEN, 'mitarbeiter', kalib.mitarbeiter, w => setKalib({ ...kalib, mitarbeiter: w })))}
           {kalibFrage('Welche Maschinen hast du?',
             kalibMehrfach('maschinen', kalib.maschinen, w => setKalib({ ...kalib, maschinen: w })),
             'Mehrfachauswahl')}
@@ -2755,6 +2776,11 @@ export default function CraftFlow() {
                         onClick={e => { e.stopPropagation(); loadProject(p.id) }}
                         style={{ background: C.gray2, color: C.white, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, whiteSpace: 'nowrap' }}
                       >Öffnen →</button>
+                      <button
+                        onClick={e => { e.stopPropagation(); void deleteProject(p.id, p.title) }}
+                        title="Projekt löschen"
+                        style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 10px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap' }}
+                      >✕</button>
                     </div>
                   </div>
                 )

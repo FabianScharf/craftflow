@@ -183,9 +183,6 @@ export default function BetriebSettings() {
           padding: '10px 14px', color: '#FFB0B0', fontSize: 13, marginBottom: 20 }}>{fehler}</div>
       )}
 
-      {gruppe('Wie viele arbeiten in der Werkstatt mit?', '', liste('mitarbeiter'), k.mitarbeiter,
-        w => setK({ ...k, mitarbeiter: w }))}
-
       <div style={{ marginBottom: 26 }}>
         <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Welche Maschinen hast du?</div>
         <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10 }}>Mehrfachauswahl</div>
