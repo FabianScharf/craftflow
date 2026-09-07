@@ -208,21 +208,74 @@ Die 2–8 % über 1,0 sind gewollt: Die Bänder sind mit den Kammer-Standardsät
 beziffert, gerechnet wird mit den Sätzen des Nutzers. Bei der Treppe blieb der
 Massivholzfaktor über alle Bänder auf genau 1,0 — die Frage wird dort nicht gestellt.
 
-### Bekannte Grenze — für Fabian zu entscheiden
+### Erledigt am 2026-09-07: die enge Spanne bei materialschweren Referenzen
 
-Bei materialschweren Referenzen sind die Euro-Bänder **eng**: Bei den Innentüren
-umfasst die ganze Auswahl 2.500–3.200 €, bei der Massivholzfrage sogar nur
-4.450–4.950 €. Das ist arithmetisch richtig — wenn Material 55 % des Preises ist und
-der Deckel ±40 % auf die *Zeit* erlaubt, sind das nur ±11 % auf den *Preis*. Fabians
-eigene Faustregel spannt aber 1.750–4.000 €. Wer außerhalb liegt, landet auf dem
-Deckel 0,6 oder 1,4.
+**Der Befund war richtig, die Diagnose zunächst falsch.** Die engen Bänder waren kein
+Problem der Bänder, sondern der **Frage**: Wir fragten nach dem *Gesamtpreis* und
+rechneten daraus die Zeit zurück. Wo Material über die Hälfte des Preises ausmacht,
+sagt der Gesamtpreis fast nichts über das Tempo aus — zwei gleich schnelle Schreiner
+liegen allein durch Einkauf und Aufschlag hunderte Euro auseinander, und die haben wir
+komplett der Zeit angelastet.
 
-Zwei Wege, falls das in der Praxis stört: Deckel für materialschwere Referenzen
-weiten, oder die Differenz auch auf den Materialaufschlag wirken lassen (dann wäre
-der Faktor nicht mehr rein zeitbezogen). Beides ist eine fachliche Entscheidung, keine
-technische.
+| Referenz | Material | was ±40 % Zeit am Preis bewegen |
+|---|---|---|
+| Einbauschrank | 24 % | ±27 % |
+| Massivholztisch | 34 % | ±22 % |
+| Einbauküche | 45 % | ±19 % |
+| **Innentüren** | **56 %** | **±16 %** |
+| **Treppe** | **55 %** | **±15 %** |
 
-**Ebenfalls offen:** Alte Bandschlüssel aus der Datenbank („1200-1600", „ein-tag")
-gibt es nicht mehr. Sie ergeben Faktor 1,0 statt eines Fehlers — als Test
-festgeschrieben. Bestehende Nutzer behalten ihre gespeicherten Faktoren, bis sie in
-„Mein Betrieb" neu speichern; dann müssen sie die Fragen einmal neu anklicken.
+**Die Lösung:** Bei diesen Referenzen wird gefragt, was tatsächlich seine Arbeit ist.
+
+| | vorher | nachher |
+|---|---|---|
+| Innentüren | „Was nimmst du für die fünf Türen?" 2.500–3.200 € | „Was nimmst du fürs Einpassen einer Tür, wenn der Kunde Tür und Zarge stellt?" **180–320 € je Tür** |
+| Treppe | „Was nimmst du für so eine Treppe?" 4.400–5.550 € | „Was berechnest du für Einbau und Anpassung, wenn die Rohtreppe gestellt wird?" **1.650–2.800 €** |
+
+Das ist die echte Marktbreite — und ein Schreiner bietet Türen ohnehin so an
+(„Montage 180 €/Tür"). Der Deckel 0,6–1,4 bleibt, wofür er gedacht war: eine
+Notbremse, keine tägliche Grenze. Die Zeitfaktoren messen danach wirklich nur Zeit.
+
+**Verworfene Alternativen und warum:**
+
+- *Deckel weiten (0,4–1,6).* Billig, aber dehnt nur. Faktor 0,4 behauptet, er schneide
+  eine Platte in 40 % der normalen Zeit zu. Verzerrt außerdem die Grundlage, auf der
+  die **Lernschleife** aus gewonnenen Angeboten weiterlernt. Hätte bei den Türen
+  ohnehin nicht bis 1.750 € gereicht.
+- *Die Differenz auch aufs Material wirken lassen.* Fachlich die richtigste Diagnose,
+  aber der **Materialaufschlag ist schon eine Einstellung**. Ein zweites,
+  unsichtbares Stellrad darauf gäbe zwei Wahrheiten. Und Materialpreise still zu
+  verändern ist gefährlicher als Zeiten — der Nutzer sieht die EK-Preise aus seiner
+  eigenen Liste in der Position stehen.
+
+**Zwei Regeln sind als Test festgeschrieben**, damit das nicht zurückfällt:
+
+1. Übersteigt der Materialwert die Hälfte dessen, wonach gefragt wird, **muss** die
+   Frage ohne Material gestellt werden — und der Fragetext muss das auch sagen. Genau
+   diese Kopplung fehlte.
+2. Eine Referenz fragt **entweder alles je Stück oder nichts**. Im ersten Wurf waren
+   zwei Türenfragen je Tür und zwei für alle fünf; wer sich da verliest, bekommt einen
+   falschen Faktor.
+
+**Zusätzlich gebaut:**
+
+- **Randhinweis.** Wer das unterste oder oberste Band wählt, bekommt einen Satz dazu:
+  Das ist der Deckel; liegst du noch weiter weg, sind es die Stundensätze oder der
+  Materialaufschlag, nicht die Geschwindigkeit — beides Einstellungen. Genau daran
+  sind Testkunden abgesprungen: Sie sahen einen Preis, den sie nicht erklären konnten.
+- **Ankerpreis in „Mein Betrieb".** Was CraftFlow für das Referenzmöbel mit *seinen*
+  Sätzen rechnet (Türen: 247 € je Tür für die Arbeit). Ohne diese Zahl antwortet er
+  ins Blaue.
+
+Live auf dev geprüft: Faktoren 0,6 / 1,0 / 1,4 über alle Referenzen, Anker und
+Hinweise erscheinen, bei der Treppe bleibt der Massivholzfaktor auf 1,0.
+
+### Noch offen
+
+**Alte Bandschlüssel aus der Datenbank** („1200-1600", „ein-tag") gibt es nicht mehr.
+Sie ergeben Faktor 1,0 statt eines Fehlers — als Test festgeschrieben. Bestehende
+Nutzer behalten ihre gespeicherten Faktoren, bis sie in „Mein Betrieb" neu speichern;
+dann müssen sie die Fragen einmal neu anklicken.
+
+**Die Einbauküche liegt mit 45 % Materialanteil im Graubereich.** Sie bleibt bei der
+Gesamtpreisfrage (±19 % Hebel reicht), aber das ist eine Setzung, keine Messung.
