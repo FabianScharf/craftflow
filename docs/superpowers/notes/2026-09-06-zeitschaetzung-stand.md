@@ -132,3 +132,97 @@ Sonderausstattung. Sie soll Ausreißer um Faktor zwei abfangen, nicht feinsteuer
   ob sie weg sollte, jetzt wo es eine Obergrenze gibt — ist offen.
 - `optimize` kennt die Laufmeter nicht und prüft deshalb keine Zeiten. Wer dort
   Änderungen machen lässt, umgeht Unter- und Obergrenze weiterhin.
+
+## Nachtrag 2026-09-07: Referenzmöbel nach Schwerpunkt
+
+Ein Treppenbauer hat sich bisher an einem Flurschrank kalibriert. Jetzt richtet sich
+das Referenzmöbel nach dem, was der Betrieb baut.
+
+| Schwerpunkt | Referenz | Preis (Standardsätze) | Fabians Faustregel |
+|---|---|---|---|
+| Küchen | Einbauküche L-Form | 10.073 € | 5.000–20.000 € |
+| Treppen | Treppe Buche massiv | 4.975 € | 3.000–7.000 € |
+| Türen | 5 Innentüren mit Zargen | 2.855 € | 5 × 350–800 € |
+| Einbauschränke | Einbauschrank Flur (**gemessen**) | 2.245 € | ~2.000 € ohne Montage |
+| Solitärmöbel | Massivholztisch Eiche | 3.069 € | 2.000–4.500 € |
+
+Jede Referenz liegt in der Spanne, die Fabian selbst nennt — als Test festgeschrieben.
+Bei Mehrfachauswahl gewinnt die Küche: das aufwendigste und aussagekräftigste Stück.
+
+### Drei Fehler, die dabei gefunden wurden
+
+**1. Das mittlere Band ergab Faktor 0,60–0,74 statt 1,0.** Wer genau das nahm, was
+CraftFlow rechnet, bekam trotzdem bis zu 26 % gekürzte Zeiten. Erbe aus der Zeit, als
+Fabians Faustregel noch falsch gelesen war (1.200–2.000 € **mit** Montage statt
+~2.000 € **ohne**).
+
+**2. Zentrierte Prozentsätze kollabieren.** Verschiebt man die alten Anteile so, dass
+das mittlere Band den Referenzpreis trifft, fallen die unteren zwei Bänder auf
+denselben Deckelwert (0,60 / 0,60): Material und Fixsockel wiegen bei Küche, Türen
+und Treppe viel schwerer als beim Flurschrank. **Ein** Prozentsatz kann nicht für alle
+Referenzen passen.
+
+Die Bänder werden deshalb **rückwärts aus den Zielfaktoren** gerechnet — die
+Umkehrung der Faktorformel:
+
+```
+Bandpreis(f) = Material + Fixsockel + f × (Werkstatt + Montage)
+mit f = 0,6 · 0,8 · 1,0 · 1,2 · 1,4
+```
+
+Ergebnis: Jedes Band trifft seinen Zielfaktor auf zwei Stellen, das mittlere ergibt
+1,0, die offenen Randbänder landen genau auf den Deckeln. Für jede Referenz und jede
+Frage geprüft.
+
+**3. Lack-, Massivholz- und Montagefrage hatten feste Skalen.** Ein Küchenbauer konnte
+bei der Montagefrage nie über Faktor 0,71 kommen: Seine Altbau-Erwartung liegt bei
+3,7 Tagen, die Auswahl endete bei „länger" = 1.250 min. Die Frage war für ihn kaputt.
+Alle vier Skalen kommen jetzt vom Referenzmöbel.
+
+### Weitere Korrekturen
+
+- **Lack- und Massivholzzahlen aus der Sichtfläche.** Kennwerte aus CLAUDE.md:
+  40 min/m² Lackaufbau, 4 €/m² Lackmaterial, 110 €/m² Eiche massiv, 20 min/m² ölen.
+  **Gegenprobe:** Auf den gemessenen Schrank (16,1 m²) angewandt ergeben sie
+  644 / 64 / 1.771 / 322 gegen gemessene 600 / 60 / 1.770 / 300 — das Material trifft
+  auf 1 €. Als Test festgeschrieben.
+- **Oberflächenzeit in den generierten Referenzen.** Einer geölten Treppe und einem
+  Massivholztisch fehlte sie vorher ganz.
+- **Treppe und Tisch stellen keine Massivholzfrage** — sie *sind* massiv. Eine
+  Scheinfrage, deren Antwort nichts hergibt. Der Faktor bleibt dort auf 1,0; die
+  Grundfrage misst die Massivholzarbeit bereits mit.
+- **Kein Band heißt mehr wie sein Nachbar.** Bei den Innentüren entstand sonst
+  „2,5 Tage – 2,5 Tage", weil vier Grenzen bei 1,4 / 1,8 / 2,2 / 2,6 Tagen auf halbe
+  Tage gerundet zusammenfielen. Bei Bedarf weicht die Skala auf Stunden aus.
+
+### Live gemessen auf der dev-Preview
+
+| Referenz | Band 1 | Band 3 (Mitte) | Band 5 |
+|---|---|---|---|
+| Küche | 0,64 | **1,06** | 1,40 |
+| Treppe | 0,62 | **1,04** | 1,40 |
+| Türen | 0,61 | **1,02** | 1,40 |
+| Schrank | 0,65 | **1,08** | 1,40 |
+
+Die 2–8 % über 1,0 sind gewollt: Die Bänder sind mit den Kammer-Standardsätzen
+beziffert, gerechnet wird mit den Sätzen des Nutzers. Bei der Treppe blieb der
+Massivholzfaktor über alle Bänder auf genau 1,0 — die Frage wird dort nicht gestellt.
+
+### Bekannte Grenze — für Fabian zu entscheiden
+
+Bei materialschweren Referenzen sind die Euro-Bänder **eng**: Bei den Innentüren
+umfasst die ganze Auswahl 2.500–3.200 €, bei der Massivholzfrage sogar nur
+4.450–4.950 €. Das ist arithmetisch richtig — wenn Material 55 % des Preises ist und
+der Deckel ±40 % auf die *Zeit* erlaubt, sind das nur ±11 % auf den *Preis*. Fabians
+eigene Faustregel spannt aber 1.750–4.000 €. Wer außerhalb liegt, landet auf dem
+Deckel 0,6 oder 1,4.
+
+Zwei Wege, falls das in der Praxis stört: Deckel für materialschwere Referenzen
+weiten, oder die Differenz auch auf den Materialaufschlag wirken lassen (dann wäre
+der Faktor nicht mehr rein zeitbezogen). Beides ist eine fachliche Entscheidung, keine
+technische.
+
+**Ebenfalls offen:** Alte Bandschlüssel aus der Datenbank („1200-1600", „ein-tag")
+gibt es nicht mehr. Sie ergeben Faktor 1,0 statt eines Fehlers — als Test
+festgeschrieben. Bestehende Nutzer behalten ihre gespeicherten Faktoren, bis sie in
+„Mein Betrieb" neu speichern; dann müssen sie die Fragen einmal neu anklicken.
