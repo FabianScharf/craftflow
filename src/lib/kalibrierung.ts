@@ -157,6 +157,44 @@ export const BETRIEBSFRAGEN: Record<string, Band[]> = {
   ],
 }
 
+// ── Was die Betriebsfragen bewirken ──────────────────────────────────────────
+//
+// Fabian am 2026-09-07: "Was bringen uns die Antworten? Welchen Mehrwert generieren
+// wir fuer die Kalkulation, wenn wir das wissen?" — Zu Recht, denn bis dahin wurden
+// sie gespeichert und nirgends gelesen.
+//
+// Wirksam sind genau drei Antworten. Sie schalten Kostenstellen ab; die Arbeit
+// verschwindet dabei NICHT, sie wandert zur Handarbeit (src/lib/handarbeit.ts).
+//
+// BEWUSST NICHT verdrahtet:
+// - Formatkreissaege: Zuschnitt faellt in jedem Betrieb an, mit welcher Saege auch
+//   immer. Es gibt keine Kostenstelle, die man dafuer abschalten koennte.
+// - Lackierkabine: "Oberflaeche" abzuschalten waere falsch — Oelen und Wachsen
+//   brauchen keine Kabine. Wer nicht lackieren kann, kauft es zu; das ist eine
+//   Materialfrage, keine Kostenstellenfrage. Offen.
+
+export type Betriebsantworten = {
+  maschinen?: string[]
+  montage_selbst?: string
+}
+
+export function abzuschaltendeKostenstellen(a: Betriebsantworten | null | undefined): string[] {
+  if (!a) return []
+  const hat = (m: string) => Array.isArray(a.maschinen) && a.maschinen.includes(m)
+  const aus: string[] = []
+
+  // Kein CNC: Griffmulden und Ausschnitte entstehen von Hand, nicht zu 120 EUR/h.
+  if (!hat('cnc')) aus.push('CNC')
+  // Keine Kantenanleimmaschine: Kanten werden von Hand aufgebracht — laenger, aber
+  // zum eigenen Satz statt zu 100 EUR/h Maschinensatz.
+  if (!hat('kantenanleim')) aus.push('Bekantung')
+  // Wer nicht montiert, bekommt keine Montagezeile. Lieferung bleibt: Ausliefern
+  // und Aufstellen sind zweierlei.
+  if (a.montage_selbst === 'nie') aus.push('Montage')
+
+  return aus
+}
+
 const MIN_FAKTOR = 0.6
 const MAX_FAKTOR = 1.4
 

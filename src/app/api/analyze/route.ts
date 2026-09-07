@@ -535,7 +535,8 @@ import { zaehleTeile, plattenflaeche, deckelNachStueckliste } from '@/lib/stueck
 import { parseLaufmeter } from '@/lib/laufmeter'
 import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { bucheUm } from '@/lib/handarbeit'
-import { ladeFaktoren } from '@/lib/kalibrierungsspeicher'
+import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
+import { abzuschaltendeKostenstellen } from '@/lib/kalibrierung'
 
 const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
 
@@ -815,6 +816,8 @@ export async function POST(req: NextRequest) {
     }
     // Vom Nutzer deaktivierte Kostenstellen — dürfen nirgends in der Kalkulation
     // auftauchen (auch nicht über Fixkosten-/Workshop-Floor-Fallbacks).
+    // Wird im Auth-Block weiter unten aus den Betriebsfragen gefuellt.
+    const ausBetrieb: string[] = []
     const deaktiviert = new Set<string>(
       (Array.isArray(deaktivierteKostenstellen) ? deaktivierteKostenstellen as string[] : []).map(c => normalizeKsId(c))
     )
@@ -896,6 +899,13 @@ export async function POST(req: NextRequest) {
         // — also bei Branchenwerten.
         try { faktoren = await ladeFaktoren(supabase, user.id) }
         catch (e) { console.error('[kalibrierung] Faktoren laden (analyze):', e) }
+        // Die Betriebsfragen wirken hier: Kein CNC, keine Kantenanleimmaschine oder
+        // keine eigene Montage schalten die jeweilige Kostenstelle ab. Die Arbeit
+        // verschwindet dabei nicht, sie wandert zur Handarbeit.
+        try {
+          const kal = await ladeKalibrierung(supabase, user.id)
+          for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
+        } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
         const { data: profil } = await supabase
           .from('betriebsprofil')
           .select('strasse, plz, ort')
@@ -919,6 +929,10 @@ export async function POST(req: NextRequest) {
         } catch (e) { console.error('[learn] Regeln laden (analyze):', e) }
       }
     } catch { /* kein Profil / nicht eingeloggt → Default-Verhalten */ }
+
+    // Erst hier, weil die Kalibrierung im Block darueber geladen wird. Serverseitig,
+    // damit es auch dann greift, wenn der Browser die Liste nicht mitschickt.
+    for (const ks of ausBetrieb) deaktiviert.add(normalizeKsId(ks))
 
     let systemPrompt = SYSTEM_PROMPT
     const standardLines = customKs

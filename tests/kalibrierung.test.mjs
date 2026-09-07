@@ -124,3 +124,46 @@ test('Hoehere Stundensaetze machen den Referenzpreis teurer', () => {
   const teuer = Object.fromEntries(Object.entries(SAETZE).map(([k, v]) => [k, v * 1.5]))
   assert.ok(referenzPreis(teuer, AUFSCHLAG).gesamt > referenzPreis(SAETZE, AUFSCHLAG).gesamt)
 })
+
+import { abzuschaltendeKostenstellen } from '../src/lib/kalibrierung.ts'
+
+test('Ohne CNC wird die CNC-Kostenstelle abgeschaltet', () => {
+  const aus = abzuschaltendeKostenstellen({ maschinen: ['formatsaege'], montage_selbst: 'immer' })
+  assert.ok(aus.includes('CNC'))
+})
+
+test('Mit CNC bleibt sie an', () => {
+  const aus = abzuschaltendeKostenstellen({ maschinen: ['cnc', 'kantenanleim'], montage_selbst: 'immer' })
+  assert.equal(aus.includes('CNC'), false)
+  assert.equal(aus.includes('Bekantung'), false)
+})
+
+test('Ohne Kantenanleimmaschine wandert die Bekantung zur Handarbeit', () => {
+  assert.ok(abzuschaltendeKostenstellen({ maschinen: ['cnc'] }).includes('Bekantung'))
+})
+
+test('Wer nicht montiert, bekommt keine Montagezeile — Lieferung bleibt', () => {
+  const aus = abzuschaltendeKostenstellen({ maschinen: ['cnc','kantenanleim'], montage_selbst: 'nie' })
+  assert.ok(aus.includes('Montage'))
+  assert.equal(aus.includes('Lieferung'), false)
+})
+
+test('Wer manchmal montiert, behaelt die Montage', () => {
+  const aus = abzuschaltendeKostenstellen({ maschinen: ['cnc','kantenanleim'], montage_selbst: 'manchmal' })
+  assert.equal(aus.includes('Montage'), false)
+})
+
+test('Die Formatkreissaege schaltet nichts ab — Zuschnitt faellt immer an', () => {
+  const aus = abzuschaltendeKostenstellen({ maschinen: [], montage_selbst: 'immer' })
+  assert.equal(aus.includes('Zuschnitt'), false)
+})
+
+test('Die Lackierkabine schaltet die Oberflaeche NICHT ab — Oelen braucht keine', () => {
+  const aus = abzuschaltendeKostenstellen({ maschinen: [], montage_selbst: 'immer' })
+  assert.equal(aus.includes('Oberfläche'), false)
+})
+
+test('Ohne Kalibrierung wird nichts abgeschaltet', () => {
+  assert.deepEqual(abzuschaltendeKostenstellen(null), [])
+  assert.deepEqual(abzuschaltendeKostenstellen(undefined), [])
+})

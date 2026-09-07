@@ -10,7 +10,8 @@ import {
 import { brauchbarerText, notNachricht } from '@/lib/chatantwort'
 import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { bucheUm } from '@/lib/handarbeit'
-import { ladeFaktoren } from '@/lib/kalibrierungsspeicher'
+import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
+import { abzuschaltendeKostenstellen } from '@/lib/kalibrierung'
 
 export const maxDuration = 120
 
@@ -317,6 +318,7 @@ export async function POST(req: NextRequest) {
     let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
     let nutzerId = ''
     let faktoren: Faktoren = KEINE_FAKTOREN
+    const ausBetrieb: string[] = []
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -334,6 +336,13 @@ export async function POST(req: NextRequest) {
         // Ohne abgeschlossene Kalibrierung bleibt es bei Branchenwerten.
         try { faktoren = await ladeFaktoren(supabase, user.id) }
         catch (e) { console.error('[kalibrierung] Faktoren laden (optimize):', e) }
+        // Die Betriebsfragen wirken hier: Kein CNC, keine Kantenanleimmaschine oder
+        // keine eigene Montage schalten die jeweilige Kostenstelle ab. Die Arbeit
+        // verschwindet dabei nicht, sie wandert zur Handarbeit.
+        try {
+          const kal = await ladeKalibrierung(supabase, user.id)
+          for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
+        } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
         try {
           const r = await regelBlockFuerNutzer(supabase, user.id)
           regelBlock = r.block
@@ -345,6 +354,10 @@ export async function POST(req: NextRequest) {
         catch (e) { console.error('[preise] Preise laden (optimize):', e) }
       }
     } catch { /* kein Profil → Default */ }
+
+    // Erst hier, weil die Kalibrierung im Block darueber geladen wird. Serverseitig,
+    // damit es auch dann greift, wenn der Browser die Liste nicht mitschickt.
+    for (const ks of ausBetrieb) deaktiviert.add(normalizeKsId(ks))
 
     let system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
     const standardLines = customKs.filter(k => normalizeKsId(k.code) in DEFAULT_STUNDENSAETZE).map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
