@@ -9,6 +9,7 @@ import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
 import { EmailSettings } from '@/components/settings/EmailSettings'
 import BauweiseSettings from '@/components/settings/BauweiseSettings'
 import MaterialpreiseSettings from '@/components/settings/MaterialpreiseSettings'
+import BetriebSettings from '@/components/settings/BetriebSettings'
 import { type Plan, usePlan } from '@/hooks/usePlan'
 
 const C = {
@@ -80,7 +81,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 
 export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse } = usePlan()
-  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
   const [bpMsg, setBpMsg] = useState('')
@@ -441,6 +442,7 @@ export default function SettingsPage() {
     { id: 'auswertung',       label: 'Auswertung',      icon: '📊', minPlan: 'pro' as Plan },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'briefpapier',      label: 'Briefpapier',     icon: '📄' },
+    { id: 'betrieb',          label: 'Mein Betrieb',    icon: '🏗' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
     { id: 'bauweise',         label: 'Meine Bauweise',  icon: '🧠' },
@@ -1109,6 +1111,12 @@ export default function SettingsPage() {
           {section === 'bauweise' && (
             <BauweiseSettings />
           )}
+          {section === 'betrieb' && (
+            <div>
+              <BetriebSettings />
+            </div>
+          )}
+
           {section === 'materialpreise' && (
             <div>
               <MaterialpreiseSettings />
