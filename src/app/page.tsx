@@ -378,16 +378,35 @@ export default function CraftFlow() {
 
   // Loeschen gab es bis 2026-09-07 gar nicht — weder hier noch in der Schnittstelle.
   // Aufgefallen im Check-Up, als Testprojekte nicht wegzubekommen waren.
+  //
+  // Die Rueckfrage ist bewusst KEIN window.confirm: Das ist der Dialog des Browsers,
+  // klebt oben am Fensterrand und kommt in Chromes Blau daher — mitten in einer
+  // schwarz-kupfernen Oberflaeche. Fabian am 2026-09-07: "das gefaellt mir optisch
+  // ueberhaupt nicht."
+  const [loeschFrage, setLoeschFrage] = useState<{ id: string; titel: string } | null>(null)
+  const [loeschFehler, setLoeschFehler] = useState('')
+  const [loeschLaeuft, setLoeschLaeuft] = useState(false)
+
   const deleteProject = useCallback(async (id: string, titel: string) => {
-    if (!window.confirm(`„${titel}" wirklich löschen?\n\nDas Angebot und alle gespeicherten Fassungen davon sind danach weg. Das lässt sich nicht rückgängig machen.`)) return
-    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    setLoeschFehler('')
+    setLoeschFrage({ id, titel })
+  }, [])
+
+  const loeschenBestaetigt = useCallback(async () => {
+    if (!loeschFrage) return
+    setLoeschLaeuft(true)
+    const res = await fetch(`/api/projects/${loeschFrage.id}`, { method: 'DELETE' })
+    setLoeschLaeuft(false)
     if (!res.ok) {
       const j = await res.json().catch(() => ({})) as { error?: string }
-      alert(`Löschen fehlgeschlagen: ${j.error ?? res.status}`)
+      // Der echte Grund gehoert auf den Bildschirm. "permission denied for table
+      // offer_versions" hat den Fehler am 2026-09-07 in einem Anlauf erklaert.
+      setLoeschFehler(j.error ?? `Fehlgeschlagen (${res.status})`)
       return
     }
-    setProjects(prev => prev.filter(p => p.id !== id))
-  }, [])
+    setProjects(prev => prev.filter(p => p.id !== loeschFrage.id))
+    setLoeschFrage(null)
+  }, [loeschFrage])
 
   useEffect(() => {
     fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) })
@@ -2692,6 +2711,65 @@ export default function CraftFlow() {
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {TrialBanner}
+
+        {/* Rückfrage vor dem Löschen — in unserer Oberfläche, nicht im Browser-Dialog */}
+        {loeschFrage && (
+          <div
+            onClick={() => { if (!loeschLaeuft) setLoeschFrage(null) }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.72)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: C.gray1, border: `1px solid ${C.border}`, borderTop: `3px solid ${brandAccent}`,
+                borderRadius: 10, padding: isMobile ? '20px 18px' : '26px 28px', maxWidth: 460, width: '100%',
+                boxShadow: '0 18px 60px rgba(0,0,0,.7)',
+              }}
+            >
+              <div style={{ color: brandAccent, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+                Angebot löschen
+              </div>
+              <div style={{ color: C.white, fontSize: 15, fontWeight: 700, lineHeight: 1.45, marginBottom: 12 }}>
+                {loeschFrage.titel}
+              </div>
+              <div style={{ color: C.textMid, fontSize: 13, lineHeight: 1.65, marginBottom: loeschFehler ? 14 : 22 }}>
+                Das Angebot und alle gespeicherten Fassungen davon sind danach weg.
+                Das lässt sich nicht rückgängig machen.
+              </div>
+              {loeschFehler && (
+                <div style={{ background: '#3A1A1A', border: '1px solid #6A2A2A', borderRadius: 8,
+                  padding: '9px 12px', color: '#FFB0B0', fontSize: 12.5, lineHeight: 1.5, marginBottom: 18 }}>
+                  {loeschFehler}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setLoeschFrage(null)}
+                  disabled={loeschLaeuft}
+                  style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`,
+                    borderRadius: 7, padding: '10px 18px', fontSize: 13, fontWeight: 600,
+                    cursor: loeschLaeuft ? 'default' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={() => void loeschenBestaetigt()}
+                  disabled={loeschLaeuft}
+                  style={{ background: '#E05A5A', color: '#1A0A0A', border: 'none', borderRadius: 7,
+                    padding: '10px 20px', fontSize: 13, fontWeight: 800,
+                    cursor: loeschLaeuft ? 'default' : 'pointer', opacity: loeschLaeuft ? 0.6 : 1,
+                    fontFamily: 'Helvetica Neue,sans-serif' }}
+                >
+                  {loeschLaeuft ? 'Löscht …' : 'Endgültig löschen'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
