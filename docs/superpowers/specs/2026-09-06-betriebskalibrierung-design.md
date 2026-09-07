@@ -175,15 +175,45 @@ Deshalb die Ausstattung im Grundmöbel und deshalb drei Differenzfragen.
 
 | Bereich | Frage | Antwortmöglichkeiten |
 |---|---|---|
-| **Lack** | Derselbe Schrank, aber alles weiß lackiert seidenmatt statt Dekor. Was kommt dazu? | +200–400 · +400–700 · +700–1.100 · +1.100–1.600 · mehr · *mache ich nicht* |
-| **Massivholz** | Derselbe Schrank in Eiche massiv, geölt. Was nimmst du? | unter 2.500 · 2.500–3.500 · 3.500–4.500 · 4.500–6.000 · über 6.000 · *mache ich nicht* |
-| **Montage** | Derselbe Schrank im Altbau: Wände nicht im Lot, Dielenboden, zweiter Stock ohne Aufzug. Wie lange bist du dran? | halber Tag · ein Tag · anderthalb Tage · zwei Tage · länger · *montiere ich nicht* |
+| **Lack** | Derselbe Schrank, aber alles weiß lackiert seidenmatt statt Dekor. Was kommt dazu? | +200–400 · +400–700 · +700–1.100 · +1.100–1.600 · mehr |
+| **Massivholz** | Derselbe Schrank in Eiche massiv, geölt. Was nimmst du? | unter 2.500 · 2.500–3.500 · 3.500–4.500 · 4.500–6.000 · über 6.000 |
+| **Montage** | Derselbe Schrank im Altbau: Wände nicht im Lot, Dielenboden, zweiter Stock ohne Aufzug. Wie lange bist du dran? | halber Tag · ein Tag · anderthalb Tage · zwei Tage · länger |
+
+Jede der drei Fragen hat **zwei weitere Türen**:
+*mache ich nicht* · **weiß ich gerade nicht**
 
 Die Montage wird **in Tagen** gefragt. So denkt ein Schreiner darüber — nicht in
 Stunden und nicht in Euro.
 
-**„Mache ich nicht"** ist kein Ausweichen, sondern eine echte Antwort: Für diesen
-Bereich bleibt der Branchenwert stehen, und CraftFlow fragt nicht wieder danach.
+#### Die dritte Tür — „weiß ich gerade nicht"
+
+**Eine geratene Antwort ist schlechter als gar keine, weil sie wie Daten aussieht.**
+
+Der Fall: Ein Nutzer macht Lackoberflächen, hat aber keine Zahl im Kopf, was ein
+lackierter Schrank gegenüber Dekor mehr kostet. Mit nur zwei Türen muss er raten oder
+fälschlich „mache ich nicht" wählen. Also rät er — klickt „+400 bis 700 €", nimmt
+tatsächlich +900. Der Lackfaktor landet bei 0,7 statt 1,1, und CraftFlow kalkuliert
+ihm ab da **jedes** lackierte Möbel dauerhaft rund 25 % zu billig. Er merkt es nie,
+weil die Zahl aus seiner eigenen Antwort stammt.
+
+Das ist wörtlich die Beschwerde, die Fabian aus der Praxis kennt: zu wenig Zeit
+kalkuliert, hinterher hat die Arbeit länger gedauert — nur dass wir sie hier selbst
+eingebaut hätten.
+
+**„Mache ich nicht"** — der Bereich entfällt, es wird nicht wieder gefragt.
+**„Weiß ich gerade nicht"** — der Branchenwert bleibt stehen, der Faktor bleibt 1,0,
+und der Bereich wird als *offen* markiert.
+
+**WICHTIG — die Beschriftung hängt davon ab, was schon existiert.** Solange es die
+Lernschleife nicht gibt, darf dort **nicht** stehen „ich lerne es aus deinen
+Angeboten". Das wäre ein Versprechen, das CraftFlow nicht halten kann — genau der
+Fehler, den Prüfkriterium 12 der Lernfunktion verbietet.
+
+- **Ohne Lernschleife:** „Dann rechne ich hier mit dem Branchenwert. Du kannst es
+  jederzeit unter Einstellungen nachtragen."
+- **Mit Lernschleife:** „Dann rechne ich hier zunächst mit dem Branchenwert und lerne
+  den echten aus deinen gewonnenen Angeboten."
+
 
 Alle vier Fragen stehen **im Onboarding**, nicht verteilt über die spätere Nutzung.
 Fabians Begründung: „Dann weiß man, um was es geht, und hat das Gefühl, es hat einen
@@ -307,8 +337,28 @@ Stellschraube vorbei.
   hundertmal, Planung und Konstruktion verteilen sich auf die Stückzahl, ab dem
   zweiten Stück greift die Lernkurve, beim Material kommen Mengenstaffel und weniger
   Verschnitt dazu. Eigene Eingabe, eigene Rechenlogik, eigene Prüfung. **Danach.**
-- **Nachkalkulation** (Ist-Stunden zurückmelden, Zeitfaktor automatisch nachziehen).
-  Langfristig der stärkste Hebel, hilft einem Testkunden in Woche eins aber nicht.
+- **Die Lernschleife** — das unmittelbar folgende Vorhaben, von Fabian am 2026-09-07
+  als notwendig bestätigt. Sie lernt die Faktoren aus **gewonnenen Angeboten** nach:
+  Marktwahrheit statt Selbsteinschätzung. Die Bausteine liegen bereits da —
+  `diffOffer()` in `src/lib/learn.ts` liefert Änderungen vom Typ `minuten_geaendert`
+  mit Kostenstelle, Vorher und Nachher; das Tracking schreibt Preisdeltas; die
+  Projektliste kennt den Status *Offen / Gewonnen / Verhandelt / Verloren*.
+
+  **Erst nach der Kalibrierung**, aus zwei Gründen: Die Schleife braucht einen
+  brauchbaren Startpunkt, und am ersten Tag hat sie nichts zu lernen.
+
+  **Zwei Warnungen für dieses Vorhaben, jetzt schon notiert:**
+  1. *Ein systematischer Fehler wird nicht weggelernt, sondern eingebrannt.* Hätte der
+     Laufmeter-Fehler bestanden und fünfzig Betriebe hätten nach unten korrigiert,
+     hätte CraftFlow „diese Betriebe kalkulieren 45 % günstiger" gelernt — ein
+     Programmfehler als Betriebseigenschaft. Die Schleife vervielfacht, was sie
+     vorfindet, auch die Fehler.
+  2. *Sie hängt daran, dass der Status gepflegt wird.* Wer nie auf „Gewonnen" klickt,
+     liefert kein Signal. Vermutlich braucht es eine freundliche Nachfrage einige Tage
+     nach dem Angebot.
+
+- **Nachkalkulation** (Ist-Stunden zurückmelden). Das sauberste Signal überhaupt,
+  verlangt aber dieselbe Disziplin, die den Nutzern nachweislich fehlt.
 - **Regionalfaktor.** Die PLZ steht bereits im Betriebsprofil, wird hier aber nicht
   ausgewertet.
 
@@ -337,6 +387,10 @@ Stellschraube vorbei.
 11. Beim ersten Start erscheint **eine** Einführung, nicht zwei. Acht Schritte,
     davon zwei für die Kalibrierung.
 15. „Mache ich nicht" lässt den Branchenwert stehen und wird nicht erneut gefragt.
+17. „Weiß ich gerade nicht" lässt den Faktor auf 1,0, markiert den Bereich als offen
+    und verspricht **nichts**, solange es die Lernschleife nicht gibt.
+18. Kein Faktor entsteht aus einer nicht beantworteten Frage. Eine übersprungene Frage
+    darf nirgends wie eine beantwortete aussehen.
 16. Jeder der vier Faktoren wirkt nur auf seine Kostenstellen — ein Lackfaktor darf
     die Montagezeit nicht verändern.
 12. Wer die Erst-Anmeldung durchläuft, hat danach echte Werte in den Einstellungen
