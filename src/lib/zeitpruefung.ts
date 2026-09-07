@@ -53,6 +53,37 @@ export function montageDeckel(lfm: number, altbau: boolean): number {
  * Ohne Laufmeter (lfm <= 0) passiert nichts: Fuer Moebel ohne Laufmeter gibt es
  * noch keine belastbare Pruefgrundlage.
  */
+/**
+ * Kappt eine Gruppe von Kostenstellen auf eine Obergrenze — anteilig, damit die
+ * Aufteilung erhalten bleibt und nur die Summe wieder stimmt.
+ * Gibt die Zeilen unveraendert zurueck, wenn nichts zu kappen ist.
+ */
+export function kappeGruppe(
+  zeilen: Zeitzeile[], kostenstellen: string[], deckel: number, name: string,
+): { zeilen: Zeitzeile[]; hinweis: string | null } {
+  if (!(deckel > 0)) return { zeilen, hinweis: null }
+  const summe = zeilen.filter(z => kostenstellen.includes(z.kostenstelle))
+    .reduce((s, z) => s + z.minuten, 0)
+  if (summe <= deckel || summe <= 0) return { zeilen, hinweis: null }
+  const anteil = deckel / summe
+  return {
+    zeilen: zeilen.map(z => kostenstellen.includes(z.kostenstelle)
+      ? { ...z, minuten: Math.round(z.minuten * anteil) } : z),
+    hinweis: `${name} von ${Math.round(summe / 6) / 10} h auf ${Math.round(deckel / 6) / 10} h gekappt.`,
+  }
+}
+
+/**
+ * Fuer Moebel OHNE Laufmeter: Deckel aus der Stueckliste. Der Aufrufer bringt den
+ * Wert mit, weil die Stuecklisten-Rechnung in src/lib/stueckliste.ts liegt.
+ */
+export function kappeOhneLaufmeter(
+  zeilen: Zeitzeile[], werkstattDeckel: number,
+): { zeilen: Zeitzeile[]; hinweise: string[] } {
+  const r = kappeGruppe(zeilen, WERKSTATT_KS, werkstattDeckel, 'Werkstattzeit (nach Stückliste)')
+  return { zeilen: r.zeilen, hinweise: r.hinweis ? [r.hinweis] : [] }
+}
+
 export function kappeZeiten(
   zeilen: Zeitzeile[],
   lfm: number,

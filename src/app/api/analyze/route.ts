@@ -524,7 +524,8 @@ const FIXKOSTEN_MINIMA: Record<string, number> = {
   'Arbeitsvorbereitung': 20,
 }
 
-import { kappeZeiten, ALTBAU_RE } from '@/lib/zeitpruefung'
+import { kappeZeiten, kappeOhneLaufmeter, ALTBAU_RE } from '@/lib/zeitpruefung'
+import { zaehleTeile, plattenflaeche, deckelNachStueckliste } from '@/lib/stueckliste'
 import { parseLaufmeter } from '@/lib/laufmeter'
 import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { bucheUm } from '@/lib/handarbeit'
@@ -711,6 +712,21 @@ function validateAndFix(
     if (gekappt.hinweise.length > 0) {
       az = gekappt.zeilen as typeof az
       console.warn('[analyze] Zeiten gekappt:', gekappt.hinweise.join(' '))
+    }
+
+    // Moebel OHNE Laufmeter — Rollcontainer, Tisch, Sideboard — wurden bis 2026-09-07
+    // GAR NICHT geprueft. Der Rollcontainer vom Vortag lief mit 8,8 h durch. Fuer sie
+    // kommt der Deckel aus der Stueckliste: Plattenflaeche plus gezaehlte Beschlaege.
+    // Die Formel ist an zwei wirklich gemessenen Kalkulationen geeicht, siehe
+    // src/lib/stueckliste.ts.
+    if (!(lm > 0)) {
+      const teile = zaehleTeile(descText)
+      const m2 = plattenflaeche(pos.material as Array<{ einheit?: string; menge?: number }>)
+      const s = kappeOhneLaufmeter(az, deckelNachStueckliste(m2, teile))
+      if (s.hinweise.length > 0) {
+        az = s.zeilen as typeof az
+        console.warn('[analyze] Zeiten gekappt (Stückliste):', s.hinweise.join(' '))
+      }
     }
 
     // 6c. Zeitfaktoren der Betriebskalibrierung. NACH der Deckelung, damit die
