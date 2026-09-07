@@ -8,6 +8,9 @@ import {
   unbelegteWoerter, bereinigeWenn, baueBelegquellen,
 } from '@/lib/lernwerkzeuge'
 import { brauchbarerText, notNachricht } from '@/lib/chatantwort'
+import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
+import { bucheUm } from '@/lib/handarbeit'
+import { ladeFaktoren } from '@/lib/kalibrierungsspeicher'
 
 export const maxDuration = 120
 
@@ -188,21 +191,39 @@ function matchMaterialgruppe(
 // here. Fixes the 2026-07-04 incident where the optimizer had no access to
 // Firmeneinstellungen at all and just kept/invented values from whatever was
 // already in the offer JSON.
+// Dieselbe Regex wie in analyze — Massivholz erkennt man am Text, nicht an einem Flag.
+const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
+
+function istMassivholz(pos: Pos): boolean {
+  const text = [
+    pos.titel ?? '', pos.beschreibung ?? '',
+    ...(Array.isArray(pos.material) ? pos.material.map(m => m.bezeichnung ?? '') : []),
+  ].join(' ')
+  return MASSIVHOLZ_RE.test(text)
+}
+
 function applyUserRates(
   offer: Record<string, unknown>,
   customSaetze: Record<string, number>,
   matGruppen: Array<{ name: string; aufschlag_prozent: number }>,
-  deaktiviert: Set<string> = new Set()
+  deaktiviert: Set<string> = new Set(),
+  faktoren: Faktoren = KEINE_FAKTOREN
 ): Record<string, unknown> {
   const positionen = offer.positionen
   if (!Array.isArray(positionen)) return offer
   const activeSaetze: Record<string, number> = { ...DEFAULT_STUNDENSAETZE, ...customSaetze }
   offer.positionen = positionen.map((raw: unknown) => {
     const pos = raw as Pos
+    // Abgeschaltete Kostenstellen werden UMGEBUCHT, nicht gestrichen — sonst geht
+    // die Arbeit verloren und das Angebot wird zu billig. Danach die Zeitfaktoren
+    // der Betriebskalibrierung, damit der Chat-Weg sie nicht umgeht.
     const arbeitszeit = Array.isArray(pos.arbeitszeit)
-      ? pos.arbeitszeit
-          .filter(a => !deaktiviert.has(normalizeKsId(a.kostenstelle)))
-          .map(a => (a.kostenstelle in activeSaetze ? { ...a, vkStunde: activeSaetze[a.kostenstelle] } : a))
+      ? wendeFaktorenAn(
+          bucheUm(pos.arbeitszeit, deaktiviert, activeSaetze, normalizeKsId)
+            .map(a => (a.kostenstelle in activeSaetze ? { ...a, vkStunde: activeSaetze[a.kostenstelle] } : a)),
+          faktoren,
+          istMassivholz(pos),
+        )
       : pos.arbeitszeit
     const material = Array.isArray(pos.material)
       ? pos.material.map(m => {
@@ -294,6 +315,7 @@ export async function POST(req: NextRequest) {
     let regelIds: string[] = []
     let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
     let nutzerId = ''
+    let faktoren: Faktoren = KEINE_FAKTOREN
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -308,6 +330,9 @@ export async function POST(req: NextRequest) {
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
         nutzerId = user.id
+        // Ohne abgeschlossene Kalibrierung bleibt es bei Branchenwerten.
+        try { faktoren = await ladeFaktoren(supabase, user.id) }
+        catch (e) { console.error('[kalibrierung] Faktoren laden (optimize):', e) }
         try {
           const r = await regelBlockFuerNutzer(supabase, user.id)
           regelBlock = r.block
@@ -437,7 +462,7 @@ export async function POST(req: NextRequest) {
     const parsed = extractJSON(raw)
     if (parsed) {
       const updatedOffer = parsed.updatedOffer
-        ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen, deaktiviert)
+        ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen, deaktiviert, faktoren)
         : null
       // Was das Werkzeug getan hat, gehört sichtbar in den Chat — auch und
       // gerade der Fehlerfall. Fehler verschlucken war der Fehler von gestern.

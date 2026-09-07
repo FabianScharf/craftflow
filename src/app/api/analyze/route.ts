@@ -526,6 +526,9 @@ const FIXKOSTEN_MINIMA: Record<string, number> = {
 
 import { kappeZeiten, ALTBAU_RE } from '@/lib/zeitpruefung'
 import { parseLaufmeter } from '@/lib/laufmeter'
+import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
+import { bucheUm } from '@/lib/handarbeit'
+import { ladeFaktoren } from '@/lib/kalibrierungsspeicher'
 
 const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
 
@@ -592,7 +595,8 @@ function validateAndFix(
   originalInput = '',
   customSaetze: Record<string, number> = {},
   matGruppen: Array<{ name: string; aufschlag_prozent: number }> = [],
-  deaktiviert: Set<string> = new Set()
+  deaktiviert: Set<string> = new Set(),
+  faktoren: Faktoren = KEINE_FAKTOREN
 ): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
@@ -607,8 +611,10 @@ function validateAndFix(
     let az: AZ[] = Array.isArray(pos.arbeitszeit)
       ? pos.arbeitszeit.map(a => ({ ...a, kostenstelle: normalizeKostenstelle(a.kostenstelle) }))
       : []
-    // Deaktivierte Kostenstellen komplett entfernen — sie dürfen nicht kalkuliert werden.
-    if (deaktiviert.size > 0) az = az.filter(a => !deaktiviert.has(a.kostenstelle))
+    // Deaktivierte Kostenstellen: Die Arbeit wird UMGEBUCHT, nicht gestrichen.
+    // Vorher stand hier ein filter — wer CNC abschaltete, verlor die Stunden fuer
+    // die Griffmulden. Das Angebot wurde zu billig, die Arbeit fiel trotzdem an.
+    if (deaktiviert.size > 0) az = bucheUm(az, deaktiviert, activeSaetze, normalizeKsId)
     const massiv = isMassivholz(pos)
 
     // 1. Correct all vkStunde to exact FS Crafted rates
@@ -706,6 +712,11 @@ function validateAndFix(
       az = gekappt.zeilen as typeof az
       console.warn('[analyze] Zeiten gekappt:', gekappt.hinweise.join(' '))
     }
+
+    // 6c. Zeitfaktoren der Betriebskalibrierung. NACH der Deckelung, damit die
+    //     Deckelung den Branchenrichtwert prueft und nicht den bereits kalibrierten
+    //     Wert — sonst wuerde ein knapp kalibrierter Betrieb doppelt gekuerzt.
+    az = wendeFaktorenAn(az, faktoren, massiv)
 
     // 7. Plausibility check — flags (does NOT silently alter numbers) positions
     //    whose total WORKSHOP TIME is far outside the lm-based time floor.
@@ -854,10 +865,15 @@ export async function POST(req: NextRequest) {
     let preisBlock = ''
     let regelIds: string[] = []
     let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
+    let faktoren: Faktoren = KEINE_FAKTOREN
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        // Ohne abgeschlossene Kalibrierung bleibt es bei 1,0 in allen vier Bereichen
+        // — also bei Branchenwerten.
+        try { faktoren = await ladeFaktoren(supabase, user.id) }
+        catch (e) { console.error('[kalibrierung] Faktoren laden (analyze):', e) }
         const { data: profil } = await supabase
           .from('betriebsprofil')
           .select('strasse, plz, ort')
@@ -976,7 +992,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const parsed = JSON.parse(clean)
-      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert)
+      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert, faktoren)
       return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))
