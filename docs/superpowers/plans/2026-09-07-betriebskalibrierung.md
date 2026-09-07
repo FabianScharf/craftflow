@@ -1291,8 +1291,28 @@ Status ebenda. Das war beim Schreiben des Plans noch nicht klar.
    andere läuft weiter, nur mit Branchenwerten — die Faktoren bleiben auf 1,0.
 2. **Der Live-Test.** Die Abnahmeliste oben ist noch nicht abgearbeitet; geprüft sind
    bisher nur Typen, Lint und die 166 Tests.
-3. **Der Referenzpreis liegt über Fabians Faustregel.** Mit Standardsätzen ergibt die
-   hinterlegte Kalkulation 2.245 €, seine Faustregel nennt 1.200–2.000 € für 2 lfm.
-   Folge: Die beiden untersten Antwortbänder laufen beide in die Deckelung von 0,6.
-   Das ist nicht falsch — die Deckelung tut, wofür sie da ist — aber es heißt, dass
-   die Basis womöglich immer noch zu hoch liegt. **Das gehört gemessen, nicht geraten.**
+3. ~~Der Referenzpreis liegt über Fabians Faustregel.~~ **Zurückgenommen am
+   2026-09-07.** Die Sorge beruhte auf einer falsch gelesenen Faustregel: In der
+   Wissensbasis steht „600–1.000 €/lfm netto (inkl. Montage)", Fabian rechnet aber
+   mit **rund 2.000 € für 2 lfm OHNE Montage**.
+
+   Nachgerechnet am gemessenen Angebot:
+
+   | | |
+   |---|---|
+   | CraftFlow nach dem Laufmeter-Fix | 2.315 € |
+   | davon Montage + Lieferung (240 + 70 min à 65 €/h) | − 336 € |
+   | **ohne Montage** | **1.979 €** |
+   | **Fabians Faustregel** | **~2.000 €** |
+
+   Eine Abweichung von einem Prozent. Die hinterlegte Referenz liegt ohne Montage bei
+   1.909 €, ebenfalls im Rahmen. **Die Basis stimmt.**
+
+   Damit passen auch die Antwortbänder: Ein Betrieb, der wie Fabian kalkuliert, landet
+   inklusive Montage bei rund 2.300 € — im Band „2.100–2.700". Die zwei untersten
+   Bänder stehen für deutlich billigere Betriebe; dass die in die Deckelung laufen,
+   ist gewollt.
+
+   **Für die Wissensbasis:** Die Faustregel in der Projekt-`CLAUDE.md` ist
+   missverständlich. „600–1.000 €/lfm netto (inkl. Montage)" gegen „2.000 € für 2 lfm
+   ohne Montage" sind zwei verschiedene Aussagen. Gehört bereinigt.
