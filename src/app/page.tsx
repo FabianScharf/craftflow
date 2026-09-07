@@ -1300,7 +1300,10 @@ export default function CraftFlow() {
     const stundenInfo = pos.map(p => {
       const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
       const details = p.arbeitszeit.map(a => `${a.kostenstelle}: ${a.minuten} min`).join(', ')
-      return `"${p.titel}": ${totalMin} min gesamt (${(totalMin / 60).toFixed(1)} h) – ${details}`
+      // Die Zeiten stehen fuer EIN Stueck. Ohne diesen Hinweis beurteilt die KI die
+      // Stunden eines Einzelstuecks, waehrend der Nutzer den Serienpreis sieht.
+      const stk = (p.stueckzahl ?? 1) > 1 ? ` [${p.stueckzahl} gleiche Stücke, Zeiten je Stück]` : ''
+      return `"${p.titel}"${stk}: ${totalMin} min gesamt (${(totalMin / 60).toFixed(1)} h) – ${details}`
     }).join('\n')
 
     try {
@@ -1937,13 +1940,13 @@ export default function CraftFlow() {
     ]
     pos.forEach((p, i) => {
       const gesamt = calcAngebotspos(p)
-      lines.push(`Position ${i + 1}: ${p.titel}`)
+      lines.push(`Position ${i + 1}: ${p.titel}${(p.stueckzahl ?? 1) > 1 ? ` — ${p.stueckzahl} Stück` : ''}`)
       if (p.material.length > 0) {
         lines.push('Material: ' + p.material.map(m => `${m.bezeichnung} (${m.menge} ${m.einheit})`).join(', '))
       }
       if (p.arbeitszeit.length > 0) {
         const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
-        lines.push(`Arbeitszeit: ${(totalMin / 60).toFixed(1)} h`)
+        lines.push(`Arbeitszeit: ${(totalMin / 60).toFixed(1)} h${(p.stueckzahl ?? 1) > 1 ? ' je Stück' : ''}`)
       }
       lines.push(`Gesamtpreis: ${eur(gesamt)}`)
       lines.push('')
@@ -3765,7 +3768,7 @@ export default function CraftFlow() {
                     <div style={{ marginBottom: 10 }}>
                       {/* Header + Gesamtübersicht */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                        <Lbl>Arbeitszeit</Lbl>
+                        <Lbl>{(p.stueckzahl ?? 1) > 1 ? 'Arbeitszeit (je Stück)' : 'Arbeitszeit'}</Lbl>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
                           {(() => {
                             const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)

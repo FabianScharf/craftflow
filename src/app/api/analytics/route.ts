@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { calcAngebotspos, type Angebotsposition } from '@/lib/types'
 
-function calcNetto(pos: { material?: { menge: number; ekPreis: number; aufschlag: number }[]; arbeitszeit?: { minuten: number; vkStunde: number }[] }[]): number {
-  return (pos || []).reduce((sum, p) => {
-    const mat = (p.material || []).reduce((s, m) => s + (m.menge || 0) * (m.ekPreis || 0) * (1 + (m.aufschlag || 0)), 0)
-    const arb = (p.arbeitszeit || []).reduce((s, a) => s + ((a.minuten || 0) / 60) * (a.vkStunde || 0), 0)
-    return sum + mat + arb
-  }, 0)
+// Rechnet NICHT mehr selbst. Die eigene Kopie kannte die Stueckzahl nicht — die
+// Auswertung haette Serienauftraege systematisch zu niedrig ausgewiesen (gefunden im
+// Check-Up am 2026-09-07).
+function calcNetto(pos: unknown[]): number {
+  return (pos || []).reduce((sum: number, p) => sum + calcAngebotspos(p as Angebotsposition), 0)
 }
 
 export async function GET() {

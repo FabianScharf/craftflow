@@ -41,9 +41,49 @@ test('Mehrere abgeschaltete Kostenstellen summieren sich im Ziel', () => {
   assert.equal(ziel.minuten, Math.round(60 * 1.6) + Math.round(120 * 1.6))
 })
 
-test('Ist auch das Ziel abgeschaltet, geht nichts verloren', () => {
+test('Ist auch das Ziel abgeschaltet, geht die Handarbeit nicht verloren', () => {
   const r = bucheUm(neu(), new Set(['CNC', 'Zusammenbau']), SAETZE)
   assert.ok(summe(r) > 380, `Minuten verloren: ${summe(r)}`)
+})
+
+// GEFUNDEN IM CHECK-UP 2026-09-07: Vorher wurde JEDE abgeschaltete Kostenstelle
+// umgebucht, auch die Montage. "Ich montiere nie" machte aus 90 min Montage
+// 144 min Werkstattzeit — der Kunde holt ab, und der Betrieb baut laenger. Unsinn.
+test('Abgeschaltete Montage ENTFAELLT, sie wird nicht zu Werkstattzeit', () => {
+  const zeilen = [
+    { kostenstelle: 'Zusammenbau', minuten: 200, vkStunde: 65 },
+    { kostenstelle: 'Montage', minuten: 90, vkStunde: 65 },
+    { kostenstelle: 'Lieferung', minuten: 30, vkStunde: 65 },
+  ]
+  const r = bucheUm(zeilen, new Set(['Montage']), SAETZE)
+  assert.equal(r.find(z => z.kostenstelle === 'Montage'), undefined, 'Montage ist raus')
+  assert.equal(r.find(z => z.kostenstelle === 'Zusammenbau').minuten, 200, 'Zusammenbau unveraendert')
+  assert.equal(r.find(z => z.kostenstelle === 'Lieferung').minuten, 30, 'Lieferung bleibt')
+})
+
+test('Der gemessene Fall aus dem Check-Up ergibt jetzt 488 statt 632', () => {
+  const zeilen = [
+    { kostenstelle: 'Zuschnitt', minuten: 100, vkStunde: 72 },
+    { kostenstelle: 'Bekantung', minuten: 120, vkStunde: 100 },
+    { kostenstelle: 'CNC', minuten: 60, vkStunde: 120 },
+    { kostenstelle: 'Zusammenbau', minuten: 200, vkStunde: 65 },
+    { kostenstelle: 'Montage', minuten: 90, vkStunde: 65 },
+    { kostenstelle: 'Lieferung', minuten: 30, vkStunde: 65 },
+  ]
+  const r = bucheUm(zeilen, new Set(['Bekantung', 'CNC', 'Montage']), SAETZE)
+  // 120 + 60 = 180 Maschinenminuten x 1,6 = 288, dazu die 200 im Zusammenbau
+  assert.equal(r.find(z => z.kostenstelle === 'Zusammenbau').minuten, 488)
+  assert.equal(r.find(z => z.kostenstelle === 'Montage'), undefined)
+  assert.equal(r.find(z => z.kostenstelle === 'Lieferung').minuten, 30)
+})
+
+test('Abgeschalteter Zuschnitt entfaellt — Zuschnitt wird dann zugekauft', () => {
+  const r = bucheUm([
+    { kostenstelle: 'Zuschnitt', minuten: 100, vkStunde: 72 },
+    { kostenstelle: 'Zusammenbau', minuten: 200, vkStunde: 65 },
+  ], new Set(['Zuschnitt']), SAETZE)
+  assert.equal(r.length, 1)
+  assert.equal(r[0].minuten, 200)
 })
 
 test('Die Normalisierung wird beachtet — Legacy-Codes greifen weiter', () => {

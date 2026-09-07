@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { calcAngebotspos, type Angebotsposition } from '@/lib/types'
 
 function xe(s: string) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -9,10 +10,11 @@ interface MatPos { menge: number; einheit: string; ekPreis: number; aufschlag: n
 interface ArbPos { minuten: number; vkStunde: number }
 interface Pos { titel: string; beschreibung: string; material: MatPos[]; arbeitszeit: ArbPos[] }
 
+// Rechnet NICHT mehr selbst. Die eigene Kopie kannte die Stueckzahl nicht — eine
+// Serienposition waere mit dem Preis fuer EIN Stueck exportiert worden (gefunden im
+// Check-Up am 2026-09-07). calcAngebotspos ist die einzige Quelle der Wahrheit.
 function calcGesamt(p: Pos): number {
-  const mat = p.material.reduce((s, m) => s + m.menge * m.ekPreis * (1 + m.aufschlag), 0)
-  const arb = p.arbeitszeit.reduce((s, a) => s + (a.minuten / 60) * a.vkStunde, 0)
-  return mat + arb
+  return calcAngebotspos(p as unknown as Angebotsposition)
 }
 
 export async function POST(req: NextRequest) {
