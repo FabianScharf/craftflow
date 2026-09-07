@@ -22,13 +22,20 @@ test('Rollcontainer: Formel trifft die gemessenen 216 min auf 15 % genau', () =>
     `Formel ${erwartet} gegen gemessen ${gemessen}`)
 })
 
-test('Der Rollcontainer mit 8,8 h waere aufgefallen', () => {
-  // 8,8 h gesamt, davon Zuschnitt + Zusammenbau 3,6 h — das lief durch, weil ohne
-  // Laufmeter gar nicht geprueft wurde. Mit Stueckliste gibt es jetzt eine Grenze.
+test('Es gibt jetzt ueberhaupt eine Grenze — sie faengt aber nur groben Ueberschuss', () => {
+  // EHRLICHE EINORDNUNG (2026-09-07): Der Rollcontainer mit 8,8 h waere von dieser
+  // Grenze NICHT gefangen worden. Dort lagen Zuschnitt + Zusammenbau bei 216 min,
+  // klar unter dem Deckel. Die ueberschuessige Zeit steckte woanders: 1 h
+  // Kantenanleimen, 0,8 h CNC, 1,4 h Planungsblock.
+  //
+  // Was die Stueckliste leistet: Wo vorher GAR NICHT geprueft wurde, gibt es jetzt
+  // eine Obergrenze fuer den Hauptblock. Das faengt einen Ausreisser um Faktor zwei,
+  // nicht eine ueber viele Kostenstellen verteilte Grosszuegigkeit.
   const teile = { drehtueren: 0, schiebetueren: 0, klappen: 0, schubladen: 3, einlegeboeden: 0 }
   const deckel = deckelNachStueckliste(1.64, teile)
-  assert.ok(deckel > 0, 'Es gibt jetzt ueberhaupt eine Grenze')
-  assert.ok(deckel < 8.8 * 60, `Deckel ${deckel} min liegt unter den 528 min von damals`)
+  assert.ok(deckel > 0, 'Es gibt eine Grenze')
+  assert.ok(deckel > 216, 'Der real gemessene Wert liegt darunter — richtigerweise')
+  assert.ok(deckel < 700, `Deckel ${deckel} min faengt grobe Ausreisser`)
 })
 
 // ── Zaehlen aus dem Text ──────────────────────────────────────────────────────
