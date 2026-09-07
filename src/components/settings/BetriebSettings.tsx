@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { C } from '@/lib/types'
-import { BETRIEBSFRAGEN, referenzFuer } from '@/lib/kalibrierung'
+import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 
 // Einstellungen -> Mein Betrieb. Zeigt dieselben neun Fragen wie die Erst-Anmeldung
 // und die vier daraus abgeleiteten Faktoren in Klartext.
@@ -58,13 +58,19 @@ export default function BetriebSettings() {
   const [gespeichert, setGespeichert] = useState(false)
   const [schleife, setSchleife] = useState<{ angebote: number; begruendung: string[] } | null>(null)
   const [schleifeLaeuft, setSchleifeLaeuft] = useState(false)
+  // Was CraftFlow fuer das Referenzmoebel mit SEINEN Saetzen rechnet.
+  const [anker, setAnker] = useState<{ preis: number; ohneMaterial: boolean; teiler: number } | null>(null)
 
   useEffect(() => { void laden() }, [])
 
   async function laden() {
     const res = await fetch('/api/settings/kalibrierung')
     if (res.ok) {
-      const j = await res.json() as { kalibrierung?: Kalibrierung | null }
+      const j = await res.json() as {
+        kalibrierung?: Kalibrierung | null
+        referenz?: { preis: number; ohneMaterial: boolean; teiler: number }
+      }
+      if (j.referenz) setAnker(j.referenz)
       if (j.kalibrierung) {
         setK({ ...LEER, ...j.kalibrierung,
           maschinen: Array.isArray(j.kalibrierung.maschinen) ? j.kalibrierung.maschinen : [],
@@ -153,11 +159,11 @@ export default function BetriebSettings() {
 
   const gruppe = (
     titel: string, hinweis: string, werte: Array<{ wert: string; text: string }>,
-    aktuell: string, setzen: (w: string) => void,
+    aktuell: string, setzen: (w: string) => void, fussnote = '',
   ) => (
     <div style={{ marginBottom: 26 }}>
       <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{titel}</div>
-      {hinweis && <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10 }}>{hinweis}</div>}
+      {hinweis && <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10, lineHeight: 1.5 }}>{hinweis}</div>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {werte.map(w => (
           <button key={w.wert} onClick={() => setzen(w.wert)} style={knopf(aktuell === w.wert)}>
@@ -165,6 +171,12 @@ export default function BetriebSettings() {
           </button>
         ))}
       </div>
+      {fussnote && (
+        <div style={{ marginTop: 10, background: '#1F1B16', border: '1px solid #3A2E22',
+          borderRadius: 8, padding: '9px 12px', color: '#C0AE9A', fontSize: 12, lineHeight: 1.55 }}>
+          {fussnote}
+        </div>
+      )}
     </div>
   )
 
@@ -225,12 +237,24 @@ export default function BetriebSettings() {
           Es richtet sich nach dem, was du oben angekreuzt hast. Genau diese fünf Dinge
           braucht CraftFlow immer: Möbelart, Maße, Material, Ausstattung, Montage.
         </div>
+        {anker && (
+          <div style={{ color: '#8A8A8A', fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
+            Mit deinen Stundensätzen rechnet CraftFlow dafür zurzeit{' '}
+            <b style={{ color: C.copper }}>
+              {Math.round(anker.preis / anker.teiler).toLocaleString('de-DE')} €
+            </b>
+            {anker.teiler > 1 ? ' je Stück' : ''}
+            {anker.ohneMaterial ? ' für die Arbeit, ohne Material' : ' netto'}.
+            Weicht deine Zahl stark ab, passt CraftFlow die Zeiten an.
+          </div>
+        )}
       </div>
 
       {ref.fragenliste.map(f => (
         <div key={f.schluessel}>
-          {gruppe(f.text, '', f.baender.map(b => ({ wert: b.schluessel, text: b.text })),
-            antwort(f.schluessel), w => setzeAntwort(f.schluessel, w))}
+          {gruppe(f.text, f.hinweis, f.baender.map(b => ({ wert: b.schluessel, text: b.text })),
+            antwort(f.schluessel), w => setzeAntwort(f.schluessel, w),
+            RANDBAENDER.includes(antwort(f.schluessel)) ? RANDHINWEIS : '')}
         </div>
       ))}
 

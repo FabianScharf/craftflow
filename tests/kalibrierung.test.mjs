@@ -204,7 +204,7 @@ test('Ohne Kalibrierung kein Block', () => {
 
 // ── Referenzmoebel je Schwerpunkt (2026-09-07) ──────────────────────────────
 
-import { REFERENZEN, referenzFuer } from '../src/lib/kalibrierung.ts'
+import { REFERENZEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '../src/lib/kalibrierung.ts'
 
 const FELD = { grund: 'werkstatt', lack: 'oberflaeche', massiv: 'massivholz', montage: 'montage' }
 const LEER = { grund: '', lack: '', massiv: '', montage: '' }
@@ -307,4 +307,82 @@ test('Ein unbekannter Bandschluessel ergibt Faktor 1,0, nicht NaN', () => {
     { grund: '1200-1600', lack: '700-1100', massiv: 'ueber-6000', montage: 'ein-tag' },
     SAETZE, AUFSCHLAG)
   assert.deepEqual(f, { werkstatt: 1, oberflaeche: 1, massivholz: 1, montage: 1 })
+})
+
+// ── Fragen ohne Material (2026-09-07) ───────────────────────────────────────
+
+const wert = (posten, faktor = 1) =>
+  posten.reduce((s, p) => s + (p.minuten * faktor / 60) * (SAETZE[p.kostenstelle] ?? 65), 0)
+
+test('Wo Material den Preis dominiert, wird ohne Material gefragt', () => {
+  // DIE REGEL: Uebersteigt der Materialwert die Haelfte dessen, wonach gefragt wird,
+  // sagt der Gesamtpreis fast nichts ueber das Tempo des Betriebs aus — zwei gleich
+  // schnelle Schreiner liegen allein durch Einkauf und Aufschlag hunderte Euro
+  // auseinander, und die wuerden wir komplett der Zeit anlasten.
+  //
+  // Dieser Test faellt, sobald jemand eine Referenz aendert und die Frage nicht
+  // mitzieht. Genau das war der Fehler bei den Innentueren.
+  for (const r of Object.values(REFERENZEN)) {
+    const fix = wert(r.fixsockel), mont = wert(r.montage)
+    for (const frage of r.fragenliste) {
+      let material = 0, ganz = 0
+      if (frage.schluessel === 'grund') {
+        material = r.materialEk * 1.3
+        ganz = material + fix + wert(r.werkstatt) + mont
+      } else if (frage.schluessel === 'massiv') {
+        material = r.massivMaterialEk * 1.3
+        ganz = material + fix + mont + wert(r.werkstatt, r.massivWerkstattFaktor)
+          + (r.massivOberflaecheMinuten / 60) * SAETZE['Oberfläche']
+      } else continue
+
+      const anteil = material / ganz
+      const ohne = (r.ohneMaterial ?? []).includes(frage.schluessel)
+      if (anteil > 0.5) {
+        assert.ok(ohne,
+          `${r.name}/${frage.schluessel}: Material ist ${(anteil * 100).toFixed(0)} % — ` +
+          `die Frage muss ohne Material gestellt werden`)
+      }
+      // Und umgekehrt: Wer ohne Material fragt, muss es auch im Text sagen.
+      if (ohne) {
+        assert.ok(/ohne|selbst stellt|zahlt der Kunde/i.test(frage.text + ' ' + frage.hinweis),
+          `${r.name}/${frage.schluessel}: rechnet ohne Material, sagt es aber nicht`)
+      }
+    }
+  }
+})
+
+test('Ohne Material gefragt heisst auch ohne Material gerechnet', () => {
+  // Die Bandmitte MUSS zur Formel passen. Stuende in der Frage der Bruttopreis und
+  // in der Rechnung der Nettopreis, waere jeder Faktor falsch.
+  const r = REFERENZEN.tueren
+  const f = berechneFaktoren({ ...LEER, grund: 'b3' }, SAETZE, AUFSCHLAG, r)
+  assert.ok(Math.abs(f.werkstatt - 1.0) <= 0.03, `Faktor war ${f.werkstatt}`)
+  // Die Bandmitte liegt unter dem Gesamtpreis — genau um den Materialwert.
+  const band = r.baender.grund.find(b => b.schluessel === 'b3')
+  const gesamt = referenzPreis(SAETZE, AUFSCHLAG, r).gesamt
+  assert.ok(band.mitte < gesamt * 0.6,
+    `Bandmitte ${band.mitte} enthaelt offenbar noch das Material (Gesamt ${gesamt.toFixed(0)})`)
+})
+
+test('Die Tuerfrage deckt die echte Marktbreite ab', () => {
+  // 350-800 EUR je Tuer liefern und montieren (CLAUDE.md 6.1), davon rund die
+  // Haelfte Material -> die Arbeit liegt real bei etwa 150-400 EUR je Tuer. Die
+  // Baender muessen diese Spanne treffen, sonst landen die meisten auf dem Deckel.
+  const r = REFERENZEN.tueren
+  const jeTuer = r.baender.grund
+    .filter(b => b.mitte !== null).map(b => b.mitte / (r.teiler.grund ?? 1))
+  assert.ok(jeTuer[0] <= 175, `unterstes Band ${jeTuer[0].toFixed(0)} EUR je Tuer ist zu hoch`)
+  assert.ok(jeTuer[4] >= 330, `oberstes Band ${jeTuer[4].toFixed(0)} EUR je Tuer ist zu niedrig`)
+})
+
+test('Der Randhinweis haengt an genau den Baendern, die auf dem Deckel liegen', () => {
+  const r = REFERENZEN.einbauschrank
+  for (const schluessel of RANDBAENDER) {
+    const f = berechneFaktoren({ ...LEER, grund: schluessel }, SAETZE, AUFSCHLAG, r)
+    assert.ok(f.werkstatt === 0.6 || f.werkstatt === 1.4,
+      `${schluessel} liegt bei ${f.werkstatt}, nicht auf dem Deckel`)
+  }
+  // Das mittlere Band darf den Hinweis NICHT bekommen.
+  assert.ok(!RANDBAENDER.includes('b3'))
+  assert.ok(RANDHINWEIS.length > 40)
 })

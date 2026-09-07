@@ -80,6 +80,8 @@ export type Band = {
 
 const REFERENZSATZ = 70
 
+export type Fragenschluessel = 'grund' | 'lack' | 'massiv' | 'montage'
+
 type ReferenzSpec = {
   name: string
   text: string
@@ -97,7 +99,23 @@ type ReferenzSpec = {
    * Referenzmoebel NICHT gestellt (der zugehoerige Faktor bleibt 1,0). So entfaellt
    * die Massivholzfrage bei Treppe und Tisch — die sind schon massiv.
    */
-  fragen: Partial<Record<'grund' | 'lack' | 'massiv' | 'montage', string>>
+  fragen: Partial<Record<Fragenschluessel, string>>
+  /** Erlaeuterung unter der Frage, wo sie noetig ist. */
+  fragenHinweis?: Partial<Record<Fragenschluessel, string>>
+  /**
+   * Fragen, die OHNE Materialwert gestellt werden ("der Kunde stellt das Material").
+   *
+   * WARUM: Wo Material ueber die Haelfte des Preises ausmacht, sagt der Gesamtpreis
+   * fast nichts ueber das Tempo des Betriebs aus — zwei gleich schnelle Schreiner
+   * liegen allein durch Einkauf und Aufschlag hunderte Euro auseinander, und die
+   * wuerden wir komplett der Zeit anlasten. Gemessen am 2026-09-07: Bei den
+   * Innentueren bewegen +-40 % Zeit nur +-16 % Preis, die ganze Auswahl umfasste
+   * 2.500-3.200 EUR. Ohne Material fragt sich dieselbe Sache als 160-340 EUR je
+   * Tuer — die echte Marktbreite, und ein Schreiner bietet Tueren ohnehin so an.
+   */
+  ohneMaterial?: Fragenschluessel[]
+  /** Label je Stueck statt fuer alles zusammen (Innentueren: 5). */
+  teiler?: Partial<Record<Fragenschluessel, number>>
 }
 
 // Aus der Flaeche entstehen die Zahlen der Lack- und der Massivholzfrage. Die
@@ -128,6 +146,9 @@ function baueReferenz(spec: ReferenzSpec) {
     name: spec.name,
     text: spec.text,
     fragen: spec.fragen,
+    fragenHinweis: spec.fragenHinweis ?? {},
+    ohneMaterial: spec.ohneMaterial ?? [],
+    teiler: spec.teiler ?? {},
     materialEk: Math.round(spec.preis * spec.materialAnteil / 1.3),
     // Der Fixsockel verteilt sich wie beim Einbauschrank auf die vier Kostenstellen.
     fixsockel: [
@@ -184,11 +205,18 @@ const SPECS: Record<string, ReferenzSpec> = {
     preis: 2900, materialAnteil: 0.55,
     anteilFix: 0.10, anteilWerkstatt: 0.18, anteilOberflaeche: 0.02, anteilMontage: 0.70,
     flaecheM2: 20,
+    // Material macht hier 56 % (Grundfrage) bzw. 61 % (Massivholzfrage) aus.
+    ohneMaterial: ['grund', 'massiv'],
+    teiler: { grund: 5, massiv: 5 },
     fragen: {
-      grund: 'Was nimmst du für die fünf Türen mit Zargen, netto?',
+      grund: 'Was nimmst du fürs Einpassen einer Tür, wenn der Kunde Tür und Zarge selbst stellt?',
       lack: 'Dieselben Türen, aber von dir weiß lackiert seidenmatt statt beschichtet gekauft. Was kommt dazu?',
-      massiv: 'Dieselben fünf Türen in Eiche massiv, geölt. Was nimmst du?',
+      massiv: 'Dieselben Türen in Eiche massiv, geölt: Was nimmst du je Tür für deine Arbeit, ohne das Holz?',
       montage: 'Dieselben fünf Türen im Altbau: alte Zargen raus, Wände nicht im Lot, Böden schief. Wie lange bist du dran?',
+    },
+    fragenHinweis: {
+      grund: 'Nur deine Arbeit — Türblatt und Zarge zahlt der Kunde extra. So misst CraftFlow dein Tempo und nicht deinen Einkauf.',
+      massiv: 'Wieder nur deine Arbeit, das Eichenholz zahlt der Kunde extra.',
     },
   },
   treppen: {
@@ -197,11 +225,16 @@ const SPECS: Record<string, ReferenzSpec> = {
     preis: 5000, materialAnteil: 0.55,
     anteilFix: 0.14, anteilWerkstatt: 0.28, anteilOberflaeche: 0.08, anteilMontage: 0.50,
     flaecheM2: 12,
+    // Material macht hier 55 % aus — die Rohtreppe ist zugekauft.
+    ohneMaterial: ['grund'],
+    fragenHinweis: {
+      grund: 'Nur deine Arbeit — die Rohtreppe zahlt der Kunde extra. So misst CraftFlow dein Tempo und nicht deinen Einkauf.',
+    },
     // Keine Massivholzfrage: Die Treppe IST schon Buche massiv. Die Grundfrage misst
     // die Massivholzarbeit hier bereits mit — ein zweites Mal danach zu fragen waere
     // eine Scheinfrage, deren Antwort nichts hergibt.
     fragen: {
-      grund: 'Was nimmst du für so eine Treppe, netto?',
+      grund: 'Was berechnest du für Einbau und Anpassung, wenn der Kunde die Rohtreppe selbst stellt?',
       lack: 'Dieselbe Treppe, aber weiß lackiert seidenmatt statt geölt. Was kommt dazu?',
       montage: 'Dieselbe Treppe im Altbau: schiefe Wände, Podest anpassen, enges Treppenhaus. Wie lange bist du dran?',
     },
@@ -262,7 +295,12 @@ const STANDARDSAETZE: Saetze = {
 }
 const STANDARDAUFSCHLAG = 0.30
 
-const rund = (n: number) => Math.round(n / 50) * 50
+// Rundung nach Groessenordnung: Ein Preis je Tuer (rund 250 EUR) auf 50er gerundet
+// waere unbrauchbar grob.
+const rund = (n: number) => {
+  const stufe = n < 500 ? 10 : n < 5000 ? 50 : 100
+  return Math.round(n / stufe) * stufe
+}
 const eur = (n: number) => `${n.toLocaleString('de-DE')} €`
 
 /**
@@ -294,6 +332,20 @@ function skala(
   ]
 }
 
+/**
+ * Steht unter der Frage, sobald jemand das unterste oder oberste Band waehlt.
+ *
+ * WARUM: Diese beiden Baender SIND der Deckel (0,6 bzw. 1,4). Wer in Wahrheit noch
+ * weiter darunter liegt, kann uns das gar nicht mitteilen — und bekaeme sonst
+ * kommentarlos einen Preis, den er sich nicht erklaeren kann. Genau daran sind
+ * Testkunden abgesprungen. Ein Satz, der auf die richtige Stellschraube zeigt, ist
+ * mehr wert als ein weiter gedehnter Faktor.
+ */
+export const RANDHINWEIS = 'Das ist der äußere Rand dessen, was ich über die Zeiten ausgleichen kann. Liegst du noch deutlich darunter oder darüber, liegt es meist nicht an der Geschwindigkeit, sondern an deinen Stundensätzen oder deinem Materialaufschlag — beides steht in den Einstellungen.'
+
+/** Die beiden Baender, die auf dem Deckel liegen. */
+export const RANDBAENDER = ['b1', 'b5']
+
 const AUSWEICHEN: Band[] = [
   { schluessel: 'nicht',     text: 'mache ich nicht',       mitte: null },
   { schluessel: 'unbekannt', text: 'weiß ich gerade nicht', mitte: null },
@@ -323,8 +375,19 @@ function baueBaender(r: Bandbasis): Record<string, Band[]> {
   const montage = w(r.montage)
   const alle: Record<string, Band[]> = {}
 
-  // Grundfrage: der Gesamtpreis des Moebels.
-  alle.grund = skala(material + fix, w(r.werkstatt) + montage, n => eur(rund(n)))
+  // Ohne Material gefragt? Dann faellt der Materialwert aus dem Sockel — sonst
+  // stuende in der Frage eine andere Zahl als in der Rechnung.
+  const ohne = (k: Fragenschluessel) => (r.ohneMaterial ?? []).includes(k)
+  // Label je Stueck, Bandmitte bleibt der Gesamtwert: Gefragt wird "je Tuer",
+  // gerechnet wird gegen die Referenz aus fuenf Tueren.
+  const label = (k: Fragenschluessel) => {
+    const t = r.teiler?.[k] ?? 1
+    return (n: number) => eur(rund(n / t))
+  }
+
+  // Grundfrage: der Gesamtpreis des Moebels — oder nur der Arbeitspreis.
+  alle.grund = skala(ohne('grund') ? fix : material + fix,
+    w(r.werkstatt) + montage, label('grund'))
 
   // Lackfrage: nur der AUFSCHLAG gegenueber der Standardoberflaeche, deshalb ohne
   // Sockel und ohne Montage.
@@ -337,8 +400,8 @@ function baueBaender(r: Bandbasis): Record<string, Band[]> {
   const massivZeit = w(r.werkstatt, r.massivWerkstattFaktor)
     + (r.massivOberflaecheMinuten / 60) * STANDARDSAETZE['Oberfläche']
   alle.massiv = skala(
-    r.massivMaterialEk * (1 + STANDARDAUFSCHLAG) + fix + montage, massivZeit,
-    n => eur(rund(n)))
+    (ohne('massiv') ? 0 : r.massivMaterialEk * (1 + STANDARDAUFSCHLAG)) + fix + montage,
+    massivZeit, label('massiv'))
 
   // Montagefrage: eine DAUER im Altbau, nicht ein Preis. Ohne Sockel, weil der
   // Faktor die reine Montagezeit gegen unsere Altbau-Erwartung stellt.
@@ -358,14 +421,17 @@ function baueBaender(r: Bandbasis): Record<string, Band[]> {
 export type Referenzmoebel = Bandbasis & {
   baender: Record<string, Band[]>
   /** Die Fragen in Reihenfolge — Grundfrage zuerst, dann die Differenzfragen. */
-  fragenliste: Array<{ schluessel: string; text: string; baender: Band[] }>
+  fragenliste: Array<{ schluessel: Fragenschluessel; text: string; hinweis: string; baender: Band[] }>
 }
 
 function mitBaendern(r: Bandbasis): Referenzmoebel {
   const baender = baueBaender(r)
   const fragenliste = (['grund', 'lack', 'massiv', 'montage'] as const)
     .filter(k => r.fragen[k] && baender[k])
-    .map(k => ({ schluessel: k, text: r.fragen[k] as string, baender: baender[k] }))
+    .map(k => ({
+      schluessel: k, text: r.fragen[k] as string,
+      hinweis: r.fragenHinweis?.[k] ?? '', baender: baender[k],
+    }))
   return { ...r, baender, fragenliste }
 }
 
@@ -379,6 +445,11 @@ export const REFERENZEN: Record<string, Referenzmoebel> = {
       massiv: 'Derselbe Schrank in Eiche massiv, geölt. Was nimmst du?',
       montage: 'Derselbe Schrank im Altbau: Wände nicht im Lot, Dielenboden, zweiter Stock ohne Aufzug. Wie lange bist du dran?',
     },
+    // Material macht hier nur 24 % aus (Massivholzfrage 49 %) — der Gesamtpreis ist
+    // die natuerlichere Frage und der Zeithebel gross genug.
+    fragenHinweis: {},
+    ohneMaterial: [],
+    teiler: {},
     ...REFERENZ,
   }),
   ...Object.fromEntries(Object.entries(SPECS).map(([k, spec]) =>
@@ -600,8 +671,10 @@ export function berechneFaktoren(
   // Sprung ins Extrem gewesen.
   const grund = mitte('grund', a.grund, ref)
   const skalierbar = r.werkstatt + r.montage
+  const ohneMaterial = (k: Fragenschluessel) => (ref.ohneMaterial ?? []).includes(k)
   if (grund !== null && skalierbar > 0) {
-    f.werkstatt = deckele((grund - r.material - r.fixsockel) / skalierbar)
+    const sockel = ohneMaterial('grund') ? r.fixsockel : r.material + r.fixsockel
+    f.werkstatt = deckele((grund - sockel) / skalierbar)
     // Ohne eigene Montage-Antwort erbt die Montage die Geschwindigkeit des Betriebs.
     f.montage = f.werkstatt
   }
@@ -615,7 +688,7 @@ export function berechneFaktoren(
 
   const massiv = mitte('massiv', a.massiv, ref)
   if (massiv !== null) {
-    const massivMaterial = ref.massivMaterialEk * (1 + aufschlag)
+    const massivMaterial = ohneMaterial('massiv') ? 0 : ref.massivMaterialEk * (1 + aufschlag)
     const massivWerkstatt = wert(ref.werkstatt, saetze, ref.massivWerkstattFaktor)
     const massivOberflaeche = (ref.massivOberflaecheMinuten / 60) * (saetze['Oberfläche'] ?? 72)
     const zeitanteil = massivWerkstatt + massivOberflaeche

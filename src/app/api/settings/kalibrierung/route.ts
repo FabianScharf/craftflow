@@ -1,13 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { berechneFaktoren, deckele, referenzFuer } from '@/lib/kalibrierung'
+import { berechneFaktoren, deckele, referenzFuer, referenzPreis } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  return NextResponse.json({ kalibrierung: await ladeKalibrierung(supabase, user.id) })
+  const kalibrierung = await ladeKalibrierung(supabase, user.id)
+
+  // Der Ankerpreis: Was CraftFlow fuer das Referenzmoebel mit SEINEN Saetzen
+  // rechnet. Ohne diese Zahl beantwortet er die Frage ins Blaue — mit ihr sieht er
+  // sofort, ob er darueber oder darunter liegt.
+  const { saetze, aufschlag } = await ladeSaetzeUndAufschlag(supabase, user.id)
+  const ref = referenzFuer(kalibrierung?.schwerpunkt)
+  const p = referenzPreis(saetze, aufschlag, ref)
+  const ohneMaterial = (ref.ohneMaterial ?? []).includes('grund')
+
+  return NextResponse.json({
+    kalibrierung,
+    referenz: {
+      name: ref.name,
+      // Bei Fragen ohne Material ist der Anker der reine Arbeitspreis.
+      preis: Math.round(ohneMaterial ? p.gesamt - p.material : p.gesamt),
+      ohneMaterial,
+      teiler: ref.teiler?.grund ?? 1,
+    },
+  })
 }
 
 // Stundensaetze und Materialaufschlag des Nutzers. Die Referenzkalkulation ist fuer

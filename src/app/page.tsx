@@ -15,7 +15,7 @@ import {
   type DbKostenstelle, type DbMaterialgruppe,
 } from '@/lib/types'
 import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
-import { BETRIEBSFRAGEN, referenzFuer } from '@/lib/kalibrierung'
+import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -2036,11 +2036,17 @@ export default function CraftFlow() {
     </div>
   )
 
-  const kalibFrage = (titel: string, kind: React.ReactNode, hinweis = '') => (
+  const kalibFrage = (titel: string, kind: React.ReactNode, hinweis = '', fussnote = '') => (
     <div style={{ marginBottom: 16 }}>
       <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: hinweis ? 3 : 8 }}>{titel}</div>
       {hinweis && <div style={{ color: '#7A7A7A', fontSize: 11, marginBottom: 8, lineHeight: 1.5 }}>{hinweis}</div>}
       {kind}
+      {fussnote && (
+        <div style={{ marginTop: 9, background: '#1F1B16', border: '1px solid #3A2E22',
+          borderRadius: 8, padding: '8px 11px', color: '#C0AE9A', fontSize: 11.5, lineHeight: 1.55 }}>
+          {fussnote}
+        </div>
+      )}
     </div>
   )
 
@@ -2208,7 +2214,9 @@ export default function CraftFlow() {
           </div>
           {refGrund && kalibFrage(refGrund.text,
             kalibWahl({ grund: refGrund.baender }, 'grund', kalib.antwort_grund,
-              w => setKalib({ ...kalib, antwort_grund: w })))}
+              w => setKalib({ ...kalib, antwort_grund: w })),
+            refGrund.hinweis,
+            RANDBAENDER.includes(kalib.antwort_grund) ? RANDHINWEIS : '')}
           <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8,
             padding: '10px 14px', color: '#8A8A8A', fontSize: 12 }}>
             🔒 Diese Angabe sieht niemand außer dir.
@@ -2229,7 +2237,9 @@ export default function CraftFlow() {
           {refDiff.map(f => (
             <div key={f.schluessel}>
               {kalibFrage(f.text, kalibWahl({ [f.schluessel]: f.baender }, f.schluessel,
-                kalib[kalibFeld[f.schluessel]], w => setKalib({ ...kalib, [kalibFeld[f.schluessel]]: w })))}
+                kalib[kalibFeld[f.schluessel]], w => setKalib({ ...kalib, [kalibFeld[f.schluessel]]: w })),
+                f.hinweis,
+                RANDBAENDER.includes(kalib[kalibFeld[f.schluessel]]) ? RANDHINWEIS : '')}
             </div>
           ))}
           <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6 }}>
