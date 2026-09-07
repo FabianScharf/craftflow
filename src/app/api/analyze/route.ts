@@ -525,6 +525,7 @@ const FIXKOSTEN_MINIMA: Record<string, number> = {
 }
 
 import { kappeZeiten, ALTBAU_RE } from '@/lib/zeitpruefung'
+import { parseLaufmeter } from '@/lib/laufmeter'
 
 const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
 
@@ -555,20 +556,7 @@ function isMassivholz(pos: Pos): boolean {
 // Capped at MAX_PLAUSIBLE_LM: the AI's own material/time breakdown in the
 // Beschreibung is full of "X,XX m²" area figures, and without the cap those
 // used to get summed up as if they were linear metres (see 2026-07-04 incident).
-const MAX_PLAUSIBLE_LM = 25
-
-function parseLaufmeter(text: string): number {
-  // (?![\w²³]) excludes "m²"/"m³"/"mm" — only bare m/lm/lfm count as linear metres.
-  const mRe = /(\d+[,.]\d+)\s*(?:lfm|lm|m)(?![\w²³])/gi
-  const mMatches = [...text.matchAll(mRe)]
-  const mSum = mMatches.reduce((s, m) => s + parseFloat(m[1].replace(',', '.')), 0)
-  if (mSum > 0) return Math.min(mSum, MAX_PLAUSIBLE_LM)
-
-  const cmMatch = text.match(/(\d{2,4})\s*cm\s*(?:breit|breite|gesamt)/i)
-  if (cmMatch) return Math.min(parseInt(cmMatch[1]) / 100, MAX_PLAUSIBLE_LM)
-
-  return 0
-}
+// parseLaufmeter liegt in src/lib/laufmeter.ts — dort steht auch, warum.
 
 // Maps legacy numeric IDs and AI label variants to canonical clean IDs
 const KS_ALIASES: Record<string, string> = {
