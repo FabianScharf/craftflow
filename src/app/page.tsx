@@ -209,7 +209,7 @@ export default function CraftFlow() {
   // null = noch nicht geprueft, false = nicht kalibriert, true = kalibriert
   const [istKalibriert, setIstKalibriert] = useState<boolean | null>(null)
   const [kalib, setKalib] = useState({
-    mitarbeiter: '', maschinen: [] as string[], schwerpunkt: '',
+    mitarbeiter: '', maschinen: [] as string[], schwerpunkt: [] as string[],
     montage_selbst: '', stueckzahlen: '',
     antwort_grund: '', antwort_lack: '', antwort_massiv: '', antwort_montage: '',
   })
@@ -1966,6 +1966,27 @@ export default function CraftFlow() {
     textAlign: 'left' as const,
   })
 
+  // Mehrfachauswahl mit Erlaeuterung je Eintrag — ohne den Zusatz war unklar, was
+  // wohin gehoert.
+  const kalibMehrfach = (frage: string, gewaehlt: string[], setzen: (w: string[]) => void) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      {(BETRIEBSFRAGEN[frage] ?? []).map(b => {
+        const an = gewaehlt.includes(b.schluessel)
+        return (
+          <button key={b.schluessel} style={{ ...kalibKnopf(an), maxWidth: 230 }}
+            onClick={() => setzen(an ? gewaehlt.filter(x => x !== b.schluessel) : [...gewaehlt, b.schluessel])}>
+            <div style={{ fontWeight: 600 }}>{b.text}</div>
+            {b.hinweis && (
+              <div style={{ color: an ? '#9A8A7A' : '#6A6A6A', fontSize: 10.5, marginTop: 2, lineHeight: 1.4 }}>
+                {b.hinweis}
+              </div>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+
   const kalibWahl = (
     quelle: Record<string, Array<{ schluessel: string; text: string }>>,
     frage: string, aktuell: string, setzen: (w: string) => void,
@@ -2120,19 +2141,11 @@ export default function CraftFlow() {
           {kalibFrage('Wie viele arbeiten in der Werkstatt mit?',
             kalibWahl(BETRIEBSFRAGEN, 'mitarbeiter', kalib.mitarbeiter, w => setKalib({ ...kalib, mitarbeiter: w })))}
           {kalibFrage('Welche Maschinen hast du?',
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-              {(BETRIEBSFRAGEN.maschinen ?? []).map(m => {
-                const an = kalib.maschinen.includes(m.schluessel)
-                return (
-                  <button key={m.schluessel} style={kalibKnopf(an)} onClick={() => setKalib({ ...kalib,
-                    maschinen: an ? kalib.maschinen.filter(x => x !== m.schluessel) : [...kalib.maschinen, m.schluessel] })}>
-                    {m.text}
-                  </button>
-                )
-              })}
-            </div>, 'Mehrfachauswahl')}
-          {kalibFrage('Was baust du hauptsächlich?',
-            kalibWahl(BETRIEBSFRAGEN, 'schwerpunkt', kalib.schwerpunkt, w => setKalib({ ...kalib, schwerpunkt: w })))}
+            kalibMehrfach('maschinen', kalib.maschinen, w => setKalib({ ...kalib, maschinen: w })),
+            'Mehrfachauswahl')}
+          {kalibFrage('Was baust du?',
+            kalibMehrfach('schwerpunkt', kalib.schwerpunkt, w => setKalib({ ...kalib, schwerpunkt: w })),
+            'Mehrfachauswahl — wähl alles, was bei dir regelmäßig vorkommt.')}
           {kalibFrage('Montierst du selbst beim Kunden?',
             kalibWahl(BETRIEBSFRAGEN, 'montage_selbst', kalib.montage_selbst, w => setKalib({ ...kalib, montage_selbst: w })))}
           {kalibFrage('Einzelstücke oder auch größere Stückzahlen?',

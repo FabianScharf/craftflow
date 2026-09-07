@@ -66,7 +66,7 @@ export async function PUT(req: NextRequest) {
   const r = await speichereKalibrierung(supabase, user.id, {
     mitarbeiter:     text('mitarbeiter'),
     maschinen:       Array.isArray(b.maschinen) ? (b.maschinen as unknown[]).map(String) : [],
-    schwerpunkt:     text('schwerpunkt'),
+    schwerpunkt:     Array.isArray(b.schwerpunkt) ? (b.schwerpunkt as unknown[]).map(String) : [],
     montage_selbst:  text('montage_selbst'),
     stueckzahlen:    text('stueckzahlen'),
     antwort_grund:   antworten.grund,

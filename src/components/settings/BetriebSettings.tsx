@@ -14,7 +14,7 @@ import { BAENDER, BETRIEBSFRAGEN } from '@/lib/kalibrierung'
 type Kalibrierung = {
   mitarbeiter: string
   maschinen: string[]
-  schwerpunkt: string
+  schwerpunkt: string[]
   montage_selbst: string
   stueckzahlen: string
   antwort_grund: string
@@ -30,7 +30,7 @@ type Kalibrierung = {
 }
 
 const LEER: Kalibrierung = {
-  mitarbeiter: '', maschinen: [], schwerpunkt: '', montage_selbst: '', stueckzahlen: '',
+  mitarbeiter: '', maschinen: [], schwerpunkt: [], montage_selbst: '', stueckzahlen: '',
   antwort_grund: '', antwort_lack: '', antwort_massiv: '', antwort_montage: '',
   faktor_werkstatt: 1, faktor_oberflaeche: 1, faktor_massivholz: 1, faktor_montage: 1,
   abgeschlossen: false, hinweis_gezeigt: false,
@@ -68,6 +68,7 @@ export default function BetriebSettings() {
       if (j.kalibrierung) {
         setK({ ...LEER, ...j.kalibrierung,
           maschinen: Array.isArray(j.kalibrierung.maschinen) ? j.kalibrierung.maschinen : [],
+          schwerpunkt: Array.isArray(j.kalibrierung.schwerpunkt) ? j.kalibrierung.schwerpunkt : [],
           faktor_werkstatt: Number(j.kalibrierung.faktor_werkstatt),
           faktor_oberflaeche: Number(j.kalibrierung.faktor_oberflaeche),
           faktor_massivholz: Number(j.kalibrierung.faktor_massivholz),
@@ -121,6 +122,27 @@ export default function BetriebSettings() {
   const liste = (frage: string) =>
     (BETRIEBSFRAGEN[frage] ?? []).map(b => ({ wert: b.schluessel, text: b.text }))
 
+  // Mehrfachauswahl mit Erlaeuterung je Eintrag. Ohne den Zusatz war unklar, was
+  // wohin gehoert — "Möbel nach Maß" gegen "Einbauschränke" war keine Trennung.
+  const mehrfach = (frage: string, gewaehlt: string[], setzen: (w: string[]) => void) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {(BETRIEBSFRAGEN[frage] ?? []).map(b => {
+        const an = gewaehlt.includes(b.schluessel)
+        return (
+          <button key={b.schluessel} style={{ ...knopf(an), maxWidth: 260 }}
+            onClick={() => setzen(an ? gewaehlt.filter(x => x !== b.schluessel) : [...gewaehlt, b.schluessel])}>
+            <div style={{ fontWeight: 600 }}>{b.text}</div>
+            {b.hinweis && (
+              <div style={{ color: an ? '#9A8A7A' : '#6A6A6A', fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
+                {b.hinweis}
+              </div>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+
   const knopf = (aktiv: boolean) => ({
     background: aktiv ? '#2A2018' : '#1C1C1C',
     border: `1px solid ${aktiv ? C.copper : '#2E2E2E'}`,
@@ -167,21 +189,16 @@ export default function BetriebSettings() {
       <div style={{ marginBottom: 26 }}>
         <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Welche Maschinen hast du?</div>
         <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10 }}>Mehrfachauswahl</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {liste('maschinen').map(m => {
-            const an = k.maschinen.includes(m.wert)
-            return (
-              <button key={m.wert} style={knopf(an)} onClick={() => setK({ ...k,
-                maschinen: an ? k.maschinen.filter(x => x !== m.wert) : [...k.maschinen, m.wert] })}>
-                {m.text}
-              </button>
-            )
-          })}
-        </div>
+        {mehrfach('maschinen', k.maschinen, w => setK({ ...k, maschinen: w }))}
       </div>
 
-      {gruppe('Was baust du hauptsächlich?', '', liste('schwerpunkt'), k.schwerpunkt,
-        w => setK({ ...k, schwerpunkt: w }))}
+      <div style={{ marginBottom: 26 }}>
+        <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Was baust du?</div>
+        <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10 }}>
+          Mehrfachauswahl — wähl alles, was bei dir regelmäßig vorkommt.
+        </div>
+        {mehrfach('schwerpunkt', k.schwerpunkt, w => setK({ ...k, schwerpunkt: w }))}
+      </div>
       {gruppe('Montierst du selbst beim Kunden?', '', liste('montage_selbst'), k.montage_selbst,
         w => setK({ ...k, montage_selbst: w }))}
       {gruppe('Einzelstücke oder auch größere Stückzahlen?',

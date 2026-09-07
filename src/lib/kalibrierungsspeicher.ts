@@ -11,7 +11,7 @@ import { KEINE_FAKTOREN, type Faktoren } from './zeitfaktoren'
 export type Kalibrierung = {
   mitarbeiter: string
   maschinen: string[]
-  schwerpunkt: string
+  schwerpunkt: string[]
   montage_selbst: string
   stueckzahlen: string
   antwort_grund: string

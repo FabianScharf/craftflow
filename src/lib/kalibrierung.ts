@@ -53,7 +53,13 @@ export const MONTAGE_KS = ['Montage', 'Lieferung']
 // Besprechung, Planung, Konstruktion, Arbeitsvorbereitung bleiben unberuehrt: Sie
 // decken einen Sockel ab, der nicht mit der Betriebsgroesse skaliert.
 
-export type Band = { schluessel: string; text: string; mitte: number | null }
+export type Band = {
+  schluessel: string
+  text: string
+  mitte: number | null
+  /** Kurze Erlaeuterung unter der Bezeichnung, wenn sie sonst mehrdeutig waere. */
+  hinweis?: string
+}
 
 export const BAENDER: Record<string, Band[]> = {
   grund: [
@@ -109,12 +115,35 @@ export const BETRIEBSFRAGEN: Record<string, Band[]> = {
     { schluessel: 'lackierkabine', text: 'Lackierkabine',        mitte: null },
     { schluessel: 'keine',         text: 'keine davon',          mitte: null },
   ],
+  // MEHRFACHAUSWAHL. Die alte Fassung hatte "Möbel nach Maß" und "Innenausbau und
+  // Einbauschränke" nebeneinander — ein Einbauschrank IST ein Möbel nach Maß, die
+  // Trennung war keine. Und kaum ein Betrieb baut nur eines. Fabian am 2026-09-07.
+  //
+  // Die Kategorien überschneiden sich jetzt nicht mehr und tragen je einen Zusatz,
+  // der sagt, was gemeint ist.
   schwerpunkt: [
-    { schluessel: 'moebel',      text: 'Möbel nach Maß',                 mitte: null },
-    { schluessel: 'innenausbau', text: 'Innenausbau und Einbauschränke', mitte: null },
-    { schluessel: 'kuechen',     text: 'Küchen',                         mitte: null },
-    { schluessel: 'tueren',      text: 'Türen und Böden',                mitte: null },
-    { schluessel: 'gemischt',    text: 'gemischt',                       mitte: null },
+    { schluessel: 'einbau',      text: 'Einbauschränke und Garderoben', mitte: null,
+      hinweis: 'fest eingebaut, nach Maß, Montage beim Kunden' },
+    { schluessel: 'solitaer',    text: 'Freistehende Möbel', mitte: null,
+      hinweis: 'Tische, Sideboards, Regale, Betten' },
+    { schluessel: 'kuechen',     text: 'Küchen', mitte: null,
+      hinweis: 'mit Geräteeinbau' },
+    { schluessel: 'bad',         text: 'Bad- und Waschtischmöbel', mitte: null,
+      hinweis: 'Feuchtraum, oft mit Aufsatzbecken' },
+    { schluessel: 'tueren',      text: 'Innentüren und Zargen', mitte: null,
+      hinweis: 'liefern und einpassen' },
+    { schluessel: 'treppen',     text: 'Treppen', mitte: null,
+      hinweis: 'auch Geländer' },
+    { schluessel: 'boeden',      text: 'Böden', mitte: null,
+      hinweis: 'Parkett, Dielen, Fußleisten' },
+    { schluessel: 'verkleidung', text: 'Wand- und Deckenverkleidungen', mitte: null,
+      hinweis: 'auch Akustikpaneele' },
+    { schluessel: 'objekt',      text: 'Ladenbau und Objekteinrichtung', mitte: null,
+      hinweis: 'Theken, Tresen, Praxis- und Büroeinrichtung' },
+    { schluessel: 'aussen',      text: 'Außenbereich', mitte: null,
+      hinweis: 'Terrasse, Sichtschutz, Carport' },
+    { schluessel: 'reparatur',   text: 'Reparatur und Restaurierung', mitte: null,
+      hinweis: 'Aufarbeiten statt neu bauen' },
   ],
   montage_selbst: [
     { schluessel: 'immer',    text: 'immer',    mitte: null },
