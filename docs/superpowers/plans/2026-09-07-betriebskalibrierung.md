@@ -1250,3 +1250,49 @@ Erst wenn diese Punkte belegt sind, geht etwas an Fabian zur Freigabe. Gemessen 
 - [ ] „Weiß ich gerade nicht" lässt den Faktor auf 1,0 und verspricht **nichts**.
 - [ ] Kein Faktor entsteht aus einer nicht beantworteten Frage.
 - [ ] Fabians Vorbehalt, ausdrücklich: „wenn es genau so funktioniert" — der Faktor ist an echten Zahlen nachgerechnet, der Rechenweg liegt als Testskript vor, nicht nur im Kopf.
+
+---
+
+## Umsetzungsstand (2026-09-07 vormittags)
+
+Alle neun Aufgaben sind gebaut, dazu die Lernschleife. `dev` = `bf8212c`,
+`main` unberührt. **166 Tests grün**, `npx tsc --noEmit` sauber, keine neuen
+eslint-Meldungen in irgendeiner berührten Datei (jeweils gegen den Stand davor
+verglichen).
+
+| Aufgabe | Stand |
+|---|---|
+| 1 · Tabelle und Rechte | Datei liegt bereit — **muss Fabian im Supabase-Dashboard ausführen** |
+| 2 · Rechenbibliothek | fertig, 13 Tests |
+| 3 · Speicher und Schnittstelle | fertig |
+| 4 · Faktoren in der Analyse | fertig, 9 Tests |
+| 5 · Faktoren in der Optimierung | fertig |
+| 6 · Handarbeit statt Löschen | fertig, 8 Tests |
+| 7 · Erst-Anmeldung, acht Schritte | fertig |
+| 8 · Reiter „Mein Betrieb" | fertig |
+| 9 · Einstieg vom Ergebnis, Hilfe | fertig |
+| + · Lernschleife | fertig, 18 Tests |
+
+### Zwei Entscheidungen, die beim Bauen fielen
+
+**Die Faktorformel musste entschärft werden.** Fiel die ganze Differenz allein auf den
+Werkstattblock, sprang der Faktor zwischen benachbarten Bändern um 0,46 — jedes Band
+wäre ein Sprung ins Extrem gewesen. Die Differenz fällt jetzt auf alle skalierbare
+Arbeitszeit (Werkstatt + Montage). Ohne eigene Montage-Antwort erbt die Montage die
+Geschwindigkeit des Betriebs; eine eigene Antwort überschreibt das.
+
+**Die Lernschleife braucht keine neue Tabelle.** Die frühe Fassung eines Angebots
+liegt bereits in `offer_versions` (Version 1), der Endstand in `projects.data`, der
+Status ebenda. Das war beim Schreiben des Plans noch nicht klar.
+
+### Was aussteht
+
+1. **Das SQL ausführen.** Ohne die Tabelle speichert die Kalibrierung nichts. Alles
+   andere läuft weiter, nur mit Branchenwerten — die Faktoren bleiben auf 1,0.
+2. **Der Live-Test.** Die Abnahmeliste oben ist noch nicht abgearbeitet; geprüft sind
+   bisher nur Typen, Lint und die 166 Tests.
+3. **Der Referenzpreis liegt über Fabians Faustregel.** Mit Standardsätzen ergibt die
+   hinterlegte Kalkulation 2.245 €, seine Faustregel nennt 1.200–2.000 € für 2 lfm.
+   Folge: Die beiden untersten Antwortbänder laufen beide in die Deckelung von 0,6.
+   Das ist nicht falsch — die Deckelung tut, wofür sie da ist — aber es heißt, dass
+   die Basis womöglich immer noch zu hoch liegt. **Das gehört gemessen, nicht geraten.**
