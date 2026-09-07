@@ -279,3 +279,109 @@ dann müssen sie die Fragen einmal neu anklicken.
 
 **Die Einbauküche liegt mit 45 % Materialanteil im Graubereich.** Sie bleibt bei der
 Gesamtpreisfrage (±19 % Hebel reicht), aber das ist eine Setzung, keine Messung.
+
+---
+
+# Vollständiger Check am 2026-09-07
+
+Fabians Fragen: Werden die Faktoren sauber in neuen Projekten angewendet? Funktionieren
+Bauweise-Regeln und Materialpreise **zusätzlich**? Und werden zukünftige Projekte
+wirklich genauer?
+
+## Kurzantwort
+
+Alle drei Schichten wirken — und zwar gleichzeitig. Auf dem Weg dorthin sind aber
+**sieben Fehler** aufgefallen, davon vier still: Sie haben nie einen Fehler gemeldet,
+sondern einfach nichts getan.
+
+## 1. Wirken die Faktoren? — Ja, live gemessen
+
+Zweimal dieselbe Beschreibung analysiert (Einbauschrank Flur, 2,00 × 2,40 × 0,60 m),
+einmal ohne Kalibrierung, einmal mit Faktor **0,86**:
+
+| Kostenstelle | ohne | mit | Verhältnis |
+|---|---|---|---|
+| Zuschnitt | 216 | 186 | 0,861 |
+| Zusammenbau | 479 | 412 | 0,860 |
+| Montage | 240 | 206 | 0,858 |
+| Verpacken | 30 | 26 | 0,867 |
+| Konstruktion *(Sockel)* | 60 | 60 | 1,00 |
+| Arbeitsvorbereitung *(Sockel)* | 45 | 45 | 1,00 |
+| **Summe** | **1.391 min** | **1.193 min** | |
+
+Vier Kostenstellen landen exakt auf dem Faktor, der Sockel bleibt unberührt. Die
+übrigen Zeilen (Besprechung, Warenhandling, Produktion, Lieferung) schwanken zwischen
+den Läufen — das ist Streuung der KI, nicht der Faktor: Es sind zwei unabhängige
+Modellantworten. Nur wo die KI dieselbe Ausgangszahl lieferte, ist das Verhältnis
+aussagekräftig.
+
+## 2. Wirken Bauweise-Regeln und Materialpreise zusätzlich? — Ja
+
+Im Testkonto liegen zwei Regeln und zwei fixierte Preise. In **beiden** Läufen:
+
+| Quelle | Erwartet | Im Ergebnis |
+|---|---|---|
+| Regel „Rückwände aus Spanplatte 8 mm" | 8 mm statt HDF 6 mm | „Spanplatte 8 mm … (Rückwand, Betriebsstandard)" |
+| Regel „5 % Kleinmaterial" | 5 % der Materialkosten | 374,94 € × 5 % = **18,75 €** — auf den Cent |
+| Preisliste „Blum Movento Softclose-Auszug" | 26,27 €/Stk | **26,27 €** in beiden Läufen |
+
+Lauf B hatte alle drei Schichten gleichzeitig aktiv. Sie stören sich nicht.
+
+## 3. Die sieben Fehler
+
+**Von Fabian gefunden — der Ankerpreis gehörte zu einem anderen Möbel.** In „Mein
+Betrieb" stand über *jedem* Referenzmöbel derselbe Preis (2.134 €), nämlich der des
+Einbauschranks. Der Text folgte den Klicks, der Preis kam vom *gespeicherten*
+Schwerpunkt aus der Route. Zwei Quellen für dieselbe Aussage. Jetzt rechnet die
+Oberfläche Text und Preis aus demselben `ref`.
+
+**Azubistunden und eigene Kostenstellen bekamen gar keinen Faktor.** Beide Module
+zählten die sieben Werkstattstellen einzeln auf; alles außerhalb blieb unangetastet.
+Wer viel über den Azubi oder „Polieren von Hand" laufen lässt, wurde still nicht
+kalibriert. Die Logik ist umgedreht: Benannt wird jetzt, was **nicht** skaliert — der
+Fixsockel. Bei frei benennbaren Kostenstellen ist eine Aufzählung, die vollständig
+sein muss, prinzipiell nicht zu halten.
+
+**Dieselbe Lücke in der Lernschleife.** Sie hat Azubi und eigene Kostenstellen auch
+nicht beobachtet. Der Nutzer hätte Zeiten korrigiert, die nie gelernt werden. Ein Test
+koppelt die beiden Module jetzt aneinander.
+
+**Die Lernschleife konnte aus Handkorrekturen gar nicht lernen.** Version 1 entstand
+nur über den Optimieren-Chat. Ohne Version 1 überspringt die Schleife das Projekt
+kommentarlos — wer die Zeiten von Hand in der Tabelle korrigiert, lieferte also
+nichts. Jetzt wird die Erstfassung der KI direkt nach der Analyse festgehalten.
+
+**Nach einer erneuten Analyse fiel ein Angebot aus der Schleife.** Positionen wurden
+allein über die `id` gepaart, und die ist `Date.now() + i`, clientseitig vergeben.
+Ausweichweg jetzt: gleiche Anzahl Positionen **und** gleicher Titel an derselben
+Stelle — beides zusammen, damit nie zwei verschiedene Möbel verglichen werden.
+
+**In `analyze` hing die Preisliste im try-Block der Bauweise-Regeln.** Ein Fehler beim
+Laden der Regeln ließ stillschweigend auch die fixierten Einkaufspreise verschwinden.
+In `optimize` war es von Anfang an getrennt.
+
+**Projekte ließen sich überhaupt nicht löschen.** `DELETE /api/projects/[id]` räumt
+zuerst die Angebotsversionen weg und scheiterte mit *„permission denied for table
+offer_versions"*. Der Rolle `authenticated` fehlte das DELETE-Recht auf dieser Tabelle
+— steht so schon in CLAUDE.md, war bei `offer_versions` nie passiert. Behoben mit
+`docs/sql/2026-09-07-offer-versions-loeschrecht.sql`, am 2026-09-07 ausgeführt.
+
+> **Korrektur:** Ich hatte das Löschen zuvor als funktionierend gemeldet. Ich hatte
+> nur die Route und den Knopf geprüft, nie einen echten Löschvorgang. Er wäre bei
+> jedem Versuch gescheitert.
+
+## 4. Lernschleife end-to-end geprüft
+
+Drei gewonnene Angebote angelegt, bei denen die Zeiten **von Hand** korrigiert wurden
+(20 % länger als die KI schätzte), ohne Optimieren-Chat:
+
+```
+Werkstatt:  1,00 → 1,09   aus 3 gewonnenen Angeboten
+Oberfläche: 1,00 → 1,10
+Montage:    1,00 → 1,02
+```
+
+Die Werkstattsumme lag bei 660 statt 600 Minuten — die 60 Azubi-Minuten zählen jetzt
+mit. Vorschau (GET) ändert nichts, Übernahme (POST) speichert. Die Dämpfung greift:
+Aus einem Verhältnis von 1,18 wird ein Faktor von 1,09, nicht 1,18. Prüfprojekte
+danach gelöscht, Kalibrierung des Testkontos zurückgesetzt.
