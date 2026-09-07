@@ -56,6 +56,8 @@ export default function BetriebSettings() {
   const [laedt, setLaedt] = useState(true)
   const [fehler, setFehler] = useState('')
   const [gespeichert, setGespeichert] = useState(false)
+  const [schleife, setSchleife] = useState<{ angebote: number; begruendung: string[] } | null>(null)
+  const [schleifeLaeuft, setSchleifeLaeuft] = useState(false)
 
   useEffect(() => { void laden() }, [])
 
@@ -96,6 +98,24 @@ export default function BetriebSettings() {
     if (!res.ok) { setFehler(j.error ?? 'Speichern fehlgeschlagen'); return }
     setGespeichert(true)
     await laden()
+  }
+
+  async function schleifeNachsehen() {
+    setSchleifeLaeuft(true); setFehler('')
+    const res = await fetch('/api/lernschleife')
+    const j = await res.json().catch(() => ({})) as { angebote?: number; begruendung?: string[]; error?: string }
+    if (!res.ok) setFehler(j.error ?? 'Auswertung fehlgeschlagen')
+    else setSchleife({ angebote: j.angebote ?? 0, begruendung: j.begruendung ?? [] })
+    setSchleifeLaeuft(false)
+  }
+
+  async function schleifeUebernehmen() {
+    setSchleifeLaeuft(true); setFehler('')
+    const res = await fetch('/api/lernschleife', { method: 'POST' })
+    const j = await res.json().catch(() => ({})) as { error?: string }
+    if (!res.ok) setFehler(j.error ?? 'Übernehmen fehlgeschlagen')
+    else { setSchleife(null); await laden() }
+    setSchleifeLaeuft(false)
   }
 
   const liste = (frage: string) =>
@@ -245,6 +265,45 @@ export default function BetriebSettings() {
         color: '#B0B0B0', padding: '10px 18px', fontSize: 13, cursor: 'pointer', marginTop: 8 }}>
         Faktoren von Hand übernehmen
       </button>
+
+      <div style={{ height: 1, background: '#2E2E2E', margin: '30px 0' }} />
+
+      <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
+        Aus gewonnenen Angeboten lernen
+      </div>
+      <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+        CraftFlow vergleicht, was es vorgeschlagen hat, mit dem, was in deinen
+        gewonnenen Angeboten wirklich stand — und zieht die Faktoren nach. Das ist
+        Marktwahrheit, keine Schätzung. Ab drei gewonnenen Angeboten je Bereich.
+      </p>
+
+      {schleife && (
+        <div style={{ background: '#1C1C1C', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+          <div style={{ color: '#8A8A8A', fontSize: 12, marginBottom: schleife.begruendung.length ? 10 : 0 }}>
+            {schleife.angebote} gewonnene Angebote ausgewertet.
+          </div>
+          {schleife.begruendung.length === 0
+            ? <div style={{ color: '#7A7A7A', fontSize: 12 }}>Noch zu wenig Material — es ändert sich nichts.</div>
+            : schleife.begruendung.map(z => (
+                <div key={z} style={{ color: '#C0C0C0', fontSize: 12.5, lineHeight: 1.7 }}>{z}</div>
+              ))}
+        </div>
+      )}
+
+      <button disabled={schleifeLaeuft} onClick={() => void schleifeNachsehen()} style={{
+        background: 'transparent', border: '1px solid #3A3A3A', borderRadius: 8,
+        color: '#B0B0B0', padding: '10px 18px', fontSize: 13,
+        cursor: schleifeLaeuft ? 'default' : 'pointer', marginRight: 10 }}>
+        {schleifeLaeuft ? 'Rechnet …' : 'Nachsehen, was sich ändern würde'}
+      </button>
+
+      {schleife && schleife.begruendung.length > 0 && (
+        <button disabled={schleifeLaeuft} onClick={() => void schleifeUebernehmen()} style={{
+          background: C.copper, border: 'none', borderRadius: 8, color: '#0D0D0D',
+          padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+          Übernehmen
+        </button>
+      )}
     </div>
   )
 }

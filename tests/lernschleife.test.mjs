@@ -107,3 +107,52 @@ test('Nullwerte und Unsinn stuerzen nicht ab', () => {
   const b = [beob('werkstatt', 0, 50), beob('werkstatt', NaN, 10), beob('werkstatt', 100, -5)]
   assert.deepEqual(lerneFaktoren(EINS, b).faktoren, EINS)
 })
+
+import { beobachtungenAus } from '../src/lib/lernschleife.ts'
+
+const angebot = (minuten) => ({ positionen: [{ id: 1, arbeitszeit: [
+  { kostenstelle: 'Zuschnitt', minuten: minuten.zuschnitt },
+  { kostenstelle: 'Zusammenbau', minuten: minuten.zusammenbau },
+  { kostenstelle: 'Montage', minuten: minuten.montage },
+  { kostenstelle: 'Besprechung', minuten: 20 },
+] }] })
+
+test('Aus zwei Fassungen entstehen Beobachtungen je Bereich', () => {
+  const b = beobachtungenAus(
+    angebot({ zuschnitt: 200, zusammenbau: 400, montage: 240 }),
+    angebot({ zuschnitt: 150, zusammenbau: 330, montage: 240 }))
+  const werkstatt = b.find(x => x.bereich === 'werkstatt')
+  assert.equal(werkstatt.vorher, 600)
+  assert.equal(werkstatt.nachher, 480)
+  const montage = b.find(x => x.bereich === 'montage')
+  assert.equal(montage.vorher, 240)
+  assert.equal(montage.nachher, 240)
+})
+
+test('Der Fixsockel erzeugt keine Beobachtung', () => {
+  const b = beobachtungenAus(
+    angebot({ zuschnitt: 200, zusammenbau: 400, montage: 240 }),
+    angebot({ zuschnitt: 200, zusammenbau: 400, montage: 240 }))
+  assert.equal(b.some(x => x.bereich === 'werkstatt'), true)
+  assert.equal(b.length, 2)
+})
+
+test('Verschieben innerhalb eines Bereichs sagt nichts aus', () => {
+  const b = beobachtungenAus(
+    angebot({ zuschnitt: 200, zusammenbau: 400, montage: 240 }),
+    angebot({ zuschnitt: 100, zusammenbau: 500, montage: 240 }))
+  const werkstatt = b.find(x => x.bereich === 'werkstatt')
+  assert.equal(werkstatt.vorher, werkstatt.nachher)
+})
+
+test('Positionen ohne Gegenstueck werden uebersprungen', () => {
+  const a = { positionen: [{ id: 1, arbeitszeit: [{ kostenstelle: 'Zuschnitt', minuten: 100 }] }] }
+  const c = { positionen: [{ id: 2, arbeitszeit: [{ kostenstelle: 'Zuschnitt', minuten: 50 }] }] }
+  assert.deepEqual(beobachtungenAus(a, c), [])
+})
+
+test('Leere oder fehlende Angebote stuerzen nicht ab', () => {
+  assert.deepEqual(beobachtungenAus(null, null), [])
+  assert.deepEqual(beobachtungenAus({}, {}), [])
+  assert.deepEqual(beobachtungenAus(undefined, angebot({ zuschnitt: 1, zusammenbau: 1, montage: 1 })), [])
+})

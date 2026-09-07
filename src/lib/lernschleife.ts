@@ -117,3 +117,52 @@ export function lerneFaktoren(alt: Faktoren, beobachtungen: Beobachtung[]): Lern
 
   return { faktoren, begruendung }
 }
+
+
+// ── Beobachtungen aus zwei Fassungen eines Angebots ────────────────────────────
+//
+// Braucht KEINE neue Tabelle: `offer_versions` haelt die fruehe Fassung mitsamt
+// Daten, `projects` den Endstand und den Status. Wo beide Fassungen dieselbe
+// Position (ueber die id) und dieselbe Kostenstelle kennen, entsteht eine
+// Beobachtung.
+//
+// Positionen, die nur in einer Fassung stehen, sagen nichts ueber Zeiten aus —
+// sie wurden hinzugefuegt oder geloescht. Sie werden uebersprungen.
+
+type LernPos = {
+  id?: number | string
+  arbeitszeit?: Array<{ kostenstelle?: string; minuten?: number }>
+}
+type LernOffer = { positionen?: LernPos[] } | null | undefined
+
+export function beobachtungenAus(vorschlag: LernOffer, endstand: LernOffer): Beobachtung[] {
+  const alt = vorschlag?.positionen ?? []
+  const neu = endstand?.positionen ?? []
+  const ergebnis: Beobachtung[] = []
+
+  for (const pA of alt) {
+    if (pA.id == null) continue
+    const pB = neu.find(x => x.id === pA.id)
+    if (!pB) continue
+
+    // Je Bereich summieren, nicht je Kostenstelle: Wer Zeit von Zuschnitt nach
+    // Zusammenbau schiebt, hat nichts ueber seine Geschwindigkeit gesagt.
+    const summe = (p: LernPos) => {
+      const s: Partial<Record<Bereich, number>> = {}
+      for (const a of p.arbeitszeit ?? []) {
+        const bereich = bereichFuer(String(a.kostenstelle ?? ''))
+        if (!bereich) continue
+        s[bereich] = (s[bereich] ?? 0) + Number(a.minuten ?? 0)
+      }
+      return s
+    }
+    const sA = summe(pA)
+    const sB = summe(pB)
+    for (const bereich of Object.keys(sA) as Bereich[]) {
+      const vorher = sA[bereich] ?? 0
+      const nachher = sB[bereich] ?? 0
+      if (vorher > 0) ergebnis.push({ bereich, vorher, nachher })
+    }
+  }
+  return ergebnis
+}
