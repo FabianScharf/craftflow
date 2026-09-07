@@ -16,6 +16,8 @@ import {
 } from '@/lib/types'
 import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
 import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
+// Ein Zeichen, eine Definition — sonst steht irgendwann ein zweites CF daneben.
+import { LogoMark } from '@/components/AppHeader'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -73,17 +75,6 @@ const Lbl = ({ children, c }: { children: React.ReactNode; c?: string }) => (
 const HR = ({ my = 12, color }: { my?: number; color?: string }) => (
   <div style={{ height: 1, background: color || C.border, margin: `${my}px 0` }} />
 )
-const LogoMark = ({ size = 36, userLogoUrl }: { size?: number; userLogoUrl?: string | null }) =>
-  userLogoUrl
-    ? <img src={userLogoUrl} alt="Logo" style={{ height: size, width: 'auto', maxWidth: size * 4, objectFit: 'contain' }} />
-    : (
-      <svg width={size} height={size} viewBox="0 0 36 36" fill="none" style={{ flexShrink: 0 }}>
-        <rect width="36" height="36" rx="7" fill="var(--c-accent, #C8885A)" />
-        <text x="18" y="25" textAnchor="middle" fill="#0D0D0D"
-          fontFamily="Helvetica Neue, Helvetica, Arial, sans-serif"
-          fontSize="15" fontWeight="800" letterSpacing="0.5">CF</text>
-      </svg>
-    )
 const Card = ({ children, accent, style = {} }: { children: React.ReactNode; accent?: string; style?: React.CSSProperties }) => (
   <div style={{
     background: C.gray1, borderRadius: 4,
@@ -410,6 +401,19 @@ export default function CraftFlow() {
 
   useEffect(() => {
     fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) })
+  }, [])
+
+  // Aus den Einstellungen fuehrt kein setScreen zurueck — sie liegen unter einer
+  // eigenen Route. Der Projekt-Knopf dort schickt deshalb ?ansicht=projekte mit.
+  // Der Parameter wird gleich wieder aus der Adresszeile geraeumt, damit ein
+  // Neuladen nicht ungefragt wieder in der Liste landet.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('ansicht') === 'projekte') {
+      setScreen('projekte')
+      setPreviousScreen('projekte')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
   }, [])
 
   useEffect(() => { currentProjectIdRef.current = currentProjectId }, [currentProjectId])
@@ -2219,7 +2223,7 @@ export default function CraftFlow() {
       content: (
         <div>
           <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
-            Damit CraftFlow mit deinen Zeiten rechnet statt mit Branchenwerten.
+            Damit CraftFlow mit deinen Zeiten rechnet statt mit den CraftFlow-Werten.
           </p>
           {kalibFrage('Welche Maschinen hast du?',
             kalibMehrfach('maschinen', kalib.maschinen, w => setKalib({ ...kalib, maschinen: w })),
@@ -2283,7 +2287,7 @@ export default function CraftFlow() {
             </div>
           ))}
           <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6 }}>
-            Bei &bdquo;weiß ich gerade nicht&ldquo; rechne ich in diesem Bereich mit dem Branchenwert.
+            Bei &bdquo;weiß ich gerade nicht&ldquo; rechne ich in diesem Bereich mit dem CraftFlow-Wert.
             Du kannst es jederzeit unter Einstellungen → Mein Betrieb nachtragen.
           </div>
         </div>
@@ -4041,7 +4045,7 @@ export default function CraftFlow() {
                   Passt der Preis nicht zu deinem Betrieb?
                 </div>
                 <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
-                  Ich rechne gerade mit Branchenwerten. Beantworte unter
+                  Ich rechne gerade mit den CraftFlow-Werten. Beantworte unter
                   Einstellungen → Mein Betrieb neun kurze Fragen, dann rechne ich mit deinen.
                 </div>
                 <button onClick={() => { window.location.href = '/settings' }}

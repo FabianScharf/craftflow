@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { normalizeKsId } from '@/lib/types'
 import { PlanGate } from '@/components/PlanGate'
+import { AppHeader } from '@/components/AppHeader'
 
 import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
 import { EmailSettings } from '@/components/settings/EmailSettings'
@@ -460,8 +461,19 @@ export default function SettingsPage() {
   return (
     <div suppressHydrationWarning style={{ background: C.black, minHeight: '100vh', fontFamily: 'Helvetica Neue,sans-serif', color: C.white }}>
 
-      {/* Top bar */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 52, gap: 12, position: 'sticky', top: 0, zIndex: 10, background: C.black }}>
+      {/* Die Leiste der App — dieselbe wie auf jeder anderen Seite, damit man von hier
+          aus direkt weiterarbeiten kann, statt erst zurueckgehen zu muessen. */}
+      <AppHeader
+        aktiv="einstellungen"
+        logoUrl={logoPreview}
+        firmenName={profil.firma_name ?? ''}
+        isMobile={isMobile}
+        userEmail={userEmail}
+        onLogout={logout}
+      />
+
+      {/* Zweite Zeile: Bereichstitel und auf dem Handy der Weg zurueck zur Liste. */}
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 44, gap: 12, background: C.black }}>
         <button
           onClick={() => {
             if (isMobile && mobileShowContent) { setMobileShowContent(false) }

@@ -44,11 +44,11 @@ const FAKTOR_TEXTE: Array<{ feld: keyof Kalibrierung; name: string; was: string 
 ]
 
 function erklaere(f: number): string {
-  if (Math.abs(f - 1) < 0.005) return 'noch nicht kalibriert — ich rechne mit dem Branchenwert.'
+  if (Math.abs(f - 1) < 0.005) return 'noch nicht kalibriert — ich rechne mit den CraftFlow-Werten.'
   const p = Math.round(Math.abs(1 - f) * 100)
   return f < 1
-    ? `ich rechne diese Zeiten ${p} % knapper als den Branchenrichtwert.`
-    : `ich rechne diese Zeiten ${p} % großzügiger als den Branchenrichtwert.`
+    ? `ich rechne diese Zeiten ${p} % knapper als die CraftFlow-Werte.`
+    : `ich rechne diese Zeiten ${p} % großzügiger als die CraftFlow-Werte.`
 }
 
 export default function BetriebSettings() {
@@ -216,7 +216,7 @@ export default function BetriebSettings() {
     <div>
       <h2 style={{ color: C.white, fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Mein Betrieb</h2>
       <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
-        Aus diesen Angaben rechnet CraftFlow mit deinen Zeiten statt mit Branchenwerten.
+        Aus diesen Angaben rechnet CraftFlow mit deinen Zeiten statt mit den CraftFlow-Werten.
         Deine Preise sieht niemand außer dir.
       </p>
 
@@ -276,7 +276,7 @@ export default function BetriebSettings() {
 
       <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.6, marginBottom: 24 }}>
         &bdquo;Weiß ich gerade nicht&ldquo; ist eine gültige Antwort: Dann rechne ich in diesem
-        Bereich mit dem Branchenwert. Du kannst es jederzeit hier nachtragen.
+        Bereich mit dem CraftFlow-Wert. Du kannst es jederzeit hier nachtragen.
       </div>
 
       <button onClick={() => void speichern(false)} style={{
@@ -290,7 +290,7 @@ export default function BetriebSettings() {
 
       <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Deine Zeitfaktoren</div>
       <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-        So rechnet CraftFlow deine Zeiten gegenüber dem Branchenrichtwert. Du kannst
+        So rechnet CraftFlow deine Zeiten gegenüber den CraftFlow-Werten. Du kannst
         jeden Wert von Hand überschreiben — dann gilt deine Zahl statt der abgeleiteten.
       </p>
 

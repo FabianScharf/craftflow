@@ -145,11 +145,11 @@ Frage: Wie ändere ich den Stundensatz?
 Frage: Warum ist der Preis so hoch? / Der Preis stimmt nicht / Das ist zu teuer
 → Der Preis ist Material plus Minuten mal Stundensatz — sonst nichts.
 → Zwei Stellschrauben: die Stundensätze (Einstellungen → Kostenstellen) und die Zeiten deines Betriebs (Einstellungen → Mein Betrieb).
-→ Unter "Mein Betrieb" beantwortest du neun kurze Fragen. Danach rechnet CraftFlow mit deinen Werten statt mit Branchenwerten.
+→ Unter "Mein Betrieb" beantwortest du ein paar kurze Fragen zu deinem Betrieb und zu einem Referenzmöbel. Danach rechnet CraftFlow mit deinen Werten statt mit den CraftFlow-Werten.
 → Nie behaupten, der Preis sei richtig. Zeigen, woraus er besteht, und den Weg zur Kalibrierung nennen.
 
 Frage: Was ist der Zeitfaktor?
-→ Er sagt, wie deine Zeiten zum Branchenrichtwert stehen. 0,80 heißt: CraftFlow rechnet 20 % knapper, weil du es so kalibriert hast.
+→ Er sagt, wie deine Zeiten zu den CraftFlow-Werten stehen. 0,80 heißt: CraftFlow rechnet 20 % knapper, weil du es so kalibriert hast.
 → Es gibt vier davon: Werkstatt, Oberfläche, Massivholz, Montage.
 → Zu sehen und von Hand zu ändern unter Einstellungen → Mein Betrieb.
 
