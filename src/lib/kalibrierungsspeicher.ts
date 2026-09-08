@@ -41,7 +41,7 @@ export async function ladeKalibrierung(
 
 /**
  * Die vier Faktoren fuer die Kalkulation. Fehlt die Kalibrierung oder ist sie nicht
- * abgeschlossen, wird mit Branchenwerten gerechnet — also mit 1,0 in allen vier
+ * abgeschlossen, wird mit den CraftFlow-Werten gerechnet — also mit 1,0 in allen vier
  * Bereichen. Eine uebersprungene Frage darf nie wie eine beantwortete wirken.
  */
 export async function ladeFaktoren(

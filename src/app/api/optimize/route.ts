@@ -348,7 +348,7 @@ export async function POST(req: NextRequest) {
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
         nutzerId = user.id
-        // Ohne abgeschlossene Kalibrierung bleibt es bei Branchenwerten.
+        // Ohne abgeschlossene Kalibrierung bleibt es bei den CraftFlow-Werten.
         try { faktoren = await ladeFaktoren(supabase, user.id) }
         catch (e) { console.error('[kalibrierung] Faktoren laden (optimize):', e) }
         // Die Betriebsfragen wirken hier: Kein CNC, keine Kantenanleimmaschine oder

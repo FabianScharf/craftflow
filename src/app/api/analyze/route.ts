@@ -901,7 +901,7 @@ export async function POST(req: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         // Ohne abgeschlossene Kalibrierung bleibt es bei 1,0 in allen vier Bereichen
-        // — also bei Branchenwerten.
+        // — also bei den CraftFlow-Werten.
         try { faktoren = await ladeFaktoren(supabase, user.id) }
         catch (e) { console.error('[kalibrierung] Faktoren laden (analyze):', e) }
         // Die Betriebsfragen wirken hier: Kein CNC, keine Kantenanleimmaschine oder

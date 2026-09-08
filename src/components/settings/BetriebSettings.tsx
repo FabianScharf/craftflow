@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { C } from '@/lib/types'
 import { BETRIEBSFRAGEN, referenzFuer, referenzPreis, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 
-// Einstellungen -> Mein Betrieb. Zeigt dieselben neun Fragen wie die Erst-Anmeldung
+// Einstellungen -> Mein Betrieb. Zeigt dieselben Fragen wie die Erst-Anmeldung
 // und die vier daraus abgeleiteten Faktoren in Klartext.
 //
 // Warum die Faktoren sichtbar sind: Wer nicht sieht, womit gerechnet wird, kann es

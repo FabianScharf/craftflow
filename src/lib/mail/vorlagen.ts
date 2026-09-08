@@ -87,7 +87,7 @@ export function willkommensMail(opts: { firma?: string | null } = {}): Mail {
     p('Eine Bitte vorweg, weil daran fast alles hängt: <strong style="color:' + SCHWARZ + ';">Nimm dir zuerst zehn Minuten für die Einrichtung.</strong> CraftFlow rechnet mit deinen Stundensätzen und deinen Zeiten — wenn die nicht stimmen, stimmt kein Ergebnis.'),
     liste([
       punkt('1 · Firmendaten & Logo', 'Landet automatisch auf jedem Angebots-PDF.', STARTHILFE_URL + '#einrichtung'),
-      punkt('2 · Mein Betrieb', 'Neun Fragen, keine Zahlen. Daraus rechnet CraftFlow mit deinen Zeiten statt mit Branchenwerten — der Schritt, an dem fast alles hängt.', STARTHILFE_URL + '#einrichtung'),
+      punkt('2 · Mein Betrieb', 'Ein paar Fragen zu deinem Betrieb und zu einem Referenzmöbel — du wählst aus, statt Zahlen einzutippen. Daraus rechnet CraftFlow mit deinen Zeiten statt mit den CraftFlow-Werten. Der Schritt, an dem fast alles hängt.', STARTHILFE_URL + '#einrichtung'),
       punkt('3 · Kostenstellen', 'Stundensätze eintragen und abschalten, was du nicht hast — kein CNC, kein Kantenanleimer.', STARTHILFE_URL + '#einrichtung'),
     ]),
     p('Alles Weitere — wie du ein Projekt beschreibst, wie du das Ergebnis liest und vor allem, wie du die beiden KI-Werkzeuge <strong style="color:' + SCHWARZ + ';">KI-Optimierung</strong> und <strong style="color:' + SCHWARZ + ';">Kalkulations-Check</strong> richtig nutzt — steht in der Starthilfe. Mit echten Beispielen, in der Reihenfolge, in der du es brauchst.'),
@@ -104,7 +104,7 @@ export function willkommensMail(opts: { firma?: string | null } = {}): Mail {
     'Eine Bitte vorweg, weil daran fast alles hängt: Nimm dir zuerst zehn Minuten für die Einrichtung. CraftFlow rechnet mit deinen Stundensätzen und deinen Zeiten — wenn die nicht stimmen, stimmt kein Ergebnis.',
     '',
     '1. Firmendaten & Logo — landet automatisch auf jedem Angebots-PDF.',
-    '2. Mein Betrieb — neun Fragen, keine Zahlen. Daraus rechnet CraftFlow mit deinen Zeiten statt mit Branchenwerten. Der Schritt, an dem fast alles hängt.',
+    '2. Mein Betrieb — ein paar Fragen zu deinem Betrieb und zu einem Referenzmöbel. Du wählst aus, statt Zahlen einzutippen. Daraus rechnet CraftFlow mit deinen Zeiten statt mit den CraftFlow-Werten. Der Schritt, an dem fast alles hängt.',
     '3. Kostenstellen — Stundensätze eintragen und abschalten, was du nicht hast.',
     '',
     'Alles Weitere — Projekt beschreiben, Ergebnis lesen, KI-Optimierung und Kalkulations-Check richtig nutzen — steht in der Starthilfe:',
@@ -130,7 +130,7 @@ export function neuigkeitenMail(): Mail {
   const vorschau = 'Mein Betrieb, Meine Bauweise, Alternativpositionen, Stückzahl — und eine Starthilfe, die alles erklärt.'
 
   const neu = [
-    ['Mein Betrieb', 'Neun Fragen unter Einstellungen → Mein Betrieb — ohne Zahlen. Daraus rechnet CraftFlow mit deinen Zeiten statt mit Branchenwerten. Wenn dir Preise bisher zu hoch oder zu niedrig vorkamen: Das ist die Stellschraube.', STARTHILFE_URL + '#einrichtung'],
+    ['Mein Betrieb', 'Ein paar Fragen unter Einstellungen → Mein Betrieb — du wählst aus, statt Zahlen einzutippen. Daraus rechnet CraftFlow mit deinen Zeiten statt mit den CraftFlow-Werten. Wenn dir Preise bisher zu hoch oder zu niedrig vorkamen: Das ist die Stellschraube.', STARTHILFE_URL + '#einrichtung'],
     ['Meine Bauweise — CraftFlow lernt von dir', 'Sag im Chat „Rückwände sind bei mir immer 8 mm Spanplatte“, bestätige den Regelvorschlag — ab dem nächsten Angebot gilt es automatisch. Alle Regeln unter Einstellungen → Meine Bauweise.', STARTHILFE_URL + '#check'],
     ['Alternativpositionen, Stückzahl, Gruppen', 'Eine Position als Alternative führen (Preis in Klammern, zählt nicht zur Summe), Stückzahl je Position, zusammengehörende Positionen unter einer Überschrift.', STARTHILFE_URL + '#ergebnis'],
     ['Textbausteine & Briefpapier', 'Eigene Absätze fürs Angebot, Schriftwahl, Layout — mit lebender Vorschau.', STARTHILFE_URL + '#angebot'],
