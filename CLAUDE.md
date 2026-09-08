@@ -311,19 +311,41 @@ Kalkulation verwendet – niemals die hardcodierten Werte aus dem Code.
 
 ## PDF-LAYOUT-REFERENZ
 
-Das Referenz-PDF liegt unter: docs/reference/angebot_referenz.pdf
+Das Referenz-PDF liegt unter: **craftflow-app/docs/reference/angebot_referenz.pdf**
+(nicht docs/reference/ — dort ist es nicht).
+
+Lesen: `poppler` ist nicht installiert, das Read-Tool kann es nicht rendern. Im
+ferngesteuerten Chrome per `file://` öffnen und einen Screenshot machen.
 
 VOR JEDER Änderung an lib/pdf.ts MUSS dieses PDF gelesen werden:
-- Lies das PDF mit Read tool
-- Vergleiche jeden Element-Typ mit dem Referenz
+- Vergleiche jeden Element-Typ mit der Referenz
 - Baue NUR nach was dort steht
 - NICHTS erfinden, NICHTS hinzufügen
 
 Checkliste vor jedem PDF-Commit:
-[ ] Logo: nur Bild, kein zusätzlicher Text darunter
+[ ] Logo: nur Bild, kein zusätzlicher Text darunter — mit max-width, sonst läuft
+    ein Querformat-Logo über den Seitenrand (Fehler von 2026-09-08)
 [ ] Header: Logo rechts, Absenderzeile links, keine Trennlinie
 [ ] Adressblock: Name, Straße, PLZ Ort - kein Zusatz
-[ ] Positionstabelle: Pos | Bezeichnung | Gesamt - keine Kostenstellen
-[ ] Summenblock: Netto, MwSt, Gesamt - rechtsbündig
-[ ] Footer: Dokumentnummer links, Firmendaten mitte, Seite rechts
-[ ] KEINE Elemente die nicht im Referenz-PDF sind
+[ ] Positionstabelle: Pos | Bezeichnung | Gesamt.
+    **Menge und Einheitspreis sind einstellbar** (Briefpapier → Gestaltung),
+    standardmäßig aus. Die Referenz zeigt sie — deshalb sind sie möglich, aber
+    manche Betriebe weisen bewusst nur Endsummen aus. Reihenfolge WIE IN DER
+    REFERENZ: Pos · Menge · Bezeichnung · Einheitspreis · Gesamt.
+    Keine Kostenstellen.
+[ ] Positionstitel steht GENAU EINMAL. Eine Gruppenkopfzeile entsteht nur, wenn
+    die Position ein Feld `gruppe` trägt (Fehler von 2026-09-08: Der Titel stand
+    hart in beiden Zeilen).
+[ ] Alle Textfelder laufen durch `alsAbsaetze()` — sonst verschwinden Absätze
+    (Fehler von 2026-09-08: sechs von acht Feldern)
+[ ] Summenblock: Netto, MwSt, Gesamt - rechtsbündig.
+    Bei Kleinunternehmern nach § 19 UStG **keine** MwSt-Zeile, dafür der Hinweis.
+[ ] Footer: Dokumentnummer links, Firmendaten mitte, Seite rechts.
+    USt-IdNr. ODER Steuernummer (§ 14 UStG verlangt eines von beiden).
+[ ] KEINE Elemente die nicht im Referenz-PDF sind — **mit einer Ausnahme:** Der
+    Unterschriftsblock steht nicht in der Referenz, ist aber abschaltbar
+    (`pdf_zeige_unterschrift`). Was abschaltbar ist, darf zusätzlich da sein.
+
+**Grundsatz für alles am PDF** (mit Fabian abgestimmt, 2026-09-08):
+Würde irgendjemand die andere Variante freiwillig wählen? Ja → Einstellung.
+Nein → Fehler, und der wird behoben, nicht zur Wahl gestellt.

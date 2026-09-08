@@ -41,26 +41,67 @@ export function alsAbsaetze(text: string): string {
 // public/fonts/ (Lizenzen dort in LIZENZEN.md) und werden per @font-face mit
 // absoluter Adresse geladen — dieselbe Adresse für die Bildschirmvorschau und für
 // den Chromium auf dem Server, damit beide gleich aussehen.
-export type SchriftId = 'opensans' | 'inter' | 'lato' | 'ptserif'
+export type SchriftId =
+  | 'opensans' | 'inter' | 'arimo' | 'lato' | 'roboto' | 'sourcesans'
+  | 'plexsans' | 'worksans' | 'jost' | 'nunitosans'
+  | 'ptserif' | 'tinos' | 'ebgaramond' | 'merriweather'
+  | 'baskerville' | 'lora' | 'sourceserif'
 
-export const SCHRIFTEN: Record<SchriftId, { name: string; stapel: string; dateien: Array<{ gewicht: number; datei: string }> }> = {
-  opensans: {
-    name: 'Open Sans', stapel: "'Open Sans',Helvetica,Arial,sans-serif",
-    dateien: [{ gewicht: 400, datei: 'open-sans-400.woff2' }, { gewicht: 700, datei: 'open-sans-700.woff2' }],
-  },
-  inter: {
-    name: 'Inter', stapel: "'Inter',Helvetica,Arial,sans-serif",
-    dateien: [{ gewicht: 400, datei: 'inter-400.woff2' }, { gewicht: 700, datei: 'inter-700.woff2' }],
-  },
-  lato: {
-    name: 'Lato', stapel: "'Lato',Helvetica,Arial,sans-serif",
-    dateien: [{ gewicht: 400, datei: 'lato-400.woff2' }, { gewicht: 700, datei: 'lato-700.woff2' }],
-  },
-  ptserif: {
-    name: 'PT Serif', stapel: "'PT Serif',Georgia,'Times New Roman',serif",
-    dateien: [{ gewicht: 400, datei: 'pt-serif-400.woff2' }, { gewicht: 700, datei: 'pt-serif-700.woff2' }],
-  },
+export type Schriftart = {
+  name: string
+  /** Sans oder Serif — fuer die Gruppierung in der Auswahlliste. */
+  art: 'Serifenlos' | 'Serif'
+  /**
+   * Womit ein Schreiner sie kennt. "Arimo" sagt niemandem etwas, "wie Arial" jedem.
+   * Arimo und Tinos sind metrisch identisch zu Arial bzw. Times New Roman — gleiche
+   * Zeichenbreiten, gleicher Umbruch.
+   */
+  wie?: string
+  stapel: string
+  dateien: Array<{ gewicht: number; datei: string }>
 }
+
+const schrift = (
+  name: string, art: Schriftart['art'], praefix: string, ersatz: string, wie?: string,
+): Schriftart => ({
+  name, art, wie,
+  stapel: `'${name}',${ersatz}`,
+  dateien: [
+    { gewicht: 400, datei: `${praefix}-400.woff2` },
+    { gewicht: 700, datei: `${praefix}-700.woff2` },
+  ],
+})
+
+const SANS = "Helvetica,Arial,sans-serif"
+const SERIF = "Georgia,'Times New Roman',serif"
+
+export const SCHRIFTEN: Record<SchriftId, Schriftart> = {
+  // Serifenlos
+  opensans:    schrift('Open Sans', 'Serifenlos', 'open-sans', SANS),
+  inter:       schrift('Inter', 'Serifenlos', 'inter', SANS, 'wie Helvetica Neue'),
+  arimo:       schrift('Arimo', 'Serifenlos', 'arimo', SANS, 'metrisch wie Arial'),
+  lato:        schrift('Lato', 'Serifenlos', 'lato', SANS),
+  roboto:      schrift('Roboto', 'Serifenlos', 'roboto', SANS),
+  sourcesans:  schrift('Source Sans 3', 'Serifenlos', 'source-sans', SANS),
+  plexsans:    schrift('IBM Plex Sans', 'Serifenlos', 'plex-sans', SANS, 'technisch, klar'),
+  worksans:    schrift('Work Sans', 'Serifenlos', 'work-sans', SANS),
+  jost:        schrift('Jost', 'Serifenlos', 'jost', SANS, 'wie Futura'),
+  nunitosans:  schrift('Nunito Sans', 'Serifenlos', 'nunito-sans', SANS, 'weich, rund'),
+  // Serif
+  ptserif:     schrift('PT Serif', 'Serif', 'pt-serif', SERIF),
+  tinos:       schrift('Tinos', 'Serif', 'tinos', SERIF, 'metrisch wie Times New Roman'),
+  ebgaramond:  schrift('EB Garamond', 'Serif', 'eb-garamond', SERIF, 'wie Garamond'),
+  merriweather: schrift('Merriweather', 'Serif', 'merriweather', SERIF, 'gut lesbar, kräftig'),
+  baskerville: schrift('Libre Baskerville', 'Serif', 'baskerville', SERIF, 'wie Baskerville'),
+  lora:        schrift('Lora', 'Serif', 'lora', SERIF),
+  sourceserif: schrift('Source Serif 4', 'Serif', 'source-serif', SERIF),
+}
+
+/** Reihenfolge fuer die Auswahlliste, nach Art gruppiert. */
+export const SCHRIFT_GRUPPEN: Array<{ art: Schriftart['art']; ids: SchriftId[] }> = [
+  { art: 'Serifenlos', ids: ['opensans', 'inter', 'arimo', 'lato', 'roboto', 'sourcesans', 'plexsans', 'worksans', 'jost', 'nunitosans'] },
+  { art: 'Serif', ids: ['ptserif', 'tinos', 'ebgaramond', 'merriweather', 'baskerville', 'lora', 'sourceserif'] },
+]
 
 export function fontFaces(id: SchriftId, basisUrl: string): string {
   const s = SCHRIFTEN[id]

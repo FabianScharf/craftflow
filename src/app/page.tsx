@@ -216,6 +216,9 @@ export default function CraftFlow() {
   const [profilOrt, setProfilOrt]           = useState<string>('')
   const [profilEmail, setProfilEmail]       = useState<string>('')
   const [profilUstId, setProfilUstId]       = useState<string>('')
+  // § 14 UStG: Wer keine USt-IdNr. hat, muss die Steuernummer nennen. Sie wurde
+  // abgefragt und bis 2026-09-08 nirgends gedruckt.
+  const [profilSteuernummer, setProfilSteuernummer] = useState<string>('')
   const [profilIban, setProfilIban]         = useState<string>('')
   const [profilBank, setProfilBank]         = useState<string>('')
   const [profilBic, setProfilBic]           = useState<string>('')
@@ -223,6 +226,12 @@ export default function CraftFlow() {
   const [profilWebsite, setProfilWebsite]   = useState<string>('')
   const [profilPdfLayout, setProfilPdfLayout]           = useState<'klassisch' | 'kompakt'>('klassisch')
   const [profilPdfSchriftart, setProfilPdfSchriftart]   = useState<SchriftId>('opensans')
+  const [profilMwstSatz, setProfilMwstSatz]             = useState(19)
+  const [profilKleinunternehmer, setProfilKleinunternehmer] = useState(false)
+  const [profilGueltigTage, setProfilGueltigTage]       = useState(30)
+  // Eigene Textbausteine des Betriebs und die Auswahl fuer DIESES Angebot.
+  const [bausteine, setBausteine] = useState<Array<{ id: string; titel: string; inhalt: string; immer: boolean; aktiv: boolean }>>([])
+  const [bausteinIds, setBausteinIds] = useState<string[]>([])
   const [profilPdfZeigeMenge, setProfilPdfZeigeMenge]   = useState(false)
   const [profilPdfZeigeEp, setProfilPdfZeigeEp]         = useState(false)
   const [profilPdfZeigeBic, setProfilPdfZeigeBic]       = useState(false)
@@ -292,6 +301,7 @@ export default function CraftFlow() {
             setProfilOrt([p.plz, p.ort].filter(Boolean).join(' '))
             setProfilEmail(p.email ?? '')
             setProfilUstId(p.ust_id ?? '')
+            setProfilSteuernummer(p.steuernummer ?? '')
             setProfilIban(p.iban ?? '')
             setProfilBank(p.bank_name ?? '')
             setProfilBic(p.bic ?? '')
@@ -299,6 +309,9 @@ export default function CraftFlow() {
             setProfilWebsite(p.website ?? '')
             setProfilPdfLayout(p.pdf_layout === 'kompakt' ? 'kompakt' : 'klassisch')
             if (p.pdf_schriftart && p.pdf_schriftart in SCHRIFTEN) setProfilPdfSchriftart(p.pdf_schriftart as SchriftId)
+            if (Number.isFinite(Number(p.mwst_satz))) setProfilMwstSatz(Number(p.mwst_satz))
+            setProfilKleinunternehmer(p.kleinunternehmer === true || p.kleinunternehmer === 'true')
+            if (Number(p.angebot_gueltig_tage) > 0) setProfilGueltigTage(Number(p.angebot_gueltig_tage))
             setProfilPdfZeigeMenge(p.pdf_zeige_menge === true)
             setProfilPdfZeigeEp(p.pdf_zeige_einheitspreis === true)
             setProfilPdfZeigeBic(p.pdf_zeige_bic === true)
@@ -410,6 +423,20 @@ export default function CraftFlow() {
     fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) })
   }, [])
 
+  // Eigene Textbausteine laden. Die mit "immer" sind in einem neuen Angebot
+  // vorausgewaehlt — genau das bedeutet die Einstellung.
+  useEffect(() => {
+    fetch('/api/settings/textbausteine')
+      .then(r => r.ok ? r.json() : { bausteine: [] })
+      .then(d => {
+        const liste = (d.bausteine ?? []).filter((b: { aktiv?: boolean }) => b.aktiv !== false)
+        setBausteine(liste)
+        setBausteinIds(prev => prev.length > 0 ? prev
+          : liste.filter((b: { immer?: boolean }) => b.immer).map((b: { id: string }) => b.id))
+      })
+      .catch(() => {})
+  }, [])
+
   // Aus den Einstellungen fuehrt kein setScreen zurueck — sie liegen unter einer
   // eigenen Route. Der Projekt-Knopf dort schickt deshalb ?ansicht=projekte mit.
   // Der Parameter wird gleich wieder aus der Adresszeile geraeumt, damit ein
@@ -429,7 +456,7 @@ export default function CraftFlow() {
   async function saveProject() {
     setSaveStatus('saving')
     const title = [kunde.name.trim(), kunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
-    const payload = { kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum: angebotsdatum || today() }
+    const payload = { kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum: angebotsdatum || today(), bausteinIds }
     try {
       let res: Response
       if (currentProjectId) {
@@ -494,6 +521,7 @@ export default function CraftFlow() {
     if (d.docNr) setDocNr(d.docNr)
     if (d.docTyp) setDocTyp(d.docTyp)
     if (d.anschr) setAnschr(d.anschr)
+    if (Array.isArray(d.bausteinIds)) setBausteinIds(d.bausteinIds)
     if (typeof d.widerruf === 'boolean') setWiderruf(d.widerruf)
     if (d.angebotsdatum) setAngebotsdatum(d.angebotsdatum)
     setCurrentProjectId(id)
@@ -4325,6 +4353,37 @@ export default function CraftFlow() {
               </div>
             </Card>
 
+            {bausteine.length > 0 && (
+              <Card>
+                <div style={{ padding: '12px 16px' }}>
+                  <Lbl>Textbausteine in diesem Angebot</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 6 }}>
+                    {bausteine.map(b => {
+                      const an = bausteinIds.includes(b.id)
+                      return (
+                        <button key={b.id} title={b.inhalt.slice(0, 200)}
+                          onClick={() => setBausteinIds(prev =>
+                            an ? prev.filter(x => x !== b.id) : [...prev, b.id])}
+                          style={{
+                            background: an ? '#2A2018' : C.gray2,
+                            border: `1px solid ${an ? C.copper : C.border}`,
+                            color: an ? C.white : C.textMid,
+                            borderRadius: 20, padding: '6px 13px', fontSize: 12,
+                            cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
+                          }}>
+                          {an ? '✓ ' : '+ '}{b.titel}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ color: C.textMid, fontSize: 11, marginTop: 8, lineHeight: 1.6 }}>
+                    Stehen unter den Positionen im Angebot. Anlegen und ändern unter
+                    Einstellungen → Textbausteine.
+                  </div>
+                </div>
+              </Card>
+            )}
+
             <Card>
               <div style={{ padding: '12px 16px' }}>
                 <Lbl>Anschreiben</Lbl>
@@ -4413,6 +4472,12 @@ export default function CraftFlow() {
                 // Woher die Schriftdateien kommen. Ohne diese Angabe bleibt es bei der
                 // Systemschrift — auf dem Server ist das die einzige installierte.
                 basisUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+                mwstSatz: profilMwstSatz,
+                kleinunternehmer: profilKleinunternehmer,
+                gueltigTage: profilGueltigTage,
+                bausteine: bausteine
+                  .filter(b => bausteinIds.includes(b.id))
+                  .map(b => ({ titel: b.titel, inhalt: b.inhalt })),
                 zeigeMenge: profilPdfZeigeMenge,
                 zeigeEinheitspreis: profilPdfZeigeEp,
                 zeigeMassivholz: profilPdfZeigeMassivholz,
@@ -4434,6 +4499,7 @@ export default function CraftFlow() {
                 ort:        profilOrt       || undefined,
                 email:      profilEmail     || undefined,
                 ust:        profilUstId     || undefined,
+                steuernummer: profilSteuernummer || undefined,
                 iban:       profilIban      || undefined,
                 bank:       profilBank      || undefined,
                 bic:        profilBic       || undefined,

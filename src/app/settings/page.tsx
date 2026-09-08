@@ -12,6 +12,8 @@ import BauweiseSettings from '@/components/settings/BauweiseSettings'
 import MaterialpreiseSettings from '@/components/settings/MaterialpreiseSettings'
 import BetriebSettings from '@/components/settings/BetriebSettings'
 import BriefpapierVorschau from '@/components/settings/BriefpapierVorschau'
+import TextbausteineSettings from '@/components/settings/TextbausteineSettings'
+import { SCHRIFTEN, SCHRIFT_GRUPPEN } from '@/lib/pdftext'
 import { type Plan, usePlan } from '@/hooks/usePlan'
 
 const C = {
@@ -83,7 +85,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 
 export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse } = usePlan()
-  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
   const [bpMsg, setBpMsg] = useState('')
@@ -441,6 +443,7 @@ export default function SettingsPage() {
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
     { id: 'buchhaltung',      label: 'Buchhaltung',     icon: '🧾' },
     { id: 'dokumente',        label: 'Dokumente',       icon: '📝' },
+    { id: 'textbausteine',    label: 'Textbausteine',   icon: '🧩' },
     { id: 'auswertung',       label: 'Auswertung',      icon: '📊', minPlan: 'pro' as Plan },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'briefpapier',      label: 'Briefpapier',     icon: '📄' },
@@ -761,28 +764,42 @@ export default function SettingsPage() {
 
                   <div>
                     <label style={lbl}>Schriftart</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8 }}>
-                      {([
-                        { id: 'opensans', name: 'Open Sans',  art: 'Sans',  stapel: "'Open Sans',sans-serif" },
-                        { id: 'inter',    name: 'Inter',      art: 'Sans',  stapel: "'Inter',sans-serif" },
-                        { id: 'lato',     name: 'Lato',       art: 'Sans',  stapel: "'Lato',sans-serif" },
-                        { id: 'ptserif',  name: 'PT Serif',   art: 'Serif', stapel: "'PT Serif',serif" },
-                      ] as const).map(f => {
-                        const an = (profil.pdf_schriftart ?? 'opensans') === f.id
-                        return (
-                          <button key={f.id} onClick={() => setP('pdf_schriftart', f.id)}
-                            style={{
-                              padding: '12px 14px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                              border: `1px solid ${an ? C.copper : C.border}`,
-                              background: an ? `${C.copper}15` : C.gray2, color: C.white,
-                            }}>
-                            <div style={{ fontFamily: f.stapel, fontSize: 17, lineHeight: 1.2 }}>Angebot</div>
-                            <div style={{ fontSize: 11, color: an ? C.copper : C.textMid, marginTop: 4 }}>
-                              {f.name} · {f.art}
-                            </div>
-                          </button>
-                        )
-                      })}
+                    {/* Auswahlliste statt vier Knoepfen — Fabian am 2026-09-08:
+                        "Die Auswahl der Schriftarten ist zu gering." Jetzt 17,
+                        nach Serifenlos und Serif gruppiert. Arimo und Tinos sind
+                        METRISCH identisch zu Arial bzw. Times New Roman: gleiche
+                        Zeichenbreiten, gleicher Umbruch. Fuer einen Betrieb, der
+                        "wir nutzen Arial" sagt, ist das der richtige Ersatz. */}
+                    <select
+                      value={profil.pdf_schriftart ?? 'opensans'}
+                      onChange={e => setP('pdf_schriftart', e.target.value)}
+                      style={{ ...inp(), fontSize: 14, cursor: 'pointer' }}
+                    >
+                      {SCHRIFT_GRUPPEN.map(g => (
+                        <optgroup key={g.art} label={g.art}>
+                          {g.ids.map(id => (
+                            <option key={id} value={id}>
+                              {SCHRIFTEN[id].name}{SCHRIFTEN[id].wie ? ` — ${SCHRIFTEN[id].wie}` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {/* Schriftprobe in der echten Schrift, damit man sie sieht statt
+                        nur den Namen zu lesen. */}
+                    <div style={{
+                      marginTop: 10, padding: '14px 16px', background: '#FFFFFF',
+                      borderRadius: 6, border: `1px solid ${C.border}`, color: '#1a1a1a',
+                      fontFamily: SCHRIFTEN[(profil.pdf_schriftart as keyof typeof SCHRIFTEN) ?? 'opensans']?.stapel
+                        ?? SCHRIFTEN.opensans.stapel,
+                    }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
+                        Angebot-Nr. AN-2026-041
+                      </div>
+                      <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                        Einbauschrank Flur, 2,00 × 2,40 × 0,60 m — 2.315,00 €<br />
+                        Fräsen, Bekantung, Oberfläche · ÄÖÜ äöüß 0123456789
+                      </div>
                     </div>
                     <p style={{ fontSize: 11, color: C.textMid, marginTop: 6, lineHeight: 1.6 }}>
                       Die Schrift wird mit dem PDF ausgeliefert — sie sieht bei deinem Kunden
@@ -1094,6 +1111,8 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {section === 'textbausteine' && <TextbausteineSettings />}
+
           {/* BEREICH 3 — KOSTENSTELLEN */}
           {section === 'kostenstellen' && (
             <div>
@@ -1253,6 +1272,62 @@ export default function SettingsPage() {
               <div style={{ display: 'grid', gap: 14 }}>
 
                 <Divider label="Steuerdaten" />
+
+                {/* GEFUNDEN AM 2026-09-08: Die Mehrwertsteuer stand mit 19 % FEST im
+                    Code. Fuer einen Kleinunternehmer nach § 19 UStG erzeugte CraftFlow
+                    damit ein formal falsches Angebot — es wies Umsatzsteuer aus, die er
+                    gar nicht berechnen darf. */}
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                  padding: '12px 14px', background: C.gray1, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                  <input
+                    type="checkbox"
+                    checked={profil.kleinunternehmer === 'true'}
+                    onChange={e => setP('kleinunternehmer', e.target.checked ? 'true' : 'false')}
+                    style={{ marginTop: 2, accentColor: C.copper, width: 17, height: 17, flexShrink: 0 }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, color: C.white, fontWeight: 700 }}>
+                      Kleinunternehmer nach § 19 UStG
+                    </div>
+                    <div style={{ fontSize: 11.5, color: C.textMid, marginTop: 3, lineHeight: 1.6 }}>
+                      Dann weist CraftFlow <b>keine Umsatzsteuer</b> aus und setzt stattdessen den
+                      vorgeschriebenen Hinweis unter die Summe: &bdquo;Gemäß § 19 UStG wird keine
+                      Umsatzsteuer berechnet.&ldquo;
+                    </div>
+                  </div>
+                </label>
+
+                {profil.kleinunternehmer !== 'true' && (
+                  <div>
+                    <label style={lbl}>Umsatzsteuersatz (%)</label>
+                    <input
+                      style={inp()}
+                      type="number" step="0.1" min="0" max="30"
+                      value={profil.mwst_satz ?? '19'}
+                      onChange={e => setP('mwst_satz', e.target.value)}
+                      placeholder="19"
+                    />
+                    <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
+                      Regelsatz in Deutschland: 19 %. Wird auf dem Angebot ausgewiesen.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label style={lbl}>Angebot gültig für (Tage)</label>
+                  <input
+                    style={inp()}
+                    type="number" step="1" min="1" max="365"
+                    value={profil.angebot_gueltig_tage ?? '30'}
+                    onChange={e => setP('angebot_gueltig_tage', e.target.value)}
+                    placeholder="30"
+                  />
+                  <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
+                    Daraus errechnet CraftFlow das &bdquo;Gültig bis&ldquo;-Datum im Angebot. Stand bis
+                    zum 08.09.2026 fest auf 30 Tagen.
+                  </p>
+                </div>
+
 
                 <Field label="USt-IdNr." value={profil.ust_id ?? ''} onChange={v => setP('ust_id', v)} placeholder="DE123456789" />
                 <Field label="Steuernummer" value={profil.steuernummer ?? ''} onChange={v => setP('steuernummer', v)} />

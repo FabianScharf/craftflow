@@ -9,7 +9,12 @@ export function buildFooterTemplate(
   textOpts: PDFTextOpts = {}
 ): string {
   const firma = { ...FIRMA, ...Object.fromEntries(Object.entries(firmaOpts).filter(([, v]) => v)) } as typeof FIRMA & FirmaOpts
-  const ftrLine2 = `USt-IdNr.: ${firma.ust}${textOpts.zeigeTelefon && firma.telefon ? ` | Tel.: ${firma.telefon}` : ''}`
+  // § 14 UStG: Steuernummer ODER USt-IdNr. Wer keine USt-IdNr. hat, muss die
+  // Steuernummer nennen — sonst fehlt eine Pflichtangabe.
+  const steuerId = firma.ust
+    ? `USt-IdNr.: ${firma.ust}`
+    : (firma.steuernummer ? `Steuernummer: ${firma.steuernummer}` : '')
+  const ftrLine2 = `${steuerId}${steuerId && textOpts.zeigeTelefon && firma.telefon ? ' | ' : ''}${textOpts.zeigeTelefon && firma.telefon ? `Tel.: ${firma.telefon}` : ''}`
   const ftrLine3 = `${firma.bank} | IBAN: ${firma.iban}${textOpts.zeigeBic && firma.bic ? ` | BIC: ${firma.bic}` : ''}`
   const ftrLine4 = textOpts.zeigeWebsite && firma.website ? ` | ${firma.website}` : ''
   return `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:9px;color:#999;width:100%;display:flex;justify-content:space-between;align-items:center;padding:5px 15mm 0;border-top:1px solid #ddd;box-sizing:border-box;">
@@ -47,6 +52,21 @@ export interface PDFTextOpts {
    * es bei der Systemschrift.
    */
   basisUrl?: string
+  /**
+   * Umsatzsteuersatz in Prozent. Stand bis 2026-09-08 mit 19 FEST im Code — fuer
+   * jeden, der einen anderen Satz braucht, war das Dokument schlicht falsch.
+   */
+  mwstSatz?: number
+  /**
+   * Kleinunternehmer nach § 19 UStG: Es wird KEINE Umsatzsteuer ausgewiesen, dafuer
+   * der vorgeschriebene Hinweis. Ohne diesen Schalter erzeugte CraftFlow fuer einen
+   * ganzen Teil seiner Zielgruppe ein formal falsches Angebot.
+   */
+  kleinunternehmer?: boolean
+  /** Bindefrist in Tagen. Vorher fest 30. */
+  gueltigTage?: number
+  /** Eigene Textbausteine, unter den Positionen. */
+  bausteine?: Array<{ titel?: string; inhalt: string }>
   /** Spalte "Menge" in der Positionstabelle zeigen. */
   zeigeMenge?: boolean
   /**
@@ -59,6 +79,12 @@ export interface PDFTextOpts {
 
 export interface FirmaOpts {
   name?: string
+  /**
+   * Steuernummer. § 14 UStG verlangt ENTWEDER Steuernummer ODER USt-IdNr. — wer
+   * keine USt-IdNr. hat (Kleinunternehmer), braucht diese hier. Sie wurde in den
+   * Einstellungen abgefragt und bis 2026-09-08 nirgends gedruckt.
+   */
+  steuernummer?: string
   inhaber?: string
   strasse?: string
   ort?: string
@@ -86,10 +112,17 @@ export function buildPDF(
   const { angebotsdatum: savedDatum, ...restOpts } = textOpts
   void restOpts
   const datumStr = savedDatum || today()
+  // Bindefrist: war fest 30 Tage, obwohl jeder Betrieb eine eigene hat.
+  const gueltigTage = Number.isFinite(textOpts.gueltigTage) && Number(textOpts.gueltigTage) > 0
+    ? Number(textOpts.gueltigTage) : 30
   const net = nettoSumme(pos)
-  const vat = net * 0.19
+  const klein = textOpts.kleinunternehmer === true
+  const satz = klein ? 0 : (Number.isFinite(textOpts.mwstSatz) ? Number(textOpts.mwstSatz) : 19)
+  const vat = net * (satz / 100)
   const gross = net + vat
 
+  // 19, 7 oder 19,5 — ohne unnoetige Nullen.
+  const satzText = String(satz).replace('.', ',')
   const accent = (firmaOpts.akzentfarbe || '#1a1a1a')
   const isKompakt = textOpts.layout === 'kompakt'
   const schrift = SCHRIFTEN[textOpts.schriftart ?? 'opensans'] ?? SCHRIFTEN.opensans
@@ -117,23 +150,24 @@ export function buildPDF(
     const betrag = p.alternativ ? `(${eur(g)})` : eur(g)
     return `<tr>
       <td class="pos-nr">${nrText}</td>
+      ${zeigeMenge ? `<td class="pos-menge">${n} Stk</td>` : ''}
       <td class="pos-bez">
         <strong>${p.titel}${zusatz}</strong>
         ${p.beschreibung ? `<div class="bez-desc">${alsAbsaetze(p.beschreibung)}</div>` : ''}
       </td>
-      ${zeigeMenge ? `<td class="pos-menge">${n} Stk</td>` : ''}
       ${zeigeEP ? `<td class="pos-ep">${eur(g / n)}</td>` : ''}
       <td class="pos-ges">${betrag}</td>
     </tr>`
   }
 
-  const leerZellen = `${zeigeMenge ? '<td class="pos-menge"></td>' : ''}${zeigeEP ? '<td class="pos-ep"></td>' : ''}<td class="pos-ges"></td>`
+  const leerZellen = `${zeigeEP ? '<td class="pos-ep"></td>' : ''}<td class="pos-ges"></td>`
 
   const rows = bloecke.map((b, bi) => {
     const nr = bi + 1
     if (!b.gruppe) return zeile(`Pos.&nbsp;${nr}`, b.teile[0])
     const kopf = `<tr class="pos-group">
       <td class="pos-nr">Pos.&nbsp;${nr}</td>
+      ${zeigeMenge ? '<td class="pos-menge"></td>' : ''}
       <td class="pos-bez"><strong>${b.gruppe}</strong></td>
       ${leerZellen}
     </tr>`
@@ -162,6 +196,13 @@ export function buildPDF(
   const massivholzBlock = textOpts.zeigeMassivholz !== false
     ? `<div class="holz">${alsAbsaetze(textOpts.massivholzText || defaultMassivholz)}</div>`
     : ''
+
+  // Eigene Textbausteine des Betriebs — Materialpreisvorbehalt, Ausfuehrungszeitraum,
+  // Entsorgung, was auch immer er braucht. Stehen unter den festen Bloecken.
+  const bausteinBlock = (textOpts.bausteine ?? [])
+    .filter(b => b && String(b.inhalt ?? '').trim())
+    .map(b => `<div class="baustein">${b.titel ? `<strong>${b.titel}</strong>` : ''}${alsAbsaetze(b.inhalt)}</div>`)
+    .join('')
 
   const defaultUnterschrift = 'Wir freuen uns auf die Zusammenarbeit und bitten um Unterzeichnung und Rücksendung.'
   const signBlock = docTyp !== 'Rechnung' && textOpts.zeigeUnterschrift !== false
@@ -241,7 +282,7 @@ table.pos thead th.r{text-align:right}
 .pos-bez strong{display:block;font-size:13px;margin-bottom:2px}
 .bez-desc{display:block;font-size:11px;color:#555;line-height:1.55;margin-top:2px}
 .pos-ges{width:110px;text-align:right;font-weight:600;font-size:12px;vertical-align:top;padding:${isKompakt ? '5px 6px' : '8px 6px'};white-space:nowrap;border-bottom:1px solid #f0f0f0}
-.pos-menge{width:64px;text-align:right;font-size:11px;color:#555;vertical-align:top;padding:${isKompakt ? '5px 6px' : '8px 6px'};white-space:nowrap;border-bottom:1px solid #f0f0f0}
+.pos-menge{width:62px;text-align:right;font-size:11px;color:#555;vertical-align:top;padding:${isKompakt ? '5px 6px' : '8px 6px'};white-space:nowrap;border-bottom:1px solid #f0f0f0}
 .pos-ep{width:96px;text-align:right;font-size:11px;color:#555;vertical-align:top;padding:${isKompakt ? '5px 6px' : '8px 6px'};white-space:nowrap;border-bottom:1px solid #f0f0f0}
 tr.pos-group .pos-menge, tr.pos-group .pos-ep{border-bottom:none;padding-top:${isKompakt ? '10px' : '16px'};padding-bottom:2px}
 tr.pos-group .pos-nr{color:#1a1a1a;font-weight:700;padding-top:${isKompakt ? '10px' : '16px'};padding-bottom:2px}
@@ -259,6 +300,11 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:${isKompakt ? '10px' : '16p
 .zahlung{font-size:11px;font-weight:700;margin-bottom:16px}
 .widerruf{font-size:10px;color:#555;line-height:1.6;margin-bottom:20px}
 .hinweis{font-size:10px;color:#444;line-height:1.7;margin-bottom:20px;padding:10px 14px;background:#f8f8f8;border-left:3px solid ${accent}}
+.baustein{font-size:10.5px;color:#444;line-height:1.7;margin-bottom:14px;break-inside:avoid;page-break-inside:avoid}
+.baustein strong{display:block;margin-bottom:3px;color:#1a1a1a}
+.baustein p{margin:0 0 5px}
+.baustein p:last-child{margin-bottom:0}
+.klein-hinweis{font-size:10.5px;color:#444;text-align:right;margin:-8px 0 18px}
 /* Zusammengehoerendes nicht auseinanderreissen. Ein Unterschriftsblock, dessen
    Linien allein auf der naechsten Seite stehen, sieht nach Fehler aus — und eine
    Position, die mitten in der Beschreibung umbricht, liest sich schlecht.
@@ -298,7 +344,7 @@ ${ownLetterhead ? '' : `<div class="hdr">
     <tr><td>Datum</td><td>${datumStr}</td></tr>
     <tr><td>Ansprechpartner</td><td>${firma.inhaber}</td></tr>
     <tr><td>E-Mail</td><td>${firma.email}</td></tr>
-    ${docTyp !== 'Rechnung' ? `<tr><td>Gültig bis</td><td>${savedDatum ? inDays(30, new Date(savedDatum.split('.').reverse().join('-'))) : inDays(30)}</td></tr>` : ''}
+    ${docTyp !== 'Rechnung' ? `<tr><td>Gültig bis</td><td>${savedDatum ? inDays(gueltigTage, new Date(savedDatum.split('.').reverse().join('-'))) : inDays(gueltigTage)}</td></tr>` : ''}
   </table>
 </div>
 
@@ -309,8 +355,8 @@ ${ownLetterhead ? '' : `<div class="hdr">
 <table class="pos">
   <thead><tr>
     <th>Pos</th>
-    <th>Bezeichnung</th>
     ${zeigeMenge ? '<th class="r">Menge</th>' : ''}
+    <th>Bezeichnung</th>
     ${zeigeEP ? '<th class="r">Einheitspreis</th>' : ''}
     <th class="r">Gesamt</th>
   </tr></thead>
@@ -319,15 +365,17 @@ ${ownLetterhead ? '' : `<div class="hdr">
 <div class="tab-end"></div>
 
 <div class="sum-wrap"><div class="sum-inner">
-  <div class="sr"><span>Nettobetrag</span><span>${eur(net)}</span></div>
-  <div class="sr"><span>zzgl. 19% MwSt.</span><span>${eur(vat)}</span></div>
+  <div class="sr"><span>${klein ? 'Gesamtbetrag' : 'Nettobetrag'}</span><span>${eur(net)}</span></div>
+  ${klein ? '' : `<div class="sr"><span>zzgl. ${satzText}% MwSt.</span><span>${eur(vat)}</span></div>`}
   <div class="st"><span>Gesamtsumme</span><span>${eur(gross)}</span></div>
 </div></div>
+${klein ? '<div class="klein-hinweis">Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.</div>' : ''}
 
 ${massivholzBlock}
 <div class="zahlung"><strong>Zahlungskondition:</strong> ${alsAbsaetze(textOpts.zahlungText || defaultZahlung)}</div>
 ${widerrufBlock}
 ${hinweisBlock}
+${bausteinBlock}
 ${signBlock}
 <div class="gruss">${nachtextHtml}</div>
 

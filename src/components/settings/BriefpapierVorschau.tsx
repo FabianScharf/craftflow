@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { buildPDF, type SchriftId } from '@/lib/pdf'
 import type { Angebotsposition, Kunde } from '@/lib/types'
 
@@ -120,34 +120,88 @@ export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
       .replace(/<script[\s\S]*?<\/script>/gi, '')
   }, [profil])
 
+  // Fabian am 2026-09-08: "Die Vorschau finde ich gut, aber sehr klein. Hier kann man
+  // kaum etwas erkennen." Stimmt — in der Spalte neben den Bedienelementen ist ein
+  // A4-Blatt auf 43 % gestaucht. Deshalb zwei Stufen und ein Vollbild.
+  const [gross, setGross] = useState(false)
+
+  // A4 ist 794 px breit. transform:scale verkleinert nur die DARSTELLUNG, der
+  // Platzbedarf im Layout bleibt — der Rahmen muss ihn also abschneiden.
+  const A4_BREIT = 794
+  const A4_HOCH = 1123
+  const spaltenBreite = 340
+  const kleinMassstab = spaltenBreite / A4_BREIT
+
+  // Der Massstab wird uebergeben, nicht aus `gross` abgeleitet: Sonst waere die
+  // kleine Vorschau in der Spalte mit vergroessert, sobald das Vollbild offen ist.
+  const blatt = (hoehe: number, massstab: number, feste: boolean) => (
+    <div style={{
+      border: '1px solid #2E2E2E', borderRadius: 8, overflow: 'hidden',
+      background: '#e8e8e8', height: hoehe,
+      width: feste ? Math.round(A4_BREIT * massstab) + 2 : '100%',
+      maxWidth: feste ? '100%' : spaltenBreite,
+    }}>
+      <iframe
+        title="Vorschau des Angebots"
+        srcDoc={html}
+        sandbox=""
+        style={{
+          border: 'none', display: 'block',
+          width: A4_BREIT, height: Math.ceil(hoehe / massstab),
+          transform: `scale(${massstab})`, transformOrigin: 'top left',
+        }}
+      />
+    </div>
+  )
+
   return (
     <div>
+      {gross && (
+        // Vollbild: A4 fast in Originalgroesse, scrollbar. Zum Korrekturlesen —
+        // genau das war Constantins Anliegen ("Fehler fallen mir in der
+        // Druckansicht besser auf").
+        <div
+          onClick={() => setGross(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,.82)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            padding: '18px 16px', overflow: 'auto',
+          }}
+        >
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexShrink: 0 }}>
+            <div style={{ color: '#C8885A', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
+              Vorschau — Beispielangebot
+            </div>
+            <button
+              onClick={e => { e.stopPropagation(); setGross(false) }}
+              style={{ background: 'transparent', color: '#8A8A8A', border: '1px solid #2E2E2E',
+                borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer',
+                fontFamily: 'Helvetica Neue,sans-serif' }}
+            >
+              Schließen
+            </button>
+          </div>
+          <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
+            {blatt(Math.ceil(A4_HOCH * 0.92), 0.92, true)}
+          </div>
+        </div>
+      )}
+
       <div style={{
         fontSize: 10, letterSpacing: 2, textTransform: 'uppercase',
         color: '#8A8A8A', marginBottom: 8,
       }}>
         Vorschau — Beispielangebot
       </div>
-      {/* 210 mm auf 320 px gestaucht: Man sieht das Seitenbild, nicht den Text.
-          Genau darum geht es — Format, Absätze, Logo, Schrift. */}
-      <div style={{
-        border: '1px solid #2E2E2E', borderRadius: 8, overflow: 'hidden',
-        background: '#e8e8e8', height: 520, width: '100%', maxWidth: 340,
-      }}>
-        {/* A4 ist 794 px breit. Die Skalierung verkleinert nur die Darstellung, der
-            Platzbedarf im Layout bleibt — deshalb muss der Rahmen ihn abschneiden,
-            sonst ragt der iframe in die Bedienelemente hinein. */}
-        <iframe
-          title="Vorschau des Angebots"
-          srcDoc={html}
-          sandbox=""
-          style={{
-            border: 'none', display: 'block',
-            width: 794, height: 1220,
-            transform: 'scale(0.428)', transformOrigin: 'top left',
-          }}
-        />
-      </div>
+      {blatt(520, kleinMassstab, false)}
+      <button
+        onClick={() => setGross(true)}
+        style={{ marginTop: 8, width: '100%', background: 'transparent', color: '#C8885A',
+          border: '1px solid #2E2E2E', borderRadius: 6, padding: '9px 0', fontSize: 12,
+          cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+      >
+        ⤢ Groß anzeigen
+      </button>
       <div style={{ fontSize: 11, color: '#7A7A7A', marginTop: 8, lineHeight: 1.6 }}>
         Beispieldaten. Das Angebot zeigt eine Gruppe mit Unterpositionen, eine
         Alternativposition und eine Position mit Stückzahl — damit jede Einstellung
