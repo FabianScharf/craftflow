@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { buildPDF, type SchriftId } from '@/lib/pdf'
+import { useEffect, useMemo, useState } from 'react'
+import { buildPDF } from '@/lib/pdf'
+import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
 import type { Angebotsposition, Kunde } from '@/lib/types'
 
 // Lebende Vorschau neben den Einstellungen.
@@ -60,65 +61,42 @@ const BEISPIEL_POSITIONEN: Angebotsposition[] = [
 type Profil = Record<string, string>
 
 export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
-  const html = useMemo(() => {
-    const an = (k: string) => profil[k] === 'true'
-    const zahl = (k: string, standard: number) => {
-      const n = Number(profil[k])
-      return Number.isFinite(n) && n > 0 ? n : standard
-    }
-    const eigenes = an('pdf_eigenes_briefpapier') && !!profil.pdf_briefpapier_url
+  // Die Bausteine mit "immer" gehoeren ins Beispielangebot — sonst zeigt die
+  // Vorschau ein Dokument, das es so nie gibt.
+  const [bausteine, setBausteine] = useState<Array<{ titel: string; inhalt: string }>>([])
+  useEffect(() => {
+    let aktiv = true
+    void (async () => {
+      const r = await fetch('/api/settings/textbausteine')
+      if (!r.ok) return
+      const j = await r.json().catch(() => ({}))
+      if (!aktiv) return
+      setBausteine((j.bausteine ?? [])
+        .filter((b: { immer?: boolean; aktiv?: boolean }) => b.immer && b.aktiv !== false)
+        .map((b: { titel: string; inhalt: string }) => ({ titel: b.titel, inhalt: b.inhalt })))
+    })()
+    return () => { aktiv = false }
+  }, [])
 
+  const html = useMemo(() => {
     return buildPDF(
       BEISPIEL_POSITIONEN, BEISPIEL_KUNDE, 'AN-2026-041', 'Angebot',
-      profil.angebot_einleitung
+      String(profil.angebot_einleitung ?? '')
         || 'vielen Dank für Ihre Anfrage und das Interesse an unserer Arbeit.\n\nGerne unterbreiten wir Ihnen nachfolgendes Angebot. Alle Positionen sind auf Basis Ihrer Angaben kalkuliert.',
       true,
-      {
-        anredeVorlage: profil.anrede_vorlage || undefined,
-        nachtext: profil.angebot_abschluss || undefined,
-        widerrufText: profil.widerrufsbelehrung_text || undefined,
-        zahlungText: profil.zahlungskonditionen_text || undefined,
-        hinweis: profil.pdf_hinweis || undefined,
-        logoUrl: profil.logo_url || undefined,
-        layout: profil.pdf_layout === 'kompakt' ? 'kompakt' : 'klassisch',
-        schriftart: (profil.pdf_schriftart as SchriftId) || 'opensans',
-        // Dieselbe Adresse wie im echten PDF — sonst zeigt die Vorschau eine
-        // andere Schrift als das Dokument.
+      // EINE Zuordnung fuer Vorschau und echtes Angebot (src/lib/pdfoptionen.ts).
+      // Vorher baute jede ihre eigene — und drei neue Einstellungen wirkten im
+      // Angebot, aber nicht hier. Die Vorschau zeigte etwas anderes als das Dokument.
+      pdfTextOptionen(profil, {
         basisUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
-        zeigeMenge: an('pdf_zeige_menge'),
-        zeigeEinheitspreis: an('pdf_zeige_einheitspreis'),
-        zeigeMassivholz: profil.pdf_zeige_massivholz !== 'false',
-        massivholzText: profil.pdf_massivholz_text || undefined,
-        zeigeUnterschrift: profil.pdf_zeige_unterschrift !== 'false',
-        unterschriftText: profil.pdf_unterschrift_text || undefined,
-        zeigeBic: an('pdf_zeige_bic'),
-        zeigeTelefon: an('pdf_zeige_telefon'),
-        zeigeWebsite: an('pdf_zeige_website'),
-        eigeneBriefpapier: eigenes,
-        margins: eigenes ? {
-          top: zahl('pdf_margin_top', 45), bottom: zahl('pdf_margin_bottom', 30),
-          left: zahl('pdf_margin_left', 20), right: zahl('pdf_margin_right', 20),
-        } : undefined,
-      },
-      {
-        name: profil.firma_name || undefined,
-        inhaber: profil.inhaber || undefined,
-        strasse: profil.strasse || undefined,
-        ort: [profil.plz, profil.ort].filter(Boolean).join(' ') || undefined,
-        email: profil.email || undefined,
-        ust: profil.ust_id || undefined,
-        iban: profil.iban || undefined,
-        bank: profil.bank_name || undefined,
-        bic: profil.bic || undefined,
-        telefon: profil.telefon || undefined,
-        website: profil.website || undefined,
-        akzentfarbe: profil.farbe_akzent || undefined,
-      },
+        bausteine,
+      }),
+      pdfFirmaOptionen(profil),
     )
       // Skripte aus dem Vorschau-HTML entfernen — hier wird fremder Text gerendert
       // (eigene Bausteine des Nutzers), und der darf nichts ausführen.
       .replace(/<script[\s\S]*?<\/script>/gi, '')
-  }, [profil])
+  }, [profil, bausteine])
 
   // Fabian am 2026-09-08: "Die Vorschau finde ich gut, aber sehr klein. Hier kann man
   // kaum etwas erkennen." Stimmt — in der Spalte neben den Bedienelementen ist ein

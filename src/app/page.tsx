@@ -16,6 +16,7 @@ import {
 } from '@/lib/types'
 import { buildPDF, buildFooterTemplate, SCHRIFTEN, type FirmaOpts, type SchriftId } from '@/lib/pdf'
 import { positionenAusKi } from '@/lib/kiantwort'
+import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
 import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 // Ein Zeichen, eine Definition — sonst steht irgendwann ein zweites CF daneben.
 import { AppHeader } from '@/components/AppHeader'
@@ -209,6 +210,7 @@ export default function CraftFlow() {
 
   const [brandAccent, setBrandAccent] = useState(C.copper)
   const [brandPrimary, setBrandPrimary] = useState(C.black)
+  const [profilRoh, setProfilRoh] = useState<Record<string, unknown>>({})
   const [profilFirmaName, setProfilFirmaName] = useState<string | null>(null)
   const [profilLogoUrl, setProfilLogoUrl]   = useState<string | null>(null)
   const [profilInhaber, setProfilInhaber]   = useState<string>('')
@@ -293,6 +295,11 @@ export default function CraftFlow() {
               setShowOnboarding(true)
               if (!p) return
             }
+            // Das ROHE Profil aufheben: Die PDF-Optionen entstehen daraus ueber
+            // src/lib/pdfoptionen.ts — dieselbe Zuordnung wie in der Vorschau der
+            // Einstellungen. Vorher baute jede Seite ihre eigene, und neue
+            // Einstellungen wirkten nur an einer Stelle (2026-09-08).
+            setProfilRoh(p as Record<string, unknown>)
             const name: string = p.firma_name ?? ''
             setProfilFirmaName(name)
             setProfilLogoUrl(p.logo_url ?? null)
@@ -4456,57 +4463,17 @@ export default function CraftFlow() {
               const datum = angebotsdatum || today()
               if (!angebotsdatum) setAngebotsdatum(datum)
 
-              const textOpts = {
-                anredeVorlage: dokAnrede || undefined,
-                nachtext: dokNachtext || undefined,
-                widerrufText: dokWiderruf || undefined,
-                zahlungText: dokZahlung || undefined,
-                logoUrl: profilLogoUrl || undefined,
-                angebotsdatum: datum,
-                hinweis: profilPdfHinweis || undefined,
-                zeigeBic: profilPdfZeigeBic,
-                zeigeTelefon: profilPdfZeigeTelefon,
-                zeigeWebsite: profilPdfZeigeWebsite,
-                layout: profilPdfLayout,
-                schriftart: profilPdfSchriftart,
-                // Woher die Schriftdateien kommen. Ohne diese Angabe bleibt es bei der
-                // Systemschrift — auf dem Server ist das die einzige installierte.
+              // EINE Zuordnung fuer Angebot und Vorschau (src/lib/pdfoptionen.ts).
+              // Vorher baute jede Seite ihre eigene — neue Einstellungen wirkten
+              // dann nur an einer Stelle (gefunden 2026-09-08).
+              const textOpts = pdfTextOptionen(profilRoh, {
                 basisUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
-                mwstSatz: profilMwstSatz,
-                kleinunternehmer: profilKleinunternehmer,
-                gueltigTage: profilGueltigTage,
+                angebotsdatum: datum,
                 bausteine: bausteine
                   .filter(b => bausteinIds.includes(b.id))
                   .map(b => ({ titel: b.titel, inhalt: b.inhalt })),
-                zeigeMenge: profilPdfZeigeMenge,
-                zeigeEinheitspreis: profilPdfZeigeEp,
-                zeigeMassivholz: profilPdfZeigeMassivholz,
-                massivholzText: profilPdfMassivholzText || undefined,
-                zeigeUnterschrift: profilPdfZeigeUnterschrift,
-                unterschriftText: profilPdfUnterschriftText || undefined,
-                eigeneBriefpapier: profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl,
-                margins: {
-                  top: profilPdfMarginTop,
-                  bottom: profilPdfMarginBottom,
-                  left: profilPdfMarginLeft,
-                  right: profilPdfMarginRight,
-                },
-              }
-              const firmaOpts = {
-                name:       profilFirmaName || undefined,
-                inhaber:    profilInhaber   || undefined,
-                strasse:    profilStrasse   || undefined,
-                ort:        profilOrt       || undefined,
-                email:      profilEmail     || undefined,
-                ust:        profilUstId     || undefined,
-                steuernummer: profilSteuernummer || undefined,
-                iban:       profilIban      || undefined,
-                bank:       profilBank      || undefined,
-                bic:        profilBic       || undefined,
-                telefon:    profilTelefon   || undefined,
-                website:    profilWebsite   || undefined,
-                akzentfarbe: brandAccent    || undefined,
-              }
+              })
+              const firmaOpts = pdfFirmaOptionen(profilRoh)
               const html = buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, textOpts, firmaOpts)
               const useOwnLetterhead = profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl
               const footerTpl = useOwnLetterhead ? undefined : buildFooterTemplate(docTyp, docNr, firmaOpts, textOpts)
