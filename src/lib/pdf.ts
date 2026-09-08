@@ -136,7 +136,7 @@ export function buildPDF(
   // gemeinsamer Kopfzeile — so wie im Referenzangebot "Pos. 1  Flurschrank" mit
   // 1.001 Korpusse, 1.002 Beleuchtung, 1.003 Tueren darunter.
   //
-  // GEFUNDEN AM 2026-09-08 durch Constantin Ludewigt: "Die Positionsueberschriften
+  // GEFUNDEN AM 2026-09-08 durch einen Testnutzer: "Die Positionsueberschriften
   // werden immer 2-mal aufgezaehlt." Er hatte recht — der Titel stand hart in BEIDEN
   // Zeilen, in der Gruppen- und in der Detailzeile. Ohne Gruppe gibt es jetzt gar
   // keine Kopfzeile mehr, mit Gruppe traegt sie den Gruppennamen.
@@ -248,7 +248,7 @@ body{font-family:${schrift.stapel};font-size:${baseFontSize};color:#1a1a1a;line-
 .hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:7px}
 .hdr-sender{font-size:9px;color:#888;letter-spacing:.3px}
 .hdr-logo{text-align:right;max-width:45%;flex-shrink:0}
-/* GEFUNDEN AM 2026-09-08 durch Constantin Ludewigt: "Das Logo wird auf der pdf am
+/* GEFUNDEN AM 2026-09-08 durch einen Testnutzer: "Das Logo wird auf der pdf am
    rechten seitlichen Rand abgeschnitten." Vorher stand hier nur height:80px und
    width:auto — ein Logo im Querformat wurde dadurch beliebig breit und lief aus der
    Seite. max-width begrenzt es, object-fit haelt die Proportion. */

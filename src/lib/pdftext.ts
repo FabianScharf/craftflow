@@ -4,8 +4,8 @@
 // einer .ts-Datei keine Import-Pfade ohne Endung auflösen). Deshalb liegt hier die
 // Logik und in pdf.ts nur noch die Vorlage.
 //
-// Alles in dieser Datei geht auf die Rückmeldung von Constantin Ludewigt
-// (Tischlerei Lilie) vom 2026-08-26 zurück.
+// Alles in dieser Datei geht auf die Rückmeldung eines Testnutzers vom
+// 2026-08-26 zurück.
 
 // ── Absätze ─────────────────────────────────────────────────────────────────
 //
@@ -117,8 +117,8 @@ export function fontFaces(id: SchriftId, basisUrl: string): string {
 // "In der Anrede des Angebots wird nur der pre-text (Guten Tag) geschrieben und dann
 // direkt der Name. Es fehlt mir die Anrede Herr oder Frau."
 //
-// Vorher gab es nur {name}, deshalb konnte höchstens "Guten Tag Constantin Ludewigt"
-// herauskommen — ein "Sehr geehrter Herr Ludewigt" war gar nicht baubar.
+// Vorher gab es nur {name}, deshalb konnte höchstens "Guten Tag Max Mustermann"
+// herauskommen — ein "Sehr geehrter Herr Mustermann" war gar nicht baubar.
 export function anredeAus(
   vorlage: string,
   kunde: { name?: string; anrede?: string; nachname?: string },
