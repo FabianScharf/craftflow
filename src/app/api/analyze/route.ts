@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
+import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
+import { preisBlockFuerNutzer } from '@/lib/preisspeicher'
 
 export const maxDuration = 300
 
@@ -213,6 +215,7 @@ Schritt 2: Holzart-Faktor anwenden (siehe Tabelle unten):
   Fichte/Kiefer: ×1,0 | Buche: ×1,15 | Eiche: ×1,3 | Nussbaum: ×1,4 | Kirsche: ×1,3
 Schritt 3: Ergebnis aufteilen auf 03_02_Zuschnitt (40 %) und 03_06_Zusammenbau (60 %)
 Schritt 4: Zusätzlich Verleimen einplanen: 45 min je m² Leimfläche (in 03_06_Zusammenbau)
+WICHTIG: Dieses Ergebnis ist VERBINDLICH, keine Untergrenze. Zuschnitt + Zusammenbau zusammen dürfen inklusive Holzart-Faktor, Verleimen und Beschlägen höchstens das Doppelte der Basis (lfm × 5 h) erreichen.
 
 Beispiel Massivholz Eiche, 3,6 lfm raumhoch:
   Basis: 3,6 × 5 h = 18 h × 1,3 (Eiche) = 23,4 h = 1.404 min
@@ -223,6 +226,7 @@ Schritt 1: Laufmeter = Breite des Möbels in Meter (z.B. 2,40 m breit = 2,4 lfm)
 Schritt 2: Werkstattzeit gesamt = Laufmeter × 4,5 h/lfm
 Schritt 3: Aufteilen: 40 % → 03_02_Zuschnitt, 60 % → 03_06_Zusammenbau
   (Beschläge kommen in Schritt 4 oben drauf)
+WICHTIG: Dieses Ergebnis ist VERBINDLICH, keine Untergrenze. Zuschnitt + Zusammenbau zusammen dürfen inklusive aller Beschlagszuschläge höchstens das 1,5-Fache der Basis erreichen. Wer mehr braucht, hat sich verrechnet.
 
 Beispiel Dekormöbel Einbauschrank 3,6 lfm raumhoch:
   Basis: 3,6 × 4,5 h = 16,2 h = 972 min
@@ -246,12 +250,12 @@ Schritt 2 – OBERFLÄCHE vs. BEKANTUNG:
 □ Dekormöbel: Hat Oberfläche maximal 30 Minuten?
 
 Schritt 3 – WERKSTATTZEITEN:
-□ Zuschnitt + Zusammenbau gesamt: mind. lfm × 270 min (Dekor) oder lfm × 390 min (Massivholz Eiche)?
+□ Zuschnitt + Zusammenbau gesamt im BAND: lfm × 270 bis 405 min (Dekor) oder lfm × 390 bis 600 min (Massivholz Eiche)? Beides sind harte Grenzen — zu viel ist genauso falsch wie zu wenig.
 □ Zusammenbau: Jede Tür +20 min, Schiebetür +45 min, Klappe +35 min, Schublade +30 min, Griff +8 min korrekt addiert?
 □ Sind alle 4 Fixkosten (Besprechung, Planung, Konstruktion, Arbeitsvorbereitung) vorhanden?
 
 Schritt 4 – MONTAGE:
-□ Wenn Montage vorhanden: mindestens lfm × 90 min?
+□ Wenn Montage vorhanden: lfm × 90 bis 150 min (Neubau) bzw. lfm × 150 bis 240 min (Altbau, schiefe Wände)?
 □ Altbau oder schiefe Wände erwähnt? Dann +25 % Puffer.
 
 Schritt 5 – GESAMTPREIS:
@@ -497,7 +501,17 @@ Antworte NUR mit gültigem JSON, keine Backticks, kein Markdown:
       ]
     }
   ]
-}`
+}
+
+STÜCKZAHL – WICHTIG:
+- "stueckzahl" ist die Anzahl GLEICHER Stücke dieser Position. Ohne Angabe: 1.
+- Material und Zeiten gibst du IMMER für EIN Stück an. Rechne die Stückzahl NIEMALS selbst ein — CraftFlow rechnet sie hoch, und zwar mit Mengensynergien, die du nicht kennst.
+- Ausnahme: Besprechung, Planung, Konstruktion und Arbeitsvorbereitung gibst du für die GESAMTE Position an, nicht je Stück. Wer zehn Spinde baut, plant sie einmal.
+- Verschiedene Ausführungen sind verschiedene Positionen. "10 Spinde 40 cm breit und 5 Spinde 60 cm breit" sind ZWEI Positionen mit stueckzahl 10 und 5 — nicht eine mit 15.
+
+## GRUPPEN UND ALTERNATIVPOSITIONEN (optionale Felder)
+- "gruppe": Überschrift, unter der mehrere Positionen im Angebot zusammen erscheinen. Setze sie NUR, wenn ein zusammenhängendes Möbel aus mehreren getrennt bepreisten Teilen besteht — z. B. gruppe "Flurschrank" über den Positionen "Korpusse", "Türen", "LED-Beleuchtung". Bei einem einzelnen Möbel bleibt das Feld WEG. Positionen derselben Gruppe müssen direkt aufeinander folgen und exakt denselben Gruppentext tragen.
+- "alternativ": true nur, wenn der Nutzer ausdrücklich eine Alternative, eine Option oder ein "wahlweise" beschreibt. Eine Alternativposition wird angeboten, zählt aber NICHT in die Angebotssumme. Nie von dir aus erfinden.`
 
 // ---------------------------------------------------------------------------
 // Server-side validation — enforces FS Crafted rules deterministically after
@@ -519,6 +533,14 @@ const FIXKOSTEN_MINIMA: Record<string, number> = {
   'Konstruktion': 30,
   'Arbeitsvorbereitung': 20,
 }
+
+import { kappeZeiten, kappeOhneLaufmeter, ALTBAU_RE } from '@/lib/zeitpruefung'
+import { zaehleTeile, plattenflaeche, deckelNachStueckliste } from '@/lib/stueckliste'
+import { parseLaufmeter } from '@/lib/laufmeter'
+import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
+import { bucheUm } from '@/lib/handarbeit'
+import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
+import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
 
 const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
 
@@ -543,26 +565,9 @@ function isMassivholz(pos: Pos): boolean {
   return MASSIVHOLZ_RE.test(matText) || MASSIVHOLZ_RE.test(pos.beschreibung ?? '') || MASSIVHOLZ_RE.test(pos.titel ?? '')
 }
 
-// Sums all explicit metre values in text (e.g. "3,20m + 1,80m", "3.6 lfm").
-// Falls back to a width in cm ("360cm breit") if no metre values are found.
-// Returns total linear metres, or 0 if nothing parseable.
-// Capped at MAX_PLAUSIBLE_LM: the AI's own material/time breakdown in the
-// Beschreibung is full of "X,XX m²" area figures, and without the cap those
-// used to get summed up as if they were linear metres (see 2026-07-04 incident).
-const MAX_PLAUSIBLE_LM = 25
-
-function parseLaufmeter(text: string): number {
-  // (?![\w²³]) excludes "m²"/"m³"/"mm" — only bare m/lm/lfm count as linear metres.
-  const mRe = /(\d+[,.]\d+)\s*(?:lfm|lm|m)(?![\w²³])/gi
-  const mMatches = [...text.matchAll(mRe)]
-  const mSum = mMatches.reduce((s, m) => s + parseFloat(m[1].replace(',', '.')), 0)
-  if (mSum > 0) return Math.min(mSum, MAX_PLAUSIBLE_LM)
-
-  const cmMatch = text.match(/(\d{2,4})\s*cm\s*(?:breit|breite|gesamt)/i)
-  if (cmMatch) return Math.min(parseInt(cmMatch[1]) / 100, MAX_PLAUSIBLE_LM)
-
-  return 0
-}
+// parseLaufmeter liegt in src/lib/laufmeter.ts. Dort steht auch, warum: Die alte
+// Fassung hier addierte Breite, Hoehe und Tiefe zu einer Summe und blies darueber
+// die Mindest-Werkstattzeit auf (gemessen 2026-09-07).
 
 // Maps legacy numeric IDs and AI label variants to canonical clean IDs
 const KS_ALIASES: Record<string, string> = {
@@ -602,7 +607,8 @@ function validateAndFix(
   originalInput = '',
   customSaetze: Record<string, number> = {},
   matGruppen: Array<{ name: string; aufschlag_prozent: number }> = [],
-  deaktiviert: Set<string> = new Set()
+  deaktiviert: Set<string> = new Set(),
+  faktoren: Faktoren = KEINE_FAKTOREN
 ): Record<string, unknown> {
   const positionen = data.positionen
   if (!Array.isArray(positionen)) return data
@@ -617,8 +623,10 @@ function validateAndFix(
     let az: AZ[] = Array.isArray(pos.arbeitszeit)
       ? pos.arbeitszeit.map(a => ({ ...a, kostenstelle: normalizeKostenstelle(a.kostenstelle) }))
       : []
-    // Deaktivierte Kostenstellen komplett entfernen — sie dürfen nicht kalkuliert werden.
-    if (deaktiviert.size > 0) az = az.filter(a => !deaktiviert.has(a.kostenstelle))
+    // Deaktivierte Kostenstellen: Die Arbeit wird UMGEBUCHT, nicht gestrichen.
+    // Vorher stand hier ein filter — wer CNC abschaltete, verlor die Stunden fuer
+    // die Griffmulden. Das Angebot wurde zu billig, die Arbeit fiel trotzdem an.
+    if (deaktiviert.size > 0) az = bucheUm(az, deaktiviert, activeSaetze, normalizeKsId)
     const massiv = isMassivholz(pos)
 
     // 1. Correct all vkStunde to exact FS Crafted rates
@@ -705,6 +713,38 @@ function validateAndFix(
       montage.minuten = Math.max(montage.minuten, Math.round(lm * 90))
     }
 
+    // 6b. Zeiten auf die Pflichtrechnung deckeln.
+    //     Gemessen 2026-09-06: Die KI rechnete am Referenzschrank das Doppelte
+    //     dessen, was der Prompt selbst vorschreibt (1.350 statt ~690 min fuer
+    //     Zuschnitt + Zusammenbau). Der Grund steht in src/lib/zeitpruefung.ts.
+    //     Deterministisch nach der KI-Antwort, wie bei vkStunde und aufschlag.
+    const altbau = ALTBAU_RE.test(String(pos.beschreibung ?? '') + ' ' + String(pos.titel ?? ''))
+    const gekappt = kappeZeiten(az, lm, massiv, altbau)
+    if (gekappt.hinweise.length > 0) {
+      az = gekappt.zeilen as typeof az
+      console.warn('[analyze] Zeiten gekappt:', gekappt.hinweise.join(' '))
+    }
+
+    // Moebel OHNE Laufmeter — Rollcontainer, Tisch, Sideboard — wurden bis 2026-09-07
+    // GAR NICHT geprueft. Der Rollcontainer vom Vortag lief mit 8,8 h durch. Fuer sie
+    // kommt der Deckel aus der Stueckliste: Plattenflaeche plus gezaehlte Beschlaege.
+    // Die Formel ist an zwei wirklich gemessenen Kalkulationen geeicht, siehe
+    // src/lib/stueckliste.ts.
+    if (!(lm > 0)) {
+      const teile = zaehleTeile(descText)
+      const m2 = plattenflaeche(pos.material as Array<{ einheit?: string; menge?: number }>)
+      const s = kappeOhneLaufmeter(az, deckelNachStueckliste(m2, teile))
+      if (s.hinweise.length > 0) {
+        az = s.zeilen as typeof az
+        console.warn('[analyze] Zeiten gekappt (Stückliste):', s.hinweise.join(' '))
+      }
+    }
+
+    // 6c. Zeitfaktoren der Betriebskalibrierung. NACH der Deckelung, damit die
+    //     Deckelung den Branchenrichtwert prueft und nicht den bereits kalibrierten
+    //     Wert — sonst wuerde ein knapp kalibrierter Betrieb doppelt gekuerzt.
+    az = wendeFaktorenAn(az, faktoren, massiv)
+
     // 7. Plausibility check — flags (does NOT silently alter numbers) positions
     //    whose total WORKSHOP TIME is far outside the lm-based time floor.
     //    Deliberately rate-independent: checking price/lfm here would punish
@@ -714,11 +754,16 @@ function validateAndFix(
     //    Vorfall). Time is what must be plausible; price is minutes × rate.
     let warnung: string | undefined
     if (lm > 0) {
-      const flexKs = ['Zuschnitt', 'Zusammenbau', 'Oberfläche', 'Bekantung', 'CNC', 'Montage', 'Produktion']
+      // Montage gehoert NICHT hierher: Sie stand frueher im Zaehler, waehrend der
+      // Erwartungswert eine reine Werkstattzeit ist — die Pruefung war dadurch von
+      // sich aus zu grosszuegig. Montage wird in kappeZeiten() eigens geprueft.
+      const flexKs = ['Zuschnitt', 'Zusammenbau', 'Oberfläche', 'Bekantung', 'CNC', 'Produktion']
       const flexMinutes = az.filter(a => flexKs.includes(a.kostenstelle)).reduce((s, a) => s + a.minuten, 0)
       const expectedMin = lm * (massiv ? 5 : 4.5) * 60
 
-      if (flexMinutes > expectedMin * 4 || flexMinutes < expectedMin * 0.3) {
+      // Frueher das VIERFACHE. Am Referenzschrank lag die Abweichung bei 2,5x und
+      // lief damit stillschweigend durch (gemessen 2026-09-06).
+      if (flexMinutes > expectedMin * 2 || flexMinutes < expectedMin * 0.3) {
         const hours = Math.round(flexMinutes / 60)
         const expectedHours = Math.round(expectedMin / 60)
         warnung = `Werkstattzeit (${hours} h) liegt weit außerhalb des Zeitrichtwerts für ${lm.toFixed(1)} lfm ` +
@@ -775,6 +820,9 @@ export async function POST(req: NextRequest) {
     }
     // Vom Nutzer deaktivierte Kostenstellen — dürfen nirgends in der Kalkulation
     // auftauchen (auch nicht über Fixkosten-/Workshop-Floor-Fallbacks).
+    // Wird im Auth-Block weiter unten aus den Betriebsfragen gefuellt.
+    const ausBetrieb: string[] = []
+    let lackBlock = ''
     const deaktiviert = new Set<string>(
       (Array.isArray(deaktivierteKostenstellen) ? deaktivierteKostenstellen as string[] : []).map(c => normalizeKsId(c))
     )
@@ -839,11 +887,31 @@ export async function POST(req: NextRequest) {
 
     // Firmenstandort des eingeloggten Nutzers aus dem Betriebsprofil holen — die
     // Anfahrt/Montage MUSS von dort ausgehen, nicht vom Hersteller-Sitz Rodenbach.
+    // Im selben Zug: gelernte Bauweise-Regeln dieses Nutzers (Bauweise-Vault),
+    // serverseitig geladen, nicht vom Frontend geschickt — was das Frontend
+    // nicht sendet, kann nicht manipuliert werden.
     let firmenStandort = ''
+    let regelBlock = ''
+    let preisBlock = ''
+    let regelIds: string[] = []
+    let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
+    let faktoren: Faktoren = KEINE_FAKTOREN
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        // Ohne abgeschlossene Kalibrierung bleibt es bei 1,0 in allen vier Bereichen
+        // — also bei Branchenwerten.
+        try { faktoren = await ladeFaktoren(supabase, user.id) }
+        catch (e) { console.error('[kalibrierung] Faktoren laden (analyze):', e) }
+        // Die Betriebsfragen wirken hier: Kein CNC, keine Kantenanleimmaschine oder
+        // keine eigene Montage schalten die jeweilige Kostenstelle ab. Die Arbeit
+        // verschwindet dabei nicht, sie wandert zur Handarbeit.
+        try {
+          const kal = await ladeKalibrierung(supabase, user.id)
+          for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
+          lackBlock = lackBlockFuer(kal)
+        } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
         const { data: profil } = await supabase
           .from('betriebsprofil')
           .select('strasse, plz, ort')
@@ -853,8 +921,33 @@ export async function POST(req: NextRequest) {
           const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
+        try {
+          const r = await regelBlockFuerNutzer(supabase, user.id)
+          regelBlock = r.block
+          regelIds = r.ids
+          supabaseFuerZaehler = supabase
+        } catch (e) { console.error('[learn] Regeln laden (analyze):', e) }
+        // Getrennter Block: Bauweise-Regeln dürfen nie Preise setzen, Preise nie
+        // Bauweise — und der Ausfall des einen darf den anderen nicht mitreißen.
+        //
+        // GEFUNDEN AM 2026-09-07: Das Laden der Preisliste stand INNERHALB des
+        // try-Blocks der Bauweise-Regeln. Ein Fehler beim Laden der Regeln liess
+        // damit stillschweigend auch die fixierten Einkaufspreise verschwinden —
+        // die Kalkulation haette dann mit geschaetzten Preisen weitergerechnet,
+        // ohne dass es jemand merkt. In optimize war es von Anfang an getrennt.
+        //
+        // Fixierte Einkaufspreise gehören GERADE hierher: Ein neues Angebot
+        // entsteht über diese Route. Nur im Optimieren zu wirken hiesse, die
+        // Preise erst nach dem Schaetzen zu korrigieren statt vorher richtig zu
+        // rechnen.
+        try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
+        catch (e) { console.error('[preise] Preise laden (analyze):', e) }
       }
     } catch { /* kein Profil / nicht eingeloggt → Default-Verhalten */ }
+
+    // Erst hier, weil die Kalibrierung im Block darueber geladen wird. Serverseitig,
+    // damit es auch dann greift, wenn der Browser die Liste nicht mitschickt.
+    for (const ks of ausBetrieb) deaktiviert.add(normalizeKsId(ks))
 
     let systemPrompt = SYSTEM_PROMPT
     const standardLines = customKs
@@ -883,6 +976,13 @@ export async function POST(req: NextRequest) {
       systemPrompt += '\n\n## FIRMENSTANDORT DES NUTZERS (verbindlich für Anfahrt & Fahrtzeit):\n' + firmenStandort +
         '\nBerechne Anfahrt und Fahrtzeit (Kostenstellen Montage & Lieferung) IMMER von diesem Standort zum Kunden — NIEMALS ab Rodenbach. Rodenbach ist nur der Sitz des Software-Herstellers und für die Anfahrt völlig irrelevant.'
     }
+    // MUSS ganz am Ende stehen: der Block trägt einen Vorrang-Satz und muss
+    // nach dem allgemeinen Fachwissen kommen, sonst gewinnt weiter die
+    // generische Vorgabe (z. B. 6 mm HPL-Rückwand).
+    systemPrompt += regelBlock
+    // Ohne eigene Lackierkabine wird Lackieren zugekauft — nie geschaetzt.
+    systemPrompt += lackBlock
+    systemPrompt += preisBlock
 
     const model = 'claude-sonnet-4-6'
     const reqBody = JSON.stringify({
@@ -914,6 +1014,8 @@ export async function POST(req: NextRequest) {
         { status: 502 }
       )
     }
+    try { if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds) }
+    catch (e) { console.error('[learn] zaehleRegelnHoch:', e) }
 
     const data = await response.json()
     // Extended thinking liefert mehrere Content-Blöcke — wir nehmen nur den text-Block
@@ -943,7 +1045,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const parsed = JSON.parse(clean)
-      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert)
+      const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert, faktoren)
       return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))

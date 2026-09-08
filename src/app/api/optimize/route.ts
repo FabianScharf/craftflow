@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
+import { regelBlockFuerNutzer, zaehleRegelnHoch, speichereRegel } from '@/lib/bauweise'
+import { preisBlockFuerNutzer, speicherePreis } from '@/lib/preisspeicher'
+import {
+  WERKZEUGE, pruefePreisInhalt, unsichereBetragsangabe,
+  unbelegteWoerter, bereinigeWenn, baueBelegquellen,
+} from '@/lib/lernwerkzeuge'
+import { brauchbarerText, notNachricht } from '@/lib/chatantwort'
+import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
+import { bucheUm } from '@/lib/handarbeit'
+import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
+import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
 
 export const maxDuration = 120
 
@@ -9,7 +20,9 @@ type ChatMsg = { role: 'user' | 'assistant'; content: string }
 const SYSTEM_BASE = `Du bist Kalkulationsassistent für FS Crafted (Schreiner, Rodenbach). Du hilfst Angebote zu vervollständigen und zu verbessern.
 
 KRITISCH – AUSGABEFORMAT:
-Deine gesamte Antwort besteht aus GENAU EINEM gültigen JSON-Objekt. Kein Text davor, kein Text danach, keine Erklärungen, keine Backticks.
+Dein TEXT besteht aus GENAU EINEM gültigen JSON-Objekt. Kein Text davor, kein Text danach, keine Erklärungen, keine Backticks.
+AUSNAHME: Werkzeugaufrufe (regel_merken, preis_merken) sind kein Text. Sie stehen NICHT im JSON, sondern werden als Werkzeug ausgeführt. Du darfst ein Werkzeug aufrufen UND im selben Zug dein JSON liefern.
+Nach jedem Werkzeug-Ergebnis lieferst du IMMER dein JSON-Objekt — auch wenn du nur bestätigst, dass etwas gemerkt wurde. Ohne JSON kommt beim Nutzer nichts an.
 
 Analyse / Info / Rückfrage:
 {"message":"Text ohne Markdown","updatedOffer":null}
@@ -23,8 +36,148 @@ INHALTLICHE REGELN:
 - Fehlende Angaben als einfache Liste mit "→" als Aufzählungszeichen
 - updatedOffer: IMMER alle Positionen zurückgeben (nicht nur geänderte)
 - IDs beibehalten: id, material[].id, arbeitszeit[].id
+- "stueckzahl" beibehalten, wenn sie vorhanden ist. Material und Zeiten stehen für EIN Stück — rechne die Stückzahl niemals selbst ein. Nur wenn der Nutzer die Anzahl ausdrücklich ändert, setzt du "stueckzahl" neu.
 - Holzart: in beschreibung UND material[].bezeichnung eintragen
-- Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung`
+- Kostenstellen-IDs (exakt so): Besprechung, Planung, Konstruktion, Arbeitsvorbereitung, Produktion, Warenhandling, Zuschnitt, Bekantung, CNC, Oberfläche, Zusammenbau, Verpacken, Azubi, Montage, Lieferung
+
+POSITIONEN HINZUFÜGEN — DU DARFST DAS:
+Bittet der Nutzer um eine weitere oder eine alternative Position, legst du sie an und gibst sie in updatedOffer mit. Bisher stand hier nichts davon, und deshalb haben Nutzer es nicht geschafft, eine Zusatzposition kalkulieren zu lassen.
+- Neue Position: eigenes "id" (eine Zahl, die noch nicht vorkommt), "titel", "beschreibung", vollständige "material"- und "arbeitszeit"-Listen — genauso aufgebaut wie die bestehenden Positionen. Auch material[].id und arbeitszeit[].id vergeben.
+- Rechne sie mit derselben Sorgfalt wie eine Erstkalkulation: Fixkosten-Kostenstellen (Besprechung, Planung, Konstruktion, Arbeitsvorbereitung) gehören anteilig dazu, Montage nur wenn sie anfällt.
+- "vkStunde" und "aufschlag" darfst du grob setzen — sie werden serverseitig mit den echten Sätzen des Betriebs überschrieben.
+- Alle bestehenden Positionen unverändert mitgeben, mit ihren IDs.
+
+ALTERNATIVPOSITION:
+- "alternativ": true macht aus einer Position einen Vorschlag: Sie steht im Angebot mit dem Preis in Klammern und zählt NICHT in die Summe. Setze es, wenn der Nutzer von einer Alternative, Option oder "wahlweise" spricht.
+- Sag es in deiner "message" ausdrücklich: dass sie als Alternative geführt wird und die Summe nicht erhöht.
+
+GRUPPE:
+- "gruppe": gemeinsame Überschrift für aufeinanderfolgende Positionen, die zu einem Möbel gehören (z. B. "Flurschrank" über Korpus, Türen, Beleuchtung). Nur setzen, wenn der Nutzer es so strukturiert haben will. Gleiche Gruppe = exakt gleicher Text, Positionen direkt hintereinander.
+
+LERNEN – WANN DU FRAGST:
+- Sagt der Nutzer ausdrücklich "immer", "standardmäßig", "grundsätzlich" oder ähnlich, nenne am Ende deiner "message" den GENAUEN Regeltext und frage, ob der Wortlaut so passt. Schreibe den Regeltext OHNE Anführungszeichen — hinter einen Doppelpunkt in eine eigene Zeile. Auch diese Rückfrage ist ein JSON-Objekt, niemals blanker Text.
+- Ändert er dasselbe Merkmal zum ZWEITEN Mal in diesem Angebot, frage ebenfalls.
+- Höchstens EINE Frage pro Antwort. Nie eine Frage wiederholen, die er gerade verneint hat.
+- Stimmt er zu, rufe regel_merken bzw. preis_merken auf — mit EXAKT dem Wortlaut, den du ihm gezeigt hast. Ohne Zustimmung nie.
+- Formuliere den Regeltext aus seinen Worten. Lehnt ein Werkzeug ab, nennt dir die Antwort die beanstandeten Wörter: formuliere ohne sie und rufe es erneut auf.
+- Nennt er einen Einkaufspreis und will ihn dauerhaft, nutze preis_merken.
+- Nennt er den Preis nur ungefähr ("ca.", "etwa", "je nach", "kommt drauf an", eine Spanne), fixiere ihn NIE. Frage nach dem konkreten Fall — Holzart, Größe, Ausführung — und fixiere erst den Preis, der eindeutig dazu gehört.
+- Die Bezeichnung muss den Fall eindeutig treffen. Hängt der Preis von Holzart oder Größe ab, gehören beide hinein, z. B. "Massivholzlade Eiche 600 mm". Mehrere typische Größen dürfen einzeln nebeneinander stehen.
+- Existiert zu einem Material bereits ein fixierter Preis und er ändert ihn, frage, ob der hinterlegte Preis nachgezogen werden soll. Für dieses Angebot gilt sein Wert in jedem Fall.
+
+WAS DU NIE ZUSAGEN DARFST:
+Du kannst dir NUR Bauweise-Regeln und Einkaufspreise merken. Stundensätze, Materialaufschläge und Verkaufspreise kannst du NICHT dauerhaft merken. Sage dort niemals "merke ich mir", sondern: "Für dieses Angebot übernommen – dauerhaft merken kann ich mir das nicht, das stellst du unter Einstellungen ein."
+Behaupte NIE eine Änderung am Angebot, die du nicht lieferst. Schreibst du "für dieses Angebot übernommen" oder "trage ich ein", dann MUSS im selben Zug updatedOffer mit genau dieser Änderung kommen. Kannst oder willst du nichts ändern, sage nur, was künftig gilt.`
+
+// Sammelt alles, was im Angebot wirklich steht — Belegquelle fuer den
+// Erfindungsschutz. Nur was hier oder in den Nutzernachrichten vorkommt, darf
+// gemerkt werden.
+function sammleAngebotstexte(offer: unknown): string[] {
+  const texte: string[] = []
+  const o = offer as { positionen?: Array<Record<string, unknown>> } | null
+  for (const pos of o?.positionen ?? []) {
+    if (typeof pos.titel === 'string') texte.push(pos.titel)
+    if (typeof pos.beschreibung === 'string') texte.push(pos.beschreibung)
+    for (const m of (pos.material as Array<Record<string, unknown>> | undefined) ?? []) {
+      if (typeof m.bezeichnung === 'string') texte.push(m.bezeichnung)
+      if (typeof m.ek === 'number') texte.push(String(m.ek))
+    }
+    for (const a of (pos.arbeitszeit as Array<Record<string, unknown>> | undefined) ?? []) {
+      if (typeof a.kostenstelle === 'string') texte.push(a.kostenstelle)
+    }
+  }
+  return texte
+}
+
+// `grund` ist der Klartext fuer den Nutzer, wenn am Ende gar nichts geklappt
+// hat. `meldung` meldet Erfolge sofort; eine Ablehnung darf die KI erst noch
+// selbst ausbuegeln, ohne dass es im Chat rauscht.
+type WerkzeugAntwort = { ok: boolean; text: string; meldung: string; grund?: string }
+
+// Fuehrt einen Werkzeugaufruf aus. Prueft VOR dem Speichern, ob der Inhalt
+// belegt ist. Wird abgelehnt, bekommt die KI den Grund als Fehler zurueck —
+// sie darf es dann nicht stillschweigend erneut versuchen.
+async function fuehreWerkzeugAus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  belegquellen: string[],
+  // Getrennt von den Belegquellen: fuer die Unsicherheitspruefung zaehlen NUR die
+  // eigenen Worte des Nutzers. Das Angebot enthaelt die EK-Zahlen, die KI wuerde
+  // sich sonst selbst bestaetigen.
+  nutzertexte: string[],
+  name: string,
+  input: Record<string, unknown>,
+): Promise<WerkzeugAntwort> {
+  if (!userId) {
+    return { ok: false, text: 'Nicht eingeloggt, nichts gespeichert.', meldung: '' }
+  }
+
+  if (name === 'regel_merken') {
+    const bereich = String(input.bereich ?? '')
+    const wenn = bereinigeWenn(String(input.wenn ?? ''))
+    const dann = String(input.dann ?? '').trim()
+    if (!dann) {
+      return { ok: false, text: 'Feld "dann" ist leer.', meldung: '',
+        grund: 'Es kam kein Regeltext an.' }
+    }
+    const offen = unbelegteWoerter(dann, belegquellen)
+    if (offen.length > 0) {
+      return {
+        ok: false,
+        text: 'Abgelehnt: Diese Woerter kommen weder im Angebot noch im bisherigen Chat vor: '
+          + offen.join(', ') + '. Formuliere die Regel ausschliesslich aus dem, was wirklich '
+          + 'dasteht — oder zeige dem Nutzer deinen Wortlaut und frage, ob er so passt.',
+        meldung: '',
+        grund: 'Die Regel enthielt Woerter, die so nicht gefallen sind: ' + offen.join(', ') + '.',
+      }
+    }
+    const beleg = String(input.quelle ?? '') === 'wiederholung'
+      ? 'Zweimal im selben Angebot geaendert'
+      : 'Vom Nutzer im Chat gesagt'
+    const r = await speichereRegel(supabase, userId, { bereich, wenn, dann, beleg })
+    if (!r.ok) return { ok: false, text: `Speichern fehlgeschlagen: ${r.grund}`, meldung: `Regel nicht gespeichert: ${r.grund}` }
+    return {
+      ok: true,
+      text: r.aktualisiert ? 'Bestehende Regel aktualisiert.' : 'Regel gespeichert.',
+      meldung: r.aktualisiert ? 'Regel aktualisiert.' : 'Regel gemerkt.',
+    }
+  }
+
+  if (name === 'preis_merken') {
+    const bezeichnung = String(input.bezeichnung ?? '').trim()
+    const ek = Number(input.ek)
+    const einheit = String(input.einheit ?? 'Stk')
+    if (!bezeichnung) return { ok: false, text: 'Feld "bezeichnung" ist leer.', meldung: '' }
+    if (unsichereBetragsangabe(ek, nutzertexte)) {
+      return {
+        ok: false,
+        text: 'Abgelehnt: Der Preis wurde nur ungefaehr genannt ("ca.", "je nach", "kommt drauf an"). '
+          + 'Frage nach dem konkreten Fall — Holzart, Groesse, Ausfuehrung — und fixiere erst den '
+          + 'Preis, der eindeutig dazu gehoert. Mehrere typische Faelle duerfen einzeln nebeneinander stehen.',
+        meldung: '',
+        grund: 'Den Preis hast du nur ungefähr genannt. Sag mir den genauen Fall — Holzart und Größe — dann fixiere ich ihn.',
+      }
+    }
+    if (!pruefePreisInhalt(bezeichnung, ek, belegquellen)) {
+      return {
+        ok: false,
+        text: 'Abgelehnt: Material oder Betrag kommen weder im Angebot noch im Chat vor. '
+          + 'Einkaufspreise nie schaetzen — frage den Nutzer nach dem Preis.',
+        meldung: '',
+        grund: 'Material oder Betrag kamen im Chat nicht vor.',
+      }
+    }
+    const r = await speicherePreis(supabase, userId, { bezeichnung, ek, einheit })
+    if (!r.ok) return { ok: false, text: `Speichern fehlgeschlagen: ${r.grund}`, meldung: `Preis nicht gespeichert: ${r.grund}` }
+    return {
+      ok: true,
+      text: r.aktualisiert ? 'Bestehenden Preis aktualisiert.' : 'Preis fixiert.',
+      meldung: r.aktualisiert ? 'Preis aktualisiert.' : 'Preis fixiert.',
+    }
+  }
+
+  return { ok: false, text: `Unbekanntes Werkzeug: ${name}`, meldung: '' }
+}
 
 function looksLikeOffer(p: unknown): p is { positionen?: unknown; kunde?: unknown } {
   return !!p && typeof p === 'object' && ('positionen' in p || 'kunde' in p)
@@ -54,21 +207,39 @@ function matchMaterialgruppe(
 // here. Fixes the 2026-07-04 incident where the optimizer had no access to
 // Firmeneinstellungen at all and just kept/invented values from whatever was
 // already in the offer JSON.
+// Dieselbe Regex wie in analyze — Massivholz erkennt man am Text, nicht an einem Flag.
+const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
+
+function istMassivholz(pos: Pos): boolean {
+  const text = [
+    pos.titel ?? '', pos.beschreibung ?? '',
+    ...(Array.isArray(pos.material) ? pos.material.map(m => m.bezeichnung ?? '') : []),
+  ].join(' ')
+  return MASSIVHOLZ_RE.test(text)
+}
+
 function applyUserRates(
   offer: Record<string, unknown>,
   customSaetze: Record<string, number>,
   matGruppen: Array<{ name: string; aufschlag_prozent: number }>,
-  deaktiviert: Set<string> = new Set()
+  deaktiviert: Set<string> = new Set(),
+  faktoren: Faktoren = KEINE_FAKTOREN
 ): Record<string, unknown> {
   const positionen = offer.positionen
   if (!Array.isArray(positionen)) return offer
   const activeSaetze: Record<string, number> = { ...DEFAULT_STUNDENSAETZE, ...customSaetze }
   offer.positionen = positionen.map((raw: unknown) => {
     const pos = raw as Pos
+    // Abgeschaltete Kostenstellen werden UMGEBUCHT, nicht gestrichen — sonst geht
+    // die Arbeit verloren und das Angebot wird zu billig. Danach die Zeitfaktoren
+    // der Betriebskalibrierung, damit der Chat-Weg sie nicht umgeht.
     const arbeitszeit = Array.isArray(pos.arbeitszeit)
-      ? pos.arbeitszeit
-          .filter(a => !deaktiviert.has(normalizeKsId(a.kostenstelle)))
-          .map(a => (a.kostenstelle in activeSaetze ? { ...a, vkStunde: activeSaetze[a.kostenstelle] } : a))
+      ? wendeFaktorenAn(
+          bucheUm(pos.arbeitszeit, deaktiviert, activeSaetze, normalizeKsId)
+            .map(a => (a.kostenstelle in activeSaetze ? { ...a, vkStunde: activeSaetze[a.kostenstelle] } : a)),
+          faktoren,
+          istMassivholz(pos),
+        )
       : pos.arbeitszeit
     const material = Array.isArray(pos.material)
       ? pos.material.map(m => {
@@ -152,7 +323,17 @@ export async function POST(req: NextRequest) {
     const matGruppen = Array.isArray(userMaterialgruppen) ? userMaterialgruppen : []
 
     // Firmenstandort des Nutzers aus dem Betriebsprofil — Anfahrt IMMER von dort.
+    // Im selben Zug: gelernte Bauweise-Regeln dieses Nutzers (Bauweise-Vault),
+    // serverseitig geladen, nicht vom Frontend geschickt.
     let firmenStandort = ''
+    let regelBlock = ''
+    let preisBlock = ''
+    let regelIds: string[] = []
+    let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
+    let nutzerId = ''
+    let faktoren: Faktoren = KEINE_FAKTOREN
+    const ausBetrieb: string[] = []
+    let lackBlock = ''
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -166,8 +347,33 @@ export async function POST(req: NextRequest) {
           const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
+        nutzerId = user.id
+        // Ohne abgeschlossene Kalibrierung bleibt es bei Branchenwerten.
+        try { faktoren = await ladeFaktoren(supabase, user.id) }
+        catch (e) { console.error('[kalibrierung] Faktoren laden (optimize):', e) }
+        // Die Betriebsfragen wirken hier: Kein CNC, keine Kantenanleimmaschine oder
+        // keine eigene Montage schalten die jeweilige Kostenstelle ab. Die Arbeit
+        // verschwindet dabei nicht, sie wandert zur Handarbeit.
+        try {
+          const kal = await ladeKalibrierung(supabase, user.id)
+          for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
+          lackBlock = lackBlockFuer(kal)
+        } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
+        try {
+          const r = await regelBlockFuerNutzer(supabase, user.id)
+          regelBlock = r.block
+          regelIds = r.ids
+          supabaseFuerZaehler = supabase
+        } catch (e) { console.error('[learn] Regeln laden (optimize):', e) }
+        // Getrennter Block: Bauweise-Regeln dürfen nie Preise setzen, Preise nie Bauweise.
+        try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
+        catch (e) { console.error('[preise] Preise laden (optimize):', e) }
       }
     } catch { /* kein Profil → Default */ }
+
+    // Erst hier, weil die Kalibrierung im Block darueber geladen wird. Serverseitig,
+    // damit es auch dann greift, wenn der Browser die Liste nicht mitschickt.
+    for (const ks of ausBetrieb) deaktiviert.add(normalizeKsId(ks))
 
     let system = SYSTEM_BASE + `\n\n== AKTUELLES ANGEBOT (JSON) ==\n${JSON.stringify(offerData, null, 2)}`
     const standardLines = customKs.filter(k => normalizeKsId(k.code) in DEFAULT_STUNDENSAETZE).map(k => `${normalizeKsId(k.code)} → ${k.stundensatz} €/h`)
@@ -192,47 +398,161 @@ export async function POST(req: NextRequest) {
       system += '\n\n== FIRMENSTANDORT DES NUTZERS (verbindlich für Anfahrt & Fahrtzeit) ==\n' + firmenStandort +
         '\nAnfahrt/Fahrtzeit (Montage & Lieferung) IMMER von diesem Standort berechnen — NIEMALS ab Rodenbach.'
     }
+    // MUSS ganz am Ende stehen: der Block trägt einen Vorrang-Satz und muss
+    // nach dem allgemeinen Fachwissen kommen, sonst gewinnt weiter die
+    // generische Vorgabe (z. B. 6 mm HPL-Rückwand).
+    system += regelBlock
+    // Ohne eigene Lackierkabine wird Lackieren zugekauft — nie geschaetzt.
+    system += lackBlock
+    system += preisBlock
 
     const messages: ChatMsg[] = [
       ...chatHistory,
       { role: 'user', content: message },
     ]
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 6000,
-        temperature: 0.2,
-        system,
-        messages,
-      }),
-    })
+    // Belegquellen für den Erfindungsschutz: was wirklich im Angebot steht und
+    // was der Nutzer wirklich geschrieben hat. Nichts anderes darf gemerkt werden.
+    // Fabians Entscheidung 2026-09-06: Er bestaetigt den Wortlaut. Deshalb zaehlt
+    // auch, was die KI ihm in FRUEHEREN Runden gezeigt hat — `chatHistory` enthaelt
+    // nie die laufende Antwort, sie kann also nicht im selben Zug erfinden und
+    // speichern. Vorher zaehlten nur Nutzernachrichten; jede eigene Formulierung
+    // der KI fiel damit durch, auch eine voellig treue (gemessen 2026-09-06).
+    const belegquellen: string[] = baueBelegquellen(
+      sammleAngebotstexte(offerData), chatHistory, message)
+    const nutzertexte: string[] = [
+      ...chatHistory.filter(m => m.role === 'user').map(m => m.content),
+      message,
+    ]
 
-    if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`Claude ${res.status}: ${err.slice(0, 300)}`)
+    type Block = Record<string, unknown> & { type: string }
+    type ApiMsg = { role: 'user' | 'assistant'; content: string | Block[] }
+    const verlauf: ApiMsg[] = [...messages]
+    const werkzeugMeldungen: string[] = []
+    const werkzeugFehler: string[] = []
+    let data: { content?: Block[]; stop_reason?: string } = {}
+
+    // Höchstens drei Runden. Ohne Obergrenze wäre eine Schleife aus Aufruf und
+    // Ablehnung ein offenes Kostenrisiko — jede Runde ist ein bezahlter Aufruf.
+    for (let runde = 0; runde < 3; runde++) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 6000,
+          temperature: 0.2,
+          system,
+          tools: WERKZEUGE,
+          messages: verlauf,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.text()
+        throw new Error(`Claude ${res.status}: ${err.slice(0, 300)}`)
+      }
+
+      data = await res.json() as { content?: Block[]; stop_reason?: string }
+      if (data.stop_reason !== 'tool_use') break
+
+      const aufrufe = (data.content ?? []).filter(b => b.type === 'tool_use')
+      if (aufrufe.length === 0) break
+
+      // Alle Ergebnisse gehören in EINE Nutzernachricht. Aufgeteilt auf mehrere
+      // gewöhnt man dem Modell parallele Werkzeugaufrufe ab.
+      const ergebnisse: Block[] = []
+      for (const a of aufrufe) {
+        const r = supabaseFuerZaehler
+          ? await fuehreWerkzeugAus(
+              supabaseFuerZaehler, nutzerId, belegquellen, nutzertexte,
+              String(a.name ?? ''), (a.input ?? {}) as Record<string, unknown>)
+          : { ok: false, text: 'Nicht eingeloggt, nichts gespeichert.', meldung: '' }
+        ergebnisse.push({ type: 'tool_result', tool_use_id: a.id, content: r.text, is_error: !r.ok })
+        if (r.meldung) werkzeugMeldungen.push(r.meldung)
+        if (!r.ok && r.grund) werkzeugFehler.push(r.grund)
+      }
+
+      verlauf.push({ role: 'assistant', content: data.content ?? [] })
+      verlauf.push({ role: 'user', content: ergebnisse })
     }
 
-    const data = await res.json() as { content?: Array<{ text?: string }> }
-    const raw = data.content?.[0]?.text ?? ''
+    try { if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds) }
+    catch (e) { console.error('[learn] zaehleRegelnHoch:', e) }
+
+    // Alle Textblöcke zusammen — bei Werkzeugnutzung kann die Antwort aus
+    // mehreren bestehen, content[0] allein würde Text verlieren.
+    const raw = (data.content ?? [])
+      .filter(b => b.type === 'text')
+      .map(b => String(b.text ?? ''))
+      .join('')
 
     const parsed = extractJSON(raw)
     if (parsed) {
       const updatedOffer = parsed.updatedOffer
-        ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen, deaktiviert)
+        ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen, deaktiviert, faktoren)
         : null
-      return NextResponse.json({ success: true, message: parsed.message, updatedOffer })
+      // Was das Werkzeug getan hat, gehört sichtbar in den Chat — auch und
+      // gerade der Fehlerfall. Fehler verschlucken war der Fehler von gestern.
+      const zusatz = werkzeugMeldungen.length > 0 ? '\n\n' + werkzeugMeldungen.join(' ') : ''
+      return NextResponse.json({ success: true, message: String(parsed.message ?? '') + zusatz, updatedOffer })
     }
-    console.error('[optimize] unparsable response:', raw.slice(0, 500))
+    console.error('[optimize] unparsable response:', { stop: data.stop_reason, raw: raw.slice(0, 500) })
+
+    // Auch hier muss durchkommen, was die Werkzeuge getan haben. Sonst wird ein
+    // gespeicherter Preis stillschweigend verschluckt und der Nutzer glaubt,
+    // es sei nichts passiert — der Fehler vom 2026-09-05 in neuem Gewand.
+    const zusatz = werkzeugMeldungen.length > 0 ? werkzeugMeldungen.join(' ') : ''
+
+    // Ein leerer Text bei gelaufenen Werkzeugen ist kein Fehler, sondern der
+    // Normalfall: Das Modell hat gehandelt statt geredet.
+    if (raw.trim() === '' && zusatz) {
+      return NextResponse.json({ success: true, message: zusatz, updatedOffer: null })
+    }
+    // Hat ein Werkzeug abgelehnt, ist das der wahre Grund. Ohne diesen Zweig las
+    // der Nutzer "nicht verwertbar" und erfuhr nie, dass seine Regel abgelehnt
+    // wurde — der Fehler, an dem der Live-Test am 2026-09-06 haengenblieb.
+    if (werkzeugFehler.length > 0) {
+      return NextResponse.json({
+        success: true,
+        message: (zusatz ? zusatz + '\n\n' : '')
+          + 'Dauerhaft merken konnte ich das nicht: ' + werkzeugFehler[werkzeugFehler.length - 1]
+          + ' Sag es bitte noch einmal in deinen Worten, dann merke ich genau das.',
+        updatedOffer: null,
+      })
+    }
+    // Das Modell vergisst den JSON-Umschlag gelegentlich und antwortet in
+    // Fliesstext — inhaltlich richtig. Frueher landete das im Muell und der
+    // Nutzer las "nicht verwertbar" (von Fabian mehrfach gemeldet, Rohtext im
+    // Vercel-Log vom 2026-09-06 15:11 belegt). Jetzt geht der Text durch.
+    // Zerbricht das JSON an einem einzelnen Zeichen, ist die Nachricht selbst
+    // meist tadellos. Sie zu retten ist besser, als einen bezahlten Aufruf und
+    // die Wartezeit des Nutzers wegzuwerfen.
+    const gerettet = notNachricht(raw)
+    if (gerettet) {
+      return NextResponse.json({
+        success: true,
+        message: (zusatz ? zusatz + '\n\n' : '') + gerettet.message,
+        updatedOffer: null,
+      })
+    }
+    const prosa = brauchbarerText(raw)
+    if (prosa) {
+      return NextResponse.json({
+        success: true,
+        message: (zusatz ? zusatz + '\n\n' : '') + prosa,
+        updatedOffer: null,
+      })
+    }
     return NextResponse.json({
       success: true,
-      message: 'Antwort konnte nicht verarbeitet werden. Bitte die Anfrage anders formulieren oder erneut senden.',
+      message: (zusatz ? zusatz + '\n\n' : '')
+        + 'Die Antwort kam nicht in verwertbarer Form zurück. Am Angebot wurde nichts geändert. '
+        + 'Formuliere die Anfrage bitte anders oder sende sie erneut.',
       updatedOffer: null,
     })
   } catch (error: unknown) {

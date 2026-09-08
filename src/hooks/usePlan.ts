@@ -34,10 +34,31 @@ export interface UsageInfo {
   erlaubt: boolean
 }
 
+// Auf KALENDERTAGE gerechnet, nicht auf Stunden. Die frühere Rechnung
+// (Math.ceil auf die Millisekunden-Differenz) liess den Zaehler je nach
+// Uhrzeit bis zu einen Tag stillstehen: Wer gestern um 20 Uhr registriert hat,
+// hatte heute Mittag noch 13,3 Tage — aufgerundet also weiterhin "14 Tage".
+// Der Nutzer zaehlt aber Kalendertage, nicht Stunden.
 function calcTrialDaysLeft(trialStartsAt: string | null): number {
   if (!trialStartsAt) return 0
-  const end = new Date(trialStartsAt).getTime() + TRIAL_DAYS * 86400_000
-  return Math.max(0, Math.ceil((end - Date.now()) / 86400_000))
+  const start = new Date(trialStartsAt)
+  if (Number.isNaN(start.getTime())) return 0
+  const jetzt = new Date()
+  const startTag = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())
+  const heuteTag = Date.UTC(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate())
+  const vergangeneTage = Math.round((heuteTag - startTag) / 86400_000)
+  return Math.max(0, TRIAL_DAYS - vergangeneTage)
+}
+
+// Ob der Trial noch laeuft, entscheidet weiterhin die exakte Zeitgrenze —
+// identisch zu /api/usage/route.ts. Waere das an die Kalendertag-Anzeige
+// gekoppelt, wuerde die Oberflaeche am letzten Tag sperren, waehrend der
+// Server noch erlaubt.
+function trialLaeuft(trialStartsAt: string | null): boolean {
+  if (!trialStartsAt) return false
+  const start = new Date(trialStartsAt).getTime()
+  if (Number.isNaN(start)) return false
+  return Date.now() < start + TRIAL_DAYS * 86400_000
 }
 
 export function usePlan() {
@@ -70,12 +91,12 @@ export function usePlan() {
     loadUsage()
   }, [loadUsage])
 
-  const isInTrial = trialDaysLeft > 0
+  const isInTrial = trialLaeuft(trialStartsAt)
   // Während Trial hat jeder Enterprise-Zugriff
   const effectivePlan: Plan = isInTrial ? 'enterprise' : plan
 
   // Trial abgelaufen + kein bezahlter Plan = gesperrt
-  const trialExpired = trialStartsAt !== null && trialDaysLeft === 0
+  const trialExpired = trialStartsAt !== null && !isInTrial
   const isBlocked = trialExpired && plan === 'solo'
 
   const canUse = (minPlan: Plan) => PLAN_RANK[effectivePlan] >= PLAN_RANK[minPlan]

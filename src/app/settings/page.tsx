@@ -4,9 +4,16 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { normalizeKsId } from '@/lib/types'
 import { PlanGate } from '@/components/PlanGate'
+import { AppHeader } from '@/components/AppHeader'
 
 import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
 import { EmailSettings } from '@/components/settings/EmailSettings'
+import BauweiseSettings from '@/components/settings/BauweiseSettings'
+import MaterialpreiseSettings from '@/components/settings/MaterialpreiseSettings'
+import BetriebSettings from '@/components/settings/BetriebSettings'
+import BriefpapierVorschau from '@/components/settings/BriefpapierVorschau'
+import TextbausteineSettings from '@/components/settings/TextbausteineSettings'
+import { SCHRIFTEN, SCHRIFT_GRUPPEN } from '@/lib/pdftext'
 import { type Plan, usePlan } from '@/hooks/usePlan'
 
 const C = {
@@ -78,7 +85,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 
 export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse } = usePlan()
-  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'kostenstellen' | 'warenaufschlaege' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
   const [bpMsg, setBpMsg] = useState('')
@@ -436,11 +443,15 @@ export default function SettingsPage() {
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
     { id: 'buchhaltung',      label: 'Buchhaltung',     icon: '🧾' },
     { id: 'dokumente',        label: 'Dokumente',       icon: '📝' },
+    { id: 'textbausteine',    label: 'Textbausteine',   icon: '🧩' },
     { id: 'auswertung',       label: 'Auswertung',      icon: '📊', minPlan: 'pro' as Plan },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'briefpapier',      label: 'Briefpapier',     icon: '📄' },
+    { id: 'betrieb',          label: 'Mein Betrieb',    icon: '🏗' },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
+    { id: 'bauweise',         label: 'Meine Bauweise',  icon: '🧠' },
+    { id: 'materialpreise',   label: 'Materialpreise',  icon: '🏷' },
     { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' as Plan },
     { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'pro'     as Plan },
     { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
@@ -454,23 +465,40 @@ export default function SettingsPage() {
   return (
     <div suppressHydrationWarning style={{ background: C.black, minHeight: '100vh', fontFamily: 'Helvetica Neue,sans-serif', color: C.white }}>
 
-      {/* Top bar */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 52, gap: 12, position: 'sticky', top: 0, zIndex: 10, background: C.black }}>
-        <button
-          onClick={() => {
-            if (isMobile && mobileShowContent) { setMobileShowContent(false) }
-            else { window.location.href = '/' }
-          }}
-          style={{ background: 'none', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}
-        >←</button>
-        <span style={{ color: C.copper, fontWeight: 800, letterSpacing: 2, fontSize: 13 }}>
-          {isMobile && mobileShowContent
-            ? navItems.find(n => n.id === section)?.label ?? 'EINSTELLUNGEN'
-            : 'EINSTELLUNGEN'}
-        </span>
-      </div>
+      {/* Die Leiste der App — dieselbe wie auf jeder anderen Seite, damit man von hier
+          aus direkt weiterarbeiten kann, statt erst zurueckgehen zu muessen. */}
+      <AppHeader
+        titel="EINSTELLUNGEN"
+        aktiv="einstellungen"
+        logoUrl={logoPreview}
+        firmenName={profil.firma_name ?? ''}
+        isMobile={isMobile}
+        onLogout={logout}
+      />
 
-      <div style={{ display: 'flex', maxWidth: 960, margin: '0 auto' }}>
+      {/* Zweite Zeile NUR auf dem Handy, und dort nur innerhalb eines Bereichs.
+          Fabian am 2026-09-08: "Die Zeile mit dem Pfeil zurück und nochmal
+          Einstellungen muss weg. Man hat ja jetzt über die Header Zeile den
+          Zugriff." Stimmt — am Rechner ist sie ueberfluessig.
+          Am Handy ist dieser Pfeil aber der einzige Weg von einem Bereich zurueck
+          zur Liste: Dort wird entweder die Liste ODER der Inhalt gezeigt, nie
+          beides. Ohne ihn kaeme man aus "Kostenstellen" nicht mehr heraus, ohne
+          die Einstellungen ganz zu verlassen. */}
+      {isMobile && mobileShowContent && (
+        <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0 16px', display: 'flex', alignItems: 'center', height: 44, gap: 12, background: C.black }}>
+          <button
+            onClick={() => setMobileShowContent(false)}
+            style={{ background: 'none', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}
+          >←</button>
+          <span style={{ color: C.copper, fontWeight: 800, letterSpacing: 2, fontSize: 13 }}>
+            {navItems.find(n => n.id === section)?.label ?? 'EINSTELLUNGEN'}
+          </span>
+        </div>
+      )}
+
+      {/* Breiter, wenn die Vorschau daneben steht — sonst bliebe fuer die
+          Bedienelemente zu wenig Platz. */}
+      <div style={{ display: 'flex', maxWidth: section === 'briefpapier' ? 1360 : 960, margin: '0 auto' }}>
 
         {/* Sidebar — auf Mobile nur wenn kein Inhalt gezeigt */}
         {(!isMobile || !mobileShowContent) && (
@@ -530,7 +558,10 @@ export default function SettingsPage() {
 
         {/* Main content — auf Mobile nur wenn Inhalt gewählt */}
         {(!isMobile || mobileShowContent) && (
-        <div style={{ flex: 1, padding: isMobile ? '20px 16px' : '24px 20px', maxWidth: 680, minWidth: 0, width: '100%' }}>
+        // Breiter im Briefpapier-Bereich, weil dort die Vorschau daneben steht.
+        // Sonst blieben fuer die Bedienelemente 250 px uebrig — gemessen am
+        // 2026-09-08, die Spalten haben sich ueberlappt.
+        <div style={{ flex: 1, padding: isMobile ? '20px 16px' : '24px 20px', maxWidth: section === 'briefpapier' ? 1120 : 680, minWidth: 0, width: '100%' }}>
 
           {/* BEREICH 1 — FIRMENDATEN */}
           {section === 'firma' && (
@@ -666,8 +697,22 @@ export default function SettingsPage() {
 
           {/* BEREICH — BRIEFPAPIER */}
           {section === 'briefpapier' && (
-            <div>
+            <div style={{
+              display: isMobile ? 'block' : 'grid',
+              gridTemplateColumns: isMobile ? undefined : 'minmax(0,1fr) 360px',
+              gap: 30, alignItems: 'start',
+            }}>
+             <div style={{ minWidth: 0 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: C.white }}>Briefpapier & PDF</h2>
+
+              {/* Vorschau am Handy oben, am Rechner rechts daneben (weiter unten
+                  im Zwei-Spalten-Raster). Am Handy wäre eine schmale Spalte
+                  daneben unlesbar. */}
+              {isMobile && (
+                <div style={{ marginBottom: 24 }}>
+                  <BriefpapierVorschau profil={profil} />
+                </div>
+              )}
 
               {/* Tab-Auswahl */}
               <div style={{ display: 'flex', gap: 2, marginBottom: 28, background: C.gray1, borderRadius: 8, padding: 4 }}>
@@ -715,6 +760,76 @@ export default function SettingsPage() {
                     <p style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>
                       Klassisch: mehr Weißraum &amp; größere Schrift · Kompakt: engere Abstände, mehr Positionen pro Seite
                     </p>
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Schriftart</label>
+                    {/* Auswahlliste statt vier Knoepfen — Fabian am 2026-09-08:
+                        "Die Auswahl der Schriftarten ist zu gering." Jetzt 17,
+                        nach Serifenlos und Serif gruppiert. Arimo und Tinos sind
+                        METRISCH identisch zu Arial bzw. Times New Roman: gleiche
+                        Zeichenbreiten, gleicher Umbruch. Fuer einen Betrieb, der
+                        "wir nutzen Arial" sagt, ist das der richtige Ersatz. */}
+                    <select
+                      value={profil.pdf_schriftart ?? 'opensans'}
+                      onChange={e => setP('pdf_schriftart', e.target.value)}
+                      style={{ ...inp(), fontSize: 14, cursor: 'pointer' }}
+                    >
+                      {SCHRIFT_GRUPPEN.map(g => (
+                        <optgroup key={g.art} label={g.art}>
+                          {g.ids.map(id => (
+                            <option key={id} value={id}>
+                              {SCHRIFTEN[id].name}{SCHRIFTEN[id].wie ? ` — ${SCHRIFTEN[id].wie}` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {/* Schriftprobe in der echten Schrift, damit man sie sieht statt
+                        nur den Namen zu lesen. */}
+                    <div style={{
+                      marginTop: 10, padding: '14px 16px', background: '#FFFFFF',
+                      borderRadius: 6, border: `1px solid ${C.border}`, color: '#1a1a1a',
+                      fontFamily: SCHRIFTEN[(profil.pdf_schriftart as keyof typeof SCHRIFTEN) ?? 'opensans']?.stapel
+                        ?? SCHRIFTEN.opensans.stapel,
+                    }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
+                        Angebot-Nr. AN-2026-041
+                      </div>
+                      <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                        Einbauschrank Flur, 2,00 × 2,40 × 0,60 m — 2.315,00 €<br />
+                        Fräsen, Bekantung, Oberfläche · ÄÖÜ äöüß 0123456789
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 6, lineHeight: 1.6 }}>
+                      Die Schrift wird mit dem PDF ausgeliefert — sie sieht bei deinem Kunden
+                      genauso aus wie hier, unabhängig davon, was auf seinem Rechner installiert ist.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Spalten der Positionstabelle</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {([
+                        { key: 'pdf_zeige_menge', label: 'Menge anzeigen',
+                          sub: 'Eigene Spalte mit der Stückzahl je Position' },
+                        { key: 'pdf_zeige_einheitspreis', label: 'Einheitspreis anzeigen',
+                          sub: 'Preis je Stück. Manche Betriebe lassen ihn bewusst weg, um nicht über Einzelpreise zu verhandeln.' },
+                      ] as { key: string; label: string; sub: string }[]).map(({ key, label, sub }) => (
+                        <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', background: C.gray1, borderRadius: 6 }}>
+                          <input
+                            type="checkbox"
+                            checked={profil[key] === 'true'}
+                            onChange={e => setP(key, e.target.checked ? 'true' : 'false')}
+                            style={{ marginTop: 2, accentColor: C.copper, width: 16, height: 16, flexShrink: 0 }}
+                          />
+                          <div>
+                            <div style={{ fontSize: 13, color: C.white, fontWeight: 600 }}>{label}</div>
+                            <div style={{ fontSize: 11, color: C.textMid, marginTop: 2, lineHeight: 1.5 }}>{sub}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
                   </div>
 
                   <div>
@@ -868,7 +983,15 @@ export default function SettingsPage() {
                       placeholder="Liebe/r {name},"
                     />
                     <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
-                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{name}'}</code> wird durch den Kundennamen ersetzt.
+                      Platzhalter:{' '}
+                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{name}'}</code> voller Name ·{' '}
+                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{anrede}'}</code> Herr / Frau ·{' '}
+                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{nachname}'}</code> nur der Nachname
+                      <br />
+                      Zum Beispiel: <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>Sehr geehrte/r {'{anrede} {nachname}'},</code>
+                      <br />
+                      Anrede und Nachname stehen beim Kunden im Angebot. Fehlt der Nachname, wird
+                      das letzte Wort des Namens genommen. Das Komma gehört mit in die Vorlage.
                     </p>
                   </div>
 
@@ -974,8 +1097,21 @@ export default function SettingsPage() {
               )}
 
               <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
+             </div>
+
+              {/* Am Rechner rechts daneben und mitlaufend: Wer einen Schalter umlegt,
+                  sieht sofort, was er tut. Das war der guenstigste Weg zu Constantins
+                  Wunsch, Fehler in der Druckansicht zu sehen — und es macht die
+                  zwanzig Bedienelemente hier von selbst auffindbar. */}
+              {!isMobile && (
+                <div style={{ position: 'sticky', top: 78 }}>
+                  <BriefpapierVorschau profil={profil} />
+                </div>
+              )}
             </div>
           )}
+
+          {section === 'textbausteine' && <TextbausteineSettings />}
 
           {/* BEREICH 3 — KOSTENSTELLEN */}
           {section === 'kostenstellen' && (
@@ -1101,6 +1237,22 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* BEREICH — MEINE BAUWEISE */}
+          {section === 'bauweise' && (
+            <BauweiseSettings />
+          )}
+          {section === 'betrieb' && (
+            <div>
+              <BetriebSettings />
+            </div>
+          )}
+
+          {section === 'materialpreise' && (
+            <div>
+              <MaterialpreiseSettings />
+            </div>
+          )}
+
           {/* BEREICH 5 — LIEFERANTEN */}
           {section === 'lieferanten' && (
             <PlanGate minPlan="starter">
@@ -1120,6 +1272,62 @@ export default function SettingsPage() {
               <div style={{ display: 'grid', gap: 14 }}>
 
                 <Divider label="Steuerdaten" />
+
+                {/* GEFUNDEN AM 2026-09-08: Die Mehrwertsteuer stand mit 19 % FEST im
+                    Code. Fuer einen Kleinunternehmer nach § 19 UStG erzeugte CraftFlow
+                    damit ein formal falsches Angebot — es wies Umsatzsteuer aus, die er
+                    gar nicht berechnen darf. */}
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                  padding: '12px 14px', background: C.gray1, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                  <input
+                    type="checkbox"
+                    checked={profil.kleinunternehmer === 'true'}
+                    onChange={e => setP('kleinunternehmer', e.target.checked ? 'true' : 'false')}
+                    style={{ marginTop: 2, accentColor: C.copper, width: 17, height: 17, flexShrink: 0 }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, color: C.white, fontWeight: 700 }}>
+                      Kleinunternehmer nach § 19 UStG
+                    </div>
+                    <div style={{ fontSize: 11.5, color: C.textMid, marginTop: 3, lineHeight: 1.6 }}>
+                      Dann weist CraftFlow <b>keine Umsatzsteuer</b> aus und setzt stattdessen den
+                      vorgeschriebenen Hinweis unter die Summe: &bdquo;Gemäß § 19 UStG wird keine
+                      Umsatzsteuer berechnet.&ldquo;
+                    </div>
+                  </div>
+                </label>
+
+                {profil.kleinunternehmer !== 'true' && (
+                  <div>
+                    <label style={lbl}>Umsatzsteuersatz (%)</label>
+                    <input
+                      style={inp()}
+                      type="number" step="0.1" min="0" max="30"
+                      value={profil.mwst_satz ?? '19'}
+                      onChange={e => setP('mwst_satz', e.target.value)}
+                      placeholder="19"
+                    />
+                    <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
+                      Regelsatz in Deutschland: 19 %. Wird auf dem Angebot ausgewiesen.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label style={lbl}>Angebot gültig für (Tage)</label>
+                  <input
+                    style={inp()}
+                    type="number" step="1" min="1" max="365"
+                    value={profil.angebot_gueltig_tage ?? '30'}
+                    onChange={e => setP('angebot_gueltig_tage', e.target.value)}
+                    placeholder="30"
+                  />
+                  <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
+                    Daraus errechnet CraftFlow das &bdquo;Gültig bis&ldquo;-Datum im Angebot. Stand bis
+                    zum 08.09.2026 fest auf 30 Tagen.
+                  </p>
+                </div>
+
 
                 <Field label="USt-IdNr." value={profil.ust_id ?? ''} onChange={v => setP('ust_id', v)} placeholder="DE123456789" />
                 <Field label="Steuernummer" value={profil.steuernummer ?? ''} onChange={v => setP('steuernummer', v)} />

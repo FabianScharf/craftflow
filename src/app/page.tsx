@@ -1,19 +1,25 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { usePlan } from '@/hooks/usePlan'
 import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
 import {
   C,
-  calcAngebotspos, materialkostenPos, arbeitszeitPreisPos, materialkostenGesamt, stundenGesamt, eur, today, inDays,
+  calcAngebotspos, nettoSumme, materialkostenPos, arbeitszeitPreisPos, materialkostenGesamt, stundenGesamt, eur, today, inDays,
+  serienHinweis,
   ladeKunden, speichereKunden,
   DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS, KOSTENSTELLEN_GRUPPEN, KOSTENSTELLEN_GRUPPEN_ORDER,
   type Kunde, type KundeDB,
   type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
   type DbKostenstelle, type DbMaterialgruppe,
 } from '@/lib/types'
-import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
+import { buildPDF, buildFooterTemplate, SCHRIFTEN, type FirmaOpts, type SchriftId } from '@/lib/pdf'
+import { positionenAusKi } from '@/lib/kiantwort'
+import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
+import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
+// Ein Zeichen, eine Definition — sonst steht irgendwann ein zweites CF daneben.
+import { AppHeader } from '@/components/AppHeader'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -71,17 +77,6 @@ const Lbl = ({ children, c }: { children: React.ReactNode; c?: string }) => (
 const HR = ({ my = 12, color }: { my?: number; color?: string }) => (
   <div style={{ height: 1, background: color || C.border, margin: `${my}px 0` }} />
 )
-const LogoMark = ({ size = 36, userLogoUrl }: { size?: number; userLogoUrl?: string | null }) =>
-  userLogoUrl
-    ? <img src={userLogoUrl} alt="Logo" style={{ height: size, width: 'auto', maxWidth: size * 4, objectFit: 'contain' }} />
-    : (
-      <svg width={size} height={size} viewBox="0 0 36 36" fill="none" style={{ flexShrink: 0 }}>
-        <rect width="36" height="36" rx="7" fill="var(--c-accent, #C8885A)" />
-        <text x="18" y="25" textAnchor="middle" fill="#0D0D0D"
-          fontFamily="Helvetica Neue, Helvetica, Arial, sans-serif"
-          fontSize="15" fontWeight="800" letterSpacing="0.5">CF</text>
-      </svg>
-    )
 const Card = ({ children, accent, style = {} }: { children: React.ReactNode; accent?: string; style?: React.CSSProperties }) => (
   <div style={{
     background: C.gray1, borderRadius: 4,
@@ -189,7 +184,13 @@ function parseGaebText(text: string): { positions: import('@/lib/types').Angebot
 /* ── Haupt-Komponente ─────────────────────────────── */
 
 export default function CraftFlow() {
-  const { canUse: planCanUse, usage, incrementUsage, isInTrial, trialDaysLeft, isBlocked } = usePlan()
+  const { canUse: planCanUse, loading: planLaedt, usage, incrementUsage, isBlocked } = usePlan()
+  // Solange der Tarif noch geladen wird, steht er auf 'solo'. Wer die Sperren
+  // direkt daran haengt, laesst Schloesser aufblitzen, die gar nicht gelten —
+  // ein Neukunde in der Testphase liest "AB STARTER" und glaubt, die beworbene
+  // Testphase gelte nicht fuer ihn. Deshalb waehrend des Ladens nichts sperren.
+  // PlanGate loest dasselbe Problem mit `if (loading) return null`.
+  const darfNutzen = (p: Parameters<typeof planCanUse>[0]) => planLaedt || planCanUse(p)
   const [pwLoading, setPwLoading] = useState<string | null>(null)
   const [pwError, setPwError] = useState<string | null>(null)
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'pdf-preview' | 'projekte'>('start')
@@ -197,9 +198,19 @@ export default function CraftFlow() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingStep, setOnboardingStep] = useState(0)
+  // Antworten der Betriebskalibrierung. Werden am Ende der Erst-Anmeldung
+  // gespeichert; wer ueberspringt, speichert nichts und rechnet mit Branchenwerten.
+  // null = noch nicht geprueft, false = nicht kalibriert, true = kalibriert
+  const [istKalibriert, setIstKalibriert] = useState<boolean | null>(null)
+  const [kalib, setKalib] = useState({
+    mitarbeiter: '', maschinen: [] as string[], schwerpunkt: [] as string[],
+    montage_selbst: '', stueckzahlen: '',
+    antwort_grund: '', antwort_lack: '', antwort_massiv: '', antwort_montage: '',
+  })
 
   const [brandAccent, setBrandAccent] = useState(C.copper)
   const [brandPrimary, setBrandPrimary] = useState(C.black)
+  const [profilRoh, setProfilRoh] = useState<Record<string, unknown>>({})
   const [profilFirmaName, setProfilFirmaName] = useState<string | null>(null)
   const [profilLogoUrl, setProfilLogoUrl]   = useState<string | null>(null)
   const [profilInhaber, setProfilInhaber]   = useState<string>('')
@@ -207,12 +218,24 @@ export default function CraftFlow() {
   const [profilOrt, setProfilOrt]           = useState<string>('')
   const [profilEmail, setProfilEmail]       = useState<string>('')
   const [profilUstId, setProfilUstId]       = useState<string>('')
+  // § 14 UStG: Wer keine USt-IdNr. hat, muss die Steuernummer nennen. Sie wurde
+  // abgefragt und bis 2026-09-08 nirgends gedruckt.
+  const [profilSteuernummer, setProfilSteuernummer] = useState<string>('')
   const [profilIban, setProfilIban]         = useState<string>('')
   const [profilBank, setProfilBank]         = useState<string>('')
   const [profilBic, setProfilBic]           = useState<string>('')
   const [profilTelefon, setProfilTelefon]   = useState<string>('')
   const [profilWebsite, setProfilWebsite]   = useState<string>('')
   const [profilPdfLayout, setProfilPdfLayout]           = useState<'klassisch' | 'kompakt'>('klassisch')
+  const [profilPdfSchriftart, setProfilPdfSchriftart]   = useState<SchriftId>('opensans')
+  const [profilMwstSatz, setProfilMwstSatz]             = useState(19)
+  const [profilKleinunternehmer, setProfilKleinunternehmer] = useState(false)
+  const [profilGueltigTage, setProfilGueltigTage]       = useState(30)
+  // Eigene Textbausteine des Betriebs und die Auswahl fuer DIESES Angebot.
+  const [bausteine, setBausteine] = useState<Array<{ id: string; titel: string; inhalt: string; immer: boolean; aktiv: boolean }>>([])
+  const [bausteinIds, setBausteinIds] = useState<string[]>([])
+  const [profilPdfZeigeMenge, setProfilPdfZeigeMenge]   = useState(false)
+  const [profilPdfZeigeEp, setProfilPdfZeigeEp]         = useState(false)
   const [profilPdfZeigeBic, setProfilPdfZeigeBic]       = useState(false)
   const [profilPdfZeigeTelefon, setProfilPdfZeigeTelefon] = useState(false)
   const [profilPdfZeigeWebsite, setProfilPdfZeigeWebsite] = useState(false)
@@ -272,6 +295,11 @@ export default function CraftFlow() {
               setShowOnboarding(true)
               if (!p) return
             }
+            // Das ROHE Profil aufheben: Die PDF-Optionen entstehen daraus ueber
+            // src/lib/pdfoptionen.ts — dieselbe Zuordnung wie in der Vorschau der
+            // Einstellungen. Vorher baute jede Seite ihre eigene, und neue
+            // Einstellungen wirkten nur an einer Stelle (2026-09-08).
+            setProfilRoh(p as Record<string, unknown>)
             const name: string = p.firma_name ?? ''
             setProfilFirmaName(name)
             setProfilLogoUrl(p.logo_url ?? null)
@@ -280,12 +308,19 @@ export default function CraftFlow() {
             setProfilOrt([p.plz, p.ort].filter(Boolean).join(' '))
             setProfilEmail(p.email ?? '')
             setProfilUstId(p.ust_id ?? '')
+            setProfilSteuernummer(p.steuernummer ?? '')
             setProfilIban(p.iban ?? '')
             setProfilBank(p.bank_name ?? '')
             setProfilBic(p.bic ?? '')
             setProfilTelefon(p.telefon ?? '')
             setProfilWebsite(p.website ?? '')
             setProfilPdfLayout(p.pdf_layout === 'kompakt' ? 'kompakt' : 'klassisch')
+            if (p.pdf_schriftart && p.pdf_schriftart in SCHRIFTEN) setProfilPdfSchriftart(p.pdf_schriftart as SchriftId)
+            if (Number.isFinite(Number(p.mwst_satz))) setProfilMwstSatz(Number(p.mwst_satz))
+            setProfilKleinunternehmer(p.kleinunternehmer === true || p.kleinunternehmer === 'true')
+            if (Number(p.angebot_gueltig_tage) > 0) setProfilGueltigTage(Number(p.angebot_gueltig_tage))
+            setProfilPdfZeigeMenge(p.pdf_zeige_menge === true)
+            setProfilPdfZeigeEp(p.pdf_zeige_einheitspreis === true)
             setProfilPdfZeigeBic(p.pdf_zeige_bic === true)
             setProfilPdfZeigeTelefon(p.pdf_zeige_telefon === true)
             setProfilPdfZeigeWebsite(p.pdf_zeige_website === true)
@@ -331,9 +366,18 @@ export default function CraftFlow() {
   const [projectSort, setProjectSort] = useState<'newest' | 'oldest' | 'az'>('newest')
 
   const updateProjectStatus = useCallback(async (id: string, status: string) => {
+    const vorher = projects.find(p => p.id === id)?.status
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status } : p))
     setStatusDropdown(null)
-    await fetch(`/api/projects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    // Die Antwort MUSS geprueft werden. Vorher wurde sie verworfen — die Liste zeigte
+    // den neuen Status, die Datenbank behielt den alten, und nach dem Neuladen war er
+    // wieder da (gefunden im Check-Up 2026-09-07).
+    const res = await fetch(`/api/projects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    if (!res.ok) {
+      setProjects(prev => prev.map(p => p.id === id ? { ...p, status: vorher ?? p.status } : p))
+      alert('Der Status konnte nicht gespeichert werden. Bitte noch einmal versuchen.')
+      return
+    }
     // Tracking: Status-Änderung + Tage seit Erstellung
     setProjects(current => {
       const proj = current.find(p => p.id === id)
@@ -347,18 +391,79 @@ export default function CraftFlow() {
       }).catch(() => {})
       return current
     })
+    // projects wird fuer den Rueckfall bei Fehlschlag gebraucht.
+  }, [projects])
+
+  // Loeschen gab es bis 2026-09-07 gar nicht — weder hier noch in der Schnittstelle.
+  // Aufgefallen im Check-Up, als Testprojekte nicht wegzubekommen waren.
+  //
+  // Die Rueckfrage ist bewusst KEIN window.confirm: Das ist der Dialog des Browsers,
+  // klebt oben am Fensterrand und kommt in Chromes Blau daher — mitten in einer
+  // schwarz-kupfernen Oberflaeche. Fabian am 2026-09-07: "das gefaellt mir optisch
+  // ueberhaupt nicht."
+  const [loeschFrage, setLoeschFrage] = useState<{ id: string; titel: string } | null>(null)
+  const [loeschFehler, setLoeschFehler] = useState('')
+  const [loeschLaeuft, setLoeschLaeuft] = useState(false)
+
+  const deleteProject = useCallback(async (id: string, titel: string) => {
+    setLoeschFehler('')
+    setLoeschFrage({ id, titel })
   }, [])
+
+  const loeschenBestaetigt = useCallback(async () => {
+    if (!loeschFrage) return
+    setLoeschLaeuft(true)
+    const res = await fetch(`/api/projects/${loeschFrage.id}`, { method: 'DELETE' })
+    setLoeschLaeuft(false)
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({})) as { error?: string }
+      // Der echte Grund gehoert auf den Bildschirm. "permission denied for table
+      // offer_versions" hat den Fehler am 2026-09-07 in einem Anlauf erklaert.
+      setLoeschFehler(j.error ?? `Fehlgeschlagen (${res.status})`)
+      return
+    }
+    setProjects(prev => prev.filter(p => p.id !== loeschFrage.id))
+    setLoeschFrage(null)
+  }, [loeschFrage])
 
   useEffect(() => {
     fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) })
   }, [])
 
+  // Eigene Textbausteine laden. Die mit "immer" sind in einem neuen Angebot
+  // vorausgewaehlt — genau das bedeutet die Einstellung.
+  useEffect(() => {
+    fetch('/api/settings/textbausteine')
+      .then(r => r.ok ? r.json() : { bausteine: [] })
+      .then(d => {
+        const liste = (d.bausteine ?? []).filter((b: { aktiv?: boolean }) => b.aktiv !== false)
+        setBausteine(liste)
+        setBausteinIds(prev => prev.length > 0 ? prev
+          : liste.filter((b: { immer?: boolean }) => b.immer).map((b: { id: string }) => b.id))
+      })
+      .catch(() => {})
+  }, [])
+
+  // Aus den Einstellungen fuehrt kein setScreen zurueck — sie liegen unter einer
+  // eigenen Route. Der Projekt-Knopf dort schickt deshalb ?ansicht=projekte mit.
+  // Der Parameter wird gleich wieder aus der Adresszeile geraeumt, damit ein
+  // Neuladen nicht ungefragt wieder in der Liste landet.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('ansicht') === 'projekte') {
+      setScreen('projekte')
+      setPreviousScreen('projekte')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
   useEffect(() => { currentProjectIdRef.current = currentProjectId }, [currentProjectId])
+
 
   async function saveProject() {
     setSaveStatus('saving')
     const title = [kunde.name.trim(), kunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
-    const payload = { kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum: angebotsdatum || today() }
+    const payload = { kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum: angebotsdatum || today(), bausteinIds }
     try {
       let res: Response
       if (currentProjectId) {
@@ -384,10 +489,11 @@ export default function CraftFlow() {
         }).catch(() => {})
       }
       setSaveStatus('saved')
+      setGespeicherterStand(standJetzt)
       setTimeout(() => setSaveStatus('idle'), 3000)
       // Outcome-Tracking initialisieren
       const savedId = currentProjectId ?? row.id
-      const gesamtNetto = pos.reduce((a, p) => a + calcAngebotspos(p), 0)
+      const gesamtNetto = nettoSumme(pos)
       const ersteMaterial = pos.flatMap(p => p.material)[0]?.bezeichnung ?? ''
       const massivRe = /massiv|eiche|buche|nuss|fichte|kiefer/i
       const istMassiv = massivRe.test(ersteMaterial)
@@ -422,12 +528,32 @@ export default function CraftFlow() {
     if (d.docNr) setDocNr(d.docNr)
     if (d.docTyp) setDocTyp(d.docTyp)
     if (d.anschr) setAnschr(d.anschr)
+    if (Array.isArray(d.bausteinIds)) setBausteinIds(d.bausteinIds)
     if (typeof d.widerruf === 'boolean') setWiderruf(d.widerruf)
     if (d.angebotsdatum) setAngebotsdatum(d.angebotsdatum)
     setCurrentProjectId(id)
     setPreviousScreen(from)
     setScreen('app')
     setTab('kalkulation')
+
+    // Der geladene Stand IST der gespeicherte Stand. Ohne diese Zeile bliebe
+    // der Vergleichswert leer, und ein leerer Vergleichswert heisst "nichts zu
+    // vergleichen" — die Speicherleiste und die Nachfrage beim Verlassen waeren
+    // in jedem geladenen Projekt wirkungslos. Genau das ist am 2026-09-06
+    // passiert: Zeiten aendern loeste keine Warnung aus.
+    //
+    // Bewusst aus den GELADENEN Daten gebildet, nicht aus dem State: setKunde
+    // und setPos wirken erst im naechsten Rendern, standJetzt waere hier noch
+    // der Stand des vorigen Angebots.
+    setGespeicherterStand(JSON.stringify({
+      kunde: d.kunde ?? kunde,
+      pos: d.pos ?? pos,
+      docNr: d.docNr ?? docNr,
+      docTyp: d.docTyp ?? docTyp,
+      anschr: d.anschr ?? anschr,
+      widerruf: typeof d.widerruf === 'boolean' ? d.widerruf : widerruf,
+      angebotsdatum: d.angebotsdatum ?? angebotsdatum,
+    }))
   }
 
   const [kunden, setKunden] = useState<KundeDB[]>(ladeKunden)
@@ -440,6 +566,39 @@ export default function CraftFlow() {
   const [angebotsdatum, setAngebotsdatum] = useState('')
   const [anschr, setAnschr] = useState('vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
   const [widerruf, setWiderruf] = useState(true)
+  // ── Ungespeicherte Handarbeit erkennen ────────────────────────────────────
+  // Vergleicht, was auf dem Bildschirm steht, mit dem zuletzt gesicherten Stand.
+  // Bewusst ueber einen Vergleich statt ueber ein Flag an jedem Eingabefeld:
+  // Ein vergessenes Feld waere ein stiller Datenverlust, und genau das ist am
+  // 2026-09-07 passiert.
+  //
+  // KI-Aenderungen tauchen hier nie als "ungespeichert" auf — die werden sofort
+  // automatisch gesichert und setzen den Vergleichsstand gleich mit.
+  const standJetzt = useMemo(
+    () => JSON.stringify({ kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum }),
+    [kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum])
+  const [gespeicherterStand, setGespeicherterStand] = useState('')
+  // Gemerktes Ziel: was passieren soll, wenn der Nutzer die Nachfrage beantwortet.
+  const [verlassenZiel, setVerlassenZiel] = useState<null | (() => void)>(null)
+  const ungespeichert = gespeicherterStand !== '' && standJetzt !== gespeicherterStand
+
+  // Faengt jeden Weg aus dem Angebot ab. Ohne das merkt der Nutzer erst, dass
+  // etwas fehlte, wenn er zurueckkommt — und dann ist es zu spaet.
+  // (setVerlassenZiel(() => aktion): React deutet eine Funktion sonst als
+  //  Updater, deshalb die zusaetzliche Huelle.)
+  const mitPruefung = useCallback((aktion: () => void) => {
+    if (ungespeichert) setVerlassenZiel(() => aktion)
+    else aktion()
+  }, [ungespeichert])
+
+  // Tab schliessen oder neu laden: Hier kann nur der Browser fragen, mit
+  // seinem eigenen Standardtext. Ein eigener Dialog ist dort nicht moeglich.
+  useEffect(() => {
+    if (!ungespeichert) return
+    const warnen = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warnen)
+    return () => window.removeEventListener('beforeunload', warnen)
+  }, [ungespeichert])
   const [pdfHTML, setPdfHTML] = useState('')
   const [pdfGenerating, setPdfGenerating] = useState(false)
 
@@ -492,6 +651,7 @@ export default function CraftFlow() {
   const [optimLoading, setOptimLoading] = useState(false)
   const [optimMicStatus, setOptimMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
   const [offerId, setOfferId] = useState<string>(() => crypto.randomUUID())
+
   const [versions, setVersions] = useState<OfferVersion[]>([])
   const [versionsOpen, setVersionsOpen] = useState(false)
   const optimMediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -508,6 +668,10 @@ export default function CraftFlow() {
   const checkMediaRecorderRef = useRef<MediaRecorder | null>(null)
   const checkAudioChunksRef = useRef<Blob[]>([])
   const checkChatRef = useRef<HTMLDivElement>(null)
+
+  // Bauweise-Vault: prüft nach dem Speichern/PDF, was der Nutzer geändert hat.
+  // Läuft absichtlich NACH dem eigentlichen Vorgang und feuere-und-vergiss —
+  // ein Fehler hier darf Speichern und PDF nie beeinflussen.
 
   // ── Help-Assistent ──────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false)
@@ -531,10 +695,30 @@ export default function CraftFlow() {
   const startGaebRef = useRef<HTMLInputElement>(null)
 
   const updK = (f: keyof Kunde, v: string) => setKunde(prev => ({ ...prev, [f]: v }))
-  const updPosF = (id: number, f: 'titel' | 'beschreibung', v: string) =>
-    setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } as Angebotsposition : p))
+  const updPosF = (
+    id: number,
+    f: 'titel' | 'beschreibung' | 'stueckzahl' | 'gruppe' | 'alternativ',
+    v: string | number | boolean,
+  ) => setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } as Angebotsposition : p))
   const addPos = () => setPos(prev => [...prev, defaultAngebotspos(Date.now())])
   const delPos = (id: number) => setPos(prev => prev.filter(p => p.id !== id))
+
+  /**
+   * Position verschieben. Aus Constantins Rueckmeldung vom 2026-08-26: "Mir fehlt die
+   * Moeglichkeit die Anordnung der Positionen per drag and drop zu veraendern."
+   *
+   * Bewusst Pfeile statt Ziehen: Ein Angebot wird oft am Telefon oder auf der Baustelle
+   * am Handy angefasst, und Ziehen mit dem Finger in einer langen Liste ist dort
+   * unzuverlaessig. Ein Pfeil trifft man immer.
+   */
+  const verschiebePos = (id: number, richtung: -1 | 1) => setPos(prev => {
+    const i = prev.findIndex(p => p.id === id)
+    const j = i + richtung
+    if (i < 0 || j < 0 || j >= prev.length) return prev
+    const neu = [...prev]
+    ;[neu[i], neu[j]] = [neu[j], neu[i]]
+    return neu
+  })
 
   const updMatRow = (posId: number, rowId: number, f: keyof MaterialPosten, v: unknown) =>
     setPos(prev => prev.map(p => p.id === posId
@@ -583,7 +767,7 @@ export default function CraftFlow() {
     ...userKs.filter(k => k.aktiv && !k.ist_standard).map(k => ({ code: k.code, label: k.bezeichnung })),
   ]
 
-  const totals = pos.reduce((a, p) => ({ net: a.net + calcAngebotspos(p) }), { net: 0 })
+  const totals = { net: nettoSumme(pos) }
   const materialGesamt = materialkostenGesamt(pos)
   const stundenGesamtWert = stundenGesamt(pos)
   const vat = totals.net * 0.19
@@ -821,6 +1005,12 @@ export default function CraftFlow() {
   }, [checkMessages])
 
   const resetAll = useCallback(() => {
+    // Frisches Angebot: Der Vergleichsstand des vorigen darf nicht stehen
+    // bleiben, sonst meldet die App sofort "ungespeicherte Aenderungen" auf
+    // einem leeren Formular. Leerer Wert heisst "noch nichts zu vergleichen";
+    // sobald die Analyse durchlaeuft, wird automatisch gespeichert und der
+    // Vergleichsstand dabei gesetzt.
+    setGespeicherterStand('')
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
     if (optimMediaRecorderRef.current?.state === 'recording') optimMediaRecorderRef.current.stop()
     if (checkMediaRecorderRef.current?.state === 'recording') checkMediaRecorderRef.current.stop()
@@ -941,26 +1131,15 @@ export default function CraftFlow() {
       type AIArbRow = { kostenstelle?: string; minuten?: number; vkStunde?: number }
       let parsedPos: Angebotsposition[] = []
       if (data.positionen?.length > 0) {
-        parsedPos = data.positionen.map((p: Record<string, unknown>, i: number) => ({
-          id: Date.now() + i,
-          titel: (p.titel as string) || 'Position',
-          beschreibung: (p.beschreibung as string) || '',
-          material: ((p.material as AIMatRow[]) || []).map((m, mi) => ({
-            id: Date.now() + i * 100 + mi,
-            bezeichnung: m.bezeichnung || '',
-            menge: m.menge || 1,
-            einheit: m.einheit || 'Stk',
-            ekPreis: m.ekPreis || 0,
-            aufschlag: m.aufschlag ?? 0.3,
-          })),
-          arbeitszeit: ((p.arbeitszeit as AIArbRow[]) || []).map((a, ai) => ({
-            id: Date.now() + i * 100 + 50 + ai,
-            kostenstelle: (a.kostenstelle as KostenstelleId) || 'Produktion',
-            minuten: a.minuten || 60,
-            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['Produktion'],
-          })),
-        }))
+        // Die Umwandlung liegt in src/lib/kiantwort.ts und ist dort getestet.
+        // Sie baut jede Position neu auf — was dort fehlt, ist danach verloren.
+        // Genau so ist die Stueckzahl verschwunden (2026-09-08).
+        parsedPos = positionenAusKi(
+          data.positionen, Date.now(), DEFAULT_STUNDENSAETZE['Produktion'],
+        ) as unknown as Angebotsposition[]
         setPos(parsedPos)
+        // Vergleichsbasis für den Bauweise-Vault festhalten (tiefe Kopie, damit
+        // späteres Bearbeiten der Positionen den Erstvorschlag nicht verändert).
       }
 
       const parsedAnschr = data.anschreiben || anschr
@@ -981,6 +1160,12 @@ export default function CraftFlow() {
         const projectId = currentProjectIdRef.current
         const title = [parsedKunde.name.trim(), parsedKunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
         const payload = { kunde: parsedKunde, pos: parsedPos, docNr, docTyp, anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today() }
+        // Der frisch analysierte Stand gilt als gesichert — sonst meldet die App
+        // sofort "ungespeicherte Aenderungen", obwohl der Nutzer nichts getan hat.
+        setGespeicherterStand(JSON.stringify({
+          kunde: parsedKunde, pos: parsedPos, docNr, docTyp,
+          anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today(),
+        }))
         fetch(
           projectId ? `/api/projects/${projectId}` : '/api/projects',
           {
@@ -996,6 +1181,27 @@ export default function CraftFlow() {
             setCurrentProjectId(row.id)
             currentProjectIdRef.current = row.id
           }
+
+          // Die Erstfassung der KI als Version festhalten — das ist der Bezugspunkt
+          // der Lernschleife.
+          //
+          // GEFUNDEN AM 2026-09-07: Eine Version entstand bisher NUR, wenn der
+          // Nutzer den Optimieren-Chat benutzt hat. Wer die Zeiten von Hand in der
+          // Tabelle korrigiert — der naheliegendste Weg — lieferte der Lernschleife
+          // gar nichts: Sie vergleicht Version 1 mit dem Endstand, und ohne
+          // Version 1 ueberspringt sie das Projekt stillschweigend. Damit lernte
+          // CraftFlow ausgerechnet aus den haeufigsten Korrekturen nicht.
+          //
+          // Feuere und vergiss: Ein Fehler hier darf das Angebot nie aufhalten.
+          fetch('/api/offer-versions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              offerId: row.id,
+              description: 'Erstfassung der KI',
+              data: { positionen: parsedPos, kunde: parsedKunde },
+            }),
+          }).catch(() => {})
           setProjects(prev => {
             const exists = prev.find(p => p.id === row.id)
             return exists ? prev.map(p => p.id === row.id ? row : p) : [row, ...prev]
@@ -1004,7 +1210,7 @@ export default function CraftFlow() {
             const next = nummernNaechste + 1
             setNummernNaechste(next)
             fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ angebotsnummer_naechste: next }) }).catch(() => {})
-            const gesamtNetto = parsedPos.reduce((a: number, p: Angebotsposition) => a + calcAngebotspos(p), 0)
+            const gesamtNetto = nettoSumme(parsedPos)
             const ersteMaterial = parsedPos.flatMap((p: Angebotsposition) => p.material)[0]?.bezeichnung ?? ''
             fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'outcome_init', projectId: row.id, data: { moebel_typ: parsedPos[0]?.titel ?? '', material: ersteMaterial, ist_massivholz: /massiv|eiche|buche|nuss|fichte|kiefer/i.test(ersteMaterial), preis_kalkuliert: gesamtNetto, plz: parsedKunde.ort.trim().split(/\s+/)[0] ?? '' } }) }).catch(() => {})
           }
@@ -1210,7 +1416,10 @@ export default function CraftFlow() {
     const stundenInfo = pos.map(p => {
       const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
       const details = p.arbeitszeit.map(a => `${a.kostenstelle}: ${a.minuten} min`).join(', ')
-      return `"${p.titel}": ${totalMin} min gesamt (${(totalMin / 60).toFixed(1)} h) – ${details}`
+      // Die Zeiten stehen fuer EIN Stueck. Ohne diesen Hinweis beurteilt die KI die
+      // Stunden eines Einzelstuecks, waehrend der Nutzer den Serienpreis sieht.
+      const stk = (p.stueckzahl ?? 1) > 1 ? ` [${p.stueckzahl} gleiche Stücke, Zeiten je Stück]` : ''
+      return `"${p.titel}"${stk}: ${totalMin} min gesamt (${(totalMin / 60).toFixed(1)} h) – ${details}`
     }).join('\n')
 
     try {
@@ -1320,9 +1529,40 @@ export default function CraftFlow() {
         const vJson = await vRes.json()
         if (vJson.versions) setVersions(vJson.versions)
         // Neuen Netto berechnen direkt aus den zurückgegebenen Positionen
-        nettoNachher = json.updatedOffer.positionen.reduce(
-          (sum: number, p: Angebotsposition) => sum + calcAngebotspos(p), 0
-        )
+        nettoNachher = nettoSumme(json.updatedOffer.positionen)
+
+        // Den neuen Stand sofort sichern. Vorher wurde nur die VORHERIGE
+        // Fassung als Version weggeschrieben und die Anzeige aktualisiert —
+        // der neue Stand stand nirgends in der Datenbank. Wer das Projekt
+        // verliess, ohne "Änderungen speichern" zu druecken, verlor alles,
+        // was die KI geaendert hatte (gemeldet 2026-09-07).
+        // Feuere-und-vergiss wie nach der Erstanalyse: Ein Speicherfehler darf
+        // den Chat nicht unterbrechen, deshalb kein await und kein throw.
+        const zielId = currentProjectIdRef.current
+        if (zielId) {
+          const neueKunde = json.updatedOffer.kunde ?? kunde
+          const neuerTitel = [neueKunde?.name?.trim(), neueKunde?.projekt?.trim()]
+            .filter(Boolean).join(' – ') || 'Ohne Titel'
+          fetch(`/api/projects/${zielId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: neuerTitel,
+              data: {
+                kunde: neueKunde,
+                pos: json.updatedOffer.positionen,
+                docNr, docTyp, anschr, widerruf,
+                angebotsdatum: angebotsdatum || today(),
+              },
+            }),
+          }).catch(e => console.error('[optimize] Autosave', e))
+          // Gilt als gesichert. Sonst haetten KI-Aenderungen die Warnung
+          // ausgeloest, obwohl sie laengst in der Datenbank stehen.
+          setGespeicherterStand(JSON.stringify({
+            kunde: neueKunde, pos: json.updatedOffer.positionen, docNr, docTyp,
+            anschr, widerruf, angebotsdatum: angebotsdatum || today(),
+          }))
+        }
       }
 
       // Tracking — fire & forget
@@ -1468,6 +1708,22 @@ export default function CraftFlow() {
   }, [])
 
   // ── Feature 4: Export ────────────────────────────────
+  /**
+   * Beschriftung einer Position in den Exporten.
+   *
+   * Ohne sie addieren sich die Einzelzeilen auf mehr als die ausgewiesene Summe:
+   * Eine Alternativposition steht in den Zeilen, zaehlt aber nicht in den Netto-
+   * betrag. Und seit die Stueckzahl wirklich ankommt (2026-09-08), gelten Material
+   * und Zeiten je Stueck, waehrend der Positionspreis hochgerechnet ist.
+   * Wer das nicht sieht, haelt den Export fuer falsch.
+   */
+  const posLabel = (p: Angebotsposition, i: number) => {
+    const zusatz: string[] = []
+    if ((p.stueckzahl ?? 1) > 1) zusatz.push(`${p.stueckzahl}×`)
+    if (p.alternativ) zusatz.push('Alternative')
+    return zusatz.length > 0 ? `${i + 1} (${zusatz.join(', ')})` : String(i + 1)
+  }
+
   const exportJSON = useCallback(() => {
     const data = { positionen: pos, kunde, docNr, docTyp, exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -1487,11 +1743,11 @@ export default function CraftFlow() {
     pos.forEach((p, pi) => {
       p.material.forEach(m => {
         const vk = m.menge * m.ekPreis * (1 + m.aufschlag)
-        rows.push([String(pi + 1), 'Material', m.bezeichnung, String(m.menge), m.einheit, String(m.ekPreis), String(Math.round(m.aufschlag * 100)), String(Math.round(vk * 100) / 100)])
+        rows.push([posLabel(p, pi), 'Material', m.bezeichnung, String(m.menge), m.einheit, String(m.ekPreis), String(Math.round(m.aufschlag * 100)), String(Math.round(vk * 100) / 100)])
       })
       p.arbeitszeit.forEach(a => {
         const vk = (a.minuten / 60) * a.vkStunde
-        rows.push([String(pi + 1), 'Arbeitszeit', getKsLabel(a.kostenstelle), String(Math.round(a.minuten / 60 * 100) / 100), 'h', String(a.vkStunde), '', String(Math.round(vk * 100) / 100)])
+        rows.push([posLabel(p, pi), 'Arbeitszeit', getKsLabel(a.kostenstelle), String(Math.round(a.minuten / 60 * 100) / 100), 'h', String(a.vkStunde), '', String(Math.round(vk * 100) / 100)])
       })
     })
     rows.push([])
@@ -1526,7 +1782,7 @@ export default function CraftFlow() {
     const tableRows: (string | number)[][] = []
 
     pos.forEach((p, pi) => {
-      tableRows.push([String(pi + 1), p.titel, '', '', '', '', '', ''])
+      tableRows.push([posLabel(p, pi), p.titel, '', '', '', '', '', ''])
       p.material.forEach(m => {
         const vk = m.menge * m.ekPreis * (1 + m.aufschlag)
         tableRows.push(['', 'Material', m.bezeichnung, m.menge, m.einheit, m.ekPreis, Math.round(m.aufschlag * 100), Math.round(vk * 100) / 100])
@@ -1616,17 +1872,21 @@ export default function CraftFlow() {
       dl('[POSITIONEN]'),
       [dl('Pos-Nr'), dl('Titel'), dl('Beschreibung'), dl('Gesamt Netto EUR')].join(';'),
       ...pos.map((p, pi) => [
-        dl(pi + 1), dl(p.titel), dl(p.beschreibung), dl(num(calcAngebotspos(p))),
+        dl(posLabel(p, pi)), dl(p.titel), dl(p.beschreibung), dl(num(calcAngebotspos(p))),
       ].join(';')),
       '',
       // ── Material ─────────────────────────────────────
       dl('[MATERIAL]'),
+      // Bei Serien gelten Material und Zeiten je Stueck — der Positionspreis ist
+      // hochgerechnet. Ohne diesen Hinweis wirkt der Export widerspruechlich.
+      [dl('# Material und Zeiten gelten je Stück. Die Stückzahl steht in Klammern hinter der Pos-Nr.')].join(';'),
+      [dl('# Positionen mit dem Zusatz "Alternative" sind nicht im Nettobetrag enthalten.')].join(';'),
       [dl('Pos-Nr'), dl('Position'), dl('Nr'), dl('Bezeichnung'), dl('Menge'), dl('Einheit'), dl('EK EUR'), dl('Aufschlag %'), dl('VK Einzel EUR'), dl('VK Gesamt EUR')].join(';'),
       ...pos.flatMap((p, pi) =>
         p.material.map((m, mi) => {
           const vkEinzel = m.ekPreis * (1 + m.aufschlag)
           const vkGesamt = m.menge * vkEinzel
-          return [dl(pi + 1), dl(p.titel), dl(mi + 1), dl(m.bezeichnung), dl(m.menge), dl(m.einheit), dl(m.ekPreis), dl(Math.round(m.aufschlag * 100)), dl(num(vkEinzel)), dl(num(vkGesamt))].join(';')
+          return [dl(posLabel(p, pi)), dl(p.titel), dl(mi + 1), dl(m.bezeichnung), dl(m.menge), dl(m.einheit), dl(m.ekPreis), dl(Math.round(m.aufschlag * 100)), dl(num(vkEinzel)), dl(num(vkGesamt))].join(';')
         })
       ),
       '',
@@ -1637,14 +1897,14 @@ export default function CraftFlow() {
         p.arbeitszeit.map((a, ai) => {
           const std = Math.round(a.minuten / 60 * 100) / 100
           const gesamt = std * a.vkStunde
-          return [dl(pi + 1), dl(p.titel), dl(ai + 1), dl(a.kostenstelle), dl(getKsLabel(a.kostenstelle)), dl(a.minuten), dl(std), dl(a.vkStunde), dl(num(gesamt))].join(';')
+          return [dl(posLabel(p, pi)), dl(p.titel), dl(ai + 1), dl(a.kostenstelle), dl(getKsLabel(a.kostenstelle)), dl(a.minuten), dl(std), dl(a.vkStunde), dl(num(gesamt))].join(';')
         })
       ),
       '',
       // ── Zusammenfassung ──────────────────────────────
       dl('[ZUSAMMENFASSUNG]'),
       [dl('Position'), dl('Titel'), dl('Netto EUR')].join(';'),
-      ...pos.map((p, pi) => [dl(pi + 1), dl(p.titel), dl(num(calcAngebotspos(p)))].join(';')),
+      ...pos.map((p, pi) => [dl(posLabel(p, pi)), dl(p.titel), dl(num(calcAngebotspos(p)))].join(';')),
       '',
       [dl(''), dl('Netto gesamt EUR'), dl(num(totals.net))].join(';'),
       [dl(''), dl('MwSt. 19 %'), dl(num(totals.net * 0.19))].join(';'),
@@ -1814,13 +2074,13 @@ export default function CraftFlow() {
     ]
     pos.forEach((p, i) => {
       const gesamt = calcAngebotspos(p)
-      lines.push(`Position ${i + 1}: ${p.titel}`)
+      lines.push(`Position ${i + 1}: ${p.titel}${(p.stueckzahl ?? 1) > 1 ? ` — ${p.stueckzahl} Stück` : ''}`)
       if (p.material.length > 0) {
         lines.push('Material: ' + p.material.map(m => `${m.bezeichnung} (${m.menge} ${m.einheit})`).join(', '))
       }
       if (p.arbeitszeit.length > 0) {
         const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
-        lines.push(`Arbeitszeit: ${(totalMin / 60).toFixed(1)} h`)
+        lines.push(`Arbeitszeit: ${(totalMin / 60).toFixed(1)} h${(p.stueckzahl ?? 1) > 1 ? ' je Stück' : ''}`)
       }
       lines.push(`Gesamtpreis: ${eur(gesamt)}`)
       lines.push('')
@@ -1836,6 +2096,71 @@ export default function CraftFlow() {
   /* ══════════════════════════════════════════════════
      ONBOARDING MODAL
   ══════════════════════════════════════════════════ */
+  const kalibKnopf = (aktiv: boolean) => ({
+    background: aktiv ? '#2A2018' : '#1C1C1C',
+    border: `1px solid ${aktiv ? C.copper : '#2E2E2E'}`,
+    color: aktiv ? C.white : '#B0B0B0',
+    borderRadius: 7, padding: '9px 12px', fontSize: 12, cursor: 'pointer',
+    textAlign: 'left' as const,
+  })
+
+  // Mehrfachauswahl mit Erlaeuterung je Eintrag — ohne den Zusatz war unklar, was
+  // wohin gehoert.
+  // Das Referenzmoebel folgt dem Schwerpunkt aus Schritt 5 — ein Treppenbauer wird
+  // an einer Treppe gefragt, nicht an einem Flurschrank. Dieselbe Ableitung nutzt
+  // die Route beim Rechnen, sonst wuerde gegen andere Zahlen gerechnet als gefragt.
+  const refMoebel = referenzFuer(kalib.schwerpunkt)
+  const refDiff = refMoebel.fragenliste.filter(f => f.schluessel !== 'grund')
+  const refGrund = refMoebel.fragenliste.find(f => f.schluessel === 'grund')
+  const kalibFeld: Record<string, 'antwort_grund' | 'antwort_lack' | 'antwort_massiv' | 'antwort_montage'> = {
+    grund: 'antwort_grund', lack: 'antwort_lack', massiv: 'antwort_massiv', montage: 'antwort_montage',
+  }
+
+  const kalibMehrfach = (frage: string, gewaehlt: string[], setzen: (w: string[]) => void) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      {(BETRIEBSFRAGEN[frage] ?? []).map(b => {
+        const an = gewaehlt.includes(b.schluessel)
+        return (
+          <button key={b.schluessel} style={{ ...kalibKnopf(an), maxWidth: 230 }}
+            onClick={() => setzen(an ? gewaehlt.filter(x => x !== b.schluessel) : [...gewaehlt, b.schluessel])}>
+            <div style={{ fontWeight: 600 }}>{b.text}</div>
+            {b.hinweis && (
+              <div style={{ color: an ? '#9A8A7A' : '#6A6A6A', fontSize: 10.5, marginTop: 2, lineHeight: 1.4 }}>
+                {b.hinweis}
+              </div>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  const kalibWahl = (
+    quelle: Record<string, Array<{ schluessel: string; text: string }>>,
+    frage: string, aktuell: string, setzen: (w: string) => void,
+  ) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      {(quelle[frage] ?? []).map(b => (
+        <button key={b.schluessel} onClick={() => setzen(b.schluessel)}
+          style={kalibKnopf(aktuell === b.schluessel)}>{b.text}</button>
+      ))}
+    </div>
+  )
+
+  const kalibFrage = (titel: string, kind: React.ReactNode, hinweis = '', fussnote = '') => (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: hinweis ? 3 : 8 }}>{titel}</div>
+      {hinweis && <div style={{ color: '#7A7A7A', fontSize: 11, marginBottom: 8, lineHeight: 1.5 }}>{hinweis}</div>}
+      {kind}
+      {fussnote && (
+        <div style={{ marginTop: 9, background: '#1F1B16', border: '1px solid #3A2E22',
+          borderRadius: 8, padding: '8px 11px', color: '#C0AE9A', fontSize: 11.5, lineHeight: 1.55 }}>
+          {fussnote}
+        </div>
+      )}
+    </div>
+  )
+
   const ONBOARDING_STEPS = [
     {
       icon: '✦',
@@ -1959,68 +2284,78 @@ export default function CraftFlow() {
       ),
     },
     {
-      icon: '⏱',
-      label: 'Stundensätze',
-      title: 'Kostenstellen einrichten',
+      icon: '🏗',
+      label: 'Dein Betrieb',
+      title: 'Vier Fragen zu deinem Betrieb',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>
-            Die KI kalkuliert mit deinen Stundensätzen. Standardwerte sind vorausgefüllt — passe sie einmalig an deinen Betrieb an.
+          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
+            Damit hier deine Zeiten gelten und nicht die CraftFlow-Werte.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7, marginBottom: 16 }}>
-            {[
-              ['Produktion', '65 €/h'],
-              ['Zuschnitt', '72 €/h'],
-              ['Oberfläche', '72 €/h'],
-              ['Montage', '65 €/h'],
-              ['Bekantung', '100 €/h'],
-              ['CNC', '120 €/h'],
-            ].map(([name, rate]) => (
-              <div key={name} style={{ background: '#1C1C1C', borderRadius: 7, padding: '9px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#8A8A8A', fontSize: 12 }}>{name}</span>
-                <span style={{ color: C.copper, fontSize: 12, fontWeight: 700 }}>{rate}</span>
-              </div>
-            ))}
+          {kalibFrage('Welche Maschinen hast du?',
+            kalibMehrfach('maschinen', kalib.maschinen, w => setKalib({ ...kalib, maschinen: w })),
+            'Mehrfachauswahl')}
+          {kalibFrage('Was baust du?',
+            kalibMehrfach('schwerpunkt', kalib.schwerpunkt, w => setKalib({ ...kalib, schwerpunkt: w })),
+            'Mehrfachauswahl — wähl alles, was bei dir regelmäßig vorkommt.')}
+          {kalibFrage('Montierst du selbst beim Kunden?',
+            kalibWahl(BETRIEBSFRAGEN, 'montage_selbst', kalib.montage_selbst, w => setKalib({ ...kalib, montage_selbst: w })))}
+          {kalibFrage('Einzelstücke oder auch größere Stückzahlen?',
+            kalibWahl(BETRIEBSFRAGEN, 'stueckzahlen', kalib.stueckzahlen, w => setKalib({ ...kalib, stueckzahlen: w })),
+            'Diese Frage ändert deine Kalkulation nicht — sie hilft uns zu verstehen, wofür CraftFlow gebraucht wird.')}
+        </div>
+      ),
+    },
+    {
+      icon: '📐',
+      label: 'Referenz',
+      title: `Was nimmst du für ${refMoebel.name === 'Innentüren' ? 'diese Türen' : 'dieses Stück'}?`,
+      content: (
+        <div>
+          <div style={{ background: '#1C1C1C', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+            <div style={{ color: C.copper, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
+              {refMoebel.name}
+            </div>
+            <div style={{ color: '#B0B0B0', fontSize: 12.5, lineHeight: 1.7 }}>{refMoebel.text}</div>
           </div>
-          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 15 }}>⚙️</span>
-            <span style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>
-              Alle Kostenstellen anpassen unter <span style={{ color: C.copper }}>Einstellungen → Kostenstellen</span>
-            </span>
+          <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6, marginBottom: 16 }}>
+            Das Möbel richtet sich nach dem, was du gerade angekreuzt hast. Genau diese fünf
+            Dinge braucht CraftFlow immer: Möbelart, Maße, Material, Ausstattung, Montage.
+            So sieht eine gute Beschreibung aus.
+          </div>
+          {refGrund && kalibFrage(refGrund.text,
+            kalibWahl({ grund: refGrund.baender }, 'grund', kalib.antwort_grund,
+              w => setKalib({ ...kalib, antwort_grund: w })),
+            refGrund.hinweis,
+            RANDBAENDER.includes(kalib.antwort_grund) ? RANDHINWEIS : '')}
+          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8,
+            padding: '10px 14px', color: '#8A8A8A', fontSize: 12 }}>
+            🔒 Diese Angabe sieht niemand außer dir.
           </div>
         </div>
       ),
     },
     {
-      icon: '📦',
-      label: 'Material',
-      title: 'Materialaufschlag einstellen',
+      icon: '🎨',
+      label: 'Bereiche',
+      title: `Dasselbe Stück, ${refDiff.length === 2 ? 'zwei' : 'drei'} Varianten`,
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
-            Ein Aufschlag auf alle Materialkosten deckt Beschaffung, Lager und Verschnitt ab.
+          <p style={{ color: '#9A9A9A', fontSize: 12.5, lineHeight: 1.6, marginBottom: 16 }}>
+            Hier streuen die Betriebe am stärksten. Weißt du eine Zahl gerade nicht, sag es —
+            geraten ist schlechter als offen gelassen.
           </p>
-          <div style={{ background: '#1C1C1C', borderRadius: 10, padding: '14px 20px', textAlign: 'center', marginBottom: 12 }}>
-            <div style={{ color: C.copper, fontSize: 42, fontWeight: 900, lineHeight: 1, letterSpacing: -1 }}>30%</div>
-            <div style={{ color: '#6A6A6A', fontSize: 12, marginTop: 5 }}>Standardaufschlag auf Einkaufspreis</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
-            {[
-              ['Standardplatten / Zukaufteile', '15–20 %'],
-              ['Allgemein (Richtwert)', '20–30 %'],
-              ['Massivholz / Sonderbestellung', '25–35 %'],
-            ].map(([label, val]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: '#1A1A1A', borderRadius: 7 }}>
-                <span style={{ color: '#8A8A8A', fontSize: 12 }}>{label}</span>
-                <span style={{ color: '#C0C0C0', fontSize: 12, fontWeight: 600 }}>{val}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 15 }}>⚙️</span>
-            <span style={{ color: '#7A7A7A', fontSize: 12 }}>
-              Anpassen unter <span style={{ color: C.copper }}>Einstellungen → Warenaufschläge</span>
-            </span>
+          {refDiff.map(f => (
+            <div key={f.schluessel}>
+              {kalibFrage(f.text, kalibWahl({ [f.schluessel]: f.baender }, f.schluessel,
+                kalib[kalibFeld[f.schluessel]], w => setKalib({ ...kalib, [kalibFeld[f.schluessel]]: w })),
+                f.hinweis,
+                RANDBAENDER.includes(kalib[kalibFeld[f.schluessel]]) ? RANDHINWEIS : '')}
+            </div>
+          ))}
+          <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6 }}>
+            Bei &bdquo;weiß ich gerade nicht&ldquo; rechne ich in diesem Bereich mit dem CraftFlow-Wert.
+            Du kannst es jederzeit unter Einstellungen → Mein Betrieb nachtragen.
           </div>
         </div>
       ),
@@ -2066,8 +2401,30 @@ export default function CraftFlow() {
     },
   ]
 
+  // Einmal pro Sitzung nachsehen. Nur fuer den Hinweis unter der Kalkulation —
+  // gerechnet wird ohnehin serverseitig mit dem, was in der Datenbank steht.
+  useEffect(() => {
+    let abgebrochen = false
+    fetch('/api/settings/kalibrierung')
+      .then(r => (r.ok ? r.json() : null))
+      .then((j: { kalibrierung?: { abgeschlossen?: boolean } | null } | null) => {
+        if (abgebrochen) return
+        setIstKalibriert(Boolean(j?.kalibrierung?.abgeschlossen))
+      })
+      .catch(() => { if (!abgebrochen) setIstKalibriert(null) })
+    return () => { abgebrochen = true }
+  }, [])
+
   const finishOnboarding = (goToSettings: boolean) => {
     fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
+    // Kalibrierung nur speichern, wenn ueberhaupt etwas beantwortet wurde. Wer
+    // ueberspringt, bekommt keinen Datensatz und rechnet mit Branchenwerten —
+    // eine uebersprungene Frage darf nie wie eine beantwortete wirken.
+    // Feuere-und-vergiss: Ein Speicherfehler darf die Erst-Anmeldung nicht blockieren.
+    if (Object.values(kalib).some(v => (Array.isArray(v) ? v.length > 0 : v !== ''))) {
+      fetch('/api/settings/kalibrierung', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(kalib) }).catch(e => console.error('[onboarding] Kalibrierung', e))
+    }
     setShowOnboarding(false)
     setOnboardingStep(0)
     if (goToSettings) window.location.href = '/settings'
@@ -2264,6 +2621,68 @@ export default function CraftFlow() {
   }
 
   /* ── Help-Widget (alle Screens) ───────────────────── */
+  // Der Testphasen-Hinweis gehört in JEDE Ansicht. Vorher steckte er fest im
+  // Startbildschirm — wer in "Meine Projekte" wechselte, sah plötzlich nichts
+  // mehr davon und musste raten, wie lange die Testphase noch läuft.
+  // Der Testversions-Hinweis ist in die Leiste gewandert (src/components/AppHeader.tsx).
+  // Er stand vorher in jedem Bildschirm einzeln — und fehlte deshalb in den
+  // Einstellungen und auf dem PDF-Bildschirm.
+
+  // ── Speicherleiste ────────────────────────────────────────────────────────
+  // Fest am unteren Rand, nicht im Reiter "Angebot" versteckt. Wer in der
+  // Kalkulation arbeitet, soll den Knopf sehen, ohne ihn zu suchen.
+  // Erscheint nur, wenn wirklich etwas von Hand geaendert wurde.
+  const SpeicherLeiste = ungespeichert ? (
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2500, background: C.darkbg, borderTop: `1px solid ${C.copper}66`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
+        Nicht gespeicherte Änderungen
+      </span>
+      <button
+        onClick={() => void saveProject()}
+        disabled={saveStatus === 'saving'}
+        style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '9px 22px', fontSize: 12, fontWeight: 800, fontFamily: 'Helvetica Neue,sans-serif', cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer' }}
+      >
+        {saveStatus === 'saving' ? '…' : 'Speichern'}
+      </button>
+    </div>
+  ) : null
+
+  // ── Nachfrage beim Verlassen ──────────────────────────────────────────────
+  // Drei Wege, weil zwei nicht reichen: Wer weggeht, will entweder sichern,
+  // bewusst verwerfen — oder hat sich verklickt und will zurueck.
+  const VerlassenDialog = verlassenZiel ? (
+    <div style={{ position: 'fixed', inset: 0, background: '#000000CC', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 16 }}>
+      <div style={{ background: C.darkbg, border: `1px solid ${C.border}`, borderRadius: 4, maxWidth: 420, width: '100%', padding: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 6 }}>
+          Nicht gespeicherte Änderungen
+        </div>
+        <div style={{ fontSize: 12, color: C.textMid, marginBottom: 18, lineHeight: 1.6 }}>
+          Du hast im Angebot etwas von Hand geändert. Wenn du jetzt weitergehst, ohne zu speichern, ist es weg.
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={async () => { const w = verlassenZiel; setVerlassenZiel(null); await saveProject(); w?.() }}
+            style={{ flex: '1 1 130px', background: C.copper, color: C.black, border: 'none', borderRadius: 3, padding: '11px 0', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+          >
+            Speichern und weiter
+          </button>
+          <button
+            onClick={() => { const w = verlassenZiel; setGespeicherterStand(standJetzt); setVerlassenZiel(null); w?.() }}
+            style={{ flex: '1 1 110px', background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '11px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Verwerfen
+          </button>
+          <button
+            onClick={() => setVerlassenZiel(null)}
+            style={{ flex: '1 1 90px', background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '11px 0', fontSize: 12, cursor: 'pointer' }}
+          >
+            Zurück
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   const HelpWidget = (
     <>
       {!helpOpen && (
@@ -2356,21 +2775,70 @@ export default function CraftFlow() {
     }
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
-        {/* Header */}
-        <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <LogoMark size={32} userLogoUrl={profilLogoUrl} />
-            <div style={{ color: brandAccent, fontSize: 14, fontWeight: 800, letterSpacing: 3 }}>MEINE PROJEKTE</div>
+
+        {/* Rückfrage vor dem Löschen — in unserer Oberfläche, nicht im Browser-Dialog */}
+        {loeschFrage && (
+          <div
+            onClick={() => { if (!loeschLaeuft) setLoeschFrage(null) }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.72)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: C.gray1, border: `1px solid ${C.border}`, borderTop: `3px solid ${brandAccent}`,
+                borderRadius: 10, padding: isMobile ? '20px 18px' : '26px 28px', maxWidth: 460, width: '100%',
+                boxShadow: '0 18px 60px rgba(0,0,0,.7)',
+              }}
+            >
+              <div style={{ color: brandAccent, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+                Angebot löschen
+              </div>
+              <div style={{ color: C.white, fontSize: 15, fontWeight: 700, lineHeight: 1.45, marginBottom: 12 }}>
+                {loeschFrage.titel}
+              </div>
+              <div style={{ color: C.textMid, fontSize: 13, lineHeight: 1.65, marginBottom: loeschFehler ? 14 : 22 }}>
+                Das Angebot und alle gespeicherten Fassungen davon sind danach weg.
+                Das lässt sich nicht rückgängig machen.
+              </div>
+              {loeschFehler && (
+                <div style={{ background: '#3A1A1A', border: '1px solid #6A2A2A', borderRadius: 8,
+                  padding: '9px 12px', color: '#FFB0B0', fontSize: 12.5, lineHeight: 1.5, marginBottom: 18 }}>
+                  {loeschFehler}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setLoeschFrage(null)}
+                  disabled={loeschLaeuft}
+                  style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`,
+                    borderRadius: 7, padding: '10px 18px', fontSize: 13, fontWeight: 600,
+                    cursor: loeschLaeuft ? 'default' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={() => void loeschenBestaetigt()}
+                  disabled={loeschLaeuft}
+                  style={{ background: '#E05A5A', color: '#1A0A0A', border: 'none', borderRadius: 7,
+                    padding: '10px 20px', fontSize: 13, fontWeight: 800,
+                    cursor: loeschLaeuft ? 'default' : 'pointer', opacity: loeschLaeuft ? 0.6 : 1,
+                    fontFamily: 'Helvetica Neue,sans-serif' }}
+                >
+                  {loeschLaeuft ? 'Löscht …' : 'Endgültig löschen'}
+                </button>
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-            <button onClick={resetAll} style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }} title="Neues Angebot">✏️</button>
-            <button onClick={() => setScreen('projekte')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">📋</button>
-            <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">⚙️</button>
-            {userEmail && (
-              <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">🚪</button>
-            )}
-          </div>
-        </div>
+        )}
+
+        <AppHeader
+          titel="MEINE PROJEKTE" aktiv="projekte"
+          logoUrl={profilLogoUrl} firmenName={profilFirmaName} isMobile={isMobile}
+          onNeu={resetAll} onProjekte={() => setScreen('projekte')} onLogout={logout}
+        />
 
         {/* Filter + Sort */}
         {projects.length > 0 && (
@@ -2480,6 +2948,11 @@ export default function CraftFlow() {
                         onClick={e => { e.stopPropagation(); loadProject(p.id) }}
                         style={{ background: C.gray2, color: C.white, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600, whiteSpace: 'nowrap' }}
                       >Öffnen →</button>
+                      <button
+                        onClick={e => { e.stopPropagation(); void deleteProject(p.id, p.title) }}
+                        title="Projekt löschen"
+                        style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 10px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap' }}
+                      >✕</button>
                     </div>
                   </div>
                 )
@@ -2564,15 +3037,6 @@ export default function CraftFlow() {
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
         {OnboardingModal}
-        {isInTrial && (
-          <div onClick={() => window.location.href = '/settings#plan'} style={{ background: `${C.copper}18`, borderBottom: `1px solid ${C.copper}55`, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer' }}>
-            <span style={{ fontSize: 14 }}>🎁</span>
-            <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
-              <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet
-            </span>
-            <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>Plan wählen →</span>
-          </div>
-        )}
         <style>{`
           @keyframes cfpulse {
             0%, 100% { transform: scale(1); opacity: 0.5; }
@@ -2584,36 +3048,11 @@ export default function CraftFlow() {
           }
         `}</style>
 
-        {/* Header */}
-        <div style={{ background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
-            <LogoMark size={34} userLogoUrl={profilLogoUrl} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ color: brandAccent, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
-              {profilFirmaName && !isMobile && <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{profilFirmaName.toUpperCase()}</div>}
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-            <button
-              onClick={resetAll}
-              style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }}
-              title="Neues Angebot"
-            >
-              ✏️
-            </button>
-            <button onClick={() => setScreen('projekte')} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">
-              📋
-            </button>
-            <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">
-              ⚙️
-            </button>
-            {userEmail && (
-              <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">
-                🚪
-              </button>
-            )}
-          </div>
-        </div>
+        <AppHeader
+          aktiv="neu"
+          logoUrl={profilLogoUrl} firmenName={profilFirmaName} isMobile={isMobile}
+          onNeu={resetAll} onProjekte={() => setScreen('projekte')} onLogout={logout}
+        />
 
         <div style={{ padding: '0 16px 40px', maxWidth: 500, margin: '0 auto', boxSizing: 'border-box' }}>
 
@@ -2701,27 +3140,27 @@ export default function CraftFlow() {
               <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {/* Fotos – ab Starter */}
                 <div
-                  onClick={() => { if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPhotoRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{planCanUse('starter') ? '📷' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: planCanUse('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
-                  {!planCanUse('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
+                  onClick={() => { if (planLaedt) return; if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPhotoRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('starter') ? C.copper + '55' : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{darfNutzen('starter') ? '📷' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: darfNutzen('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
+                  {!darfNutzen('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
                 </div>
                 {/* PDFs – ab Starter */}
                 <div
-                  onClick={() => { if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPdfRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('starter') ? C.copper + '55' : C.border}`, opacity: planCanUse('starter') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{planCanUse('starter') ? '📄' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: planCanUse('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
-                  {!planCanUse('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
+                  onClick={() => { if (planLaedt) return; if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPdfRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('starter') ? C.copper + '55' : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{darfNutzen('starter') ? '📄' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: darfNutzen('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
+                  {!darfNutzen('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
                 </div>
                 {/* GAEB – ab Enterprise */}
                 <div
-                  onClick={() => { if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startGaebRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: planCanUse('enterprise') ? `${C.copper}20` : C.gray1, border: `1px solid ${planCanUse('enterprise') ? C.copper + '55' : C.border}`, opacity: planCanUse('enterprise') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{planCanUse('enterprise') ? '🏗' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: planCanUse('enterprise') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
-                  {!planCanUse('enterprise') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB ENTERPRISE</span>}
+                  onClick={() => { if (planLaedt) return; if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startGaebRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('enterprise') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('enterprise') ? C.copper + '55' : C.border}`, opacity: darfNutzen('enterprise') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{darfNutzen('enterprise') ? '🏗' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: darfNutzen('enterprise') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
+                  {!darfNutzen('enterprise') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB ENTERPRISE</span>}
                 </div>
               </div>
             </div>
@@ -2893,30 +3332,19 @@ export default function CraftFlow() {
   ]
 
   return (
-    <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white }}>
+    <div style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white, paddingBottom: ungespeichert ? 68 : 0 }}>
       {OnboardingModal}
+      {SpeicherLeiste}
+      {VerlassenDialog}
 
-      {/* Header */}
-      <div style={{ background: C.darkbg, padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${brandAccent}`, gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 }}>
-          <LogoMark size={30} userLogoUrl={profilLogoUrl} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ color: brandAccent, fontSize: 13, fontWeight: 800, letterSpacing: 2, whiteSpace: 'nowrap' }}>CRAFTFLOW</div>
-            {profilFirmaName && <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 1, whiteSpace: 'nowrap' }}>{profilFirmaName.toUpperCase()}</div>}
-          </div>
-          <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 6 }}>
-            {kunde.name || '–'}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-          <button onClick={resetAll} style={{ background: brandAccent, color: C.black, border: 'none', borderRadius: 6, padding: isMobile ? '8px 10px' : '9px 12px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, lineHeight: 1 }} title="Neues Angebot">✏️</button>
-          <button onClick={() => setScreen(previousScreen)} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Meine Projekte">📋</button>
-          <button onClick={() => window.location.href = '/settings'} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Einstellungen">⚙️</button>
-          {userEmail && (
-            <button onClick={logout} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: isMobile ? '7px 9px' : '9px 11px', cursor: 'pointer', fontSize: 16, fontFamily: 'Helvetica Neue,sans-serif', lineHeight: 1 }} title="Abmelden">🚪</button>
-          )}
-        </div>
-      </div>
+      <AppHeader
+        aktiv="neu" zusatz={kunde.name || '–'}
+        logoUrl={profilLogoUrl} firmenName={profilFirmaName} isMobile={isMobile}
+        onNeu={() => mitPruefung(resetAll)}
+        onProjekte={() => mitPruefung(() => setScreen(previousScreen))}
+        onEinstellungen={() => mitPruefung(() => { window.location.href = '/settings' })}
+        onLogout={logout}
+      />
 
       {/* Tabs */}
       <div style={{ display: 'flex', background: C.darkbg, borderBottom: `1px solid ${C.border}` }}>
@@ -2935,6 +3363,30 @@ export default function CraftFlow() {
             <Card accent={C.copper}>
               <div style={{ padding: '14px 16px' }}>
                 <Lbl>Kundendaten prüfen & bearbeiten</Lbl>
+                {/* Anrede und Nachname kamen am 2026-09-08 dazu. Ohne sie konnte die
+                    Anrede-Vorlage hoechstens "Guten Tag Constantin Ludewigt" ergeben —
+                    ein "Sehr geehrter Herr Ludewigt" war nicht baubar.
+                    Die Anrede wird NICHT aus dem Namen geraten: Ein falsches "Herr" im
+                    Angebot ist schlimmer als gar keins. */}
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '110px 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <Lbl>Anrede</Lbl>
+                    <select
+                      value={kunde.anrede ?? ''}
+                      onChange={e => updK('anrede', e.target.value)}
+                      style={{ width: '100%', padding: '9px 8px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 13, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                    >
+                      {['', 'Herr', 'Frau', 'Familie', 'Firma'].map(a => (
+                        <option key={a} value={a}>{a || '– keine –'}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Lbl>Nachname <span style={{ color: C.textMid, fontWeight: 400 }}>(für „Sehr geehrter Herr …“)</span></Lbl>
+                    <TxtInput value={kunde.nachname ?? ''} onChange={v => updK('nachname', v)}
+                      placeholder="leer = letztes Wort des Namens" />
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   {([
                     { f: 'name' as keyof Kunde,    l: 'Kundenname',  p: 'z.B. Familie Müller' },
@@ -2944,7 +3396,7 @@ export default function CraftFlow() {
                   ] as const).map(({ f, l, p }) => (
                     <div key={f}>
                       <Lbl>{l}</Lbl>
-                      <TxtInput value={kunde[f]} onChange={v => updK(f, v)} placeholder={p} />
+                      <TxtInput value={kunde[f] ?? ''} onChange={v => updK(f, v)} placeholder={p} />
                     </div>
                   ))}
                 </div>
@@ -3034,15 +3486,15 @@ export default function CraftFlow() {
                 style={{
                   flex: 1, minWidth: 160,
                   background: allInquiryStatus === 'done' ? '#1a3a1a' : 'transparent',
-                  color: !planCanUse('starter') ? C.textMid : allInquiryStatus === 'done' ? '#90EE90' : allInquiryStatus === 'loading' ? C.textMid : C.copper,
-                  border: `1px solid ${!planCanUse('starter') ? C.border : allInquiryStatus === 'done' ? '#3a6a3a' : allInquiryStatus === 'error' ? '#8b2222' : C.copper}`,
+                  color: !darfNutzen('starter') ? C.textMid : allInquiryStatus === 'done' ? '#90EE90' : allInquiryStatus === 'loading' ? C.textMid : C.copper,
+                  border: `1px solid ${!darfNutzen('starter') ? C.border : allInquiryStatus === 'done' ? '#3a6a3a' : allInquiryStatus === 'error' ? '#8b2222' : C.copper}`,
                   borderRadius: 3, padding: '8px 12px',
                   cursor: allInquiryStatus === 'loading' ? 'wait' : 'pointer',
                   fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
-                  opacity: !planCanUse('starter') ? 0.6 : 1,
+                  opacity: !darfNutzen('starter') ? 0.6 : 1,
                 }}
               >
-                {!planCanUse('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Suche Lieferanten…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
+                {!darfNutzen('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Suche Lieferanten…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
               </button>
               {/* Export Dropdown */}
               <div style={{ position: 'relative' }}>
@@ -3051,9 +3503,9 @@ export default function CraftFlow() {
                     if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }
                     setExportMenuOpen(o => !o)
                   }}
-                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: planCanUse('starter') ? C.textMid : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap', opacity: planCanUse('starter') ? 1 : 0.6 }}
+                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: darfNutzen('starter') ? C.textMid : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap', opacity: darfNutzen('starter') ? 1 : 0.6 }}
                 >
-                  {planCanUse('starter') ? `↓ Export ${exportMenuOpen ? '▲' : '▼'}` : '🔒 Export'}
+                  {darfNutzen('starter') ? `↓ Export ${exportMenuOpen ? '▲' : '▼'}` : '🔒 Export'}
                 </button>
                 {exportMenuOpen && (
                   <>
@@ -3069,7 +3521,7 @@ export default function CraftFlow() {
                         { label: '⬛ CSV – Übersicht', action: () => { exportCSV(); setExportMenuOpen(false) } },
                         { label: '{ } JSON', action: () => { exportJSON(); setExportMenuOpen(false) } },
                         {
-                          label: planCanUse('enterprise') ? '🏗 GAEB DA84 (.X84)' : '🔒 GAEB DA84 — Enterprise',
+                          label: darfNutzen('enterprise') ? '🏗 GAEB DA84 (.X84)' : '🔒 GAEB DA84 — Enterprise',
                           action: () => { if (planCanUse('enterprise')) { exportGAEB(); setExportMenuOpen(false) } else { window.location.href = '/settings#plan' } },
                         },
                       ].map(item => (
@@ -3133,7 +3585,7 @@ export default function CraftFlow() {
                 {(allInquiryResult.missingGroups?.length ?? 0) > 0 && (
                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                     Kein Lieferant für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')}
-                    {!planCanUse('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
+                    {!darfNutzen('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
                   </div>
                 )}
                 {(allInquiryResult.suggestedSuppliers?.length ?? 0) > 0 && (
@@ -3226,7 +3678,7 @@ export default function CraftFlow() {
               </div>
             </div>
 
-            {pos.map(p => {
+            {pos.map((p, i) => {
               const gesamt = calcAngebotspos(p)
               const matTotal = materialkostenPos(p)
               const arbTotal = arbeitszeitPreisPos(p)
@@ -3264,9 +3716,68 @@ export default function CraftFlow() {
                         onClick={e => e.stopPropagation()}
                         style={{ flex: 1, background: 'transparent', border: 'none', fontSize: 14, fontWeight: 700, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', minWidth: 0, cursor: 'text' }}
                       />
-                      <div style={{ fontWeight: 800, fontSize: 14, color: C.copper, whiteSpace: 'nowrap' }}>{eur(gesamt)}</div>
+                      {/* Stueckzahl. Material und Zeiten stehen fuer EIN Stueck —
+                          hochgerechnet wird ausschliesslich in den Preisfunktionen. */}
+                      <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <input
+                          type="number" min={1} step={1}
+                          value={p.stueckzahl ?? 1}
+                          onChange={e => updPosF(p.id, 'stueckzahl', Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                          title="Anzahl gleicher Stücke"
+                          style={{ width: 46, background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 3, color: (p.stueckzahl ?? 1) > 1 ? C.copper : C.textMid, fontSize: 12, padding: '3px 5px', textAlign: 'right', fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
+                        />
+                        <span style={{ fontSize: 11, color: C.textMid }}>Stk</span>
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: p.alternativ ? C.textMid : C.copper, whiteSpace: 'nowrap' }}>
+                        {p.alternativ ? `(${eur(gesamt)})` : eur(gesamt)}
+                      </div>
+                      <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                        <button onClick={() => verschiebePos(p.id, -1)} disabled={i === 0}
+                          title="Nach oben"
+                          style={{ background: 'transparent', color: i === 0 ? '#3A3A3A' : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 7px', cursor: i === 0 ? 'default' : 'pointer', fontSize: 11 }}>↑</button>
+                        <button onClick={() => verschiebePos(p.id, 1)} disabled={i === pos.length - 1}
+                          title="Nach unten"
+                          style={{ background: 'transparent', color: i === pos.length - 1 ? '#3A3A3A' : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 7px', cursor: i === pos.length - 1 ? 'default' : 'pointer', fontSize: 11 }}>↓</button>
+                      </div>
                       <button onClick={e => { e.stopPropagation(); delPos(p.id) }} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>✕</button>
                     </div>
+
+                    {/* Gruppe und Alternativposition — beides aus dem Referenzangebot.
+                        Gruppe: mehrere Positionen erscheinen im PDF unter EINER
+                        Ueberschrift ("Flurschrank" ueber Korpus, Tueren, Beleuchtung).
+                        Alternativ: wird angeboten, zaehlt aber nicht in die Summe. */}
+                    <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                      <input
+                        value={p.gruppe ?? ''}
+                        onChange={e => updPosF(p.id, 'gruppe', e.target.value)}
+                        placeholder="Gruppe (optional) — z.B. Flurschrank"
+                        style={{ flex: 1, minWidth: 160, background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, color: C.textMid, fontSize: 11, padding: '5px 8px', fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
+                      />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: p.alternativ ? C.copper : C.textMid, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <input type="checkbox" checked={p.alternativ === true}
+                          onChange={e => updPosF(p.id, 'alternativ', e.target.checked)}
+                          style={{ accentColor: C.copper, width: 14, height: 14 }} />
+                        Alternativposition
+                      </label>
+                    </div>
+                    {p.alternativ && (
+                      <div style={{ marginTop: 6, fontSize: 11, color: C.textMid, lineHeight: 1.6 }}>
+                        Steht im Angebot als Vorschlag, mit dem Preis in Klammern — und
+                        zählt <b>nicht</b> in die Gesamtsumme.
+                      </div>
+                    )}
+
+                    {/* Serienhinweis: Material und Zeiten unten stehen fuer EIN Stueck.
+                        Ohne diesen Satz wundert sich der Nutzer ueber den Gesamtpreis. */}
+                    {(p.stueckzahl ?? 1) > 1 && (
+                      <div style={{ marginTop: 8, padding: '8px 10px', background: `${C.copper}12`,
+                        border: `1px solid ${C.copper}33`, borderRadius: 3, fontSize: 11,
+                        color: C.textMid, lineHeight: 1.6 }}>
+                        <b style={{ color: C.copper }}>{p.stueckzahl}× gleiche Stücke.</b>{' '}
+                        Material und Zeiten unten gelten für <b>ein</b> Stück.{' '}
+                        {serienHinweis(p.stueckzahl ?? 1)}
+                      </div>
+                    )}
 
                     {/* Aufklappbarer Inhalt */}
                     {isExpanded && <>
@@ -3381,7 +3892,7 @@ export default function CraftFlow() {
                             )}
                             {ist === 'loading' && (
                               <div style={{ fontSize: 12, color: C.textMid, padding: '6px 0' }}>
-                                {planCanUse('enterprise') ? '⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…' : '⟳ Suche passende Lieferanten…'}
+                                {darfNutzen('enterprise') ? '⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…' : '⟳ Suche passende Lieferanten…'}
                               </div>
                             )}
                             {ist === 'error' && (
@@ -3433,7 +3944,7 @@ export default function CraftFlow() {
                                 {(res.missingGroups?.length ?? 0) > 0 && (
                                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                                     Kein Lieferant für: {res.missingGroups.map(g => g.gruppe).join(', ')}
-                                    {!planCanUse('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
+                                    {!darfNutzen('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
                                   </div>
                                 )}
                                 {(res.suggestedSuppliers?.length ?? 0) > 0 && (
@@ -3474,7 +3985,7 @@ export default function CraftFlow() {
                     <div style={{ marginBottom: 10 }}>
                       {/* Header + Gesamtübersicht */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                        <Lbl>Arbeitszeit</Lbl>
+                        <Lbl>{(p.stueckzahl ?? 1) > 1 ? 'Arbeitszeit (je Stück)' : 'Arbeitszeit'}</Lbl>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
                           {(() => {
                             const totalMin = p.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
@@ -3593,6 +4104,26 @@ export default function CraftFlow() {
             <button onClick={addPos} style={{ width: '100%', background: 'transparent', color: C.textMid, border: `1px dashed ${C.border}`, borderRadius: 4, padding: '11px 0', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 12 }}>
               + Position hinzufügen
             </button>
+
+            {/* Passt der Preis nicht? Genau hier hat der abgesprungene Testkunde die
+                App geschlossen — statt eines Auswegs stand da nichts. */}
+            {istKalibriert === false && (
+              <div style={{ background: '#1A1A1A', border: `1px solid ${C.copper}44`, borderRadius: 4,
+                padding: '14px 16px', marginBottom: 12 }}>
+                <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 5 }}>
+                  Passt der Preis nicht zu deinem Betrieb?
+                </div>
+                <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
+                  Ich rechne gerade mit den CraftFlow-Werten. Beantworte unter
+                  Einstellungen → Mein Betrieb neun kurze Fragen, dann rechne ich mit deinen.
+                </div>
+                <button onClick={() => { window.location.href = '/settings' }}
+                  style={{ background: 'transparent', border: `1px solid ${C.copper}`, borderRadius: 4,
+                    color: C.copper, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  Jetzt einrichten
+                </button>
+              </div>
+            )}
 
             <button onClick={() => setTab('angebot')} style={{ width: '100%', background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '15px 0', fontSize: 14, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 1, cursor: 'pointer' }}>
               → Weiter zum Angebot
@@ -3829,6 +4360,37 @@ export default function CraftFlow() {
               </div>
             </Card>
 
+            {bausteine.length > 0 && (
+              <Card>
+                <div style={{ padding: '12px 16px' }}>
+                  <Lbl>Textbausteine in diesem Angebot</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 6 }}>
+                    {bausteine.map(b => {
+                      const an = bausteinIds.includes(b.id)
+                      return (
+                        <button key={b.id} title={b.inhalt.slice(0, 200)}
+                          onClick={() => setBausteinIds(prev =>
+                            an ? prev.filter(x => x !== b.id) : [...prev, b.id])}
+                          style={{
+                            background: an ? '#2A2018' : C.gray2,
+                            border: `1px solid ${an ? C.copper : C.border}`,
+                            color: an ? C.white : C.textMid,
+                            borderRadius: 20, padding: '6px 13px', fontSize: 12,
+                            cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
+                          }}>
+                          {an ? '✓ ' : '+ '}{b.titel}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ color: C.textMid, fontSize: 11, marginTop: 8, lineHeight: 1.6 }}>
+                    Stehen unter den Positionen im Angebot. Anlegen und ändern unter
+                    Einstellungen → Textbausteine.
+                  </div>
+                </div>
+              </Card>
+            )}
+
             <Card>
               <div style={{ padding: '12px 16px' }}>
                 <Lbl>Anschreiben</Lbl>
@@ -3901,44 +4463,17 @@ export default function CraftFlow() {
               const datum = angebotsdatum || today()
               if (!angebotsdatum) setAngebotsdatum(datum)
 
-              const textOpts = {
-                anredeVorlage: dokAnrede || undefined,
-                nachtext: dokNachtext || undefined,
-                widerrufText: dokWiderruf || undefined,
-                zahlungText: dokZahlung || undefined,
-                logoUrl: profilLogoUrl || undefined,
+              // EINE Zuordnung fuer Angebot und Vorschau (src/lib/pdfoptionen.ts).
+              // Vorher baute jede Seite ihre eigene — neue Einstellungen wirkten
+              // dann nur an einer Stelle (gefunden 2026-09-08).
+              const textOpts = pdfTextOptionen(profilRoh, {
+                basisUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
                 angebotsdatum: datum,
-                hinweis: profilPdfHinweis || undefined,
-                zeigeBic: profilPdfZeigeBic,
-                zeigeTelefon: profilPdfZeigeTelefon,
-                zeigeWebsite: profilPdfZeigeWebsite,
-                layout: profilPdfLayout,
-                zeigeMassivholz: profilPdfZeigeMassivholz,
-                massivholzText: profilPdfMassivholzText || undefined,
-                zeigeUnterschrift: profilPdfZeigeUnterschrift,
-                unterschriftText: profilPdfUnterschriftText || undefined,
-                eigeneBriefpapier: profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl,
-                margins: {
-                  top: profilPdfMarginTop,
-                  bottom: profilPdfMarginBottom,
-                  left: profilPdfMarginLeft,
-                  right: profilPdfMarginRight,
-                },
-              }
-              const firmaOpts = {
-                name:       profilFirmaName || undefined,
-                inhaber:    profilInhaber   || undefined,
-                strasse:    profilStrasse   || undefined,
-                ort:        profilOrt       || undefined,
-                email:      profilEmail     || undefined,
-                ust:        profilUstId     || undefined,
-                iban:       profilIban      || undefined,
-                bank:       profilBank      || undefined,
-                bic:        profilBic       || undefined,
-                telefon:    profilTelefon   || undefined,
-                website:    profilWebsite   || undefined,
-                akzentfarbe: brandAccent    || undefined,
-              }
+                bausteine: bausteine
+                  .filter(b => bausteinIds.includes(b.id))
+                  .map(b => ({ titel: b.titel, inhalt: b.inhalt })),
+              })
+              const firmaOpts = pdfFirmaOptionen(profilRoh)
               const html = buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, textOpts, firmaOpts)
               const useOwnLetterhead = profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl
               const footerTpl = useOwnLetterhead ? undefined : buildFooterTemplate(docTyp, docNr, firmaOpts, textOpts)
@@ -3986,6 +4521,7 @@ export default function CraftFlow() {
 
 
       </div>
+
 
       {HelpWidget}
     </div>
