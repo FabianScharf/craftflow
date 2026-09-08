@@ -259,7 +259,15 @@ tr.pos-group .pos-ges{border-bottom:none;padding-top:${isKompakt ? '10px' : '16p
 .zahlung{font-size:11px;font-weight:700;margin-bottom:16px}
 .widerruf{font-size:10px;color:#555;line-height:1.6;margin-bottom:20px}
 .hinweis{font-size:10px;color:#444;line-height:1.7;margin-bottom:20px;padding:10px 14px;background:#f8f8f8;border-left:3px solid ${accent}}
-.sign-block{margin-top:${isKompakt ? '18px' : '28px'}}
+/* Zusammengehoerendes nicht auseinanderreissen. Ein Unterschriftsblock, dessen
+   Linien allein auf der naechsten Seite stehen, sieht nach Fehler aus — und eine
+   Position, die mitten in der Beschreibung umbricht, liest sich schlecht.
+   Ergaenzt am 2026-09-08 zusammen mit den uebrigen Formatfehlern. */
+.sign-block{margin-top:${isKompakt ? '18px' : '28px'};break-inside:avoid;page-break-inside:avoid}
+.sum-wrap,.widerruf,.hinweis,.holz,.zahlung,.gruss{break-inside:avoid;page-break-inside:avoid}
+table.pos tr{break-inside:avoid;page-break-inside:avoid}
+table.pos thead{display:table-header-group}
+tr.pos-group{break-after:avoid;page-break-after:avoid}
 .sign-intro{font-size:12px;margin-bottom:24px}
 .sign-lines{display:flex;gap:40px;margin-top:32px}
 .sign-line{flex:1;border-top:1px solid #555;padding-top:5px;font-size:11px;color:#555}
