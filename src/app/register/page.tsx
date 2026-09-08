@@ -51,7 +51,13 @@ export default function RegisterPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: 'https://craftflow-sable.vercel.app' },
+      // Nach dem Klick auf den Bestaetigungslink landet der Nutzer hier. Bis
+      // 2026-09-08 stand hier die alte Vercel-Standardadresse — neue Nutzer kamen
+      // auf craftflow-sable.vercel.app heraus und mussten sich auf
+      // app.getcraftflow.de erneut anmelden. Absolut statt window.location.origin,
+      // damit auch Registrierungen ueber eine Vorschau-Adresse auf der echten
+      // Domain landen (nur die steht in der Erlaubt-Liste von Supabase).
+      options: { emailRedirectTo: 'https://app.getcraftflow.de/auth/callback' },
     })
     if (error) {
       setError(error.message)
