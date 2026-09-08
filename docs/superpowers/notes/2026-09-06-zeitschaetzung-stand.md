@@ -470,3 +470,42 @@ ids kollidierten (Position 1 und Materialzeile 1 trugen dieselbe).
 Materialpreise (Händlerpreise), Meine Bauweise (Standardausführungen), eigenes
 Briefpapier, „+ Position hinzufügen", Anrede-Vorlage. **Sein wichtigster Wunsch —
 eine Bibliothek für Händlerpreise und Standardausführungen — war vollständig gebaut.**
+
+## Nachtrag 2026-09-08, zweiter Durchgang
+
+**Spaltenreihenfolge** an das Referenzangebot angeglichen: Pos · Menge · Bezeichnung ·
+Einheitspreis · Gesamt. Ich hatte die neuen Spalten vor „Gesamt" eingehängt, ohne
+nachzusehen.
+
+**17 Schriften statt 4**, als Auswahlliste nach Serifenlos/Serif gruppiert, mit
+Schriftprobe. Darunter **Arimo** und **Tinos** — metrisch identisch zu Arial und Times
+New Roman, also gleiche Zeichenbreiten und gleicher Umbruch. Für „wir nutzen Arial"
+ist das der richtige Ersatz, nicht nur etwas Ähnliches.
+
+**Vorschau** mit Vollbild (A4 auf 92 %) zum Korrekturlesen.
+
+**Eigene Textbausteine** — neue Tabelle, eigener Einstellungsbereich, Auswahl je
+Angebot, sechs Praxis-Vorschläge zum Anklicken.
+
+### Auf Fabians Frage nach Buchhaltung und Dokumente: drei tote Felder
+
+Feld für Feld geprüft. Dokumente: alle fünf wirken. Buchhaltung: fast alle. Aber:
+
+| Feld | Befund |
+|---|---|
+| `mwst_satz` | **19 % standen FEST im Code.** Für einen Kleinunternehmer nach § 19 UStG war das Dokument formal falsch — es wies Umsatzsteuer aus, die er nicht berechnen darf |
+| `steuernummer` | wurde abgefragt und **nie gedruckt**. § 14 UStG verlangt Steuernummer ODER USt-IdNr. |
+| `angebot_gueltig_tage` | Gültigkeit stand **fest auf 30 Tagen** |
+
+Alle drei behoben, Kleinunternehmer als Schalter mit dem vorgeschriebenen Hinweis.
+
+### Und ein Fehler, den ich beim Live-Test in meiner eigenen Arbeit fand
+
+Kleinunternehmer, Gültigkeit und Textbausteine wirkten im Angebot, **nicht aber in der
+Vorschau**. Beide Seiten bauten die PDF-Optionen getrennt zusammen — ich habe es
+vergessen, im selben Zug, in dem ich die Vorschau gebaut habe. Jetzt eine Zuordnung in
+`src/lib/pdfoptionen.ts` für beide.
+
+**Das ist die dritte Doppelung derselben Art in dieser Woche** (Faktorlisten,
+Ankerpreis, jetzt die PDF-Optionen). Wo zwei Stellen dieselbe Wahrheit herstellen,
+laufen sie auseinander — nicht vielleicht, sondern verlässlich.
