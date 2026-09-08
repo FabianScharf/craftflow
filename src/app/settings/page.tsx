@@ -11,6 +11,7 @@ import { EmailSettings } from '@/components/settings/EmailSettings'
 import BauweiseSettings from '@/components/settings/BauweiseSettings'
 import MaterialpreiseSettings from '@/components/settings/MaterialpreiseSettings'
 import BetriebSettings from '@/components/settings/BetriebSettings'
+import BriefpapierVorschau from '@/components/settings/BriefpapierVorschau'
 import { type Plan, usePlan } from '@/hooks/usePlan'
 
 const C = {
@@ -492,7 +493,9 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', maxWidth: 960, margin: '0 auto' }}>
+      {/* Breiter, wenn die Vorschau daneben steht — sonst bliebe fuer die
+          Bedienelemente zu wenig Platz. */}
+      <div style={{ display: 'flex', maxWidth: section === 'briefpapier' ? 1360 : 960, margin: '0 auto' }}>
 
         {/* Sidebar — auf Mobile nur wenn kein Inhalt gezeigt */}
         {(!isMobile || !mobileShowContent) && (
@@ -688,8 +691,22 @@ export default function SettingsPage() {
 
           {/* BEREICH — BRIEFPAPIER */}
           {section === 'briefpapier' && (
-            <div>
+            <div style={{
+              display: isMobile ? 'block' : 'grid',
+              gridTemplateColumns: isMobile ? undefined : 'minmax(0,1fr) 360px',
+              gap: 30, alignItems: 'start',
+            }}>
+             <div style={{ minWidth: 0 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: C.white }}>Briefpapier & PDF</h2>
+
+              {/* Vorschau am Handy oben, am Rechner rechts daneben (weiter unten
+                  im Zwei-Spalten-Raster). Am Handy wäre eine schmale Spalte
+                  daneben unlesbar. */}
+              {isMobile && (
+                <div style={{ marginBottom: 24 }}>
+                  <BriefpapierVorschau profil={profil} />
+                </div>
+              )}
 
               {/* Tab-Auswahl */}
               <div style={{ display: 'flex', gap: 2, marginBottom: 28, background: C.gray1, borderRadius: 8, padding: 4 }}>
@@ -1060,6 +1077,17 @@ export default function SettingsPage() {
               )}
 
               <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
+             </div>
+
+              {/* Am Rechner rechts daneben und mitlaufend: Wer einen Schalter umlegt,
+                  sieht sofort, was er tut. Das war der guenstigste Weg zu Constantins
+                  Wunsch, Fehler in der Druckansicht zu sehen — und es macht die
+                  zwanzig Bedienelemente hier von selbst auffindbar. */}
+              {!isMobile && (
+                <div style={{ position: 'sticky', top: 78 }}>
+                  <BriefpapierVorschau profil={profil} />
+                </div>
+              )}
             </div>
           )}
 
