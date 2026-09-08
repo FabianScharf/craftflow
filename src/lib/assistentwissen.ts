@@ -45,7 +45,7 @@ export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
   { id: 'lieferanten', label: 'Lieferanten', zweck: 'Firmen und Ansprechpartner für Materialanfragen (ab Starter-Plan)' },
   { id: 'email', label: 'E-Mail & Versand', zweck: 'SMTP für den Versand direkt aus CraftFlow (ab Pro-Plan)' },
   { id: 'plan', label: 'Mein Plan', zweck: 'Gebuchter Tarif und Nutzung' },
-  { id: 'hilfe', label: 'Hilfe', zweck: 'Kurzanleitungen' },
+  { id: 'hilfe', label: 'Hilfe', zweck: 'Link zur ausführlichen Starthilfe (www.getcraftflow.de/willkommen — erklärt Einrichtung, Beschreiben, KI-Optimierung, Kalkulations-Check und PDF mit Beispielen) und die Programmvorstellung zum Wiederholen' },
 ]
 
 /**

@@ -293,6 +293,10 @@ export default function CraftFlow() {
             const p = d.profil
             if (!p || p.onboarding_abgeschlossen === false) {
               setShowOnboarding(true)
+              // Willkommens-Mail — die Route entscheidet selbst, ob sie fällig ist
+              // (neues Konto, bestätigte Adresse, noch nicht verschickt). Feuere-und-
+              // vergiss: Die Mail darf den Start nie aufhalten.
+              fetch('/api/mail/willkommen', { method: 'POST' }).catch(() => {})
               if (!p) return
             }
             // Das ROHE Profil aufheben: Die PDF-Optionen entstehen daraus ueber
@@ -2396,6 +2400,13 @@ export default function CraftFlow() {
               </div>
             ))}
           </div>
+          {/* Die Starthilfe erklärt alles hier Gezeigte ausführlich, mit echten
+              Beispielen — der Wizard bleibt absichtlich kurz. */}
+          <a href="https://www.getcraftflow.de/willkommen" target="_blank" rel="noreferrer"
+            style={{ display: 'block', marginTop: 14, background: '#1A1A1A', border: `1px solid ${C.copper}55`, borderRadius: 8, padding: '12px 14px', textDecoration: 'none' }}>
+            <div style={{ color: C.copper, fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>Ausführliche Starthilfe</div>
+            <div style={{ color: C.white, fontSize: 12.5, lineHeight: 1.5 }}>Alle Schritte mit Beispielen — vom Einrichten bis zum PDF: <span style={{ color: C.copper }}>getcraftflow.de/willkommen →</span></div>
+          </a>
         </div>
       ),
     },

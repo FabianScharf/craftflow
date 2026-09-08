@@ -105,6 +105,18 @@ export default function SettingsPage() {
   const [gutscheinCode, setGutscheinCode] = useState('')
   const [gutscheinLoading, setGutscheinLoading] = useState(false)
   const [gutscheinMsg, setGutscheinMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  // Admin: einmalige „Was ist neu“-Mail an Bestandsnutzer (Sept. 2026)
+  const [mailLauf, setMailLauf] = useState<{ ok: boolean; meldung: string; empfaenger?: string[]; fehler?: string[]; absender?: string; betreff?: string } | null>(null)
+  const [mailLaeuft, setMailLaeuft] = useState(false)
+  const [mailBestaetigung, setMailBestaetigung] = useState('')
+  const neuigkeitenMail = async (modus: 'probelauf' | 'test' | 'senden') => {
+    setMailLaeuft(true)
+    try {
+      const res = await fetch('/api/admin/mail-neuigkeiten', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modus, bestaetigung: mailBestaetigung }) })
+      setMailLauf(await res.json())
+    } catch (e) { setMailLauf({ ok: false, meldung: `Verbindungsfehler: ${e instanceof Error ? e.message : e}` }) }
+    setMailLaeuft(false)
+  }
 
   // Admin-Panel: Gutscheincodes
   type GutscheinCode = { code: string; plan: string; max_uses: number | null; used_count: number; valid_until: string | null; beschreibung: string | null; created_at: string }
@@ -1672,8 +1684,16 @@ export default function SettingsPage() {
           {section === 'hilfe' && (
             <div style={{ padding: '24px 20px', maxWidth: 520 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Hilfe</h2>
-              <p style={{ fontSize: 13, color: C.textMid, marginBottom: 24, lineHeight: 1.6 }}>
-                Der Einführungs-Wizard erklärt alle wichtigen Funktionen — Beschreibung, KI-Werkzeuge, Kostenstellen und Materialaufschlag.
+              <p style={{ fontSize: 13, color: C.textMid, marginBottom: 16, lineHeight: 1.6 }}>
+                Die Starthilfe erklärt CraftFlow Schritt für Schritt — Einrichtung, Projekt beschreiben, Ergebnis lesen,
+                KI-Optimierung, Kalkulations-Check, Angebot — mit echten Beispielen.
+              </p>
+              <a href="https://www.getcraftflow.de/willkommen" target="_blank" rel="noreferrer"
+                style={{ display: 'inline-block', marginBottom: 28, background: C.copper, color: C.black, borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 800, textDecoration: 'none', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                Starthilfe öffnen →
+              </a>
+              <p style={{ fontSize: 13, color: C.textMid, marginBottom: 12, lineHeight: 1.6 }}>
+                Die kurze Programmvorstellung aus der Erst-Anmeldung — inklusive der Fragen zu deinem Betrieb — kannst du jederzeit wiederholen.
               </p>
               <button
                 onClick={async () => {
@@ -1690,6 +1710,44 @@ export default function SettingsPage() {
           {/* ── Admin Panel ─────────────────────────────── */}
           {section === 'admin' && userEmail === 'l.m.p.1@gmx.de' && (
             <div style={{ padding: '24px 20px', maxWidth: 720 }}>
+              {/* ── Neuigkeiten-Mail an Bestandsnutzer ── */}
+              <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 28 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – „Was ist neu“-Mail</h2>
+                <p style={{ fontSize: 12, color: C.textMid, marginBottom: 14, lineHeight: 1.6 }}>
+                  Einmalige Info an alle Konten mit bestätigter E-Mail. Reihenfolge: <strong style={{ color: C.white }}>Probelauf</strong> (zeigt Anzahl und Adressen, schickt nichts) →
+                  <strong style={{ color: C.white }}> Test an mich</strong> → <strong style={{ color: C.white }}>Senden</strong>. Wer die Mail hat, wird markiert — ein zweiter Lauf trifft nur noch die, die fehlen.
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button onClick={() => neuigkeitenMail('probelauf')} disabled={mailLaeuft}
+                    style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                    {mailLaeuft ? '…' : 'Probelauf'}
+                  </button>
+                  <button onClick={() => neuigkeitenMail('test')} disabled={mailLaeuft}
+                    style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                    Test an mich
+                  </button>
+                  <input value={mailBestaetigung} onChange={e => setMailBestaetigung(e.target.value)} placeholder="SENDEN eintippen" style={{ ...inp(), width: 150 }} />
+                  <button onClick={() => neuigkeitenMail('senden')} disabled={mailLaeuft || mailBestaetigung !== 'SENDEN'}
+                    style={{ background: mailBestaetigung === 'SENDEN' ? C.copper : C.gray2, color: mailBestaetigung === 'SENDEN' ? C.black : C.textMid, border: 'none', borderRadius: 4, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: mailBestaetigung === 'SENDEN' ? 'pointer' : 'not-allowed', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                    An alle senden
+                  </button>
+                </div>
+                {mailLauf && (
+                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 4, fontSize: 12, lineHeight: 1.6,
+                    background: mailLauf.ok ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)', color: mailLauf.ok ? '#5ABE6A' : C.err,
+                    border: `1px solid ${mailLauf.ok ? '#5ABE6A44' : '#E05A5A44'}` }}>
+                    <div>{mailLauf.meldung}</div>
+                    {mailLauf.absender && <div style={{ color: C.textMid, marginTop: 4 }}>Absender: {mailLauf.absender} · Betreff: {mailLauf.betreff}</div>}
+                    {mailLauf.empfaenger && mailLauf.empfaenger.length > 0 && (
+                      <div style={{ color: C.textMid, marginTop: 6, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11 }}>{mailLauf.empfaenger.join('\n')}</div>
+                    )}
+                    {mailLauf.fehler && mailLauf.fehler.length > 0 && (
+                      <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11 }}>{mailLauf.fehler.join('\n')}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – Gutscheincodes</h2>
               <p style={{ fontSize: 12, color: C.textMid, marginBottom: 20 }}>Codes erstellen, bearbeiten und deaktivieren. Bestehende Zugänge bleiben bei Code-Löschung erhalten.</p>
 
