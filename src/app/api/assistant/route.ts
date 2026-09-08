@@ -84,7 +84,9 @@ export async function POST(req: NextRequest) {
     const systemWithContext = assistentWissen({ saetze }) + getContextNote(context ?? {})
 
     const messages: ChatMsg[] = [
-      ...chatHistory.slice(-8),
+      // Ohne Absicherung stuerzt die Route bei fehlendem Feld mit
+      // "Cannot read properties of undefined" ab — eine 500 ohne Aussage.
+      ...(Array.isArray(chatHistory) ? chatHistory.slice(-8) : []),
       { role: 'user', content: message },
     ]
 
