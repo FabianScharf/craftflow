@@ -3364,8 +3364,8 @@ export default function CraftFlow() {
               <div style={{ padding: '14px 16px' }}>
                 <Lbl>Kundendaten prüfen & bearbeiten</Lbl>
                 {/* Anrede und Nachname kamen am 2026-09-08 dazu. Ohne sie konnte die
-                    Anrede-Vorlage hoechstens "Guten Tag Constantin Ludewigt" ergeben —
-                    ein "Sehr geehrter Herr Ludewigt" war nicht baubar.
+                    Anrede-Vorlage hoechstens "Guten Tag Max Mustermann" ergeben —
+                    ein "Sehr geehrter Herr Mustermann" war nicht baubar.
                     Die Anrede wird NICHT aus dem Namen geraten: Ein falsches "Herr" im
                     Angebot ist schlimmer als gar keins. */}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '110px 1fr', gap: 10, marginBottom: 10 }}>

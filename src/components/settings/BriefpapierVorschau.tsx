@@ -7,8 +7,8 @@ import type { Angebotsposition, Kunde } from '@/lib/types'
 
 // Lebende Vorschau neben den Einstellungen.
 //
-// WARUM: Der Briefpapier-Reiter hat rund zwanzig Bedienelemente, und Constantin
-// Ludewigt hat in seiner Rückmeldung vom 2026-08-26 kein einziges davon gefunden —
+// WARUM: Der Briefpapier-Reiter hat rund zwanzig Bedienelemente, und ein
+// Testnutzer hat in seiner Rückmeldung vom 2026-08-26 kein einziges davon gefunden —
 // er hat stattdessen aufgeschrieben, was ihm am PDF fehlt. Nicht die Funktionen
 // fehlten, sondern der Weg dorthin.
 //
@@ -21,14 +21,18 @@ import type { Angebotsposition, Kunde } from '@/lib/types'
 // Gerendert wird mit derselben Funktion wie das echte PDF (buildPDF). Was hier
 // steht, steht auch im Dokument — keine zweite Vorlage, die auseinanderlaufen kann.
 
+// NEUTRALE Beispieldaten — hier standen bis zum 2026-09-08 Name und Anschrift eines
+// ECHTEN Kunden. Ich hatte sie aus der Rueckmeldung uebernommen, ohne nachzudenken.
+// Damit sah jeder CraftFlow-Nutzer die Daten eines Dritten in seinen Einstellungen.
+// In Beispieldaten gehoeren niemals echte Personen.
 const BEISPIEL_KUNDE: Kunde = {
-  name: 'Constantin Ludewigt',
+  name: 'Max Mustermann',
   zusatz: '',
-  strasse: 'Grenzstraße 13',
-  ort: '06112 Halle (Saale)',
+  strasse: 'Musterstraße 1',
+  ort: '12345 Musterstadt',
   projekt: 'Flurschrank und Garderobe',
   anrede: 'Herr',
-  nachname: 'Ludewigt',
+  nachname: 'Mustermann',
 }
 
 // Das Beispiel zeigt absichtlich ALLES, was die Einstellungen beeinflussen können:

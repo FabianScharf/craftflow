@@ -12,7 +12,7 @@ export interface Kunde {
    */
   anrede?: string
   /**
-   * Nur der Nachname, fuer "Sehr geehrter Herr Ludewigt". Bleibt es leer, nimmt die
+   * Nur der Nachname, fuer "Sehr geehrter Herr Mustermann". Bleibt es leer, nimmt die
    * Vorlage das letzte Wort aus `name` — das trifft die meisten Faelle und keiner
    * muss ein zweites Feld pflegen, der es nicht braucht.
    */

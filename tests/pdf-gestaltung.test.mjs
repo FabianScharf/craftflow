@@ -13,7 +13,7 @@ const posten = (titel, betrag, extra = {}) => ({
   ...extra,
 })
 
-// ── Absätze (Constantin Ludewigt, 2026-08-26) ───────────────────────────────
+// ── Absätze (Max Mustermann, 2026-08-26) ───────────────────────────────
 
 test('Eine Leerzeile wird ein eigener Absatz', () => {
   // "Wenn ich Absaetze einbaue, um das Geschriebene uebersichtlich zu gestalten,
@@ -137,27 +137,27 @@ test('Jede angebotene Schrift hat Datei und Stapel für Normal und Fett', () => 
 
 test('Anrede und Nachname sind einsetzbar', () => {
   assert.equal(
-    anredeAus('Sehr geehrte/r {anrede} {nachname},', { name: 'Constantin Ludewigt', anrede: 'Herr', nachname: 'Ludewigt' }),
-    'Sehr geehrte/r Herr Ludewigt,')
+    anredeAus('Sehr geehrte/r {anrede} {nachname},', { name: 'Max Mustermann', anrede: 'Herr', nachname: 'Mustermann' }),
+    'Sehr geehrte/r Herr Mustermann,')
 })
 
 test('Ohne Nachname wird das letzte Wort des Namens genommen', () => {
   assert.equal(
-    anredeAus('Sehr geehrte/r {anrede} {nachname},', { name: 'Constantin Ludewigt', anrede: 'Herr' }),
-    'Sehr geehrte/r Herr Ludewigt,')
+    anredeAus('Sehr geehrte/r {anrede} {nachname},', { name: 'Max Mustermann', anrede: 'Herr' }),
+    'Sehr geehrte/r Herr Mustermann,')
 })
 
 test('Ohne Anrede bleibt kein Leerzeichen vor dem Komma stehen', () => {
   // Genau der Punkt aus der Rueckmeldung: "Nach der Anrede sollte ein Komma stehen."
-  // Ein "Sehr geehrte/r  Ludewigt ," waere schlimmer als vorher.
+  // Ein "Sehr geehrte/r  Mustermann ," waere schlimmer als vorher.
   assert.equal(
-    anredeAus('Sehr geehrte/r {anrede} {nachname},', { name: 'Constantin Ludewigt' }),
-    'Sehr geehrte/r Ludewigt,')
+    anredeAus('Sehr geehrte/r {anrede} {nachname},', { name: 'Max Mustermann' }),
+    'Sehr geehrte/r Mustermann,')
 })
 
 test('Die alte Vorlage mit {name} funktioniert unverändert weiter', () => {
-  assert.equal(anredeAus('Liebe/r {name},', { name: 'Constantin Ludewigt' }),
-    'Liebe/r Constantin Ludewigt,')
+  assert.equal(anredeAus('Liebe/r {name},', { name: 'Max Mustermann' }),
+    'Liebe/r Max Mustermann,')
 })
 
 test('Ohne Vorlage und ohne Namen entsteht trotzdem eine gültige Anrede', () => {
