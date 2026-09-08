@@ -132,16 +132,19 @@ export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
           Genau darum geht es — Format, Absätze, Logo, Schrift. */}
       <div style={{
         border: '1px solid #2E2E2E', borderRadius: 8, overflow: 'hidden',
-        background: '#e8e8e8', height: 520,
+        background: '#e8e8e8', height: 520, width: '100%', maxWidth: 340,
       }}>
+        {/* A4 ist 794 px breit. Die Skalierung verkleinert nur die Darstellung, der
+            Platzbedarf im Layout bleibt — deshalb muss der Rahmen ihn abschneiden,
+            sonst ragt der iframe in die Bedienelemente hinein. */}
         <iframe
           title="Vorschau des Angebots"
           srcDoc={html}
           sandbox=""
           style={{
             border: 'none', display: 'block',
-            width: 794, height: 1123,
-            transform: 'scale(0.46)', transformOrigin: 'top left',
+            width: 794, height: 1220,
+            transform: 'scale(0.428)', transformOrigin: 'top left',
           }}
         />
       </div>
