@@ -507,7 +507,11 @@ STÜCKZAHL – WICHTIG:
 - "stueckzahl" ist die Anzahl GLEICHER Stücke dieser Position. Ohne Angabe: 1.
 - Material und Zeiten gibst du IMMER für EIN Stück an. Rechne die Stückzahl NIEMALS selbst ein — CraftFlow rechnet sie hoch, und zwar mit Mengensynergien, die du nicht kennst.
 - Ausnahme: Besprechung, Planung, Konstruktion und Arbeitsvorbereitung gibst du für die GESAMTE Position an, nicht je Stück. Wer zehn Spinde baut, plant sie einmal.
-- Verschiedene Ausführungen sind verschiedene Positionen. "10 Spinde 40 cm breit und 5 Spinde 60 cm breit" sind ZWEI Positionen mit stueckzahl 10 und 5 — nicht eine mit 15.`
+- Verschiedene Ausführungen sind verschiedene Positionen. "10 Spinde 40 cm breit und 5 Spinde 60 cm breit" sind ZWEI Positionen mit stueckzahl 10 und 5 — nicht eine mit 15.
+
+## GRUPPEN UND ALTERNATIVPOSITIONEN (optionale Felder)
+- "gruppe": Überschrift, unter der mehrere Positionen im Angebot zusammen erscheinen. Setze sie NUR, wenn ein zusammenhängendes Möbel aus mehreren getrennt bepreisten Teilen besteht — z. B. gruppe "Flurschrank" über den Positionen "Korpusse", "Türen", "LED-Beleuchtung". Bei einem einzelnen Möbel bleibt das Feld WEG. Positionen derselben Gruppe müssen direkt aufeinander folgen und exakt denselben Gruppentext tragen.
+- "alternativ": true nur, wenn der Nutzer ausdrücklich eine Alternative, eine Option oder ein "wahlweise" beschreibt. Eine Alternativposition wird angeboten, zählt aber NICHT in die Angebotssumme. Nie von dir aus erfinden.`
 
 // ---------------------------------------------------------------------------
 // Server-side validation — enforces FS Crafted rules deterministically after

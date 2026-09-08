@@ -57,6 +57,24 @@ export async function POST(req: NextRequest) {
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 })
     // Margins are set via @page CSS in the HTML — Puppeteer margin must be 0
     // to avoid double-applying margins (CSS @page takes precedence over Puppeteer).
+    // Auf die Schriften warten, bevor gedruckt wird.
+    //
+    // NOETIG SEIT 2026-09-08: Die Schriftart ist waehlbar, und die Dateien kommen per
+    // @font-face ueber das Netz. `waitUntil: 'load'` wartet darauf NICHT — Schriften
+    // werden nachgeladen. Ohne dieses Warten druckt Chromium die erste Seite noch mit
+    // der Ersatzschrift, und das Angebot sieht anders aus als die Vorschau.
+    //
+    // Faellt der Abruf aus, geht es nach zwei Sekunden trotzdem weiter: Ein Angebot in
+    // der Ersatzschrift ist besser als gar keins.
+    try {
+      await page.evaluate(() => Promise.race([
+        document.fonts.ready,
+        new Promise(fertig => setTimeout(fertig, 2000)),
+      ]))
+    } catch (e) {
+      console.error('[pdf] Schriften konnten nicht geladen werden:', e)
+    }
+
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,

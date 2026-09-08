@@ -1,4 +1,6 @@
-import { Angebotsposition, Kunde, FIRMA, calcAngebotspos, eur, today, inDays } from './types'
+import { Angebotsposition, Kunde, FIRMA, calcAngebotspos, nettoSumme, eur, today, inDays } from './types'
+import { alsAbsaetze, fontFaces, SCHRIFTEN, anredeAus, positionsBloecke, unterNummer, type SchriftId } from './pdftext'
+export { alsAbsaetze, SCHRIFTEN, type SchriftId } from './pdftext'
 
 export function buildFooterTemplate(
   docTyp: string,
@@ -37,6 +39,22 @@ export interface PDFTextOpts {
   // das eigene Briefpapier liefert den Rahmen, CraftFlow nur den Inhalt.
   eigeneBriefpapier?: boolean
   margins?: { top: number; bottom: number; left: number; right: number }
+  /** Schriftart des Dokuments. Wird mitgeliefert, siehe SCHRIFTEN oben. */
+  schriftart?: SchriftId
+  /**
+   * Woher die Schriftdateien geladen werden — im Browser window.location.origin,
+   * auf dem Server die Adresse der eigenen Bereitstellung. Ohne diese Angabe bleibt
+   * es bei der Systemschrift.
+   */
+  basisUrl?: string
+  /** Spalte "Menge" in der Positionstabelle zeigen. */
+  zeigeMenge?: boolean
+  /**
+   * Spalte "Einheitspreis" zeigen. Manche Betriebe wollen bewusst nur Endsummen
+   * ausweisen, um nicht ueber Einzelpreise verhandeln zu muessen — andere brauchen
+   * sie fuer die Nachvollziehbarkeit. Deshalb eine Einstellung, keine Vorgabe.
+   */
+  zeigeEinheitspreis?: boolean
 }
 
 export interface FirmaOpts {
@@ -68,59 +86,87 @@ export function buildPDF(
   const { angebotsdatum: savedDatum, ...restOpts } = textOpts
   void restOpts
   const datumStr = savedDatum || today()
-  const net = pos.reduce((s, p) => s + calcAngebotspos(p), 0)
+  const net = nettoSumme(pos)
   const vat = net * 0.19
   const gross = net + vat
 
   const accent = (firmaOpts.akzentfarbe || '#1a1a1a')
   const isKompakt = textOpts.layout === 'kompakt'
+  const schrift = SCHRIFTEN[textOpts.schriftart ?? 'opensans'] ?? SCHRIFTEN.opensans
+  const schriftBlock = fontFaces(textOpts.schriftart ?? 'opensans', textOpts.basisUrl ?? '')
   const ownLetterhead = textOpts.eigeneBriefpapier === true
 
-  const rows = pos.map((p, i) => {
+  const zeigeMenge = textOpts.zeigeMenge === true
+  const zeigeEP = textOpts.zeigeEinheitspreis === true
+
+  // Aufeinanderfolgende Positionen mit derselben Gruppe bilden EINEN Block mit
+  // gemeinsamer Kopfzeile — so wie im Referenzangebot "Pos. 1  Flurschrank" mit
+  // 1.001 Korpusse, 1.002 Beleuchtung, 1.003 Tueren darunter.
+  //
+  // GEFUNDEN AM 2026-09-08 durch Constantin Ludewigt: "Die Positionsueberschriften
+  // werden immer 2-mal aufgezaehlt." Er hatte recht — der Titel stand hart in BEIDEN
+  // Zeilen, in der Gruppen- und in der Detailzeile. Ohne Gruppe gibt es jetzt gar
+  // keine Kopfzeile mehr, mit Gruppe traegt sie den Gruppennamen.
+  const bloecke = positionsBloecke(pos)
+
+  const zeile = (nrText: string, p: Angebotsposition) => {
     const g = calcAngebotspos(p)
-    return `<tr class="pos-group">
-      <td class="pos-nr">Pos.&nbsp;${i + 1}</td>
-      <td class="pos-bez"><strong>${p.titel}</strong></td>
-      <td class="pos-ges"></td>
-    </tr>
-    <tr>
-      <td class="pos-nr">${i + 1}.001</td>
+    const n = Math.max(1, Math.round(Number(p.stueckzahl ?? 1)) || 1)
+    const zusatz = p.alternativ ? ' (Alternative Position)' : ''
+    // Alternativen tragen ihren Preis in Klammern und stehen nicht in der Summe.
+    const betrag = p.alternativ ? `(${eur(g)})` : eur(g)
+    return `<tr>
+      <td class="pos-nr">${nrText}</td>
       <td class="pos-bez">
-        <strong>${p.titel}</strong>
-        ${p.beschreibung ? `<span class="bez-desc">${p.beschreibung}</span>` : ''}
+        <strong>${p.titel}${zusatz}</strong>
+        ${p.beschreibung ? `<div class="bez-desc">${alsAbsaetze(p.beschreibung)}</div>` : ''}
       </td>
-      <td class="pos-ges">${eur(g)}</td>
+      ${zeigeMenge ? `<td class="pos-menge">${n} Stk</td>` : ''}
+      ${zeigeEP ? `<td class="pos-ep">${eur(g / n)}</td>` : ''}
+      <td class="pos-ges">${betrag}</td>
     </tr>`
+  }
+
+  const leerZellen = `${zeigeMenge ? '<td class="pos-menge"></td>' : ''}${zeigeEP ? '<td class="pos-ep"></td>' : ''}<td class="pos-ges"></td>`
+
+  const rows = bloecke.map((b, bi) => {
+    const nr = bi + 1
+    if (!b.gruppe) return zeile(`Pos.&nbsp;${nr}`, b.teile[0])
+    const kopf = `<tr class="pos-group">
+      <td class="pos-nr">Pos.&nbsp;${nr}</td>
+      <td class="pos-bez"><strong>${b.gruppe}</strong></td>
+      ${leerZellen}
+    </tr>`
+    return kopf + b.teile.map((p, ti) => zeile(unterNummer(nr, ti + 1), p)).join('')
   }).join('')
 
-  const anredeText = (textOpts.anredeVorlage || 'Liebe/r {name},')
-    .replace('{name}', kunde.name || 'Kundin / Kunde')
+  const anredeText = alsAbsaetze(anredeAus(textOpts.anredeVorlage ?? '', kunde))
 
   const defaultWiderruf = `Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Um Ihr Widerrufsrecht auszuüben, wenden Sie sich an: ${firma.name} – ${firma.inhaber}, ${firma.strasse}, ${firma.ort}, E-Mail: ${firma.email}.`
   const widerrufBlock = mitWiderruf
     ? `<div class="widerruf">
-        <strong>Widerrufsrecht</strong><br><br>
-        ${textOpts.widerrufText || defaultWiderruf}
+        <strong>Widerrufsrecht</strong>
+        ${alsAbsaetze(textOpts.widerrufText || defaultWiderruf)}
       </div>`
     : ''
 
   const hinweisBlock = textOpts.hinweis
-    ? `<div class="hinweis">${textOpts.hinweis.replace(/\n/g, '<br>')}</div>`
+    ? `<div class="hinweis">${alsAbsaetze(textOpts.hinweis)}</div>`
     : ''
 
   const defaultZahlung = '50% Anzahlung nach Auftragserteilung, 50% nach Abnahme, zahlbar innerhalb von 7 Tagen netto.'
   const nachtextRaw = textOpts.nachtext || `Mit freundlichen Grüßen\n\n${firma.inhaber}\n${firma.name}`
-  const nachtextHtml = nachtextRaw.replace(/\n/g, '<br>')
+  const nachtextHtml = alsAbsaetze(nachtextRaw)
 
   const defaultMassivholz = 'Hinweis: Massivholz ist ein Naturprodukt. Farbliche und strukturelle Abweichungen zwischen einzelnen Teilen sind natürlich und kein Mangel.'
   const massivholzBlock = textOpts.zeigeMassivholz !== false
-    ? `<div class="holz">${textOpts.massivholzText || defaultMassivholz}</div>`
+    ? `<div class="holz">${alsAbsaetze(textOpts.massivholzText || defaultMassivholz)}</div>`
     : ''
 
   const defaultUnterschrift = 'Wir freuen uns auf die Zusammenarbeit und bitten um Unterzeichnung und Rücksendung.'
   const signBlock = docTyp !== 'Rechnung' && textOpts.zeigeUnterschrift !== false
     ? `<div class="sign-block">
-        <p class="sign-intro">${textOpts.unterschriftText || defaultUnterschrift}</p>
+        <div class="sign-intro">${alsAbsaetze(textOpts.unterschriftText || defaultUnterschrift)}</div>
         <div class="sign-lines">
           <div class="sign-line">Ort | Datum</div>
           <div class="sign-line">Unterschrift Auftraggeber</div>
@@ -144,7 +190,8 @@ export function buildPDF(
 <title>${docTyp} ${docNr}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:${baseFontSize};color:#1a1a1a;line-height:1.5;background:#fff}
+${schriftBlock}
+body{font-family:${schrift.stapel};font-size:${baseFontSize};color:#1a1a1a;line-height:1.5;background:#fff}
 
 @page{size:A4;margin:${pageMargin}}
 @media print{
@@ -159,8 +206,12 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:${baseFon
 
 .hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:7px}
 .hdr-sender{font-size:9px;color:#888;letter-spacing:.3px}
-.hdr-logo{text-align:right}
-.hdr-logo img{height:80px;width:auto;display:block;margin-left:auto}
+.hdr-logo{text-align:right;max-width:45%;flex-shrink:0}
+/* GEFUNDEN AM 2026-09-08 durch Constantin Ludewigt: "Das Logo wird auf der pdf am
+   rechten seitlichen Rand abgeschnitten." Vorher stand hier nur height:80px und
+   width:auto — ein Logo im Querformat wurde dadurch beliebig breit und lief aus der
+   Seite. max-width begrenzt es, object-fit haelt die Proportion. */
+.hdr-logo img{max-height:80px;max-width:100%;width:auto;height:auto;object-fit:contain;display:block;margin-left:auto}
 
 .addr-meta{display:flex;justify-content:space-between;align-items:flex-start;margin:${isKompakt ? '16px 0 18px' : '24px 0 26px'}}
 .addr{line-height:1.9}
@@ -172,7 +223,15 @@ body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:${baseFon
 
 .bau{font-size:11px;color:#555;font-style:italic;margin-bottom:5px}
 .doc-nr{font-size:${isKompakt ? '14px' : '16px'};font-weight:700;margin-bottom:${isKompakt ? '6px' : '10px'}}
+/* Absaetze: Abstand ZWISCHEN den Absaetzen, nicht davor und dahinter. Sonst
+   verschiebt sich der ganze Block gegenueber dem Rest der Seite. */
 .intro{font-size:12px;margin-bottom:${isKompakt ? '16px' : '26px'};line-height:1.75;color:#222}
+.intro p{margin:0 0 ${isKompakt ? '8px' : '11px'}}
+.intro p:last-child{margin-bottom:0}
+.holz p, .widerruf p, .hinweis p, .zahlung p, .sign-intro p, .gruss p, .bez-desc p{margin:0 0 6px}
+.holz p:last-child, .widerruf p:last-child, .hinweis p:last-child, .zahlung p:last-child,
+.sign-intro p:last-child, .gruss p:last-child, .bez-desc p:last-child{margin-bottom:0}
+.zahlung p{display:inline}
 
 table.pos{width:100%;border-collapse:collapse}
 table.pos thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:${isKompakt ? '5px 6px' : '8px 6px'};border-top:1.5px solid ${accent};border-bottom:1.5px solid ${accent};white-space:nowrap}
@@ -182,6 +241,9 @@ table.pos thead th.r{text-align:right}
 .pos-bez strong{display:block;font-size:13px;margin-bottom:2px}
 .bez-desc{display:block;font-size:11px;color:#555;line-height:1.55;margin-top:2px}
 .pos-ges{width:110px;text-align:right;font-weight:600;font-size:12px;vertical-align:top;padding:${isKompakt ? '5px 6px' : '8px 6px'};white-space:nowrap;border-bottom:1px solid #f0f0f0}
+.pos-menge{width:64px;text-align:right;font-size:11px;color:#555;vertical-align:top;padding:${isKompakt ? '5px 6px' : '8px 6px'};white-space:nowrap;border-bottom:1px solid #f0f0f0}
+.pos-ep{width:96px;text-align:right;font-size:11px;color:#555;vertical-align:top;padding:${isKompakt ? '5px 6px' : '8px 6px'};white-space:nowrap;border-bottom:1px solid #f0f0f0}
+tr.pos-group .pos-menge, tr.pos-group .pos-ep{border-bottom:none;padding-top:${isKompakt ? '10px' : '16px'};padding-bottom:2px}
 tr.pos-group .pos-nr{color:#1a1a1a;font-weight:700;padding-top:${isKompakt ? '10px' : '16px'};padding-bottom:2px}
 tr.pos-group .pos-bez{border-bottom:none;padding-top:${isKompakt ? '10px' : '16px'};padding-bottom:2px}
 tr.pos-group .pos-bez strong{font-size:12px}
@@ -234,12 +296,14 @@ ${ownLetterhead ? '' : `<div class="hdr">
 
 <div class="bau">Bauvorhaben: ${kunde.projekt || '–'}</div>
 <div class="doc-nr">${docTyp}-Nr. ${docNr}</div>
-<div class="intro">${anredeText}<br><br>${anschr}</div>
+<div class="intro">${anredeText}${alsAbsaetze(anschr)}</div>
 
 <table class="pos">
   <thead><tr>
     <th>Pos</th>
     <th>Bezeichnung</th>
+    ${zeigeMenge ? '<th class="r">Menge</th>' : ''}
+    ${zeigeEP ? '<th class="r">Einheitspreis</th>' : ''}
     <th class="r">Gesamt</th>
   </tr></thead>
   <tbody>${rows}</tbody>
@@ -253,7 +317,7 @@ ${ownLetterhead ? '' : `<div class="hdr">
 </div></div>
 
 ${massivholzBlock}
-<div class="zahlung">Zahlungskondition: ${textOpts.zahlungText || defaultZahlung}</div>
+<div class="zahlung"><strong>Zahlungskondition:</strong> ${alsAbsaetze(textOpts.zahlungText || defaultZahlung)}</div>
 ${widerrufBlock}
 ${hinweisBlock}
 ${signBlock}

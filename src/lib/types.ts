@@ -5,6 +5,18 @@ export interface Kunde {
   strasse: string
   ort: string
   projekt: string
+  /**
+   * Anrede: "Herr", "Frau", "Firma" oder leer. Getrennt vom Namen, weil sich aus
+   * einem Namen keine Anrede ableiten laesst — und ein falsch geratenes "Herr" im
+   * Angebot schlimmer ist als gar keins.
+   */
+  anrede?: string
+  /**
+   * Nur der Nachname, fuer "Sehr geehrter Herr Ludewigt". Bleibt es leer, nimmt die
+   * Vorlage das letzte Wort aus `name` — das trifft die meisten Faelle und keiner
+   * muss ein zweites Feld pflegen, der es nicht braucht.
+   */
+  nachname?: string
 }
 
 export interface KundeDB extends Kunde {
@@ -178,6 +190,19 @@ export interface Angebotsposition {
    * sieht man weiter die Werte fuer ein Stueck.
    */
   stueckzahl?: number
+  /**
+   * Ueberschrift, unter der mehrere Positionen zusammengefasst erscheinen —
+   * "Flurschrank" ueber Korpus, Tueren und Beleuchtung. Aufeinanderfolgende
+   * Positionen mit derselben Gruppe bekommen im PDF EINE gemeinsame Kopfzeile.
+   * Leer = die Position steht fuer sich.
+   */
+  gruppe?: string
+  /**
+   * Alternativposition: wird angeboten, zaehlt aber NICHT in die Summe. Im PDF mit
+   * dem Zusatz "(Alternative Position)" und dem Preis in Klammern — so steht es im
+   * Referenzangebot.
+   */
+  alternativ?: boolean
 }
 
 // ── Firmendaten ──────────────────────────────────────
@@ -385,6 +410,17 @@ export function stundenPos(p: Angebotsposition): number {
   const n = stueckzahlVon(p)
   return p.arbeitszeit.reduce(
     (s, a) => s + (a.minuten / 60) * zeitFaktorFuer(normalizeKsId(a.kostenstelle), n), 0)
+}
+
+/**
+ * Nettosumme eines Angebots. Alternativpositionen bleiben aussen vor — sie sind ein
+ * Vorschlag, kein Auftrag. Sie hier mitzuzaehlen wuerde jedes Angebot mit einer
+ * Alternative zu teuer ausweisen.
+ *
+ * EINZIGE Quelle fuer Dokumentsummen. Wer selbst reduziert, vergisst die Alternative.
+ */
+export function nettoSumme(pos: readonly Angebotsposition[]): number {
+  return (pos ?? []).reduce((s, p) => s + (p?.alternativ ? 0 : calcAngebotspos(p)), 0)
 }
 
 export function calcAngebotspos(p: Angebotsposition): number {

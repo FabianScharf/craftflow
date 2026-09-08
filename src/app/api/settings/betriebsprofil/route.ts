@@ -37,12 +37,14 @@ export async function PATCH(req: NextRequest) {
     'pdf_zeige_massivholz', 'pdf_massivholz_text', 'pdf_zeige_unterschrift', 'pdf_unterschrift_text',
     'pdf_eigenes_briefpapier', 'pdf_briefpapier_url',
     'pdf_margin_top', 'pdf_margin_bottom', 'pdf_margin_left', 'pdf_margin_right',
+    'pdf_schriftart', 'pdf_zeige_menge', 'pdf_zeige_einheitspreis',
     'benchmark_zustimmung',
     'plan',
   ]
   const boolFields = new Set([
     'pdf_eigenes_briefpapier', 'pdf_zeige_bic', 'pdf_zeige_telefon', 'pdf_zeige_website',
     'pdf_zeige_massivholz', 'pdf_zeige_unterschrift', 'benchmark_zustimmung',
+    'pdf_zeige_menge', 'pdf_zeige_einheitspreis',
     'onboarding_abgeschlossen',
   ])
   const numFields = new Set([

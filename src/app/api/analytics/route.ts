@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { calcAngebotspos, type Angebotsposition } from '@/lib/types'
+import { nettoSumme, type Angebotsposition } from '@/lib/types'
 
 // Rechnet NICHT mehr selbst. Die eigene Kopie kannte die Stueckzahl nicht — die
 // Auswertung haette Serienauftraege systematisch zu niedrig ausgewiesen (gefunden im
 // Check-Up am 2026-09-07).
 function calcNetto(pos: unknown[]): number {
-  return (pos || []).reduce((sum: number, p) => sum + calcAngebotspos(p as Angebotsposition), 0)
+  // nettoSumme laesst Alternativpositionen aussen vor — sie sind ein Vorschlag,
+  // kein Auftrag, und wuerden die Auswertung verzerren.
+  return nettoSumme((pos || []) as Angebotsposition[])
 }
 
 export async function GET() {

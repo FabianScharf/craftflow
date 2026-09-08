@@ -740,6 +740,62 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
+                    <label style={lbl}>Schriftart</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8 }}>
+                      {([
+                        { id: 'opensans', name: 'Open Sans',  art: 'Sans',  stapel: "'Open Sans',sans-serif" },
+                        { id: 'inter',    name: 'Inter',      art: 'Sans',  stapel: "'Inter',sans-serif" },
+                        { id: 'lato',     name: 'Lato',       art: 'Sans',  stapel: "'Lato',sans-serif" },
+                        { id: 'ptserif',  name: 'PT Serif',   art: 'Serif', stapel: "'PT Serif',serif" },
+                      ] as const).map(f => {
+                        const an = (profil.pdf_schriftart ?? 'opensans') === f.id
+                        return (
+                          <button key={f.id} onClick={() => setP('pdf_schriftart', f.id)}
+                            style={{
+                              padding: '12px 14px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                              border: `1px solid ${an ? C.copper : C.border}`,
+                              background: an ? `${C.copper}15` : C.gray2, color: C.white,
+                            }}>
+                            <div style={{ fontFamily: f.stapel, fontSize: 17, lineHeight: 1.2 }}>Angebot</div>
+                            <div style={{ fontSize: 11, color: an ? C.copper : C.textMid, marginTop: 4 }}>
+                              {f.name} · {f.art}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p style={{ fontSize: 11, color: C.textMid, marginTop: 6, lineHeight: 1.6 }}>
+                      Die Schrift wird mit dem PDF ausgeliefert — sie sieht bei deinem Kunden
+                      genauso aus wie hier, unabhängig davon, was auf seinem Rechner installiert ist.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Spalten der Positionstabelle</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {([
+                        { key: 'pdf_zeige_menge', label: 'Menge anzeigen',
+                          sub: 'Eigene Spalte mit der Stückzahl je Position' },
+                        { key: 'pdf_zeige_einheitspreis', label: 'Einheitspreis anzeigen',
+                          sub: 'Preis je Stück. Manche Betriebe lassen ihn bewusst weg, um nicht über Einzelpreise zu verhandeln.' },
+                      ] as { key: string; label: string; sub: string }[]).map(({ key, label, sub }) => (
+                        <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', background: C.gray1, borderRadius: 6 }}>
+                          <input
+                            type="checkbox"
+                            checked={profil[key] === 'true'}
+                            onChange={e => setP(key, e.target.checked ? 'true' : 'false')}
+                            style={{ marginTop: 2, accentColor: C.copper, width: 16, height: 16, flexShrink: 0 }}
+                          />
+                          <div>
+                            <div style={{ fontSize: 13, color: C.white, fontWeight: 600 }}>{label}</div>
+                            <div style={{ fontSize: 11, color: C.textMid, marginTop: 2, lineHeight: 1.5 }}>{sub}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
                     <label style={lbl}>Akzentfarbe auf PDF</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: C.gray1, borderRadius: 6, border: `1px solid ${C.border}` }}>
                       <div style={{ width: 24, height: 24, borderRadius: 4, background: profil.farbe_akzent || C.copper, flexShrink: 0 }} />
@@ -890,7 +946,15 @@ export default function SettingsPage() {
                       placeholder="Liebe/r {name},"
                     />
                     <p style={{ fontSize: 11, color: C.textMid, margin: '4px 0 0' }}>
-                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{name}'}</code> wird durch den Kundennamen ersetzt.
+                      Platzhalter:{' '}
+                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{name}'}</code> voller Name ·{' '}
+                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{anrede}'}</code> Herr / Frau ·{' '}
+                      <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>{'{nachname}'}</code> nur der Nachname
+                      <br />
+                      Zum Beispiel: <code style={{ background: C.gray2, padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>Sehr geehrte/r {'{anrede} {nachname}'},</code>
+                      <br />
+                      Anrede und Nachname stehen beim Kunden im Angebot. Fehlt der Nachname, wird
+                      das letzte Wort des Namens genommen. Das Komma gehört mit in die Vorlage.
                     </p>
                   </div>
 

@@ -35,3 +35,17 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome, Safari */
 }
+
+/* ── Schriften für die PDF-Vorschau und die Schriftauswahl ─────────────────
+   Damit die Auswahlknöpfe in den Einstellungen die echte Schrift zeigen und die
+   Bildschirmvorschau so aussieht wie das fertige PDF. Die Dateien liegen unter
+   public/fonts/ (Lizenzen: public/fonts/LIZENZEN.md).
+   Nur der latin-Ausschnitt — deckt Deutsch vollständig ab, hält die Dateien klein. */
+@font-face{font-family:'Open Sans';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/open-sans-400.woff2') format('woff2')}
+@font-face{font-family:'Open Sans';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/open-sans-700.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/inter-400.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/inter-700.woff2') format('woff2')}
+@font-face{font-family:'Lato';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/lato-400.woff2') format('woff2')}
+@font-face{font-family:'Lato';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/lato-700.woff2') format('woff2')}
+@font-face{font-family:'PT Serif';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/pt-serif-400.woff2') format('woff2')}
+@font-face{font-family:'PT Serif';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/pt-serif-700.woff2') format('woff2')}

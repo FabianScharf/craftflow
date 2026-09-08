@@ -6,7 +6,7 @@ import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
 import {
   C,
-  calcAngebotspos, materialkostenPos, arbeitszeitPreisPos, materialkostenGesamt, stundenGesamt, eur, today, inDays,
+  calcAngebotspos, nettoSumme, materialkostenPos, arbeitszeitPreisPos, materialkostenGesamt, stundenGesamt, eur, today, inDays,
   serienHinweis,
   ladeKunden, speichereKunden,
   DEFAULT_STUNDENSAETZE, KOSTENSTELLEN_LABELS, KOSTENSTELLEN_GRUPPEN, KOSTENSTELLEN_GRUPPEN_ORDER,
@@ -14,7 +14,8 @@ import {
   type Angebotsposition, type MaterialPosten, type ArbeitsPosten, type KostenstelleId,
   type DbKostenstelle, type DbMaterialgruppe,
 } from '@/lib/types'
-import { buildPDF, buildFooterTemplate, type FirmaOpts } from '@/lib/pdf'
+import { buildPDF, buildFooterTemplate, SCHRIFTEN, type FirmaOpts, type SchriftId } from '@/lib/pdf'
+import { positionenAusKi } from '@/lib/kiantwort'
 import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 // Ein Zeichen, eine Definition — sonst steht irgendwann ein zweites CF daneben.
 import { AppHeader } from '@/components/AppHeader'
@@ -221,6 +222,9 @@ export default function CraftFlow() {
   const [profilTelefon, setProfilTelefon]   = useState<string>('')
   const [profilWebsite, setProfilWebsite]   = useState<string>('')
   const [profilPdfLayout, setProfilPdfLayout]           = useState<'klassisch' | 'kompakt'>('klassisch')
+  const [profilPdfSchriftart, setProfilPdfSchriftart]   = useState<SchriftId>('opensans')
+  const [profilPdfZeigeMenge, setProfilPdfZeigeMenge]   = useState(false)
+  const [profilPdfZeigeEp, setProfilPdfZeigeEp]         = useState(false)
   const [profilPdfZeigeBic, setProfilPdfZeigeBic]       = useState(false)
   const [profilPdfZeigeTelefon, setProfilPdfZeigeTelefon] = useState(false)
   const [profilPdfZeigeWebsite, setProfilPdfZeigeWebsite] = useState(false)
@@ -294,6 +298,9 @@ export default function CraftFlow() {
             setProfilTelefon(p.telefon ?? '')
             setProfilWebsite(p.website ?? '')
             setProfilPdfLayout(p.pdf_layout === 'kompakt' ? 'kompakt' : 'klassisch')
+            if (p.pdf_schriftart && p.pdf_schriftart in SCHRIFTEN) setProfilPdfSchriftart(p.pdf_schriftart as SchriftId)
+            setProfilPdfZeigeMenge(p.pdf_zeige_menge === true)
+            setProfilPdfZeigeEp(p.pdf_zeige_einheitspreis === true)
             setProfilPdfZeigeBic(p.pdf_zeige_bic === true)
             setProfilPdfZeigeTelefon(p.pdf_zeige_telefon === true)
             setProfilPdfZeigeWebsite(p.pdf_zeige_website === true)
@@ -452,7 +459,7 @@ export default function CraftFlow() {
       setTimeout(() => setSaveStatus('idle'), 3000)
       // Outcome-Tracking initialisieren
       const savedId = currentProjectId ?? row.id
-      const gesamtNetto = pos.reduce((a, p) => a + calcAngebotspos(p), 0)
+      const gesamtNetto = nettoSumme(pos)
       const ersteMaterial = pos.flatMap(p => p.material)[0]?.bezeichnung ?? ''
       const massivRe = /massiv|eiche|buche|nuss|fichte|kiefer/i
       const istMassiv = massivRe.test(ersteMaterial)
@@ -653,10 +660,30 @@ export default function CraftFlow() {
   const startGaebRef = useRef<HTMLInputElement>(null)
 
   const updK = (f: keyof Kunde, v: string) => setKunde(prev => ({ ...prev, [f]: v }))
-  const updPosF = (id: number, f: 'titel' | 'beschreibung' | 'stueckzahl', v: string | number) =>
-    setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } as Angebotsposition : p))
+  const updPosF = (
+    id: number,
+    f: 'titel' | 'beschreibung' | 'stueckzahl' | 'gruppe' | 'alternativ',
+    v: string | number | boolean,
+  ) => setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } as Angebotsposition : p))
   const addPos = () => setPos(prev => [...prev, defaultAngebotspos(Date.now())])
   const delPos = (id: number) => setPos(prev => prev.filter(p => p.id !== id))
+
+  /**
+   * Position verschieben. Aus Constantins Rueckmeldung vom 2026-08-26: "Mir fehlt die
+   * Moeglichkeit die Anordnung der Positionen per drag and drop zu veraendern."
+   *
+   * Bewusst Pfeile statt Ziehen: Ein Angebot wird oft am Telefon oder auf der Baustelle
+   * am Handy angefasst, und Ziehen mit dem Finger in einer langen Liste ist dort
+   * unzuverlaessig. Ein Pfeil trifft man immer.
+   */
+  const verschiebePos = (id: number, richtung: -1 | 1) => setPos(prev => {
+    const i = prev.findIndex(p => p.id === id)
+    const j = i + richtung
+    if (i < 0 || j < 0 || j >= prev.length) return prev
+    const neu = [...prev]
+    ;[neu[i], neu[j]] = [neu[j], neu[i]]
+    return neu
+  })
 
   const updMatRow = (posId: number, rowId: number, f: keyof MaterialPosten, v: unknown) =>
     setPos(prev => prev.map(p => p.id === posId
@@ -705,7 +732,7 @@ export default function CraftFlow() {
     ...userKs.filter(k => k.aktiv && !k.ist_standard).map(k => ({ code: k.code, label: k.bezeichnung })),
   ]
 
-  const totals = pos.reduce((a, p) => ({ net: a.net + calcAngebotspos(p) }), { net: 0 })
+  const totals = { net: nettoSumme(pos) }
   const materialGesamt = materialkostenGesamt(pos)
   const stundenGesamtWert = stundenGesamt(pos)
   const vat = totals.net * 0.19
@@ -1069,25 +1096,12 @@ export default function CraftFlow() {
       type AIArbRow = { kostenstelle?: string; minuten?: number; vkStunde?: number }
       let parsedPos: Angebotsposition[] = []
       if (data.positionen?.length > 0) {
-        parsedPos = data.positionen.map((p: Record<string, unknown>, i: number) => ({
-          id: Date.now() + i,
-          titel: (p.titel as string) || 'Position',
-          beschreibung: (p.beschreibung as string) || '',
-          material: ((p.material as AIMatRow[]) || []).map((m, mi) => ({
-            id: Date.now() + i * 100 + mi,
-            bezeichnung: m.bezeichnung || '',
-            menge: m.menge || 1,
-            einheit: m.einheit || 'Stk',
-            ekPreis: m.ekPreis || 0,
-            aufschlag: m.aufschlag ?? 0.3,
-          })),
-          arbeitszeit: ((p.arbeitszeit as AIArbRow[]) || []).map((a, ai) => ({
-            id: Date.now() + i * 100 + 50 + ai,
-            kostenstelle: (a.kostenstelle as KostenstelleId) || 'Produktion',
-            minuten: a.minuten || 60,
-            vkStunde: a.vkStunde || DEFAULT_STUNDENSAETZE['Produktion'],
-          })),
-        }))
+        // Die Umwandlung liegt in src/lib/kiantwort.ts und ist dort getestet.
+        // Sie baut jede Position neu auf — was dort fehlt, ist danach verloren.
+        // Genau so ist die Stueckzahl verschwunden (2026-09-08).
+        parsedPos = positionenAusKi(
+          data.positionen, Date.now(), DEFAULT_STUNDENSAETZE['Produktion'],
+        ) as unknown as Angebotsposition[]
         setPos(parsedPos)
         // Vergleichsbasis für den Bauweise-Vault festhalten (tiefe Kopie, damit
         // späteres Bearbeiten der Positionen den Erstvorschlag nicht verändert).
@@ -1161,7 +1175,7 @@ export default function CraftFlow() {
             const next = nummernNaechste + 1
             setNummernNaechste(next)
             fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ angebotsnummer_naechste: next }) }).catch(() => {})
-            const gesamtNetto = parsedPos.reduce((a: number, p: Angebotsposition) => a + calcAngebotspos(p), 0)
+            const gesamtNetto = nettoSumme(parsedPos)
             const ersteMaterial = parsedPos.flatMap((p: Angebotsposition) => p.material)[0]?.bezeichnung ?? ''
             fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'outcome_init', projectId: row.id, data: { moebel_typ: parsedPos[0]?.titel ?? '', material: ersteMaterial, ist_massivholz: /massiv|eiche|buche|nuss|fichte|kiefer/i.test(ersteMaterial), preis_kalkuliert: gesamtNetto, plz: parsedKunde.ort.trim().split(/\s+/)[0] ?? '' } }) }).catch(() => {})
           }
@@ -1480,9 +1494,7 @@ export default function CraftFlow() {
         const vJson = await vRes.json()
         if (vJson.versions) setVersions(vJson.versions)
         // Neuen Netto berechnen direkt aus den zurückgegebenen Positionen
-        nettoNachher = json.updatedOffer.positionen.reduce(
-          (sum: number, p: Angebotsposition) => sum + calcAngebotspos(p), 0
-        )
+        nettoNachher = nettoSumme(json.updatedOffer.positionen)
 
         // Den neuen Stand sofort sichern. Vorher wurde nur die VORHERIGE
         // Fassung als Version weggeschrieben und die Anzeige aktualisiert —
@@ -3296,6 +3308,30 @@ export default function CraftFlow() {
             <Card accent={C.copper}>
               <div style={{ padding: '14px 16px' }}>
                 <Lbl>Kundendaten prüfen & bearbeiten</Lbl>
+                {/* Anrede und Nachname kamen am 2026-09-08 dazu. Ohne sie konnte die
+                    Anrede-Vorlage hoechstens "Guten Tag Constantin Ludewigt" ergeben —
+                    ein "Sehr geehrter Herr Ludewigt" war nicht baubar.
+                    Die Anrede wird NICHT aus dem Namen geraten: Ein falsches "Herr" im
+                    Angebot ist schlimmer als gar keins. */}
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '110px 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <Lbl>Anrede</Lbl>
+                    <select
+                      value={kunde.anrede ?? ''}
+                      onChange={e => updK('anrede', e.target.value)}
+                      style={{ width: '100%', padding: '9px 8px', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, fontSize: 13, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                    >
+                      {['', 'Herr', 'Frau', 'Familie', 'Firma'].map(a => (
+                        <option key={a} value={a}>{a || '– keine –'}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Lbl>Nachname <span style={{ color: C.textMid, fontWeight: 400 }}>(für „Sehr geehrter Herr …“)</span></Lbl>
+                    <TxtInput value={kunde.nachname ?? ''} onChange={v => updK('nachname', v)}
+                      placeholder="leer = letztes Wort des Namens" />
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   {([
                     { f: 'name' as keyof Kunde,    l: 'Kundenname',  p: 'z.B. Familie Müller' },
@@ -3305,7 +3341,7 @@ export default function CraftFlow() {
                   ] as const).map(({ f, l, p }) => (
                     <div key={f}>
                       <Lbl>{l}</Lbl>
-                      <TxtInput value={kunde[f]} onChange={v => updK(f, v)} placeholder={p} />
+                      <TxtInput value={kunde[f] ?? ''} onChange={v => updK(f, v)} placeholder={p} />
                     </div>
                   ))}
                 </div>
@@ -3587,7 +3623,7 @@ export default function CraftFlow() {
               </div>
             </div>
 
-            {pos.map(p => {
+            {pos.map((p, i) => {
               const gesamt = calcAngebotspos(p)
               const matTotal = materialkostenPos(p)
               const arbTotal = arbeitszeitPreisPos(p)
@@ -3637,9 +3673,44 @@ export default function CraftFlow() {
                         />
                         <span style={{ fontSize: 11, color: C.textMid }}>Stk</span>
                       </div>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: C.copper, whiteSpace: 'nowrap' }}>{eur(gesamt)}</div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: p.alternativ ? C.textMid : C.copper, whiteSpace: 'nowrap' }}>
+                        {p.alternativ ? `(${eur(gesamt)})` : eur(gesamt)}
+                      </div>
+                      <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                        <button onClick={() => verschiebePos(p.id, -1)} disabled={i === 0}
+                          title="Nach oben"
+                          style={{ background: 'transparent', color: i === 0 ? '#3A3A3A' : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 7px', cursor: i === 0 ? 'default' : 'pointer', fontSize: 11 }}>↑</button>
+                        <button onClick={() => verschiebePos(p.id, 1)} disabled={i === pos.length - 1}
+                          title="Nach unten"
+                          style={{ background: 'transparent', color: i === pos.length - 1 ? '#3A3A3A' : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 7px', cursor: i === pos.length - 1 ? 'default' : 'pointer', fontSize: 11 }}>↓</button>
+                      </div>
                       <button onClick={e => { e.stopPropagation(); delPos(p.id) }} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>✕</button>
                     </div>
+
+                    {/* Gruppe und Alternativposition — beides aus dem Referenzangebot.
+                        Gruppe: mehrere Positionen erscheinen im PDF unter EINER
+                        Ueberschrift ("Flurschrank" ueber Korpus, Tueren, Beleuchtung).
+                        Alternativ: wird angeboten, zaehlt aber nicht in die Summe. */}
+                    <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                      <input
+                        value={p.gruppe ?? ''}
+                        onChange={e => updPosF(p.id, 'gruppe', e.target.value)}
+                        placeholder="Gruppe (optional) — z.B. Flurschrank"
+                        style={{ flex: 1, minWidth: 160, background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 3, color: C.textMid, fontSize: 11, padding: '5px 8px', fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
+                      />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: p.alternativ ? C.copper : C.textMid, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <input type="checkbox" checked={p.alternativ === true}
+                          onChange={e => updPosF(p.id, 'alternativ', e.target.checked)}
+                          style={{ accentColor: C.copper, width: 14, height: 14 }} />
+                        Alternativposition
+                      </label>
+                    </div>
+                    {p.alternativ && (
+                      <div style={{ marginTop: 6, fontSize: 11, color: C.textMid, lineHeight: 1.6 }}>
+                        Steht im Angebot als Vorschlag, mit dem Preis in Klammern — und
+                        zählt <b>nicht</b> in die Gesamtsumme.
+                      </div>
+                    )}
 
                     {/* Serienhinweis: Material und Zeiten unten stehen fuer EIN Stueck.
                         Ohne diesen Satz wundert sich der Nutzer ueber den Gesamtpreis. */}
@@ -4318,6 +4389,12 @@ export default function CraftFlow() {
                 zeigeTelefon: profilPdfZeigeTelefon,
                 zeigeWebsite: profilPdfZeigeWebsite,
                 layout: profilPdfLayout,
+                schriftart: profilPdfSchriftart,
+                // Woher die Schriftdateien kommen. Ohne diese Angabe bleibt es bei der
+                // Systemschrift — auf dem Server ist das die einzige installierte.
+                basisUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+                zeigeMenge: profilPdfZeigeMenge,
+                zeigeEinheitspreis: profilPdfZeigeEp,
                 zeigeMassivholz: profilPdfZeigeMassivholz,
                 massivholzText: profilPdfMassivholzText || undefined,
                 zeigeUnterschrift: profilPdfZeigeUnterschrift,
