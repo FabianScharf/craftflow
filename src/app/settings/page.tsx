@@ -555,9 +555,9 @@ export default function SettingsPage() {
 
         {/* Main content — auf Mobile nur wenn Inhalt gewählt */}
         {(!isMobile || mobileShowContent) && (
-        {/* Breiter im Briefpapier-Bereich, weil dort die Vorschau daneben steht.
-            Sonst blieben fuer die Bedienelemente 250 px uebrig — gemessen am
-            2026-09-08, die Spalten haben sich ueberlappt. */}
+        // Breiter im Briefpapier-Bereich, weil dort die Vorschau daneben steht.
+        // Sonst blieben fuer die Bedienelemente 250 px uebrig — gemessen am
+        // 2026-09-08, die Spalten haben sich ueberlappt.
         <div style={{ flex: 1, padding: isMobile ? '20px 16px' : '24px 20px', maxWidth: section === 'briefpapier' ? 1120 : 680, minWidth: 0, width: '100%' }}>
 
           {/* BEREICH 1 — FIRMENDATEN */}
