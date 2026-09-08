@@ -365,8 +365,8 @@ ${ownLetterhead ? '' : `<div class="hdr">
 <div class="tab-end"></div>
 
 <div class="sum-wrap"><div class="sum-inner">
-  <div class="sr"><span>${klein ? 'Gesamtbetrag' : 'Nettobetrag'}</span><span>${eur(net)}</span></div>
-  ${klein ? '' : `<div class="sr"><span>zzgl. ${satzText}% MwSt.</span><span>${eur(vat)}</span></div>`}
+  ${klein ? '' : `<div class="sr"><span>Nettobetrag</span><span>${eur(net)}</span></div>
+  <div class="sr"><span>zzgl. ${satzText}% MwSt.</span><span>${eur(vat)}</span></div>`}
   <div class="st"><span>Gesamtsumme</span><span>${eur(gross)}</span></div>
 </div></div>
 ${klein ? '<div class="klein-hinweis">Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.</div>' : ''}
