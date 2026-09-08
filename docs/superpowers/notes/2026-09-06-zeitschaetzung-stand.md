@@ -385,3 +385,88 @@ Die Werkstattsumme lag bei 660 statt 600 Minuten — die 60 Azubi-Minuten zähle
 mit. Vorschau (GET) ändert nichts, Übernahme (POST) speichert. Die Dämpfung greift:
 Aus einem Verhältnis von 1,18 wird ein Faktor von 1,09, nicht 1,18. Prüfprojekte
 danach gelöscht, Kalibrierung des Testkontos zurückgesetzt.
+
+---
+
+# PDF-Gestaltung nach Constantins Rückmeldung (2026-09-08)
+
+Constantin Ludewigt (Tischlerei Lilie) hat am 2026-08-26 dreizehn Punkte gemeldet.
+Alle im Code nachgeprüft und gegen `craftflow-app/docs/reference/angebot_referenz.pdf`
+gehalten.
+
+## Die Einteilung, nach der entschieden wurde
+
+Fabian am 2026-09-08: *„Was er nicht gut findet, mag ein anderer. Daher sind mir
+individuelle Anpassungen in den Einstellungen extrem wichtig."* Richtig — mit einer
+Grenze. Der Test dafür:
+
+> **Würde irgendjemand die andere Variante freiwillig wählen?**
+> Ja → Einstellung. Nein → Fehler, und der wird behoben, nicht zur Wahl gestellt.
+
+Macht man einen Fehler zur Einstellung, gibt man dem Nutzer die Verantwortung dafür.
+Er sucht dann in zwanzig Schaltern nach dem einen, der das Doppelte wegnimmt.
+
+## Fehler — ohne Schalter behoben
+
+| Was | Belegt durch |
+|---|---|
+| Positionsüberschrift stand **zweimal** | `<strong>{titel}</strong>` war hart in Gruppen- UND Detailzeile |
+| Absätze verschwanden | 6 von 8 Textfeldern wandelten Zeilenumbrüche nicht um |
+| Logo lief über den Rand | `height:80px; width:auto` ohne `max-width` |
+| Blöcke brachen mitten durch | Unterschriftslinien standen allein auf Seite 2 |
+
+## Der schwerste Fund kam nebenbei
+
+**Die Stückzahl aus der KI-Antwort wurde in der Oberfläche verworfen.** Das
+Positionsobjekt wird dort Feld für Feld neu gebaut, und `stueckzahl` stand nicht in
+der Liste. Die KI lieferte sie korrekt, die Serienstaffel war gebaut und getestet —
+aber **wer „100 Spinde" kalkulierte, bekam den Preis für ein Stück.**
+
+Aufgefallen erst, weil für die Alternativpositionen dieselbe Stelle angefasst wurde.
+Mein früherer Test hatte die *API-Antwort* geprüft, nicht was die Oberfläche daraus
+macht. Genau die Lücke, die im Memory unter „Erst ausgeführt, dann gemeldet" steht.
+
+Die Umwandlung liegt jetzt in `src/lib/kiantwort.ts` und ist getestet — nicht Feld für
+Feld, sondern auf **Vollständigkeit**. Der Test fand sofort einen zweiten Fehler: Die
+ids kollidierten (Position 1 und Materialzeile 1 trugen dieselbe).
+
+## Neu und einstellbar
+
+- **Schriftart.** Gemessen: Auf Vercel ist genau **eine** Schrift installiert. Vier
+  Familien ins PDF geschickt — eingebettet wurde einmal `OpenSans-Regular`. Die
+  CI-Schrift stand also nie im PDF, ein Serif war unmöglich. Vier Schriften liegen
+  jetzt unter `public/fonts` (alle SIL OFL).
+  **Und der Weg dorthin war ein zweiter Messgang wert:** Per `@font-face` über eine
+  Adresse kam die Schrift trotzdem nicht an. Schriften sind CORS-pflichtig,
+  `page.setContent()` gibt der Seite eine leere Herkunft, und `/public` sendet keine
+  CORS-Kopfzeilen — der Browser verwarf sie stillschweigend. Dazu liegen
+  Vorschau-Bereitstellungen hinter der Vercel-Anmeldung. Die PDF-Route backt die
+  Datei jetzt als `data:`-Adresse ein. **Nachgemessen: `PTSerif-Regular` und
+  `PTSerif-Bold` sind im PDF.**
+- **Menge und Einheitspreis** als Spalten — das Referenzangebot hat sie, CraftFlow
+  nicht. Abschaltbar, weil manche Betriebe bewusst nur Endsummen ausweisen.
+- **Anrede** mit `{anrede}` und `{nachname}`; der Kunde bekommt beide Felder.
+  „Sehr geehrter Herr Ludewigt" war vorher nicht baubar.
+- **Alternativposition** — Preis in Klammern, nicht in der Summe, wie im
+  Referenzangebot. Dokumentsummen laufen dafür über `nettoSumme()`.
+- **Positionen umsortieren** mit Pfeilen statt Ziehen: Ein Angebot wird oft am Handy
+  angefasst, dort ist Ziehen unzuverlässig.
+- **Die KI darf Positionen hinzufügen.** Im Optimieren-Prompt stand nie, dass sie das
+  darf — deshalb hat es niemand geschafft.
+- **Lebende Vorschau neben den Einstellungen.** Constantin hat kein einziges der
+  zwanzig Bedienelemente gefunden. Die Vorschau zeigt bei jedem Klick sofort die
+  Wirkung — und löst nebenbei seinen Wunsch, Fehler in der Druckansicht zu sehen.
+
+## Zwei Widersprüche in der Wissensbasis
+
+1. Die Checkliste in `CLAUDE.md` sagt „Positionstabelle: Pos | Bezeichnung | Gesamt".
+   Das Referenzangebot hat **fünf** Spalten. Jetzt einstellbar — die Checkliste
+   gehört angepasst.
+2. CraftFlow setzt einen **Unterschriftsblock** unter das Angebot, den es im
+   Referenz-PDF nicht gibt. Er ist aber längst abschaltbar (`pdf_zeige_unterschrift`).
+
+## Was Constantin schon hatte und nicht fand
+
+Materialpreise (Händlerpreise), Meine Bauweise (Standardausführungen), eigenes
+Briefpapier, „+ Position hinzufügen", Anrede-Vorlage. **Sein wichtigster Wunsch —
+eine Bibliothek für Händlerpreise und Standardausführungen — war vollständig gebaut.**
