@@ -55,5 +55,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest\\.json|icon.*\\.png|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)).*)'],
+  // woff2 und Co. gehoeren dazu: Schriftdateien sind oeffentliche Dateien wie Bilder.
+  //
+  // GEFUNDEN AM 2026-09-08 direkt nach dem Livegang: /fonts/inter-400.woff2 bekam
+  // eine 307 auf die Anmeldeseite. Fuer angemeldete Nutzer ging es durch, aber jeder
+  // Schriftabruf lief unnoetig durch die Anmeldepruefung — und ohne Sitzung waere
+  // statt der Schrift eine HTML-Seite gekommen.
+  //
+  // Das PDF war davon NICHT betroffen: Dort werden die Schriften serverseitig aus dem
+  // Dateisystem eingebacken, ohne Netzabruf.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest\\.json|icon.*\\.png|fonts/|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|otf)).*)'],
 }
