@@ -1673,6 +1673,22 @@ export default function CraftFlow() {
   }, [])
 
   // ── Feature 4: Export ────────────────────────────────
+  /**
+   * Beschriftung einer Position in den Exporten.
+   *
+   * Ohne sie addieren sich die Einzelzeilen auf mehr als die ausgewiesene Summe:
+   * Eine Alternativposition steht in den Zeilen, zaehlt aber nicht in den Netto-
+   * betrag. Und seit die Stueckzahl wirklich ankommt (2026-09-08), gelten Material
+   * und Zeiten je Stueck, waehrend der Positionspreis hochgerechnet ist.
+   * Wer das nicht sieht, haelt den Export fuer falsch.
+   */
+  const posLabel = (p: Angebotsposition, i: number) => {
+    const zusatz: string[] = []
+    if ((p.stueckzahl ?? 1) > 1) zusatz.push(`${p.stueckzahl}×`)
+    if (p.alternativ) zusatz.push('Alternative')
+    return zusatz.length > 0 ? `${i + 1} (${zusatz.join(', ')})` : String(i + 1)
+  }
+
   const exportJSON = useCallback(() => {
     const data = { positionen: pos, kunde, docNr, docTyp, exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -1692,11 +1708,11 @@ export default function CraftFlow() {
     pos.forEach((p, pi) => {
       p.material.forEach(m => {
         const vk = m.menge * m.ekPreis * (1 + m.aufschlag)
-        rows.push([String(pi + 1), 'Material', m.bezeichnung, String(m.menge), m.einheit, String(m.ekPreis), String(Math.round(m.aufschlag * 100)), String(Math.round(vk * 100) / 100)])
+        rows.push([posLabel(p, pi), 'Material', m.bezeichnung, String(m.menge), m.einheit, String(m.ekPreis), String(Math.round(m.aufschlag * 100)), String(Math.round(vk * 100) / 100)])
       })
       p.arbeitszeit.forEach(a => {
         const vk = (a.minuten / 60) * a.vkStunde
-        rows.push([String(pi + 1), 'Arbeitszeit', getKsLabel(a.kostenstelle), String(Math.round(a.minuten / 60 * 100) / 100), 'h', String(a.vkStunde), '', String(Math.round(vk * 100) / 100)])
+        rows.push([posLabel(p, pi), 'Arbeitszeit', getKsLabel(a.kostenstelle), String(Math.round(a.minuten / 60 * 100) / 100), 'h', String(a.vkStunde), '', String(Math.round(vk * 100) / 100)])
       })
     })
     rows.push([])
@@ -1731,7 +1747,7 @@ export default function CraftFlow() {
     const tableRows: (string | number)[][] = []
 
     pos.forEach((p, pi) => {
-      tableRows.push([String(pi + 1), p.titel, '', '', '', '', '', ''])
+      tableRows.push([posLabel(p, pi), p.titel, '', '', '', '', '', ''])
       p.material.forEach(m => {
         const vk = m.menge * m.ekPreis * (1 + m.aufschlag)
         tableRows.push(['', 'Material', m.bezeichnung, m.menge, m.einheit, m.ekPreis, Math.round(m.aufschlag * 100), Math.round(vk * 100) / 100])
@@ -1821,17 +1837,21 @@ export default function CraftFlow() {
       dl('[POSITIONEN]'),
       [dl('Pos-Nr'), dl('Titel'), dl('Beschreibung'), dl('Gesamt Netto EUR')].join(';'),
       ...pos.map((p, pi) => [
-        dl(pi + 1), dl(p.titel), dl(p.beschreibung), dl(num(calcAngebotspos(p))),
+        dl(posLabel(p, pi)), dl(p.titel), dl(p.beschreibung), dl(num(calcAngebotspos(p))),
       ].join(';')),
       '',
       // ── Material ─────────────────────────────────────
       dl('[MATERIAL]'),
+      // Bei Serien gelten Material und Zeiten je Stueck — der Positionspreis ist
+      // hochgerechnet. Ohne diesen Hinweis wirkt der Export widerspruechlich.
+      [dl('# Material und Zeiten gelten je Stück. Die Stückzahl steht in Klammern hinter der Pos-Nr.')].join(';'),
+      [dl('# Positionen mit dem Zusatz "Alternative" sind nicht im Nettobetrag enthalten.')].join(';'),
       [dl('Pos-Nr'), dl('Position'), dl('Nr'), dl('Bezeichnung'), dl('Menge'), dl('Einheit'), dl('EK EUR'), dl('Aufschlag %'), dl('VK Einzel EUR'), dl('VK Gesamt EUR')].join(';'),
       ...pos.flatMap((p, pi) =>
         p.material.map((m, mi) => {
           const vkEinzel = m.ekPreis * (1 + m.aufschlag)
           const vkGesamt = m.menge * vkEinzel
-          return [dl(pi + 1), dl(p.titel), dl(mi + 1), dl(m.bezeichnung), dl(m.menge), dl(m.einheit), dl(m.ekPreis), dl(Math.round(m.aufschlag * 100)), dl(num(vkEinzel)), dl(num(vkGesamt))].join(';')
+          return [dl(posLabel(p, pi)), dl(p.titel), dl(mi + 1), dl(m.bezeichnung), dl(m.menge), dl(m.einheit), dl(m.ekPreis), dl(Math.round(m.aufschlag * 100)), dl(num(vkEinzel)), dl(num(vkGesamt))].join(';')
         })
       ),
       '',
@@ -1842,14 +1862,14 @@ export default function CraftFlow() {
         p.arbeitszeit.map((a, ai) => {
           const std = Math.round(a.minuten / 60 * 100) / 100
           const gesamt = std * a.vkStunde
-          return [dl(pi + 1), dl(p.titel), dl(ai + 1), dl(a.kostenstelle), dl(getKsLabel(a.kostenstelle)), dl(a.minuten), dl(std), dl(a.vkStunde), dl(num(gesamt))].join(';')
+          return [dl(posLabel(p, pi)), dl(p.titel), dl(ai + 1), dl(a.kostenstelle), dl(getKsLabel(a.kostenstelle)), dl(a.minuten), dl(std), dl(a.vkStunde), dl(num(gesamt))].join(';')
         })
       ),
       '',
       // ── Zusammenfassung ──────────────────────────────
       dl('[ZUSAMMENFASSUNG]'),
       [dl('Position'), dl('Titel'), dl('Netto EUR')].join(';'),
-      ...pos.map((p, pi) => [dl(pi + 1), dl(p.titel), dl(num(calcAngebotspos(p)))].join(';')),
+      ...pos.map((p, pi) => [dl(posLabel(p, pi)), dl(p.titel), dl(num(calcAngebotspos(p)))].join(';')),
       '',
       [dl(''), dl('Netto gesamt EUR'), dl(num(totals.net))].join(';'),
       [dl(''), dl('MwSt. 19 %'), dl(num(totals.net * 0.19))].join(';'),
