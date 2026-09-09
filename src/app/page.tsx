@@ -199,7 +199,7 @@ export default function CraftFlow() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingStep, setOnboardingStep] = useState(0)
   // Antworten der Betriebskalibrierung. Werden am Ende der Erst-Anmeldung
-  // gespeichert; wer ueberspringt, speichert nichts und rechnet mit Branchenwerten.
+  // gespeichert; wer ueberspringt, speichert nichts und rechnet mit den CraftFlow-Werten.
   // null = noch nicht geprueft, false = nicht kalibriert, true = kalibriert
   const [istKalibriert, setIstKalibriert] = useState<boolean | null>(null)
   const [kalib, setKalib] = useState({
@@ -2418,7 +2418,7 @@ export default function CraftFlow() {
   const finishOnboarding = (goToSettings: boolean) => {
     fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: true }) })
     // Kalibrierung nur speichern, wenn ueberhaupt etwas beantwortet wurde. Wer
-    // ueberspringt, bekommt keinen Datensatz und rechnet mit Branchenwerten —
+    // ueberspringt, bekommt keinen Datensatz und rechnet mit den CraftFlow-Werten —
     // eine uebersprungene Frage darf nie wie eine beantwortete wirken.
     // Feuere-und-vergiss: Ein Speicherfehler darf die Erst-Anmeldung nicht blockieren.
     if (Object.values(kalib).some(v => (Array.isArray(v) ? v.length > 0 : v !== ''))) {
@@ -4115,7 +4115,7 @@ export default function CraftFlow() {
                 </div>
                 <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
                   Ich rechne gerade mit den CraftFlow-Werten. Beantworte unter
-                  Einstellungen → Mein Betrieb neun kurze Fragen, dann rechne ich mit deinen.
+                  Einstellungen → Mein Betrieb ein paar kurze Fragen, dann rechne ich mit deinen.
                 </div>
                 <button onClick={() => { window.location.href = '/settings' }}
                   style={{ background: 'transparent', border: `1px solid ${C.copper}`, borderRadius: 4,
