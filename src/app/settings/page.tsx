@@ -105,18 +105,28 @@ export default function SettingsPage() {
   const [gutscheinCode, setGutscheinCode] = useState('')
   const [gutscheinLoading, setGutscheinLoading] = useState(false)
   const [gutscheinMsg, setGutscheinMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
-  // Admin: einmalige „Was ist neu“-Mail an Bestandsnutzer (Sept. 2026)
-  const [mailLauf, setMailLauf] = useState<{ ok: boolean; meldung: string; empfaenger?: string[]; fehler?: string[]; absender?: string; betreff?: string } | null>(null)
-  const [mailLaeuft, setMailLaeuft] = useState(false)
-  const [mailBestaetigung, setMailBestaetigung] = useState('')
-  const neuigkeitenMail = async (modus: 'probelauf' | 'test' | 'senden') => {
-    setMailLaeuft(true)
-    try {
-      const res = await fetch('/api/admin/mail-neuigkeiten', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modus, bestaetigung: mailBestaetigung }) })
-      setMailLauf(await res.json())
-    } catch (e) { setMailLauf({ ok: false, meldung: `Verbindungsfehler: ${e instanceof Error ? e.message : e}` }) }
-    setMailLaeuft(false)
+  // Admin: Mails — Willkommens-Mail (System) und Rundschreiben an Bestandsnutzer.
+  // Die Inhalte kommen aus src/lib/mail/rundschreiben.ts; hier nur Bedienung.
+  type RundschreibenStand = { kennung: string; titel: string; erstellt: string; betreff: string; gesendet: number; offen: number; zuletzt: string | null }
+  type MailLauf = { ok: boolean; meldung: string; empfaenger?: string[]; fehler?: string[]; absender?: string; betreff?: string }
+  const [rsListe, setRsListe] = useState<{ rundschreiben: RundschreibenStand[]; konten: number; unbestaetigt: number; absender: string } | null>(null)
+  const [mailLauf, setMailLauf] = useState<Record<string, MailLauf>>({})
+  const [mailLaeuft, setMailLaeuft] = useState<string | null>(null)
+  const [mailBestaetigung, setMailBestaetigung] = useState<Record<string, string>>({})
+  const [mailVorschau, setMailVorschau] = useState<{ titel: string; url: string } | null>(null)
+  const ladeRundschreiben = async () => {
+    try { const res = await fetch('/api/admin/rundschreiben'); if (res.ok) setRsListe(await res.json()) } catch { /* Anzeige bleibt leer */ }
   }
+  const mailAktion = async (kennung: string, modus: 'probelauf' | 'test' | 'senden') => {
+    setMailLaeuft(kennung)
+    try {
+      const res = await fetch('/api/admin/rundschreiben', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kennung, modus, bestaetigung: mailBestaetigung[kennung] ?? '' }) })
+      setMailLauf(prev => ({ ...prev, [kennung]: await res.json() }))
+      if (modus === 'senden') { setMailBestaetigung(prev => ({ ...prev, [kennung]: '' })); ladeRundschreiben() }
+    } catch (e) { setMailLauf(prev => ({ ...prev, [kennung]: { ok: false, meldung: `Verbindungsfehler: ${e instanceof Error ? e.message : e}` } })) }
+    setMailLaeuft(null)
+  }
+  useEffect(() => { if (section === 'admin' && userEmail === 'l.m.p.1@gmx.de') ladeRundschreiben() }, [section, userEmail])
 
   // Admin-Panel: Gutscheincodes
   type GutscheinCode = { code: string; plan: string; max_uses: number | null; used_count: number; valid_until: string | null; beschreibung: string | null; created_at: string }
@@ -1710,43 +1720,103 @@ export default function SettingsPage() {
           {/* ── Admin Panel ─────────────────────────────── */}
           {section === 'admin' && userEmail === 'l.m.p.1@gmx.de' && (
             <div style={{ padding: '24px 20px', maxWidth: 720 }}>
-              {/* ── Neuigkeiten-Mail an Bestandsnutzer ── */}
-              <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 28 }}>
-                <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – „Was ist neu“-Mail</h2>
-                <p style={{ fontSize: 12, color: C.textMid, marginBottom: 14, lineHeight: 1.6 }}>
-                  Einmalige Info an alle Konten mit bestätigter E-Mail. Reihenfolge: <strong style={{ color: C.white }}>Probelauf</strong> (zeigt Anzahl und Adressen, schickt nichts) →
-                  <strong style={{ color: C.white }}> Test an mich</strong> → <strong style={{ color: C.white }}>Senden</strong>. Wer die Mail hat, wird markiert — ein zweiter Lauf trifft nur noch die, die fehlen.
-                </p>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button onClick={() => neuigkeitenMail('probelauf')} disabled={mailLaeuft}
-                    style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
-                    {mailLaeuft ? '…' : 'Probelauf'}
-                  </button>
-                  <button onClick={() => neuigkeitenMail('test')} disabled={mailLaeuft}
-                    style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
-                    Test an mich
-                  </button>
-                  <input value={mailBestaetigung} onChange={e => setMailBestaetigung(e.target.value)} placeholder="SENDEN eintippen" style={{ ...inp(), width: 150 }} />
-                  <button onClick={() => neuigkeitenMail('senden')} disabled={mailLaeuft || mailBestaetigung !== 'SENDEN'}
-                    style={{ background: mailBestaetigung === 'SENDEN' ? C.copper : C.gray2, color: mailBestaetigung === 'SENDEN' ? C.black : C.textMid, border: 'none', borderRadius: 4, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: mailBestaetigung === 'SENDEN' ? 'pointer' : 'not-allowed', fontFamily: 'Helvetica Neue, sans-serif' }}>
-                    An alle senden
-                  </button>
-                </div>
-                {mailLauf && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 4, fontSize: 12, lineHeight: 1.6,
-                    background: mailLauf.ok ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)', color: mailLauf.ok ? '#5ABE6A' : C.err,
-                    border: `1px solid ${mailLauf.ok ? '#5ABE6A44' : '#E05A5A44'}` }}>
-                    <div>{mailLauf.meldung}</div>
-                    {mailLauf.absender && <div style={{ color: C.textMid, marginTop: 4 }}>Absender: {mailLauf.absender} · Betreff: {mailLauf.betreff}</div>}
-                    {mailLauf.empfaenger && mailLauf.empfaenger.length > 0 && (
-                      <div style={{ color: C.textMid, marginTop: 6, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11 }}>{mailLauf.empfaenger.join('\n')}</div>
-                    )}
-                    {mailLauf.fehler && mailLauf.fehler.length > 0 && (
-                      <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11 }}>{mailLauf.fehler.join('\n')}</div>
+              {/* ── Mails: Willkommens-Mail + Rundschreiben ── */}
+              {(() => {
+                const knopf = (aktiv: boolean, voll = false) => ({
+                  background: voll ? (aktiv ? C.copper : C.gray2) : 'transparent',
+                  color: voll ? (aktiv ? C.black : C.textMid) : C.copper,
+                  border: voll ? 'none' : `1px solid ${C.copper}`,
+                  borderRadius: 4, padding: '7px 12px', fontSize: 12, fontWeight: 700,
+                  cursor: aktiv ? 'pointer' : 'not-allowed', fontFamily: 'Helvetica Neue, sans-serif', opacity: aktiv ? 1 : 0.6,
+                })
+                const ergebnis = (k: string) => {
+                  const l = mailLauf[k]; if (!l) return null
+                  return (
+                    <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 4, fontSize: 12, lineHeight: 1.6,
+                      background: l.ok ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)', color: l.ok ? '#5ABE6A' : C.err,
+                      border: `1px solid ${l.ok ? '#5ABE6A44' : '#E05A5A44'}` }}>
+                      <div>{l.meldung}</div>
+                      {l.absender && <div style={{ color: C.textMid, marginTop: 4 }}>Absender: {l.absender} · Betreff: {l.betreff}</div>}
+                      {l.empfaenger && l.empfaenger.length > 0 && <div style={{ color: C.textMid, marginTop: 6, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre' }}>{l.empfaenger.join('\n')}</div>}
+                      {l.fehler && l.fehler.length > 0 && <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre' }}>{l.fehler.join('\n')}</div>}
+                    </div>
+                  )
+                }
+                const frei = mailLaeuft === null
+                return (
+                  <div style={{ marginBottom: 28 }}>
+                    <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – Mails</h2>
+                    <p style={{ fontSize: 12, color: C.textMid, marginBottom: 14, lineHeight: 1.6 }}>
+                      Absender: <strong style={{ color: C.white }}>{rsListe?.absender ?? '…'}</strong>
+                      {rsListe && <> · {rsListe.konten} Konten mit bestätigter E-Mail{rsListe.unbestaetigt > 0 && <>, {rsListe.unbestaetigt} unbestätigt (bekommen nichts)</>}</>}
+                    </p>
+
+                    {/* Willkommens-Mail (System) */}
+                    <div style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14, marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>Willkommens-Mail <span style={{ fontSize: 10, color: C.copper, letterSpacing: 1, marginLeft: 6 }}>AUTOMATISCH</span></div>
+                          <div style={{ fontSize: 11.5, color: C.textMid, marginTop: 2 }}>Geht einmalig an jeden neuen Nutzer nach der E-Mail-Bestätigung. Kein Versand von hier — nur ansehen und testen.</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => setMailVorschau({ titel: 'Willkommens-Mail', url: '/api/admin/rundschreiben?system=willkommen&vorschau=1' })} style={knopf(true)}>Vorschau</button>
+                          <button onClick={() => mailAktion('system:willkommen', 'test')} disabled={!frei} style={knopf(frei)}>{mailLaeuft === 'system:willkommen' ? '…' : 'Test an mich'}</button>
+                        </div>
+                      </div>
+                      {ergebnis('system:willkommen')}
+                    </div>
+
+                    {/* Rundschreiben */}
+                    <div style={{ fontSize: 10, letterSpacing: 2, color: '#666', textTransform: 'uppercase', margin: '16px 0 8px' }}>Rundschreiben an Bestandsnutzer</div>
+                    <p style={{ fontSize: 11.5, color: C.textMid, marginBottom: 10, lineHeight: 1.6 }}>
+                      Reihenfolge je Rundschreiben: <strong style={{ color: C.white }}>Vorschau</strong> → <strong style={{ color: C.white }}>Test an mich</strong> → <strong style={{ color: C.white }}>Probelauf</strong> (zeigt Empfänger, schickt nichts) → <strong style={{ color: C.white }}>Senden</strong>.
+                      Wer eine Mail hat, wird markiert — ein zweiter Lauf trifft nur noch die, die fehlen.
+                    </p>
+                    {!rsListe && <div style={{ fontSize: 12, color: C.textMid }}>Lade …</div>}
+                    {rsListe?.rundschreiben.map(r => {
+                      const tipp = mailBestaetigung[r.kennung] ?? ''
+                      const fertig = r.offen === 0 && r.gesendet > 0
+                      return (
+                        <div key={r.kennung} style={{ background: C.gray1, border: `1px solid ${fertig ? '#2E3E2E' : C.border}`, borderRadius: 8, padding: 14, marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{r.titel}</div>
+                              <div style={{ fontSize: 11, color: C.textMid, marginTop: 2, fontFamily: 'monospace' }}>{r.kennung} · geschrieben {r.erstellt}</div>
+                              <div style={{ fontSize: 11.5, color: fertig ? '#5ABE6A' : C.textMid, marginTop: 4 }}>
+                                {r.gesendet === 0 ? 'Noch nicht verschickt' : `${r.gesendet} verschickt${r.zuletzt ? `, zuletzt ${new Date(r.zuletzt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}`}
+                                {r.offen > 0 && r.gesendet > 0 && ` · ${r.offen} noch offen`}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <button onClick={() => setMailVorschau({ titel: r.titel, url: `/api/admin/rundschreiben?kennung=${encodeURIComponent(r.kennung)}&vorschau=1` })} style={knopf(true)}>Vorschau</button>
+                              <button onClick={() => mailAktion(r.kennung, 'test')} disabled={!frei} style={knopf(frei)}>Test an mich</button>
+                              <button onClick={() => mailAktion(r.kennung, 'probelauf')} disabled={!frei} style={knopf(frei)}>{mailLaeuft === r.kennung ? '…' : 'Probelauf'}</button>
+                              <input value={tipp} onChange={e => setMailBestaetigung(prev => ({ ...prev, [r.kennung]: e.target.value }))} placeholder="SENDEN" style={{ ...inp(), width: 96, padding: '7px 10px' }} />
+                              <button onClick={() => mailAktion(r.kennung, 'senden')} disabled={!frei || tipp !== 'SENDEN'} style={knopf(frei && tipp === 'SENDEN', true)}>
+                                {r.gesendet > 0 ? 'An Fehlende senden' : 'An alle senden'}
+                              </button>
+                            </div>
+                          </div>
+                          {ergebnis(r.kennung)}
+                        </div>
+                      )
+                    })}
+
+                    {/* Vorschau-Fenster */}
+                    {mailVorschau && (
+                      <div onClick={() => setMailVorschau(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 680, height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: C.black, color: C.white, fontSize: 13, fontWeight: 700 }}>
+                            <span>Vorschau: {mailVorschau.titel}</span>
+                            <button onClick={() => setMailVorschau(null)} style={{ background: 'transparent', color: C.white, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontSize: 13 }}>×</button>
+                          </div>
+                          <iframe title="Mail-Vorschau" src={mailVorschau.url} style={{ flex: 1, border: 'none', width: '100%' }} />
+                        </div>
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
+                )
+              })()}
 
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – Gutscheincodes</h2>
               <p style={{ fontSize: 12, color: C.textMid, marginBottom: 20 }}>Codes erstellen, bearbeiten und deaktivieren. Bestehende Zugänge bleiben bei Code-Löschung erhalten.</p>

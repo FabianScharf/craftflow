@@ -123,8 +123,6 @@ export function willkommensMail(opts: { firma?: string | null } = {}): Mail {
 
 // ── „Was ist neu“ an Bestandsnutzer (September 2026) ────────────────────────
 
-export const NEUIGKEITEN_KENNUNG = 'neuigkeiten_2026_09_am'
-
 export function neuigkeitenMail(): Mail {
   const subject = 'CraftFlow rechnet jetzt mit deinem Betrieb — was neu ist'
   const vorschau = 'Mein Betrieb, Meine Bauweise, Alternativpositionen, Stückzahl — und eine Starthilfe, die alles erklärt.'
