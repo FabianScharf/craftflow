@@ -1794,8 +1794,14 @@ export default function SettingsPage() {
                               <button onClick={() => setMailVorschau({ titel: r.titel, url: `/api/admin/rundschreiben?kennung=${encodeURIComponent(r.kennung)}&vorschau=1` })} style={knopf(true)}>Vorschau</button>
                               <button onClick={() => mailAktion(r.kennung, 'test')} disabled={!frei} style={knopf(frei)}>Test an mich</button>
                               <button onClick={() => mailAktion(r.kennung, 'probelauf')} disabled={!frei} style={knopf(frei)}>{mailLaeuft === r.kennung ? '…' : 'Probelauf'}</button>
-                              <input value={tipp} onChange={e => setMailBestaetigung(prev => ({ ...prev, [r.kennung]: e.target.value }))} placeholder="SENDEN" style={{ ...inp(), width: 96, padding: '7px 10px' }} />
-                              <button onClick={() => mailAktion(r.kennung, 'senden')} disabled={!frei || tipp !== 'SENDEN'} style={knopf(frei && tipp === 'SENDEN', true)}>
+                              {/* Fabian am 2026-09-09: Der Platzhalter „SENDEN“ sah aus wie ausgefuellt —
+                                  er hat gesucht, warum der Knopf nicht geht. Deshalb jetzt Beschriftung. */}
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.textMid }}>
+                                Zur Freigabe hier <strong style={{ color: C.white }}>SENDEN</strong> tippen:
+                                <input value={tipp} onChange={e => setMailBestaetigung(prev => ({ ...prev, [r.kennung]: e.target.value }))} placeholder="…" style={{ ...inp(), width: 96, padding: '7px 10px' }} />
+                              </label>
+                              <button onClick={() => mailAktion(r.kennung, 'senden')} disabled={!frei || tipp !== 'SENDEN'} style={knopf(frei && tipp === 'SENDEN', true)}
+                                title={tipp === 'SENDEN' ? 'Jetzt verschicken' : 'Erst links SENDEN eintippen'}>
                                 {r.gesendet > 0 ? 'An Fehlende senden' : 'An alle senden'}
                               </button>
                             </div>
