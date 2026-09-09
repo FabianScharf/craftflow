@@ -186,6 +186,7 @@ ${kostenstellenTeil(daten.saetze)}
 → MATERIALPREISE: Einkaufspreise fest hinterlegen. Die KI rechnet dann damit, statt zu schätzen. Wer immer denselben Auszug verbaut, trägt ihn einmal ein.
 → MEINE BAUWEISE: Regeln wie "Rückwände immer 8 mm Spanplatte, nicht HDF". Die KI hält sich daran, in jedem neuen Angebot.
 → MEIN BETRIEB: Die Betriebskalibrierung. Acht bis neun Fragen, je nach Schwerpunkt — danach rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten.
+  Neun bei den Referenzmöbeln Einbauschrank, Einbauküche, Innentüren — acht bei Treppe, Massivholztisch. Rate die Aufteilung nicht, wenn du das Referenzmöbel nicht kennst; nenne dann die Spanne.
 → BRIEFPAPIER: Schriftart, Spalten, eigenes Briefpapier — mit einer Vorschau daneben, die bei jedem Klick mitgeht.
 → KLEINUNTERNEHMER: Wer nach § 19 UStG keine Umsatzsteuer ausweist, stellt das unter Buchhaltung ein. Dann entfällt die MwSt-Zeile und der vorgeschriebene Hinweis erscheint.
 
