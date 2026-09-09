@@ -1,14 +1,15 @@
 // Versand über Resend (HTTP-API, kein SDK — wie schon in /api/notify-signup).
 //
-// Absender kommt aus MAIL_FROM (Vercel-Env). Standard ist Fabians Adresse auf der
-// Produktdomain; die muss in Resend als Domain verifiziert sein, sonst lehnt Resend
-// den Versand ab — die Fehlermeldung wird durchgereicht, damit man das sieht.
-// Antworten landen immer im Postfach von FS Crafted.
+// Absender kommt aus MAIL_FROM (Vercel-Env). Standard ist Fabians bestehendes Postfach
+// bei FS Crafted — bewusst KEINE Adresse auf getcraftflow.de (Fabian, 2026-09-09: dort
+// gibt es kein Postfach, und ein weiteres Konto soll jetzt nicht eingerichtet werden).
+// Die Domain fscrafted.de muss in Resend verifiziert sein, sonst lehnt Resend den
+// Versand ab — die Fehlermeldung wird durchgereicht, damit man das sieht.
 
 import type { Mail } from './mail-typen'
 
-export const MAIL_FROM_STANDARD = 'Fabian Scharf | CraftFlow <fabian@getcraftflow.de>'
-export const MAIL_REPLY_TO = 'anfrage@fscrafted.de'
+export const MAIL_FROM_STANDARD = 'Fabian Scharf | CraftFlow <fabian@fscrafted.de>'
+export const MAIL_REPLY_TO = 'fabian@fscrafted.de'
 
 export type Versandergebnis = { ok: true; id: string } | { ok: false; error: string }
 
