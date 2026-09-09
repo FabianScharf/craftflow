@@ -93,3 +93,36 @@ test('Das Wissen enthält kein Markdown — der Assistent soll keines ausgeben',
   const code = wissen.match(/`[^`\n]+`/)
   assert.equal(code, null, `Codeabschnitt im Wissen: ${code?.[0]}`)
 })
+
+test('Die genannte Anzahl der Kalibrierungsfragen stimmt mit der echten überein', async () => {
+  // GENAU HIER IST ER SCHON EINMAL VERALTET: Im Wissen stand "neun Fragen". Das
+  // stimmte für Einbauschrank, Küche und Türen — für Treppen und Solitärmöbel gibt
+  // es aber nur drei Unterschiedsfragen, also acht. Eine feste Zahl im Text veraltet
+  // stumm, sobald jemand eine Frage ergänzt oder streicht.
+  //
+  // Dieser Test rechnet die Spanne aus den echten Daten aus und vergleicht sie mit
+  // dem, was im Wissen steht. Wer eine Frage ändert, bekommt einen roten Test.
+  const { REFERENZEN, BETRIEBSFRAGEN } = await import('../src/lib/kalibrierung.ts')
+
+  // Feste Fragen + die eine Preisfrage zum Referenzmöbel + die Unterschiedsfragen.
+  const fest = Object.keys(BETRIEBSFRAGEN).length
+  const gesamt = Object.values(REFERENZEN).map(r => fest + 1 + Object.keys(r.fragen ?? {}).length)
+  const min = Math.min(...gesamt), max = Math.max(...gesamt)
+
+  const WORT = ['null', 'eine', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben',
+    'acht', 'neun', 'zehn', 'elf', 'zwölf']
+  assert.ok(max < WORT.length, `${max} Fragen — die Wortliste im Test reicht nicht mehr`)
+
+  const wissen = assistentWissen().toLowerCase()
+  const erwartet = min === max ? WORT[min] : `${WORT[min]} bis ${WORT[max]}`
+  assert.ok(wissen.includes(erwartet),
+    `Das Wissen nennt nicht "${erwartet} Fragen". Echte Spanne: ${min}–${max}. ` +
+    `Bitte src/lib/assistentwissen.ts anpassen.`)
+
+  // Und keine andere Zahl daneben, die der Nutzer für die richtige halten könnte.
+  for (let n = 1; n < WORT.length; n++) {
+    if (n >= min && n <= max) continue
+    assert.ok(!wissen.includes(`${WORT[n]} fragen`),
+      `Das Wissen nennt "${WORT[n]} Fragen" — es sind aber ${min}–${max}`)
+  }
+})

@@ -37,7 +37,7 @@ export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
   { id: 'auswertung', label: 'Auswertung', zweck: 'Zahlen zu den eigenen Angeboten (ab Pro-Plan)' },
   { id: 'marketing', label: 'Marketing & CI', zweck: 'Akzentfarbe und Logo für Dokumente' },
   { id: 'briefpapier', label: 'Briefpapier', zweck: 'Aussehen des PDFs: Layout, Schriftart, Spalten der Positionstabelle, eigenes Briefpapier, Seitenränder — mit lebender Vorschau daneben' },
-  { id: 'betrieb', label: 'Mein Betrieb', zweck: 'Betriebskalibrierung: ein paar Fragen zu Maschinen, Schwerpunkt und einem Referenzmöbel. Daraus rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten' },
+  { id: 'betrieb', label: 'Mein Betrieb', zweck: 'Betriebskalibrierung: acht bis neun Fragen (je nach Schwerpunkt) zu Maschinen, Schwerpunkt, Montage, Stückzahlen und einem Referenzmöbel. Daraus rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten' },
   { id: 'kostenstellen', label: 'Kostenstellen', zweck: 'Stundensatz je Kostenstelle, eigene Kostenstellen anlegen, nicht genutzte abschalten' },
   { id: 'warenaufschlaege', label: 'Warenaufschläge', zweck: 'Materialaufschlag je Warengruppe' },
   { id: 'bauweise', label: 'Meine Bauweise', zweck: 'Gelernte Wenn-Dann-Regeln des Betriebs, z.B. "Rückwände immer aus 8 mm Spanplatte". Die KI merkt sie sich aus dem Optimieren-Chat und hält sich daran' },
@@ -185,7 +185,7 @@ ${kostenstellenTeil(daten.saetze)}
 ## WAS VIELE ÜBERSEHEN
 → MATERIALPREISE: Einkaufspreise fest hinterlegen. Die KI rechnet dann damit, statt zu schätzen. Wer immer denselben Auszug verbaut, trägt ihn einmal ein.
 → MEINE BAUWEISE: Regeln wie "Rückwände immer 8 mm Spanplatte, nicht HDF". Die KI hält sich daran, in jedem neuen Angebot.
-→ MEIN BETRIEB: Die Betriebskalibrierung. Ein paar Fragen, danach rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten.
+→ MEIN BETRIEB: Die Betriebskalibrierung. Acht bis neun Fragen, je nach Schwerpunkt — danach rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten.
 → BRIEFPAPIER: Schriftart, Spalten, eigenes Briefpapier — mit einer Vorschau daneben, die bei jedem Klick mitgeht.
 → KLEINUNTERNEHMER: Wer nach § 19 UStG keine Umsatzsteuer ausweist, stellt das unter Buchhaltung ein. Dann entfällt die MwSt-Zeile und der vorgeschriebene Hinweis erscheint.
 
