@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getSupabaseClient } from '@/lib/supabase'
-import { RUNDSCHREIBEN, rundschreibenFinden, merkerName } from '@/lib/mail/rundschreiben'
-import { willkommensMail } from '@/lib/mail/vorlagen'
+import { RUNDSCHREIBEN, rundschreibenFinden, merkerName, willkommensMail } from '@/lib/mail/vorlagen'
 import { sendeMail, mailAbsender } from '@/lib/mail/resend'
 
 /**
  * Rundschreiben an Bestandsnutzer — Liste, Vorschau, Test, Probelauf, Versand.
  *
  * Nur für den Admin, bedient über Einstellungen → Admin. Die Mails selbst stehen
- * im Register src/lib/mail/rundschreiben.ts; diese Route weiß nichts über Inhalte.
+ * im Register am Ende von src/lib/mail/vorlagen.ts; diese Route weiß nichts über Inhalte.
  *
  *   GET                              Liste aller Rundschreiben mit Versandstand
  *   GET ?kennung=…&vorschau=1        die fertige Mail als HTML (für die Vorschau in der App)

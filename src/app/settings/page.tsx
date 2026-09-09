@@ -106,7 +106,7 @@ export default function SettingsPage() {
   const [gutscheinLoading, setGutscheinLoading] = useState(false)
   const [gutscheinMsg, setGutscheinMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   // Admin: Mails — Willkommens-Mail (System) und Rundschreiben an Bestandsnutzer.
-  // Die Inhalte kommen aus src/lib/mail/rundschreiben.ts; hier nur Bedienung.
+  // Die Inhalte kommen aus src/lib/mail/vorlagen.ts (Register am Ende); hier nur Bedienung.
   type RundschreibenStand = { kennung: string; titel: string; erstellt: string; betreff: string; gesendet: number; offen: number; zuletzt: string | null }
   type MailLauf = { ok: boolean; meldung: string; empfaenger?: string[]; fehler?: string[]; absender?: string; betreff?: string }
   const [rsListe, setRsListe] = useState<{ rundschreiben: RundschreibenStand[]; konten: number; unbestaetigt: number; absender: string } | null>(null)
@@ -121,12 +121,15 @@ export default function SettingsPage() {
     setMailLaeuft(kennung)
     try {
       const res = await fetch('/api/admin/rundschreiben', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kennung, modus, bestaetigung: mailBestaetigung[kennung] ?? '' }) })
-      setMailLauf(prev => ({ ...prev, [kennung]: await res.json() }))
+      const json = await res.json() as MailLauf
+      setMailLauf(prev => ({ ...prev, [kennung]: json }))
       if (modus === 'senden') { setMailBestaetigung(prev => ({ ...prev, [kennung]: '' })); ladeRundschreiben() }
     } catch (e) { setMailLauf(prev => ({ ...prev, [kennung]: { ok: false, meldung: `Verbindungsfehler: ${e instanceof Error ? e.message : e}` } })) }
     setMailLaeuft(null)
   }
-  useEffect(() => { if (section === 'admin' && userEmail === 'l.m.p.1@gmx.de') ladeRundschreiben() }, [section, userEmail])
+  // Nur der Admin sieht den Bereich; die Route prüft zusätzlich selbst.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (section === 'admin') ladeRundschreiben() }, [section])
 
   // Admin-Panel: Gutscheincodes
   type GutscheinCode = { code: string; plan: string; max_uses: number | null; used_count: number; valid_until: string | null; beschreibung: string | null; created_at: string }

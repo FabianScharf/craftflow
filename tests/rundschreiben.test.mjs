@@ -1,7 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { RUNDSCHREIBEN, KENNUNG_MUSTER, merkerName, rundschreibenFinden } from '../src/lib/mail/rundschreiben.ts'
-import { STARTHILFE_URL } from '../src/lib/mail/vorlagen.ts'
+import { RUNDSCHREIBEN, KENNUNG_MUSTER, merkerName, rundschreibenFinden, STARTHILFE_URL } from '../src/lib/mail/vorlagen.ts'
 
 // Die Kennung ist der Merker gegen Doppelversand. Zwei gleiche Kennungen hießen:
 // Die zweite Mail erreicht niemanden, der die erste hatte — ohne Fehlermeldung.
