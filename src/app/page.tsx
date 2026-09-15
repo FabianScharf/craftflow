@@ -4474,13 +4474,11 @@ export default function CraftFlow() {
               </div>
             )}
             <button onClick={async () => {
-              if (usage !== null && !usage.erlaubt) {
-                alert(`Du hast dein monatliches Limit von ${usage.limit} Angeboten erreicht. Bitte upgrade deinen Plan.`)
-                return
-              }
               // Gezählt wird seit Aufgabe 0 bei der Analyse (dem teuren Schritt), nicht
               // mehr hier beim PDF-Export — dieses Angebot hat sein Kontingent bereits
-              // verbraucht. Die Anzeige oben liest weiterhin GET /api/usage.
+              // verbraucht (oder war eine kostenlose Rückfrage) und darf immer als PDF
+              // ausgegeben werden. Kein usage.erlaubt-Gate mehr hier (Fix-Runde 1,
+              // Controller 16.09.) — die Anzeige oben liest weiterhin GET /api/usage.
               const datum = angebotsdatum || today()
               if (!angebotsdatum) setAngebotsdatum(datum)
 
@@ -4534,7 +4532,7 @@ export default function CraftFlow() {
               if (currentProjectId) {
                 fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'pdf_export', projectId: currentProjectId, data: { preis_netto: totals.net } }) })
               }
-            }} disabled={pdfGenerating || (usage !== null && !usage.erlaubt)} style={{ width: '100%', background: pdfGenerating ? akzentTon('77') : usage !== null && !usage.erlaubt ? akzentTon('44') : C.copper, color: pdfGenerating ? '#ccc' : usage !== null && !usage.erlaubt ? akzentTon('77') : C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: pdfGenerating || (usage !== null && !usage.erlaubt) ? 'not-allowed' : 'pointer' }}>
+            }} disabled={pdfGenerating} style={{ width: '100%', background: pdfGenerating ? akzentTon('77') : C.copper, color: pdfGenerating ? '#ccc' : C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: pdfGenerating ? 'not-allowed' : 'pointer' }}>
               {pdfGenerating ? '⏳ PDF WIRD ERZEUGT…' : '▶ DOKUMENT ALS PDF ANZEIGEN'}
             </button>
           </div>

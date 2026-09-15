@@ -16,60 +16,44 @@
 alter table betriebsprofil add column if not exists abo_status text;
 alter table betriebsprofil add column if not exists plan_gueltig_bis timestamptz;
 
--- redeem_coupon: WICHTIG — dies ist die bisherige Funktion aus der Beschreibung
--- des Controllers nachgebaut (der Live-Quelltext war beim Schreiben dieser Datei
--- nicht abrufbar, Supabase-Zugriff war während der Wartung nicht erreichbar).
--- Bitte vor dem Ausführen gegen die tatsächliche Definition in der DB prüfen
--- (z. B. via `select pg_get_functiondef('redeem_coupon'::regproc)`) — einzige
+-- redeem_coupon: echter Quelltext aus der Datenbank (Fix-Runde 1, Controller
+-- 16.09.) — die vorherige Fassung dieser Datei war aus einer Textbeschreibung
+-- nachgebaut, weil Supabase während der Wartung nicht erreichbar war. Einzige
 -- inhaltliche Änderung gegenüber der bisherigen Funktion ist die neue Zeile
 -- `plan_gueltig_bis = v_coupon.valid_until` im UPDATE.
-create or replace function redeem_coupon(p_code text)
-returns jsonb
-language plpgsql
-security definer
-as $$
-declare
-  v_coupon gutscheincodes%rowtype;
-  v_bestehender text;
-begin
-  select * into v_coupon
-  from gutscheincodes
-  where lower(code) = lower(p_code)
-  limit 1;
-
-  if not found then
-    return jsonb_build_object('ok', false, 'error', 'Gutscheincode nicht gefunden.');
-  end if;
-
-  if v_coupon.valid_until is not null and v_coupon.valid_until < now() then
-    return jsonb_build_object('ok', false, 'error', 'Gutscheincode ist abgelaufen.');
-  end if;
-
-  if v_coupon.max_uses is not null and v_coupon.used_count >= v_coupon.max_uses then
-    return jsonb_build_object('ok', false, 'error', 'Gutscheincode ist bereits ausgeschöpft.');
-  end if;
-
-  select gutschein_code into v_bestehender
-  from betriebsprofil
-  where user_id = auth.uid();
-
-  if v_bestehender is not null then
-    return jsonb_build_object('ok', false, 'error', 'Es ist bereits ein Gutscheincode eingelöst.');
-  end if;
-
-  update betriebsprofil
-  set plan = v_coupon.plan,
-      gutschein_code = v_coupon.code,
-      plan_gueltig_bis = v_coupon.valid_until
-  where user_id = auth.uid();
-
-  update gutscheincodes
-  set used_count = used_count + 1
-  where code = v_coupon.code;
-
-  return jsonb_build_object('ok', true, 'plan', v_coupon.plan, 'code', v_coupon.code);
-end;
-$$;
+CREATE OR REPLACE FUNCTION public.redeem_coupon(p_code text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $function$
+DECLARE
+  v_coupon gutscheincodes%ROWTYPE;
+  v_bp_plan TEXT;
+  v_bp_code TEXT;
+BEGIN
+  -- Code suchen
+  SELECT * INTO v_coupon FROM gutscheincodes WHERE LOWER(code) = LOWER(p_code);
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'error', 'Ungültiger Code'); END IF;
+  -- Ablaufdatum prüfen
+  IF v_coupon.valid_until IS NOT NULL AND v_coupon.valid_until < NOW() THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Code abgelaufen');
+  END IF;
+  -- Max-Uses prüfen
+  IF v_coupon.max_uses IS NOT NULL AND v_coupon.used_count >= v_coupon.max_uses THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Code bereits ausgeschöpft');
+  END IF;
+  -- Nutzer-Profil prüfen (bereits eingelöst?)
+  SELECT plan, gutschein_code INTO v_bp_plan, v_bp_code FROM betriebsprofil WHERE user_id = auth.uid();
+  IF v_bp_code IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Du hast bereits einen Gutschein eingelöst');
+  END IF;
+  -- Plan upgraden + Code merken + Ablauf des Gutschein-Plans merken (neu, 16.09.2026)
+  UPDATE betriebsprofil
+     SET plan = v_coupon.plan, gutschein_code = v_coupon.code,
+         plan_gueltig_bis = v_coupon.valid_until, updated_at = NOW()
+   WHERE user_id = auth.uid();
+  -- used_count erhöhen
+  UPDATE gutscheincodes SET used_count = used_count + 1 WHERE code = v_coupon.code;
+  RETURN jsonb_build_object('ok', true, 'plan', v_coupon.plan, 'code', v_coupon.code);
+END;
+$function$;
 
 -- Backfill: bereits eingelöste Gutscheine bekommen nachträglich ihr Ablaufdatum —
 -- sonst wären sie ab jetzt fälschlich unbefristet gültig statt laut Coupon-

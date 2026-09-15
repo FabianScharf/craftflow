@@ -1107,10 +1107,16 @@ export async function POST(req: NextRequest) {
       const parsed = JSON.parse(clean)
       const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert, faktoren)
       // Angebot zählt bei der Analyse, nicht mehr beim PDF-Export (Fabian, 16.09.) —
-      // das ist der teure Schritt, hier entsteht die Kalkulation. Erst NACH dem
-      // erfolgreichen KI-Aufruf hochzählen: ein abgelehnter/fehlgeschlagener Aufruf
-      // (Deckel oben, oder JSON-Parse-Fehler unten) darf das Kontingent nicht kosten.
-      if (user && angebotsStand) {
+      // das ist der teure Schritt, hier entsteht die Kalkulation. Aber NUR bei einem
+      // echten Angebot (Positionen vorhanden): Eine reine Rückfrage ({"fragen":[...]},
+      // keine "positionen") ist kein Angebot und darf das Kontingent nicht kosten —
+      // sonst würde ein Klärungsdialog über mehrere Runden den Deckel leerkaufen
+      // (Fix-Runde 1, Controller 16.09.). Gezählt wird erst NACH erfolgreichem
+      // KI-Aufruf: ein abgelehnter/fehlgeschlagener Aufruf (Deckel oben, oder
+      // JSON-Parse-Fehler unten) darf das Kontingent ebenfalls nicht kosten.
+      const hatPositionen = Array.isArray((validated as { positionen?: unknown }).positionen)
+        && (validated as { positionen: unknown[] }).positionen.length > 0
+      if (user && angebotsStand && hatPositionen) {
         try { await zaehleAngebotHoch(supabase, user.id, angebotsStand.monat, angebotsStand.count) }
         catch (e) { console.error('[usage] zaehleAngebotHoch (analyze):', e) }
       }
