@@ -121,6 +121,37 @@ In beiden Fällen: Checkout einmal im Testmodus durchspielen und die Rechnung pr
 **Tests:** `tests/plaene.test.mjs` — jede Zahl der Matrix oben steht einmal im Test, dazu
 Monotonie (kein höherer Plan hat weniger als ein niedrigerer).
 
+### Regel beim Wechsel nach unten (Fabian, 15.09.)
+
+Wer in der Testphase (Enterprise) oder in einem höheren Plan mehr angelegt hat, als der
+neue Plan erlaubt, verliert **nichts**, aber es wirkt nur noch so viel, wie der Plan
+erlaubt: **Die ersten N bleiben aktiv, alle weiteren werden inaktiv gestellt.** „Erste“
+heißt: nach Anlagedatum, älteste zuerst. Inaktive Einträge bleiben sichtbar, ausgegraut,
+mit dem Hinweis „ab Pro-Plan wieder aktiv“ und einem Upgrade-Knopf. Der Nutzer darf
+selbst umsortieren, welche N aktiv sind (einen aktivieren → der Deckel zwingt ihn, einen
+anderen zu deaktivieren). Ein Upgrade schaltet alle wieder ein, ohne dass er etwas neu
+anlegen muss.
+
+So wirkt die Regel je Beschränkung:
+
+| Beschränkung | Beim Wechsel nach unten | Wo es passiert |
+|---|---|---|
+| Bauweise-Regeln | Die ältesten N bleiben `aktiv`, alle weiteren `aktiv = false` (Spalte gibt es) | Beim Laden des Regelblocks für den Prompt (`regelBlockFuerNutzer`) und in der Anzeige unter „Meine Bauweise“ |
+| Materialpreise | Die ältesten N bleiben aktiv, weitere inaktiv (neue Spalte `aktiv`) | `preisBlockFuerNutzer` und die Liste unter „Materialpreise“ |
+| Lieferanten | Die ältesten N bleiben aktiv, weitere inaktiv; inaktive tauchen bei Anfragen nicht auf | Lieferanten-Liste und Anfrage-Route |
+| Nutzer (Mehrbenutzer) | Der Inhaber plus die ältesten N−1 bleiben; weitere Konten werden gesperrt, nicht gelöscht | Login-Prüfung und Nutzerverwaltung |
+| Dateien je Projekt | Bereits hochgeladene Dateien bleiben am Projekt; weitere Uploads sind gesperrt, bis der Deckel wieder frei ist | Upload-Route |
+| Angebote je Monat | Zähler läuft weiter; ist der neue Deckel schon überschritten, geht es erst im nächsten Monat weiter | `/api/usage` |
+| Optimieren-Runden je Angebot | Bestehende Chats bleiben lesbar; neue Runden erst, wenn der Zähler des Angebots unter dem Deckel liegt (bei Altangeboten also nie mehr) | `/api/optimize` |
+| Funktionen ohne Zähler (Kalibrierung, Lernschleife, Auswertung, SMTP, Blöcke) | Daten bleiben gespeichert, Funktion ist gesperrt; **die Kalibrierungsfaktoren gelten nicht mehr** — es wird wieder mit den CraftFlow-Werten gerechnet, damit der Solo-Nutzer nicht die Pro-Funktion behält | Mindestplan-Prüfung in den Routen; `ladeFaktoren` liefert Standard, wenn der Plan die Kalibrierung nicht erlaubt |
+| Textbausteine, Briefpapier, Schriftwahl, CI-Farben (Solo: Standardlayout) | Einstellungen bleiben gespeichert, PDF wird mit Standardlayout erzeugt; nach Upgrade wieder wie eingestellt | `pdfTextOptionen` / `pdfFirmaOptionen` prüfen den Plan |
+
+**Technisch als eine Funktion:** `wendeDeckelAn(eintraege, deckel)` in `src/lib/plaene.ts`
+(rein, getestet) sortiert nach `created_at` und liefert, welche Einträge aktiv sind. Sie wird
+**beim Lesen** angewandt, nicht per Massenänderung in der Datenbank — so ist ein Upgrade
+sofort wirksam und ein Herabstufen ebenso, ohne dass irgendwo ein Skript laufen muss. Die
+Anzeige zeigt denselben Zustand wie der Prompt.
+
 ### Teil B — Kostenzähler (halber Tag)
 
 - **Ausnahmslos nur für Fabian.** Kein Nutzer sieht je Token- oder Kostenzahlen — weder
@@ -200,9 +231,8 @@ Jeder Teil geht einzeln auf `dev`, wird live geprüft, dann freigegeben.
 
 ## 6. Risiken
 
-- **Gesperrte Funktionen, die Tester schon nutzen:** Wer im Test Regeln angelegt hat und
-  danach Starter kauft, hat mehr als 5 Regeln. Regel: Vorhandenes bleibt wirksam, nur
-  Neues ist gedeckelt. Gilt für alle Deckel (nie löschen, nur nicht mehr wachsen lassen).
+- **Gesperrte Funktionen, die Tester schon nutzen:** geregelt — siehe „Regel beim Wechsel
+  nach unten“ in Teil A (die ersten N bleiben aktiv, weitere inaktiv, nichts wird gelöscht).
 - **Optimieren-Deckel trifft mitten im Gespräch:** Meldung im Chat, letzter Stand bleibt
   gespeichert, Upgrade-Link. Keine 500er.
 - **Blöcke verändern die Kalkulation:** Ein Block kennt die anderen nicht; Gemeinkosten-
@@ -214,6 +244,9 @@ Jeder Teil geht einzeln auf `dev`, wird live geprüft, dann freigegeben.
 
 ## 7. Offen
 
+- **Stripe-Steuer:** Fabian hat noch nie einen Checkout bis zur Rechnung getestet. Vor dem
+  ersten zahlenden Kunden: Weg wählen (Tax Rate 19 % oder Stripe Tax), im Testmodus
+  durchspielen, Rechnung prüfen.
 - Exakte Fixkosten (Fabian nennt sie, sobald es entscheidend wird).
 - Ob Enterprise auf 99 € gehen sollte, wenn der Ausschreibungs-Modus steht.
 - Nachkalkulation als Datenbasis (Vault-Notiz) — passt zum Kostenzähler, aber später.
