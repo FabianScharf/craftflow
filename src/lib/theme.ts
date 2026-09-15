@@ -91,6 +91,11 @@ export function mische(a: string, b: string, anteil: number): string {
   return zuHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t)
 }
 
+/** Erste Farbe der Reihe, die auf dem Grund mindestens Kontrast 4,5 erreicht (sonst die letzte). */
+function lesbar(kandidaten: string[], grund: string): string {
+  return kandidaten.find(f => kontrast(f, grund) >= 4.5) ?? kandidaten[kandidaten.length - 1]
+}
+
 /**
  * Aus Primaer- und Akzentfarbe die komplette Palette bauen.
  * Dunkle Primaerfarbe → heutige Palette, nur mit der eigenen Hintergrundfarbe.
@@ -101,7 +106,14 @@ export function leitePaletteAb(primaer: string | null | undefined, akzent: strin
   const accent = normalisiereHex(akzent) ?? PALETTE_DUNKEL.accent
 
   if (!istHell(primary)) {
-    return { ...PALETTE_DUNKEL, primary, accent }
+    // Auf tiefem Schwarz reichen die Standard-Statusfarben. Auf einem dunklen Blau
+    // oder Gruen kann Rot zu schwach werden — dann die hellere Stufe nehmen.
+    return {
+      ...PALETTE_DUNKEL, primary, accent,
+      ok: lesbar(['#5ABE6A', '#8EDB9A', '#C4F0CB'], primary),
+      err: lesbar(['#E05A5A', '#FF8A80', '#FFB4AD'], primary),
+      warn: lesbar(['#F5C518', '#FFDD66', '#FFEEAA'], primary),
+    }
   }
 
   // Helle Flaeche: Schrift dunkel, Nebentext dunkelgrau, Kaesten leicht abgesetzt.
