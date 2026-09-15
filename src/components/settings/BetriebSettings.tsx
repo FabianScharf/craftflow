@@ -56,6 +56,14 @@ export default function BetriebSettings() {
   const [laedt, setLaedt] = useState(true)
   const [fehler, setFehler] = useState('')
   const [gespeichert, setGespeichert] = useState(false)
+  // GEFUNDEN 2026-09-15 von Fabian: "Faktoren von Hand übernehmen" wirkte tot. Der
+  // Knopf funktionierte, aber sein "Gespeichert." stand weit oben neben dem anderen
+  // Speichern-Knopf, und Fehler ganz oben auf der Seite. Jetzt: eigener Zustand,
+  // Rueckmeldung direkt daneben, Knopf nur aktiv (und in Akzentfarbe), wenn sich
+  // ein Faktor gegenueber dem gespeicherten Stand geaendert hat.
+  const [faktorenGeladen, setFaktorenGeladen] = useState<Record<string, number>>({})
+  const [faktorenMeldung, setFaktorenMeldung] = useState<{ ok: boolean; text: string } | null>(null)
+  const [faktorenSpeichern, setFaktorenSpeichern] = useState(false)
   const [schleife, setSchleife] = useState<{ angebote: number; begruendung: string[] } | null>(null)
   const [schleifeLaeuft, setSchleifeLaeuft] = useState(false)
   // SEINE Stundensaetze und SEIN Materialaufschlag — daraus rechnet die Oberflaeche
@@ -83,6 +91,12 @@ export default function BetriebSettings() {
           faktor_oberflaeche: Number(j.kalibrierung.faktor_oberflaeche),
           faktor_massivholz: Number(j.kalibrierung.faktor_massivholz),
           faktor_montage: Number(j.kalibrierung.faktor_montage) })
+        setFaktorenGeladen({
+          faktor_werkstatt: Number(j.kalibrierung.faktor_werkstatt),
+          faktor_oberflaeche: Number(j.kalibrierung.faktor_oberflaeche),
+          faktor_massivholz: Number(j.kalibrierung.faktor_massivholz),
+          faktor_montage: Number(j.kalibrierung.faktor_montage),
+        })
       }
     } else {
       // Der echte Grund gehoert auf den Bildschirm, nicht ins Log.
@@ -93,7 +107,18 @@ export default function BetriebSettings() {
   }
 
   async function speichern(mitFaktoren = false) {
-    setFehler(''); setGespeichert(false)
+    setFehler(''); setGespeichert(false); setFaktorenMeldung(null)
+    if (mitFaktoren) {
+      // Erst pruefen, dann senden — sonst landet eine leere Eingabe als 0 beim Server.
+      for (const { feld, name } of FAKTOR_TEXTE) {
+        const w = Number(k[feld])
+        if (!Number.isFinite(w) || w < 0.6 || w > 1.4) {
+          setFaktorenMeldung({ ok: false, text: `${name}: Bitte einen Wert zwischen 0,60 und 1,40 eintragen.` })
+          return
+        }
+      }
+      setFaktorenSpeichern(true)
+    }
     const koerper: Record<string, unknown> = { ...k }
     // Ohne "mitFaktoren" rechnet der Server die Faktoren neu aus den Antworten.
     // Mit "mitFaktoren" gilt, was von Hand dasteht.
@@ -106,10 +131,20 @@ export default function BetriebSettings() {
       body: JSON.stringify(koerper),
     })
     const j = await res.json().catch(() => ({})) as { error?: string }
+    if (mitFaktoren) {
+      setFaktorenSpeichern(false)
+      if (!res.ok) { setFaktorenMeldung({ ok: false, text: j.error ?? 'Speichern fehlgeschlagen' }); return }
+      setFaktorenMeldung({ ok: true, text: 'Gespeichert — die Faktoren gelten ab der nächsten Kalkulation.' })
+      await laden()
+      return
+    }
     if (!res.ok) { setFehler(j.error ?? 'Speichern fehlgeschlagen'); return }
     setGespeichert(true)
     await laden()
   }
+
+  const faktorenGeaendert = FAKTOR_TEXTE.some(({ feld }) =>
+    Math.abs(Number(k[feld]) - Number(faktorenGeladen[feld] ?? k[feld])) > 0.0001)
 
   async function schleifeNachsehen() {
     setSchleifeLaeuft(true); setFehler('')
@@ -299,8 +334,8 @@ export default function BetriebSettings() {
         return (
           <div key={feld} style={{ display: 'flex', alignItems: 'center', gap: 14,
             background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
-            <input type="number" step="0.01" min="0.6" max="1.4" value={wert}
-              onChange={e => setK({ ...k, [feld]: Number(e.target.value) })}
+            <input type="number" step="0.01" min="0.6" max="1.4" value={Number.isFinite(wert) ? wert : ''}
+              onChange={e => { setFaktorenMeldung(null); setK({ ...k, [feld]: e.target.value === '' ? NaN : Number(e.target.value) }) }}
               style={{ width: 80, background: '#141414', border: '1px solid #2E2E2E',
                 borderRadius: 6, color: C.white, padding: '8px 10px', fontSize: 14 }} />
             <div>
@@ -313,11 +348,22 @@ export default function BetriebSettings() {
         )
       })}
 
-      <button onClick={() => void speichern(true)} style={{
-        background: 'transparent', border: '1px solid #3A3A3A', borderRadius: 8,
-        color: '#B0B0B0', padding: '10px 18px', fontSize: 13, cursor: 'pointer', marginTop: 8 }}>
-        Faktoren von Hand übernehmen
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
+        <button onClick={() => void speichern(true)} disabled={!faktorenGeaendert || faktorenSpeichern} style={{
+          background: faktorenGeaendert ? C.copper : 'transparent',
+          border: faktorenGeaendert ? 'none' : `1px solid ${C.border}`, borderRadius: 8,
+          color: faktorenGeaendert ? '#0D0D0D' : C.textMid, fontWeight: faktorenGeaendert ? 700 : 400,
+          padding: '10px 18px', fontSize: 13, cursor: faktorenGeaendert ? 'pointer' : 'default',
+          opacity: faktorenSpeichern ? 0.6 : 1 }}>
+          {faktorenSpeichern ? 'Speichert …' : 'Faktoren von Hand übernehmen'}
+        </button>
+        {faktorenMeldung && (
+          <span style={{ fontSize: 13, color: faktorenMeldung.ok ? '#7ACC7A' : '#FFB0B0' }}>{faktorenMeldung.text}</span>
+        )}
+        {!faktorenMeldung && !faktorenGeaendert && (
+          <span style={{ fontSize: 12, color: C.textMid }}>Ändere einen Wert, dann kannst du ihn hier übernehmen.</span>
+        )}
+      </div>
 
       <div style={{ height: 1, background: '#2E2E2E', margin: '30px 0' }} />
 
