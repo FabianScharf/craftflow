@@ -265,6 +265,9 @@ export default function BetriebSettings() {
         <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Welche Maschinen hast du?</div>
         <div style={{ color: C.textMid, fontSize: 12, marginBottom: 10 }}>Mehrfachauswahl</div>
         {mehrfach('maschinen', k.maschinen, w => setK({ ...k, maschinen: w }))}
+        <div style={{ color: C.textMid, fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>
+          Ohne CNC oder Kantenanleimmaschine schaltet CraftFlow beim Speichern die Kostenstellen „CNC“ bzw. „Bekantung“ ab — und wieder an, sobald du sie hier auswählst.
+        </div>
       </div>
 
       <div style={{ marginBottom: 26 }}>

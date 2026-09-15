@@ -571,6 +571,20 @@ export type Betriebsantworten = {
   montage_selbst?: string
 }
 
+/** Kostenstellen, über die „Mein Betrieb“ entscheidet — nur diese werden abgeglichen. */
+export const VON_BETRIEB_GESTEUERT = ['CNC', 'Bekantung', 'Montage'] as const
+
+/**
+ * Soll-Zustand je gesteuerter Kostenstelle: true = an, false = aus.
+ * GEFUNDEN 2026-09-15 von Fabian: Ohne Kantenanleimmaschine rechnete die Analyse
+ * „Bekantung“ zwar korrekt raus, aber unter „Kostenstellen“ stand sie weiter auf an —
+ * nichts schrieb die Antwort zurück. Die Anzeige log, die Rechnung nicht.
+ */
+export function kostenstellenSollZustand(a: Betriebsantworten | null | undefined): Record<string, boolean> {
+  const aus = new Set(abzuschaltendeKostenstellen(a))
+  return Object.fromEntries(VON_BETRIEB_GESTEUERT.map(k => [k, !aus.has(k)]))
+}
+
 export function abzuschaltendeKostenstellen(a: Betriebsantworten | null | undefined): string[] {
   if (!a) return []
   const hat = (m: string) => Array.isArray(a.maschinen) && a.maschinen.includes(m)

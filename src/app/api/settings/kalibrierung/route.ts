@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kostenstellenSollZustand } from '@/lib/kalibrierung'
+import { normalizeKsId } from '@/lib/types'
 import { berechneFaktoren, deckele, referenzFuer } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
 
@@ -102,5 +104,17 @@ export async function PUT(req: NextRequest) {
     hinweis_gezeigt: b.hinweis_gezeigt === true,
   })
   if (!r.ok) return NextResponse.json({ error: r.grund }, { status: 500 })
-  return NextResponse.json({ ok: true, faktoren: f })
+
+  // Kostenstellen mitziehen: CNC, Bekantung, Montage folgen den Antworten — sonst zeigt
+  // „Kostenstellen“ etwas anderes als die Kalkulation rechnet (Fabian, 15.09.).
+  const soll = kostenstellenSollZustand({ maschinen: Array.isArray(b.maschinen) ? (b.maschinen as unknown[]).map(String) : [], montage_selbst: text('montage_selbst') })
+  const { data: alleKs } = await supabase.from('kostenstellen').select('id, code, aktiv').eq('user_id', user.id)
+  const geaendert: string[] = []
+  for (const ks of alleKs ?? []) {
+    const id = normalizeKsId(ks.code)
+    if (!(id in soll) || ks.aktiv === soll[id]) continue
+    const { error } = await supabase.from('kostenstellen').update({ aktiv: soll[id] }).eq('id', ks.id).eq('user_id', user.id)
+    if (!error) geaendert.push(`${id} ${soll[id] ? 'an' : 'aus'}`)
+  }
+  return NextResponse.json({ ok: true, faktoren: f, kostenstellen: geaendert })
 }

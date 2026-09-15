@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  REFERENZ, BAENDER, referenzPreis, berechneFaktoren, deckele,
+  REFERENZ, BAENDER, referenzPreis, berechneFaktoren, deckele, kostenstellenSollZustand,
 } from '../src/lib/kalibrierung.ts'
 
 const SAETZE = {
@@ -415,4 +415,10 @@ test('Jede Referenz hat ihren eigenen Preis — keine zwei gleich', () => {
   const sortiert = [...preise].sort((a, b) => a - b)
   assert.ok(sortiert[sortiert.length - 1] / sortiert[0] > 3,
     `Spanne zu eng: ${sortiert.join(', ')}`)
+})
+
+test('Kostenstellen folgen den Maschinen-Antworten: ohne Kantenanleimmaschine ist Bekantung aus, mit ihr wieder an', () => {
+  assert.deepEqual(kostenstellenSollZustand({ maschinen: ['formatkreissaege', 'lackierkabine'], montage_selbst: 'immer' }), { CNC: false, Bekantung: false, Montage: true })
+  assert.deepEqual(kostenstellenSollZustand({ maschinen: ['cnc', 'kantenanleim'], montage_selbst: 'nie' }), { CNC: true, Bekantung: true, Montage: false })
+  assert.deepEqual(kostenstellenSollZustand(null), { CNC: true, Bekantung: true, Montage: true })
 })
