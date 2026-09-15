@@ -135,7 +135,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const { isInTrial, trialDaysLeft, canUse } = usePlan()
+  const { isInTrial, trialDaysLeft, canUse, isBlocked } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
@@ -266,6 +266,13 @@ export default function SettingsPage() {
       window.history.replaceState({}, '', '/settings')
     }
   }, [])
+
+  // Gesperrter Zugang (Testphase/Gutschein abgelaufen, kein Abo): nur noch
+  // "Mein Plan" ist erreichbar — sonst könnte der Nutzer über die Einstellungen
+  // an der Paywall vorbei weiterarbeiten (Aufgabe 0).
+  useEffect(() => {
+    if (isBlocked) setSection('plan')
+  }, [isBlocked])
 
   function setP(key: string, val: string) {
     setProfil(prev => ({ ...prev, [key]: val }))
@@ -533,6 +540,11 @@ export default function SettingsPage() {
     { id: 'hilfe',            label: 'Hilfe',           icon: '💡' },
     ...(userEmail === 'l.m.p.1@gmx.de' ? [{ id: 'admin' as typeof section, label: 'Admin', icon: '🛠' }] : []),
   ]
+  // Gesperrt: nur "Mein Plan" in der Seitenleiste — der Rest bleibt unerreichbar,
+  // solange kein gültiger Plan/Abo vorliegt (Aufgabe 0). navItems bleibt die
+  // vollständige Liste (tests/assistentwissen.test.mjs liest sie als Quelle der
+  // Wahrheit für die Einstellungsbereiche) — nur die Anzeige wird gefiltert.
+  const sichtbareNavItems = isBlocked ? navItems.filter(item => item.id === 'plan') : navItems
 
   const groups = groupKostenstellen(kostenstellen)
   const allGruppen = [...new Set([...GRUPPEN_ORDER, ...Object.keys(groups)])]
@@ -585,7 +597,7 @@ export default function SettingsPage() {
             padding: isMobile ? '8px 0' : '16px 0',
             display: 'flex', flexDirection: 'column',
           }}>
-            {navItems.map(item => (
+            {sichtbareNavItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => { setSection(item.id); if (isMobile) setMobileShowContent(true); if (item.id === 'admin') loadAdminCodes() }}

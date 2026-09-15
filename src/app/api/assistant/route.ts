@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { assistentWissen } from '@/lib/assistentwissen'
+import { pruefeZugang } from '@/lib/planpruefung'
 
 export const maxDuration = 60
 
@@ -46,6 +47,14 @@ function getContextNote(context: AppContext): string {
 
 export async function POST(req: NextRequest) {
   try {
+    // Erste Prüfung nach dem Login (Aufgabe 0) — vor allem anderen.
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const zu = await pruefeZugang(supabase, user.id)
+      if (zu) return zu
+    }
+
     const { chatHistory, message, context } = await req.json() as {
       chatHistory: ChatMsg[]
       message: string
@@ -60,8 +69,6 @@ export async function POST(req: NextRequest) {
     // eingestellt hatte, bekam 65 genannt.
     let saetze: Record<string, number> | undefined
     try {
-      const supabase = await createClient()
-      const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data, error } = await supabase
           .from('kostenstellen')

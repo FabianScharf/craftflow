@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { PDFDocument } from 'pdf-lib'
 import { createClient } from '@/utils/supabase/server'
+import { pruefeZugang } from '@/lib/planpruefung'
 
 /**
  * Schriften in das HTML einbacken, statt sie laden zu lassen.
@@ -80,6 +81,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+
+  const zu = await pruefeZugang(supabase, user.id)
+  if (zu) return zu
 
   const { html, letterheadUrl, filename, margins, footerTemplate } = await req.json() as {
     html: string

@@ -13,6 +13,7 @@ import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktor
 import { bucheUm } from '@/lib/handarbeit'
 import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
+import { pruefeZugang } from '@/lib/planpruefung'
 
 export const maxDuration = 120
 
@@ -339,6 +340,10 @@ export async function POST(req: NextRequest) {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        // Erste Prüfung nach dem Login (Aufgabe 0) — sonst kostet eine gesperrte
+        // Anfrage trotzdem den vollen Claude-Aufruf.
+        const zu = await pruefeZugang(supabase, user.id)
+        if (zu) return zu
         const { data: profil } = await supabase
           .from('betriebsprofil')
           .select('strasse, plz, ort')

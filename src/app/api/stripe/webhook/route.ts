@@ -30,8 +30,10 @@ export async function POST(req: NextRequest) {
         console.error('[stripe] unbekannte Preis-ID im Abo:', priceId, 'user', userId)
         return NextResponse.json({ received: true, warnung: 'unbekannte Preis-ID' })
       }
+      // abo_status: 'aktiv' — sonst bliebe effektiverPlan() nach der Testphase
+      // bei 'gesperrt' stehen, obwohl gerade bezahlt wurde (Aufgabe 0).
       await db.from('betriebsprofil')
-        .update({ stripe_customer_id: session.customer as string, plan })
+        .update({ stripe_customer_id: session.customer as string, plan, abo_status: 'aktiv' })
         .eq('user_id', userId)
     }
   }
@@ -47,7 +49,12 @@ export async function POST(req: NextRequest) {
         console.error('[stripe] unbekannte Preis-ID im Abo:', priceId, 'user', userId)
         return NextResponse.json({ received: true, warnung: 'unbekannte Preis-ID' })
       }
-      await db.from('betriebsprofil').update({ plan }).eq('user_id', userId)
+      // 'past_due' zählt bewusst noch als aktiv (Aufgabe 0, Controller): eine
+      // ausstehende Zahlung soll den Zugang nicht sofort sperren, Stripe versucht
+      // in dieser Phase noch selbst abzubuchen.
+      const update: Record<string, unknown> = { plan }
+      if (['active', 'trialing', 'past_due'].includes(sub.status)) update.abo_status = 'aktiv'
+      await db.from('betriebsprofil').update(update).eq('user_id', userId)
     }
   }
 
@@ -55,7 +62,9 @@ export async function POST(req: NextRequest) {
     const sub = event.data.object as Stripe.Subscription
     const userId = sub.metadata?.userId
     if (userId) {
-      await db.from('betriebsprofil').update({ plan: 'solo' }).eq('user_id', userId)
+      // Plan bleibt stehen (Fabians Regel) — er zählt ohne aktives Abo ab jetzt
+      // nicht mehr (effektiverPlan() prüft abo_status, s. plaene.ts).
+      await db.from('betriebsprofil').update({ abo_status: 'beendet' }).eq('user_id', userId)
     }
   }
 

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   PLAENE, PLAN_RANK, PREIS_IDS, erlaubt, mindestPlan, deckel, wendeDeckelAn,
-  effektiverPlan, planFuerPreisId, merkmaleFuerAnzeige, TRIAL_DAYS,
+  effektiverPlan, sperrgrund, planFuerPreisId, merkmaleFuerAnzeige, TRIAL_DAYS,
 } from '../src/lib/plaene.ts'
 
 // Die Matrix aus der Spec (Abschnitt 3), Zahl für Zahl. Wer hier etwas ändert,
@@ -66,13 +66,68 @@ test('wendeDeckelAn: die ältesten N bleiben aktiv, der Rest wird inaktiv — ni
   assert.ok(wendeDeckelAn(e, null).every(x => x.aktivDurchPlan), 'null = unbegrenzt')
   assert.ok(wendeDeckelAn(e, 0).every(x => !x.aktivDurchPlan), '0 = alle inaktiv')
 })
-test('effektiverPlan: Testphase = Enterprise, danach gespeicherter Plan, Standard Solo', () => {
+test('effektiverPlan: Testphase = Enterprise, danach gespeicherter Plan (mit aktivem Abo), Standard gesperrt', () => {
   const jetzt = new Date('2026-09-15T12:00:00Z')
   assert.equal(effektiverPlan({ plan: 'starter', trial_starts_at: '2026-09-10T00:00:00Z' }, jetzt), 'enterprise')
-  assert.equal(effektiverPlan({ plan: 'starter', trial_starts_at: '2026-08-01T00:00:00Z' }, jetzt), 'starter')
-  assert.equal(effektiverPlan({ plan: null, trial_starts_at: null }, jetzt), 'solo')
-  assert.equal(effektiverPlan({ plan: 'unsinn', trial_starts_at: null }, jetzt), 'solo')
+  // Trial abgelaufen (2026-08-01 + 14 Tage < jetzt), aber aktives Abo → gespeicherter Plan zählt.
+  assert.equal(effektiverPlan({ plan: 'starter', trial_starts_at: '2026-08-01T00:00:00Z', abo_status: 'aktiv' }, jetzt), 'starter')
+  // Kein trial_starts_at, kein Abo, kein Plan → gesperrt (nicht mehr 'solo' — Aufgabe 0).
+  assert.equal(effektiverPlan({ plan: null, trial_starts_at: null }, jetzt), 'gesperrt')
+  assert.equal(effektiverPlan({ plan: 'unsinn', trial_starts_at: null }, jetzt), 'gesperrt')
   assert.equal(TRIAL_DAYS, 14)
+})
+
+// Aufgabe 0 (Controller-Ergänzung 16.09.): Nach der Testphase sperrt der Server.
+test('effektiverPlan: Aufgabe-0-Matrix aus dem Brief', () => {
+  const jetzt = new Date('2026-09-16T12:00:00Z')
+  const abgelaufenerTrial = '2026-08-01T00:00:00Z' // weit vor jetzt - TRIAL_DAYS
+
+  // "abgelaufen + abo aktiv + plan pro → pro"
+  assert.equal(effektiverPlan({ plan: 'pro', trial_starts_at: abgelaufenerTrial, abo_status: 'aktiv' }, jetzt), 'pro')
+  // "abgelaufen + kein Abo + plan solo → gesperrt"
+  assert.equal(effektiverPlan({ plan: 'solo', trial_starts_at: abgelaufenerTrial, abo_status: null }, jetzt), 'gesperrt')
+  // "abgelaufen + kein Abo + plan enterprise (Gutschein) → enterprise"
+  assert.equal(effektiverPlan({ plan: 'enterprise', trial_starts_at: abgelaufenerTrial, abo_status: null }, jetzt), 'enterprise')
+  // "abo beendet + plan pro → gesperrt" — ein gekündigtes Abo darf nicht weiter zählen,
+  // obwohl der Plan (bewusst) in der DB stehen bleibt.
+  assert.equal(effektiverPlan({ plan: 'pro', trial_starts_at: abgelaufenerTrial, abo_status: 'beendet' }, jetzt), 'gesperrt')
+
+  // Ergänzung des Controllers: Gutschein mit Ablaufdatum.
+  // Abgelaufener Gutschein (gestern) → gesperrt.
+  assert.equal(effektiverPlan({
+    plan: 'enterprise', trial_starts_at: abgelaufenerTrial, abo_status: null, plan_gueltig_bis: '2026-09-15T00:00:00Z',
+  }, jetzt), 'gesperrt')
+  // Gültiger Gutschein (morgen) → enterprise.
+  assert.equal(effektiverPlan({
+    plan: 'enterprise', trial_starts_at: abgelaufenerTrial, abo_status: null, plan_gueltig_bis: '2026-09-17T00:00:00Z',
+  }, jetzt), 'enterprise')
+  // Admin-Plan ohne Datum (unbefristet) → Plan.
+  assert.equal(effektiverPlan({
+    plan: 'starter', trial_starts_at: abgelaufenerTrial, abo_status: null, plan_gueltig_bis: null,
+  }, jetzt), 'starter')
+})
+
+test('sperrgrund: gutschein nur bei abgelaufenem Nicht-Solo-Plan ohne aktives Abo, sonst testphase, null wenn offen', () => {
+  const jetzt = new Date('2026-09-16T12:00:00Z')
+  const abgelaufenerTrial = '2026-08-01T00:00:00Z'
+
+  assert.equal(sperrgrund({ plan: 'pro', trial_starts_at: '2026-09-10T00:00:00Z' }, jetzt), null, 'Testphase läuft noch → nicht gesperrt')
+  assert.equal(sperrgrund({ plan: 'pro', trial_starts_at: abgelaufenerTrial, abo_status: 'aktiv' }, jetzt), null, 'aktives Abo → nicht gesperrt')
+
+  assert.equal(sperrgrund({ plan: 'solo', trial_starts_at: abgelaufenerTrial, abo_status: null }, jetzt), 'testphase')
+  assert.equal(sperrgrund({ plan: 'pro', trial_starts_at: abgelaufenerTrial, abo_status: 'beendet' }, jetzt), 'testphase', 'beendetes Abo ist kein Gutschein-Fall')
+  assert.equal(sperrgrund({
+    plan: 'enterprise', trial_starts_at: abgelaufenerTrial, abo_status: null, plan_gueltig_bis: '2026-09-15T00:00:00Z',
+  }, jetzt), 'gutschein')
+})
+
+test('erlaubt/deckel mit gesperrt: nie erlaubt, Deckel 0', () => {
+  for (const f of ['spracheingabe', 'pdf', 'assistent', 'dateien', 'bloecke', 'gaeb']) {
+    assert.equal(erlaubt('gesperrt', f), false, f)
+  }
+  for (const art of ['angebote', 'optimierenRunden', 'dateien', 'bauweiseRegeln', 'materialpreise', 'nutzer']) {
+    assert.equal(deckel('gesperrt', art), 0, art)
+  }
 })
 test('Preis-IDs: BEIDE Sätze werden erkannt (Kauf über Einstellungen landete auf Solo — 15.09.)', () => {
   assert.equal(planFuerPreisId('price_1Tn1y0RvozvhvO9J4QXMCzje'), 'pro')      // Einstellungen (aktuell)

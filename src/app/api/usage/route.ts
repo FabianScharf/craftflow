@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { deckel, effektiverPlan } from '@/lib/plaene'
-
-function currentMonat() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
+import { pruefeZugang } from '@/lib/planpruefung'
+import { ladeAngebotsstand, zaehleAngebotHoch } from '@/lib/angebotszaehler'
 
 // GET — aktuellen Verbrauch + Limit zurückgeben
 export async function GET() {
@@ -15,22 +12,13 @@ export async function GET() {
 
   const { data: profil } = await supabase
     .from('betriebsprofil')
-    .select('plan, trial_starts_at')
+    .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
     .eq('user_id', user.id)
     .single()
 
   const plan = effektiverPlan(profil)
   const limit = deckel(plan, 'angebote')
-  const monat = currentMonat()
-
-  const { data: usage } = await supabase
-    .from('plan_usage')
-    .select('angebote_count')
-    .eq('user_id', user.id)
-    .eq('monat', monat)
-    .single()
-
-  const count = usage?.angebote_count ?? 0
+  const { count } = await ladeAngebotsstand(supabase, user.id)
 
   return NextResponse.json({
     plan,
@@ -47,32 +35,24 @@ export async function POST() {
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
+  const zu = await pruefeZugang(supabase, user.id)
+  if (zu) return zu
+
   const { data: profil } = await supabase
     .from('betriebsprofil')
-    .select('plan, trial_starts_at')
+    .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
     .eq('user_id', user.id)
     .single()
 
   const plan = effektiverPlan(profil)
   const limit = deckel(plan, 'angebote')
-  const monat = currentMonat()
-
-  const { data: usage } = await supabase
-    .from('plan_usage')
-    .select('angebote_count')
-    .eq('user_id', user.id)
-    .eq('monat', monat)
-    .single()
-
-  const count = usage?.angebote_count ?? 0
+  const { count, monat } = await ladeAngebotsstand(supabase, user.id)
 
   if (limit !== null && count >= limit) {
     return NextResponse.json({ error: 'Limit erreicht', limit, count }, { status: 403 })
   }
 
-  await supabase
-    .from('plan_usage')
-    .upsert({ user_id: user.id, monat, angebote_count: count + 1 }, { onConflict: 'user_id,monat' })
+  await zaehleAngebotHoch(supabase, user.id, monat, count)
 
   return NextResponse.json({ ok: true, count: count + 1, limit, remaining: limit === null ? null : limit - count - 1 })
 }

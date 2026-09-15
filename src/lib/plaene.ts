@@ -10,6 +10,9 @@
 // ändert tests/plaene.test.mjs mit — bewusst, nicht nebenbei.
 
 export type Plan = 'solo' | 'starter' | 'pro' | 'enterprise'
+// 'gesperrt' = Testphase vorbei, kein aktives Abo, kein gültiger Nicht-Solo-Plan.
+// Kein Funktion, kein Deckel — s. erlaubt()/deckel() unten.
+export type EffektiverPlan = Plan | 'gesperrt'
 export const PLAN_REIHE: Plan[] = ['solo', 'starter', 'pro', 'enterprise']
 export const PLAN_RANK: Record<Plan, number> = { solo: 1, starter: 2, pro: 3, enterprise: 4 }
 export const PLAN_LABELS: Record<Plan, string> = { solo: 'Solo', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise' }
@@ -82,7 +85,8 @@ export function istPlan(v: unknown): v is Plan {
   return typeof v === 'string' && (PLAN_REIHE as string[]).includes(v)
 }
 
-export function erlaubt(plan: Plan, f: Funktion): boolean {
+export function erlaubt(plan: EffektiverPlan, f: Funktion): boolean {
+  if (plan === 'gesperrt') return false
   return PLAENE[plan].funktionen.includes(f)
 }
 
@@ -90,7 +94,8 @@ export function mindestPlan(f: Funktion): Plan {
   return PLAN_REIHE.find(p => erlaubt(p, f)) ?? 'enterprise'
 }
 
-export function deckel(plan: Plan, art: DeckelArt): number | null {
+export function deckel(plan: EffektiverPlan, art: DeckelArt): number | null {
+  if (plan === 'gesperrt') return 0
   return PLAENE[plan].deckel[art]
 }
 
@@ -109,14 +114,69 @@ export function wendeDeckelAn<T extends { created_at: string }>(
   return eintraege.map(e => ({ ...e, aktivDurchPlan: erlaubte.has(e) }))
 }
 
-/** Testphase = Enterprise (exakte Zeitgrenze wie in /api/usage), sonst gespeicherter Plan, sonst Solo. */
+export type ProfilFuerPlan = {
+  plan?: string | null
+  trial_starts_at?: string | null
+  /** Von Stripe gesetzt: 'aktiv' | 'beendet' | null (nie bezahlt / Gutschein/Admin). */
+  abo_status?: string | null
+  /** Ablauf eines Gutschein-/Admin-Plans. null = unbefristet. */
+  plan_gueltig_bis?: string | null
+}
+
+/** null/undefined = unbefristet gültig (auch bei einem kaputten Datum — defensiv, wie überall sonst). */
+function nochGueltig(bis: string | null | undefined, jetzt: Date): boolean {
+  if (!bis) return true
+  const t = new Date(bis).getTime()
+  if (!Number.isFinite(t)) return true
+  return t > jetzt.getTime()
+}
+
+/**
+ * Reihenfolge (Controller, 16.09.):
+ * 1. Testphase läuft → Enterprise.
+ * 2. Aktives Stripe-Abo → gespeicherter Plan (falls gültig, sonst Solo).
+ * 3. Kein BEENDETES Abo, gespeicherter Plan ≠ Solo (Gutschein/Admin) UND gültig → dieser Plan.
+ * 4. Sonst → 'gesperrt' (kein Funktion, kein Deckel).
+ *
+ * "Kein beendetes Abo" in Schritt 3 ist entscheidend: Ein früher bezahlter, dann
+ * gekündigter Plan bleibt in der DB stehen (Fabians Regel: Plan nicht zurücksetzen),
+ * darf nach dem Ende des Abos aber nicht länger zählen — sonst wäre die Kündigung
+ * wirkungslos. Nur ein Plan OHNE Abo-Historie (abo_status null, z. B. Gutschein
+ * oder Admin-Vergabe) darf über Schritt 3 durchrutschen.
+ */
 export function effektiverPlan(
-  profil: { plan?: string | null; trial_starts_at?: string | null } | null | undefined,
+  profil: ProfilFuerPlan | null | undefined,
   jetzt: Date = new Date(),
-): Plan {
+): EffektiverPlan {
   const start = profil?.trial_starts_at ? new Date(profil.trial_starts_at).getTime() : NaN
   if (Number.isFinite(start) && jetzt.getTime() < start + TRIAL_DAYS * 86400_000) return 'enterprise'
-  return istPlan(profil?.plan) ? profil!.plan as Plan : 'solo'
+
+  const gespeicherterPlan: Plan = istPlan(profil?.plan) ? profil!.plan as Plan : 'solo'
+
+  if (profil?.abo_status === 'aktiv') {
+    return nochGueltig(profil?.plan_gueltig_bis, jetzt) ? gespeicherterPlan : 'solo'
+  }
+  if (profil?.abo_status !== 'beendet' && gespeicherterPlan !== 'solo' && nochGueltig(profil?.plan_gueltig_bis, jetzt)) {
+    return gespeicherterPlan
+  }
+  return 'gesperrt'
+}
+
+/**
+ * Grund der Sperre — für die Paywall-Texte (plantexte.ts). 'gutschein' nur, wenn
+ * erkennbar ein befristeter Nicht-Solo-Plan abgelaufen ist (und kein aktives Abo
+ * vorliegt) — sonst 'testphase' als allgemeiner Fall. null = nicht gesperrt.
+ */
+export function sperrgrund(
+  profil: ProfilFuerPlan | null | undefined,
+  jetzt: Date = new Date(),
+): 'testphase' | 'gutschein' | null {
+  if (effektiverPlan(profil, jetzt) !== 'gesperrt') return null
+  const gespeicherterPlan: Plan = istPlan(profil?.plan) ? profil!.plan as Plan : 'solo'
+  const abgelaufenerGutschein = gespeicherterPlan !== 'solo'
+    && profil?.abo_status !== 'aktiv'
+    && !nochGueltig(profil?.plan_gueltig_bis, jetzt)
+  return abgelaufenerGutschein ? 'gutschein' : 'testphase'
 }
 
 /** Sätze für Plan-Kacheln (App) und Preistabelle (Website) — eine Wortwahl für beide. */

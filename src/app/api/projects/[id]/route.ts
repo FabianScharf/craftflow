@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { pruefeZugang } from '@/lib/planpruefung'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -43,6 +44,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+
+    const zu = await pruefeZugang(supabase, user.id)
+    if (zu) return zu
 
     const body = await req.json()
     const { title, status, data } = body as { title?: string; status?: string; data?: unknown }

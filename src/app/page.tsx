@@ -185,7 +185,7 @@ function parseGaebText(text: string): { positions: import('@/lib/types').Angebot
 /* ── Haupt-Komponente ─────────────────────────────── */
 
 export default function CraftFlow() {
-  const { canUse: planCanUse, loading: planLaedt, usage, incrementUsage, isBlocked } = usePlan()
+  const { canUse: planCanUse, loading: planLaedt, usage, refreshUsage, isBlocked, sperrgrund } = usePlan()
   // Solange der Tarif noch geladen wird, steht er auf 'solo'. Wer die Sperren
   // direkt daran haengt, laesst Schloesser aufblitzen, die gar nicht gelten —
   // ein Neukunde in der Testphase liest "AB STARTER" und glaubt, die beworbene
@@ -1112,6 +1112,10 @@ export default function CraftFlow() {
     progressTimerRef.current = setInterval(() => setProgressIdx(i => i + 1), 1500)
     try {
       const data = await callAI(textToUse, imageB64s)
+      // Gezählt wird seit Aufgabe 0 serverseitig bei der Analyse — Anzeige
+      // ("Noch N von M Angeboten") neu laden, sonst zeigt sie den alten Stand
+      // bis zum nächsten Neuladen der Seite.
+      refreshUsage().catch(() => {})
 
       // KI hat Rückfragen — trotzdem Kalkulation verarbeiten, Chat-Fenster zeigen
       if (data.fragen?.length > 0) {
@@ -1227,7 +1231,7 @@ export default function CraftFlow() {
     } finally {
       if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
     }
-  }, [startText, uploadedFiles, callAI, gaebPrompt, gaebProjektName])
+  }, [startText, uploadedFiles, callAI, gaebPrompt, gaebProjektName, refreshUsage])
 
   async function startFragenMic() {
     if (fragenMicStatus !== 'idle') { fragenMediaRecorderRef.current?.stop(); return }
@@ -2556,15 +2560,22 @@ export default function CraftFlow() {
       }
     }
 
+    // Zwei Sperrgründe (Aufgabe 0): abgelaufene Testphase (Standardfall) oder
+    // abgelaufener Gutschein-/Admin-Plan — eigener, zutreffender Text statt
+    // immer von "Testversion" zu sprechen.
+    const istGutscheinAbgelaufen = sperrgrund() === 'gutschein'
+
     return (
       <div suppressHydrationWarning style={{ fontFamily: 'Helvetica Neue,Helvetica,Arial,sans-serif', background: C.black, minHeight: '100vh', color: C.white, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px 64px' }}>
         {/* Header */}
         <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.white, marginBottom: 8, textAlign: 'center' }}>
-          Testzeitraum abgelaufen
+          {istGutscheinAbgelaufen ? 'Dein Gutschein ist abgelaufen' : 'Testzeitraum abgelaufen'}
         </h1>
         <p style={{ fontSize: 14, color: C.textMid, textAlign: 'center', maxWidth: 420, lineHeight: 1.6, marginBottom: 8 }}>
-          Deine 14-tägige Testversion ist abgelaufen. Wähle einen Plan um weiterzumachen — alle Pläne sind monatlich kündbar.
+          {istGutscheinAbgelaufen
+            ? 'Dein Gutschein-Plan ist abgelaufen. Wähle einen Plan um weiterzumachen — alle Pläne sind monatlich kündbar.'
+            : 'Deine 14-tägige Testversion ist abgelaufen. Wähle einen Plan um weiterzumachen — alle Pläne sind monatlich kündbar.'}
         </p>
         <p style={{ fontSize: 12, color: C.textMid, marginBottom: 36, textAlign: 'center' }}>
           Gutscheincode? <span onClick={() => window.location.href = '/settings'} style={{ color: C.copper, cursor: 'pointer', textDecoration: 'underline' }}>Hier einlösen →</span>
@@ -4467,11 +4478,9 @@ export default function CraftFlow() {
                 alert(`Du hast dein monatliches Limit von ${usage.limit} Angeboten erreicht. Bitte upgrade deinen Plan.`)
                 return
               }
-              const ok = await incrementUsage()
-              if (!ok) {
-                alert('Limit erreicht. Bitte upgrade deinen Plan unter Einstellungen → Mein Plan.')
-                return
-              }
+              // Gezählt wird seit Aufgabe 0 bei der Analyse (dem teuren Schritt), nicht
+              // mehr hier beim PDF-Export — dieses Angebot hat sein Kontingent bereits
+              // verbraucht. Die Anzeige oben liest weiterhin GET /api/usage.
               const datum = angebotsdatum || today()
               if (!angebotsdatum) setAngebotsdatum(datum)
 

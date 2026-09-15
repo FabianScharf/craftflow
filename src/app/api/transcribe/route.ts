@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/utils/supabase/server'
+import { pruefeZugang } from '@/lib/planpruefung'
 
 export async function POST(req: NextRequest) {
   try {
+    // Erste Prüfung nach dem Login (Aufgabe 0). Kein Nutzer da → weiter wie
+    // bisher (die Middleware schützt die Route ohnehin schon vor Login-losen
+    // Zugriffen; das hier ist die Zugangs-, nicht die Auth-Prüfung).
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const zu = await pruefeZugang(supabase, user.id)
+      if (zu) return zu
+    }
+
     const formData = await req.formData()
     const audio = formData.get('audio') as File | null
     if (!audio) return NextResponse.json({ error: 'Keine Audiodatei' }, { status: 400 })

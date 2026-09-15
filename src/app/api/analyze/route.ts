@@ -3,6 +3,21 @@ import { normalizeKsId } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
 import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
 import { preisBlockFuerNutzer } from '@/lib/preisspeicher'
+import { deckel, PLAN_LABELS, PLAN_REIHE, type Plan } from '@/lib/plaene'
+import { ladeEffektivenPlan, pruefeZugang } from '@/lib/planpruefung'
+import { ladeAngebotsstand, zaehleAngebotHoch } from '@/lib/angebotszaehler'
+
+// Nächster Plan mit einem höheren (oder unbegrenzten) Angebote-Deckel als `plan`
+// — für die 403-Antwort, wenn der Angebots-Deckel erreicht ist. null = schon Enterprise.
+function naechsterPlanMitMehrAngeboten(plan: Plan): Plan | null {
+  const aktuellesLimit = deckel(plan, 'angebote') ?? Infinity
+  const idx = PLAN_REIHE.indexOf(plan)
+  for (let i = idx + 1; i < PLAN_REIHE.length; i++) {
+    const kandidatLimit = deckel(PLAN_REIHE[i], 'angebote')
+    if (kandidatLimit === null || kandidatLimit > aktuellesLimit) return PLAN_REIHE[i]
+  }
+  return null
+}
 
 export const maxDuration = 300
 
@@ -794,6 +809,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage zu groß – bitte weniger oder kleinere Bilder verwenden.' }, { status: 413 })
     }
 
+    // Zugang UND Angebots-Deckel VOR dem teuren KI-Aufruf prüfen (Aufgabe 0) —
+    // sonst kostet eine gesperrte oder ausgeschöpfte Anfrage trotzdem den vollen
+    // Claude-Aufruf. Nutzer früh laden (statt wie bisher erst spät im try-Block
+    // unten), damit diese Prüfung ganz am Anfang stehen kann. Kein Nutzer da
+    // (z. B. Middleware-Lücke) → weiter wie bisher, keine Sperre.
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    let angebotsStand: { count: number; monat: string } | null = null
+    if (user) {
+      const zu = await pruefeZugang(supabase, user.id)
+      if (zu) return zu
+      const plan = await ladeEffektivenPlan(supabase, user.id)
+      // pruefeZugang hat 'gesperrt' bereits ausgeschlossen — plan ist hier ein echter Plan.
+      if (plan !== 'gesperrt') {
+        const limit = deckel(plan, 'angebote')
+        angebotsStand = await ladeAngebotsstand(supabase, user.id)
+        if (limit !== null && angebotsStand.count >= limit) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Im ${PLAN_LABELS[plan]}-Plan sind ${limit} Angebote pro Monat möglich.`,
+              minPlan: naechsterPlanMitMehrAngeboten(plan),
+            },
+            { status: 403 },
+          )
+        }
+      }
+    }
+
     let { text, imageBase64, userKostenstellen, userMaterialgruppen, deaktivierteKostenstellen } = await req.json()
     const customKs = Array.isArray(userKostenstellen)
       ? (userKostenstellen as Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>)
@@ -898,8 +942,7 @@ export async function POST(req: NextRequest) {
     let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
     let faktoren: Faktoren = KEINE_FAKTOREN
     try {
-      const supabase = await createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      // supabase/user bereits ganz oben geladen (Zugangsprüfung) — nicht doppelt holen.
       if (user) {
         // Ohne abgeschlossene Kalibrierung bleibt es bei 1,0 in allen vier Bereichen
         // — also bei den CraftFlow-Werten.
@@ -1063,6 +1106,14 @@ export async function POST(req: NextRequest) {
     try {
       const parsed = JSON.parse(clean)
       const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert, faktoren)
+      // Angebot zählt bei der Analyse, nicht mehr beim PDF-Export (Fabian, 16.09.) —
+      // das ist der teure Schritt, hier entsteht die Kalkulation. Erst NACH dem
+      // erfolgreichen KI-Aufruf hochzählen: ein abgelehnter/fehlgeschlagener Aufruf
+      // (Deckel oben, oder JSON-Parse-Fehler unten) darf das Kontingent nicht kosten.
+      if (user && angebotsStand) {
+        try { await zaehleAngebotHoch(supabase, user.id, angebotsStand.monat, angebotsStand.count) }
+        catch (e) { console.error('[usage] zaehleAngebotHoch (analyze):', e) }
+      }
       return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))
