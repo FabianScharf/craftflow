@@ -13,7 +13,7 @@ import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktor
 import { bucheUm } from '@/lib/handarbeit'
 import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
-import { pruefeZugang } from '@/lib/planpruefung'
+import { ladeEffektivenPlan, pruefeZugang, pruefeDeckel } from '@/lib/planpruefung'
 
 export const maxDuration = 120
 
@@ -289,14 +289,20 @@ function extractJSON(text: string): { message: string; updatedOffer: unknown } |
 
 export async function POST(req: NextRequest) {
   try {
-    const { offerData, chatHistory, message, userKostenstellen, userMaterialgruppen, deaktivierteKostenstellen } = await req.json() as {
+    const { offerData, chatHistory, message, userKostenstellen, userMaterialgruppen, deaktivierteKostenstellen, projectId } = await req.json() as {
       offerData: unknown
       chatHistory: ChatMsg[]
       message: string
       userKostenstellen?: Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>
       userMaterialgruppen?: Array<{ name: string; aufschlag_prozent: number }>
       deaktivierteKostenstellen?: string[]
+      projectId?: string
     }
+    // Zähler für den Optimieren-Runden-Deckel (Spec 2026-09-15, Aufgabe 5) — je
+    // Angebot (Projekt), nicht je Nutzer. 'ohne-projekt' vor dem ersten Speichern.
+    const projektId = (typeof projectId === 'string' && projectId) ? projectId : 'ohne-projekt'
+    let rundenBisher = 0
+    let supabaseFuerRunden: Awaited<ReturnType<typeof createClient>> | null = null
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
@@ -344,6 +350,18 @@ export async function POST(req: NextRequest) {
         // Anfrage trotzdem den vollen Claude-Aufruf.
         const zu = await pruefeZugang(supabase, user.id)
         if (zu) return zu
+        // Runden-Deckel je Angebot — VOR dem KI-Aufruf (Aufgabe 5).
+        const plan = await ladeEffektivenPlan(supabase, user.id)
+        const { data: rundenStand } = await supabase
+          .from('optimieren_runden')
+          .select('runden')
+          .eq('user_id', user.id)
+          .eq('projekt_id', projektId)
+          .maybeSingle()
+        rundenBisher = rundenStand?.runden ?? 0
+        const sperre = pruefeDeckel(plan, 'optimierenRunden', rundenBisher)
+        if (sperre) return sperre
+        supabaseFuerRunden = supabase
         const { data: profil } = await supabase
           .from('betriebsprofil')
           .select('strasse, plz, ort')
@@ -499,6 +517,18 @@ export async function POST(req: NextRequest) {
 
     try { if (supabaseFuerZaehler && regelIds.length > 0) zaehleRegelnHoch(supabaseFuerZaehler, regelIds) }
     catch (e) { console.error('[learn] zaehleRegelnHoch:', e) }
+
+    // Runden-Deckel hochzählen — der Claude-Aufruf ist gelaufen, unabhängig davon,
+    // ob die Antwort am Ende verwertbar war (Aufgabe 5).
+    if (supabaseFuerRunden && nutzerId) {
+      const { error: rundenError } = await supabaseFuerRunden
+        .from('optimieren_runden')
+        .upsert(
+          { user_id: nutzerId, projekt_id: projektId, runden: rundenBisher + 1, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id,projekt_id' },
+        )
+      if (rundenError) console.error('[optimize] Runden zaehlen:', rundenError.message)
+    }
 
     // Alle Textblöcke zusammen — bei Werkzeugnutzung kann die Antwort aus
     // mehreren bestehen, content[0] allein würde Text verlieren.

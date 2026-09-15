@@ -3,8 +3,9 @@ import { normalizeKsId } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
 import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
 import { preisBlockFuerNutzer } from '@/lib/preisspeicher'
-import { deckel, PLAN_LABELS, PLAN_REIHE, type Plan } from '@/lib/plaene'
+import { deckel, PLAN_LABELS, PLAN_REIHE, type Plan, type EffektiverPlan } from '@/lib/plaene'
 import { ladeEffektivenPlan, pruefeZugang } from '@/lib/planpruefung'
+import { deckelAblehnung } from '@/lib/plantexte'
 import { ladeAngebotsstand, zaehleAngebotHoch } from '@/lib/angebotszaehler'
 
 // Nächster Plan mit einem höheren (oder unbegrenzten) Angebote-Deckel als `plan`
@@ -817,10 +818,13 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     let angebotsStand: { count: number; monat: string } | null = null
+    // Für den Dateien-Deckel weiter unten (sobald rawImages feststeht) — hier schon
+    // laden, damit der Plan nicht ein zweites Mal aus der DB geholt werden muss.
+    let plan: EffektiverPlan | null = null
     if (user) {
       const zu = await pruefeZugang(supabase, user.id)
       if (zu) return zu
-      const plan = await ladeEffektivenPlan(supabase, user.id)
+      plan = await ladeEffektivenPlan(supabase, user.id)
       // pruefeZugang hat 'gesperrt' bereits ausgeschlossen — plan ist hier ein echter Plan.
       if (plan !== 'gesperrt') {
         const limit = deckel(plan, 'angebote')
@@ -881,6 +885,18 @@ export async function POST(req: NextRequest) {
       : imageBase64
       ? [imageBase64]
       : []
+
+    // Dateien-Deckel je Projekt (Spec 2026-09-15, Aufgabe 5) — VOR dem KI-Aufruf.
+    // PDF-Seiten werden im Browser zu Bildern, zählen also als Dateien: Aufwand = Bilder.
+    if (user && plan) {
+      const grenze = deckel(plan, 'dateien')
+      if (grenze !== null && rawImages.length > grenze) {
+        return NextResponse.json(
+          { success: false, ...deckelAblehnung('dateien', plan === 'gesperrt' ? 'solo' : plan, grenze) },
+          { status: 403 },
+        )
+      }
+    }
 
     // Bilder auf max. 4 MB base64 begrenzen; zu große still überspringen
     const images = rawImages.filter(img => {

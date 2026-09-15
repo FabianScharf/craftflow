@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { akzentTon, ton } from '@/lib/theme'
-import { usePlan } from '@/hooks/usePlan'
+import { usePlan, mindestPlan, PLAN_LABELS } from '@/hooks/usePlan'
 import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
 import {
@@ -29,8 +29,19 @@ type InquiryMissingGroup = { gruppe: string; mats: string[] }
 type SuggestedSupplier = { name: string; website: string | null; email: string | null; phone: string | null; gruppe: string; materialien: string[] }
 type InquiryResult = { groups: InquiryGroup[]; missingGroups: InquiryMissingGroup[]; uncategorized: string[]; suggestedSuppliers?: SuggestedSupplier[] }
 
-type OptimChatMsg = { role: 'user' | 'assistant'; content: string }
+type OptimChatMsg = { role: 'user' | 'assistant'; content: string; link?: { href: string; label: string } }
 type OfferVersion = { id: string; version_number: number; created_at: string; description: string | null }
+
+// Deckel/Zugang erreicht (403/402 aus /api/optimize, Aufgabe 5) — als normale
+// Chat-Nachricht statt roter Fehlerbox. Der letzte Angebotsstand bleibt unangetastet,
+// es wird nichts geworfen; nur ein Hinweis mit Link zum Plan-Wechsel.
+function planSperrNachricht(json: { error?: string; minPlan?: string | null }): OptimChatMsg {
+  return {
+    role: 'assistant',
+    content: json.error ?? 'Diese Aktion ist im aktuellen Plan nicht möglich.',
+    link: { href: '/settings#plan', label: 'Plan wechseln' },
+  }
+}
 
 /* ── Upload-Typen ─────────────────────────────────── */
 type UploadedFile = {
@@ -185,13 +196,16 @@ function parseGaebText(text: string): { positions: import('@/lib/types').Angebot
 /* ── Haupt-Komponente ─────────────────────────────── */
 
 export default function CraftFlow() {
-  const { canUse: planCanUse, loading: planLaedt, usage, refreshUsage, isBlocked, sperrgrund } = usePlan()
+  const { canUse: planCanUse, loading: planLaedt, usage, refreshUsage, isBlocked, sperrgrund, erlaubt: planErlaubtFn, deckel: planDeckelFn, effectivePlan } = usePlan()
   // Solange der Tarif noch geladen wird, steht er auf 'solo'. Wer die Sperren
   // direkt daran haengt, laesst Schloesser aufblitzen, die gar nicht gelten —
   // ein Neukunde in der Testphase liest "AB STARTER" und glaubt, die beworbene
   // Testphase gelte nicht fuer ihn. Deshalb waehrend des Ladens nichts sperren.
   // PlanGate loest dasselbe Problem mit `if (loading) return null`.
   const darfNutzen = (p: Parameters<typeof planCanUse>[0]) => planLaedt || planCanUse(p)
+  // Dieselbe Anti-Flacker-Regel, aber funktionsbasiert (Aufgabe 5) — für Dateien-
+  // Upload und GAEB, wo der Deckel je Funktion und nicht nur je Plan-Rang gilt.
+  const funktionErlaubt = (f: Parameters<typeof planErlaubtFn>[0]) => planLaedt || planErlaubtFn(f)
   const [pwLoading, setPwLoading] = useState<string | null>(null)
   const [pwError, setPwError] = useState<string | null>(null)
   const [screen, setScreen] = useState<'start' | 'app' | 'pdf' | 'pdf-preview' | 'projekte'>('start')
@@ -1103,6 +1117,16 @@ export default function CraftFlow() {
       : basePart
     const imageB64s = uploadedFiles.filter(f => f.type === 'image' && f.b64).map(f => f.b64!)
     if (!textToUse.trim() && imageB64s.length === 0) return
+    // Dateien-Deckel je Projekt (Aufgabe 5) — spart nur den Fehlversuch, der
+    // Server prüft ohnehin (analyze/route.ts).
+    const dateienGrenze = planDeckelFn('dateien')
+    if (dateienGrenze !== null && uploadedFiles.length > dateienGrenze) {
+      const planName = effectivePlan === 'gesperrt' ? 'Solo' : PLAN_LABELS[effectivePlan]
+      setStartMsg(dateienGrenze === 0
+        ? `Im ${planName}-Plan ist kein Datei-Upload möglich.`
+        : `Im ${planName}-Plan sind ${dateienGrenze} Dateien je Projekt möglich.`)
+      return
+    }
     // Projektname aus GAEB vorbelegen
     if (gaebPrompt && gaebProjektName) setKunde(prev => ({ ...prev, projekt: prev.projekt || gaebProjektName }))
     setStartStatus('loading')
@@ -1231,7 +1255,7 @@ export default function CraftFlow() {
     } finally {
       if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
     }
-  }, [startText, uploadedFiles, callAI, gaebPrompt, gaebProjektName, refreshUsage])
+  }, [startText, uploadedFiles, callAI, gaebPrompt, gaebProjektName, refreshUsage, planDeckelFn, effectivePlan])
 
   async function startFragenMic() {
     if (fragenMicStatus !== 'idle') { fragenMediaRecorderRef.current?.stop(); return }
@@ -1407,10 +1431,12 @@ export default function CraftFlow() {
           deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           chatHistory: [],
           message: 'Prüfe das Angebot. Liste NUR die Angaben auf, die für eine präzise Kalkulation noch fehlen. Format: eine Zeile pro Punkt mit → davor. Maximal 6 Punkte, kein erklärender Text.',
+          projectId: currentProjectIdRef.current ?? undefined,
         }),
       })
       const json = await res.json()
-      if (json.message) setOptimMessages([{ role: 'assistant', content: json.message }])
+      if (res.status === 403 || res.status === 402) setOptimMessages([planSperrNachricht(json)])
+      else if (json.message) setOptimMessages([{ role: 'assistant', content: json.message }])
       else if (json.error) setOptimMessages([{ role: 'assistant', content: `Fehler: ${json.error}` }])
     } catch (e) { console.error('[openOptimPanel]', e); setOptimMessages([{ role: 'assistant', content: 'Verbindungsfehler – bitte nochmal versuchen.' }]) }
     setOptimLoading(false)
@@ -1446,10 +1472,12 @@ export default function CraftFlow() {
           deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           chatHistory: [],
           message: `Gib für jede Position eine kurze Einschätzung in 1–2 Sätzen: Warum genau diese Stunden? Nenne den entscheidenden Faktor (z.B. Materialwahl, Oberflächenaufwand, Sonderausstattung). Dann eine Abschlussfrage ob die Stunden aus Praxissicht passen. Hier die Stunden:\n\n${stundenInfo}`,
+          projectId: currentProjectIdRef.current ?? undefined,
         }),
       })
       const json = await res.json()
-      if (json.message) setCheckMessages([{ role: 'assistant', content: json.message }])
+      if (res.status === 403 || res.status === 402) setCheckMessages([planSperrNachricht(json)])
+      else if (json.message) setCheckMessages([{ role: 'assistant', content: json.message }])
       else if (json.error) setCheckMessages([{ role: 'assistant', content: `Fehler: ${json.error}` }])
     } catch (e) { console.error('[openCheckPanel]', e); setCheckMessages([{ role: 'assistant', content: 'Verbindungsfehler – bitte nochmal versuchen.' }]) }
     setCheckLoading(false)
@@ -1477,10 +1505,12 @@ export default function CraftFlow() {
           deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           chatHistory: checkMessages.slice(-10),
           message: msg,
+          projectId: currentProjectIdRef.current ?? undefined,
         }),
       })
       const json = await res.json()
-      if (json.message) setCheckMessages(prev => [...prev, { role: 'assistant', content: json.message }])
+      if (res.status === 403 || res.status === 402) setCheckMessages(prev => [...prev, planSperrNachricht(json)])
+      else if (json.message) setCheckMessages(prev => [...prev, { role: 'assistant', content: json.message }])
     } catch (e) { console.error('[sendCheckMessage]', e) }
     setCheckLoading(false)
   }, [checkInput, checkLoading, checkMessages, pos, kunde, userKs, userMatGruppen])
@@ -1513,12 +1543,20 @@ export default function CraftFlow() {
           deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           chatHistory: optimMessages.slice(-10),
           message: msg,
+          projectId: currentProjectIdRef.current ?? undefined,
         }),
       })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let json: { success?: boolean; message?: string; updatedOffer?: any; error?: string } = {}
+      let json: { success?: boolean; message?: string; updatedOffer?: any; error?: string; minPlan?: string | null } = {}
       try { json = await res.json() } catch {
         throw new Error('Antwort konnte nicht verarbeitet werden. Bitte erneut versuchen.')
+      }
+      // Deckel/Zugang erreicht: keine Ausnahme werfen, keine rote Fehlerbox — der
+      // letzte Angebotsstand bleibt, nur ein Hinweis im Chat mit Link zum Plan-Wechsel.
+      if (res.status === 403 || res.status === 402) {
+        setOptimMessages(prev => [...prev, planSperrNachricht(json)])
+        setOptimLoading(false)
+        return
       }
       if (!res.ok) throw new Error(json.error ?? 'Unbekannter Fehler')
       setOptimMessages(prev => [...prev, { role: 'assistant', content: json.message ?? '' }])
@@ -3141,7 +3179,7 @@ export default function CraftFlow() {
               onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(f => handlePdfUpload(f)) }}
               style={{ display: 'none' }} />
             <input ref={startGaebRef} type="file" accept={GAEB_EXTENSIONS.join(',')}
-              onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(f => { if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; handleGaebFile(f) }) }}
+              onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(f => { if (!planErlaubtFn('gaeb')) { window.location.href = '/settings#plan'; return }; handleGaebFile(f) }) }}
               style={{ display: 'none' }} />
             {/* Upload-Fläche – plan-basiert */}
             <div
@@ -3161,29 +3199,29 @@ export default function CraftFlow() {
               </div>
               {/* Feature-Chips — jeder öffnet seinen eigenen Picker */}
               <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {/* Fotos – ab Starter */}
+                {/* Fotos – ab dem Plan mit Dateien-Funktion */}
                 <div
-                  onClick={() => { if (planLaedt) return; if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPhotoRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${darfNutzen('starter') ? akzentTon('55') : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{darfNutzen('starter') ? '📷' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: darfNutzen('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
-                  {!darfNutzen('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
+                  onClick={() => { if (planLaedt) return; if (!planErlaubtFn('dateien')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPhotoRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: funktionErlaubt('dateien') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${funktionErlaubt('dateien') ? akzentTon('55') : C.border}`, opacity: funktionErlaubt('dateien') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{funktionErlaubt('dateien') ? '📷' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: funktionErlaubt('dateien') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
+                  {!funktionErlaubt('dateien') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>{`AB ${PLAN_LABELS[mindestPlan('dateien')].toUpperCase()}`}</span>}
                 </div>
-                {/* PDFs – ab Starter */}
+                {/* PDFs – ab dem Plan mit Dateien-Funktion */}
                 <div
-                  onClick={() => { if (planLaedt) return; if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPdfRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${darfNutzen('starter') ? akzentTon('55') : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{darfNutzen('starter') ? '📄' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: darfNutzen('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
-                  {!darfNutzen('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
+                  onClick={() => { if (planLaedt) return; if (!planErlaubtFn('dateien')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPdfRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: funktionErlaubt('dateien') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${funktionErlaubt('dateien') ? akzentTon('55') : C.border}`, opacity: funktionErlaubt('dateien') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{funktionErlaubt('dateien') ? '📄' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: funktionErlaubt('dateien') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
+                  {!funktionErlaubt('dateien') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>{`AB ${PLAN_LABELS[mindestPlan('dateien')].toUpperCase()}`}</span>}
                 </div>
-                {/* GAEB – ab Enterprise */}
+                {/* GAEB – ab dem Plan mit GAEB-Funktion */}
                 <div
-                  onClick={() => { if (planLaedt) return; if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startGaebRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('enterprise') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${darfNutzen('enterprise') ? akzentTon('55') : C.border}`, opacity: darfNutzen('enterprise') ? 1 : 0.5, cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13 }}>{darfNutzen('enterprise') ? '🏗' : '🔒'}</span>
-                  <span style={{ fontSize: 11, color: darfNutzen('enterprise') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
-                  {!darfNutzen('enterprise') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB ENTERPRISE</span>}
+                  onClick={() => { if (planLaedt) return; if (!planErlaubtFn('gaeb')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startGaebRef.current?.click() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: funktionErlaubt('gaeb') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${funktionErlaubt('gaeb') ? akzentTon('55') : C.border}`, opacity: funktionErlaubt('gaeb') ? 1 : 0.5, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13 }}>{funktionErlaubt('gaeb') ? '🏗' : '🔒'}</span>
+                  <span style={{ fontSize: 11, color: funktionErlaubt('gaeb') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
+                  {!funktionErlaubt('gaeb') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>{`AB ${PLAN_LABELS[mindestPlan('gaeb')].toUpperCase()}`}</span>}
                 </div>
               </div>
             </div>
@@ -4198,6 +4236,9 @@ export default function CraftFlow() {
                           return <div key={li} style={{ marginBottom: li < msg.content.split('\n').length - 1 ? 2 : 0 }}>{clean}</div>
                         })}
                       </div>
+                      {msg.link && (
+                        <a href={msg.link.href} style={{ fontSize: 11, color: C.copper, marginTop: 4, textDecoration: 'underline' }}>{msg.link.label}</a>
+                      )}
                     </div>
                   ))}
                   {checkLoading && (
@@ -4285,6 +4326,9 @@ export default function CraftFlow() {
                           return <div key={li} style={{ marginBottom: li < msg.content.split('\n').length - 1 ? 2 : 0 }}>{clean}</div>
                         })}
                       </div>
+                      {msg.link && (
+                        <a href={msg.link.href} style={{ fontSize: 11, color: C.copper, marginTop: 4, textDecoration: 'underline' }}>{msg.link.label}</a>
+                      )}
                     </div>
                   ))}
                   {optimLoading && (
