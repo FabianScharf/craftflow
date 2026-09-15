@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { normalizeKsId, DEFAULT_STUNDENSAETZE } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
 import { regelBlockFuerNutzer, zaehleRegelnHoch, speichereRegel } from '@/lib/bauweise'
+import { nutzungAusAntwort, summiereNutzung, nutzungAlsZeile, LEERE_NUTZUNG } from '@/lib/kinutzung'
 import { preisBlockFuerNutzer, speicherePreis } from '@/lib/preisspeicher'
 import {
   WERKZEUGE, pruefePreisInhalt, unsichereBetragsangabe,
@@ -428,9 +429,18 @@ export async function POST(req: NextRequest) {
     type Block = Record<string, unknown> & { type: string }
     type ApiMsg = { role: 'user' | 'assistant'; content: string | Block[] }
     const verlauf: ApiMsg[] = [...messages]
+    // PROMPT-CACHING (2026-09-15): SYSTEM_BASE ist fest und liegt ueber der
+    // Mindestgroesse (1.024 Token bei Sonnet 4.6). Das Angebot-JSON und alles
+    // Nutzerspezifische kommt als zweiter Block dahinter. Im Chat folgen die
+    // Runden meist innerhalb von Minuten — genau dafuer ist der Cache gemacht.
+    const systemBloecke: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [
+      { type: 'text', text: SYSTEM_BASE, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: system.slice(SYSTEM_BASE.length) },
+    ]
+    let nutzung = { ...LEERE_NUTZUNG }
     const werkzeugMeldungen: string[] = []
     const werkzeugFehler: string[] = []
-    let data: { content?: Block[]; stop_reason?: string } = {}
+    let data: { content?: Block[]; stop_reason?: string; usage?: unknown } = {}
 
     // Höchstens drei Runden. Ohne Obergrenze wäre eine Schleife aus Aufruf und
     // Ablehnung ein offenes Kostenrisiko — jede Runde ist ein bezahlter Aufruf.
@@ -446,7 +456,7 @@ export async function POST(req: NextRequest) {
           model: 'claude-sonnet-4-6',
           max_tokens: 6000,
           temperature: 0.2,
-          system,
+          system: systemBloecke,
           tools: WERKZEUGE,
           messages: verlauf,
         }),
@@ -457,7 +467,8 @@ export async function POST(req: NextRequest) {
         throw new Error(`Claude ${res.status}: ${err.slice(0, 300)}`)
       }
 
-      data = await res.json() as { content?: Block[]; stop_reason?: string }
+      data = await res.json() as { content?: Block[]; stop_reason?: string; usage?: unknown }
+      nutzung = summiereNutzung(nutzung, nutzungAusAntwort(data.usage))
       if (data.stop_reason !== 'tool_use') break
 
       const aufrufe = (data.content ?? []).filter(b => b.type === 'tool_use')
@@ -490,6 +501,7 @@ export async function POST(req: NextRequest) {
       .filter(b => b.type === 'text')
       .map(b => String(b.text ?? ''))
       .join('')
+    console.log(nutzungAlsZeile('optimize', 'claude-sonnet-4-6', nutzung))
 
     const parsed = extractJSON(raw)
     if (parsed) {
@@ -499,7 +511,7 @@ export async function POST(req: NextRequest) {
       // Was das Werkzeug getan hat, gehört sichtbar in den Chat — auch und
       // gerade der Fehlerfall. Fehler verschlucken war der Fehler von gestern.
       const zusatz = werkzeugMeldungen.length > 0 ? '\n\n' + werkzeugMeldungen.join(' ') : ''
-      return NextResponse.json({ success: true, message: String(parsed.message ?? '') + zusatz, updatedOffer })
+      return NextResponse.json({ success: true, message: String(parsed.message ?? '') + zusatz, updatedOffer, nutzung })
     }
     console.error('[optimize] unparsable response:', { stop: data.stop_reason, raw: raw.slice(0, 500) })
 
@@ -511,7 +523,7 @@ export async function POST(req: NextRequest) {
     // Ein leerer Text bei gelaufenen Werkzeugen ist kein Fehler, sondern der
     // Normalfall: Das Modell hat gehandelt statt geredet.
     if (raw.trim() === '' && zusatz) {
-      return NextResponse.json({ success: true, message: zusatz, updatedOffer: null })
+      return NextResponse.json({ success: true, message: zusatz, updatedOffer: null, nutzung })
     }
     // Hat ein Werkzeug abgelehnt, ist das der wahre Grund. Ohne diesen Zweig las
     // der Nutzer "nicht verwertbar" und erfuhr nie, dass seine Regel abgelehnt

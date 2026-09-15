@@ -540,6 +540,7 @@ import { parseLaufmeter } from '@/lib/laufmeter'
 import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { bucheUm } from '@/lib/handarbeit'
 import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
+import { nutzungAusAntwort, nutzungAlsZeile } from '@/lib/kinutzung'
 import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
 
 const MASSIVHOLZ_RE = /massivholz|massiv[\s-]?eiche|massiv[\s-]?buche|massiv[\s-]?nuss|massiv[\s-]?fichte|massiv[\s-]?kiefer|massiv[\s-]?esche/i
@@ -985,12 +986,23 @@ export async function POST(req: NextRequest) {
     systemPrompt += preisBlock
 
     const model = 'claude-sonnet-4-6'
+    // PROMPT-CACHING (2026-09-15): Der feste Wissensblock (rund 9.500 Token) ist bei
+    // jeder Anfrage identisch und wurde bisher jedes Mal voll bezahlt. Als eigener
+    // Block mit cache_control kostet er ab dem zweiten Aufruf innerhalb von fuenf
+    // Minuten nur noch ein Zehntel — fuer alle Nutzer gemeinsam, weil der Cache je
+    // API-Schluessel gilt. Alles Nutzerspezifische (Saetze, Regeln, Standort) steht
+    // DAHINTER, sonst wuerde jeder Nutzer den Cache des anderen ungueltig machen.
+    const nutzerBlock = systemPrompt.slice(SYSTEM_PROMPT.length)
+    const systemBloecke: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [
+      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+    ]
+    if (nutzerBlock.trim()) systemBloecke.push({ type: 'text', text: nutzerBlock })
     const reqBody = JSON.stringify({
       model,
       max_tokens: 16000, // thinking (5k) + output (8k) + puffer
       temperature: 1,    // extended thinking erfordert temperature = 1
       thinking: { type: 'enabled', budget_tokens: 5000 },
-      system: systemPrompt,
+      system: systemBloecke,
       messages: [{ role: 'user', content: userContent }],
     })
     console.log('[analyze] calling Claude model:', model, '(extended thinking) — body size:', Math.round(reqBody.length / 1024), 'KB')
@@ -1018,6 +1030,9 @@ export async function POST(req: NextRequest) {
     catch (e) { console.error('[learn] zaehleRegelnHoch:', e) }
 
     const data = await response.json()
+    // Verbrauch mitschreiben: Nachweis fuer das Caching und Grundlage des Kostenzaehlers.
+    const nutzung = nutzungAusAntwort((data as { usage?: unknown }).usage)
+    console.log(nutzungAlsZeile('analyze', model, nutzung))
     // Extended thinking liefert mehrere Content-Blöcke — wir nehmen nur den text-Block
     const contentBlocks = (data as { content?: Array<{ type: string; text?: string }> }).content ?? []
     const rawText = contentBlocks.find(b => b.type === 'text')?.text ?? ''
@@ -1046,7 +1061,7 @@ export async function POST(req: NextRequest) {
     try {
       const parsed = JSON.parse(clean)
       const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert, faktoren)
-      return NextResponse.json({ success: true, data: validated })
+      return NextResponse.json({ success: true, data: validated, nutzung })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))
       return NextResponse.json(
