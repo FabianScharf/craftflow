@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 const SELECT = 'id, company_name, ansprechpartner, general_email, phone, website, lieferant_nr, kategorien, notes, aktiv, street, zip, city, created_at'
 
@@ -22,6 +23,8 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+  if (sperre) return sperre
 
   const body = await req.json() as Record<string, unknown>
   if (!body.company_name) return NextResponse.json({ error: 'company_name erforderlich' }, { status: 400 })
@@ -40,6 +43,8 @@ export async function PUT(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+  if (sperre) return sperre
 
   const { id, ...rest } = await req.json() as { id: string } & Record<string, unknown>
   if (!id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })

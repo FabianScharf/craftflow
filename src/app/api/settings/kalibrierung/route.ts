@@ -4,6 +4,7 @@ import { kostenstellenSollZustand } from '@/lib/kalibrierung'
 import { normalizeKsId } from '@/lib/types'
 import { berechneFaktoren, deckele, referenzFuer } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 export async function GET() {
   const supabase = await createClient()
@@ -57,6 +58,8 @@ export async function PUT(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const sperre = await pruefeFunktion(supabase, user.id, 'kalibrierung')
+  if (sperre) return sperre
 
   const b = await req.json() as Record<string, unknown>
   const text = (k: string) => String(b[k] ?? '')

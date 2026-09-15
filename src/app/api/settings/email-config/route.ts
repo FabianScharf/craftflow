@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 const ALLOWED = [
   'reply_to_email', 'email_signatur',
@@ -26,6 +27,8 @@ export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const sperre = await pruefeFunktion(supabase, user.id, 'smtp')
+  if (sperre) return sperre
 
   const body = await req.json() as Record<string, unknown>
   const patch: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() }

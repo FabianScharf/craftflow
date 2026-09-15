@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { erlaubt } from '@/lib/plaene'
+import { pruefeFunktion, ladeEffektivenPlan } from '@/lib/planpruefung'
 
 type ReqMaterial = { id: number; bezeichnung: string; menge: number; einheit: string }
 
@@ -148,6 +150,8 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+    if (sperre) return sperre
 
     const { positionTitel, materials } = await req.json() as {
       positionTitel: string
@@ -157,12 +161,7 @@ export async function POST(req: NextRequest) {
     if (!materials?.length) return NextResponse.json({ error: 'Keine Materialien übergeben' }, { status: 400 })
 
     // Plan laden (für Internetrecherche-Feature)
-    const { data: profileData } = await supabase
-      .from('betriebsprofil')
-      .select('plan')
-      .eq('user_id', user.id)
-      .single()
-    const userPlan = (profileData as { plan?: string } | null)?.plan ?? 'solo'
+    const plan = await ladeEffektivenPlan(supabase, user.id)
 
     // Materialgruppen für diesen User laden
     const { data: matGruppen } = await supabase
@@ -276,7 +275,7 @@ Mit freundlichen Grüßen`
 
     // Internetrecherche — nur für Enterprise
     let suggestedSuppliers: SuggestedSupplier[] = []
-    if (missing.length > 0 && userPlan === 'enterprise') {
+    if (missing.length > 0 && erlaubt(plan, 'internetsuche')) {
       const searchResults = await Promise.all(
         missing.map(m => findSuppliersOnline(m.gruppe, m.mats.map(mat => mat.bezeichnung)))
       )

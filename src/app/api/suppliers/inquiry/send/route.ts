@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import nodemailer from 'nodemailer'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-
-  // Plan-Check: nur Pro und Enterprise
-  const { data: profile } = await supabase
-    .from('betriebsprofil')
-    .select('plan')
-    .eq('user_id', user.id)
-    .single()
-
-  const plan = (profile as { plan?: string } | null)?.plan ?? 'solo'
-  if (plan !== 'pro' && plan !== 'enterprise') {
-    return NextResponse.json({ error: 'Pro-Plan erforderlich' }, { status: 403 })
-  }
+  const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+  if (sperre) return sperre
 
   // SMTP-Konfiguration laden
   const { data: emailCfg } = await supabase

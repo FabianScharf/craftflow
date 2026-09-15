@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { beobachtungenAus, lerneFaktoren, type Beobachtung } from '@/lib/lernschleife'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 // Lernschleife: zieht die Zeitfaktoren aus GEWONNENEN Angeboten nach.
 //
@@ -59,6 +60,8 @@ export async function GET() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const sperre = await pruefeFunktion(supabase, user.id, 'lernschleife')
+  if (sperre) return sperre
 
   const kal = await ladeKalibrierung(supabase, user.id)
   const alt = {
@@ -76,6 +79,8 @@ export async function POST() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const sperre = await pruefeFunktion(supabase, user.id, 'lernschleife')
+  if (sperre) return sperre
 
   const kal = await ladeKalibrierung(supabase, user.id)
   if (!kal) return NextResponse.json({ error: 'Noch nicht kalibriert' }, { status: 400 })

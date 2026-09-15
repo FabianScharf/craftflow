@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { nettoSumme, type Angebotsposition } from '@/lib/types'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 // Rechnet NICHT mehr selbst. Die eigene Kopie kannte die Stueckzahl nicht — die
 // Auswertung haette Serienauftraege systematisch zu niedrig ausgewiesen (gefunden im
@@ -16,6 +17,8 @@ export async function GET() {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const sperre = await pruefeFunktion(supabase, user.id, 'auswertung')
+    if (sperre) return sperre
 
     const { data: projects, error } = await supabase
       .from('projects')
