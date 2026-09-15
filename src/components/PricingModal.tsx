@@ -5,6 +5,7 @@ import { type Plan } from '@/hooks/usePlan'
 const C = {
   black: 'var(--c-primary, #0D0D0D)', dark: 'var(--c-darkbg, #141414)', gray1: 'var(--c-surface1, #1A1A1A)', gray2: 'var(--c-surface2, #222222)',
   border: 'var(--c-border, #2E2E2E)', copper: 'var(--c-accent, #C8885A)', white: 'var(--c-text, #F5F2EE)', textMid: 'var(--c-text-mid, #8A8A8A)',
+  ok: 'var(--c-ok, #5ABE6A)', err: 'var(--c-err, #E05A5A)', warn: 'var(--c-warn, #F5C518)',
 }
 
 const PLANS: {
@@ -101,7 +102,7 @@ export function PricingModal({ onClose, currentPlan }: { onClose: () => void; cu
                 key={plan.id}
                 style={{
                   background: plan.highlight ? 'rgba(200,136,90,.08)' : C.gray1,
-                  border: `1px solid ${plan.highlight ? C.copper : isCurrent ? '#5ABE6A' : C.border}`,
+                  border: `1px solid ${plan.highlight ? C.copper : isCurrent ? C.ok : C.border}`,
                   borderRadius: 8, padding: '18px 16px',
                   display: 'flex', flexDirection: 'column', gap: 12,
                   position: 'relative',
@@ -118,7 +119,7 @@ export function PricingModal({ onClose, currentPlan }: { onClose: () => void; cu
                 {isCurrent && (
                   <div style={{
                     position: 'absolute', top: -10, right: 12,
-                    background: '#5ABE6A', color: C.black, fontSize: 9, fontWeight: 800,
+                    background: C.ok, color: C.black, fontSize: 9, fontWeight: 800,
                     letterSpacing: 1, padding: '3px 8px', borderRadius: 20,
                   }}>AKTIV</div>
                 )}
@@ -142,8 +143,8 @@ export function PricingModal({ onClose, currentPlan }: { onClose: () => void; cu
                   disabled={isCurrent || !!loading}
                   style={{
                     background: isCurrent ? 'transparent' : plan.highlight ? C.copper : C.gray2,
-                    color: isCurrent ? '#5ABE6A' : plan.highlight ? C.black : C.white,
-                    border: `1px solid ${isCurrent ? '#5ABE6A' : plan.highlight ? C.copper : C.border}`,
+                    color: isCurrent ? C.ok : plan.highlight ? C.black : C.white,
+                    border: `1px solid ${isCurrent ? C.ok : plan.highlight ? C.copper : C.border}`,
                     borderRadius: 6, padding: '9px 0', fontSize: 12, fontWeight: 700,
                     cursor: isCurrent || loading ? 'not-allowed' : 'pointer',
                     fontFamily: 'Helvetica Neue, sans-serif', width: '100%',

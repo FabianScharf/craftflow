@@ -5,7 +5,7 @@ import { akzentTon } from '@/lib/theme'
 const C = {
   black: 'var(--c-primary, #0D0D0D)', dark: 'var(--c-darkbg, #141414)', gray1: 'var(--c-surface1, #1A1A1A)', gray2: 'var(--c-surface2, #222222)',
   border: 'var(--c-border, #2E2E2E)', copper: 'var(--c-accent, #C8885A)', white: 'var(--c-text, #F5F2EE)',
-  textMid: 'var(--c-text-mid, #8A8A8A)', ok: '#5ABE6A', err: '#E05A5A',
+  textMid: 'var(--c-text-mid, #8A8A8A)', ok: 'var(--c-ok, #5ABE6A)', err: 'var(--c-err, #E05A5A)', warn: 'var(--c-warn, #F5C518)',
 }
 
 const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
@@ -303,7 +303,7 @@ export function LieferantenSettings() {
               onMouseEnter={e => (e.currentTarget.style.background = C.gray1)}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <div style={{ fontSize: 14, color: s.ist_favorit ? '#F5C518' : C.border, lineHeight: 1 }} title={s.ist_favorit ? 'Favorit' : ''}>★</div>
+              <div style={{ fontSize: 14, color: s.ist_favorit ? C.warn : C.border, lineHeight: 1 }} title={s.ist_favorit ? 'Favorit' : ''}>★</div>
               <div>
                 <div style={{ fontSize: 13, color: C.white }}>{s.company_name}</div>
                 {s.lieferant_nr && <div style={{ fontSize: 10, color: C.textMid }}>Nr. {s.lieferant_nr}</div>}
@@ -417,8 +417,8 @@ export function LieferantenSettings() {
                 title="Als Favorit-Lieferant markieren — wird bei Materialanfragen vorausgewählt"
                 style={{
                   background: form.ist_favorit ? 'rgba(245,197,24,.12)' : C.gray2,
-                  border: `1px solid ${form.ist_favorit ? '#F5C518' : C.border}`,
-                  color: form.ist_favorit ? '#F5C518' : C.textMid,
+                  border: `1px solid ${form.ist_favorit ? C.warn : C.border}`,
+                  color: form.ist_favorit ? C.warn : C.textMid,
                   borderRadius: 4, padding: '6px 14px', fontSize: 12,
                   cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
                 }}
@@ -436,7 +436,7 @@ export function LieferantenSettings() {
                 onClick={save}
                 disabled={saving}
                 style={{
-                  background: saving ? '#7a5535' : C.copper, color: C.black, border: 'none',
+                  background: saving ? akzentTon('77') : C.copper, color: C.black, border: 'none',
                   borderRadius: 6, padding: '10px 20px', fontSize: 13, fontWeight: 700,
                   cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
                 }}
@@ -529,7 +529,7 @@ export function LieferantenSettings() {
                 onClick={importCsv}
                 disabled={csvImporting || !csvFile}
                 style={{
-                  background: csvImporting || !csvFile ? '#7a5535' : C.copper,
+                  background: csvImporting || !csvFile ? akzentTon('77') : C.copper,
                   color: C.black, border: 'none', borderRadius: 6, padding: '9px 16px',
                   fontSize: 13, fontWeight: 700,
                   cursor: csvImporting || !csvFile ? 'not-allowed' : 'pointer',

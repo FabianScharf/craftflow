@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ton } from '@/lib/theme'
 import { C } from '@/lib/types'
 
 // Einstellungen → Textbausteine.
@@ -116,48 +117,48 @@ export default function TextbausteineSettings() {
   const vorhandeneTitel = new Set(liste.map(b => b.titel.toLowerCase()))
   const offeneVorschlaege = VORSCHLAEGE.filter(v => !vorhandeneTitel.has(v.titel.toLowerCase()))
 
-  if (laedt) return <div style={{ color: '#7A7A7A', fontSize: 13 }}>Lädt …</div>
+  if (laedt) return <div style={{ color: C.textMid, fontSize: 13 }}>Lädt …</div>
 
   return (
     <div>
       <h2 style={{ color: C.white, fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Textbausteine</h2>
-      <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
+      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
         Eigene Absätze, die unter den Positionen im Angebot stehen — Ausführungszeitraum,
         Materialpreisvorbehalt, bauseitige Leistungen. Mit <b>&bdquo;immer&ldquo;</b> steht ein Baustein
         ohne Zutun in jedem neuen Angebot; sonst wählst du ihn im Angebot einzeln aus.
       </p>
-      <p style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.6, marginBottom: 22 }}>
+      <p style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, marginBottom: 22 }}>
         Anrede, Einleitung, Grußformel, Zahlungskondition, Widerrufsbelehrung und der
         Massivholz-Hinweis stehen unter <b>Briefpapier → Texte</b>.
       </p>
 
       {fehler && (
-        <div style={{ background: '#3A1A1A', border: '1px solid #6A2A2A', borderRadius: 8,
-          padding: '10px 14px', color: '#FFB0B0', fontSize: 13, marginBottom: 18 }}>{fehler}</div>
+        <div style={{ background: ton(C.err, '22'), border: '1px solid #6A2A2A', borderRadius: 8,
+          padding: '10px 14px', color: C.err, fontSize: 13, marginBottom: 18 }}>{fehler}</div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 26 }}>
         {liste.map(b => (
-          <div key={b.id} style={{ background: '#1A1A1A', border: `1px solid ${b.aktiv ? '#2E2E2E' : '#242424'}`,
+          <div key={b.id} style={{ background: C.gray1, border: `1px solid ${b.aktiv ? C.border : C.border}`,
             borderRadius: 8, padding: 14, opacity: b.aktiv ? 1 : 0.55 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
               <input
                 value={b.titel}
                 onChange={e => aendern(b.id, { titel: e.target.value })}
                 placeholder="Titel, z.B. Ausführungszeitraum"
-                style={{ flex: 1, minWidth: 0, background: '#222', border: '1px solid #2E2E2E',
+                style={{ flex: 1, minWidth: 0, background: '#222', border: `1px solid ${C.border}`,
                   borderRadius: 4, padding: '8px 10px', fontSize: 13, fontWeight: 700,
                   color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
               />
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
-                color: b.immer ? C.copper : '#8A8A8A', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                color: b.immer ? C.copper : C.textMid, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <input type="checkbox" checked={b.immer}
                   onChange={e => aendern(b.id, { immer: e.target.checked }, true)}
                   style={{ accentColor: C.copper, width: 15, height: 15 }} />
                 immer
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
-                color: '#8A8A8A', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                color: C.textMid, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <input type="checkbox" checked={b.aktiv}
                   onChange={e => aendern(b.id, { aktiv: e.target.checked }, true)}
                   style={{ accentColor: C.copper, width: 15, height: 15 }} />
@@ -165,7 +166,7 @@ export default function TextbausteineSettings() {
               </label>
               <button onClick={() => void loeschen(b.id)}
                 title="Baustein löschen"
-                style={{ background: 'transparent', color: '#8A8A8A', border: '1px solid #2E2E2E',
+                style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`,
                   borderRadius: 4, padding: '5px 9px', cursor: 'pointer', fontSize: 12 }}>✕</button>
             </div>
             <textarea
@@ -173,14 +174,14 @@ export default function TextbausteineSettings() {
               onChange={e => aendern(b.id, { inhalt: e.target.value })}
               placeholder="Text des Bausteins. Eine Leerzeile ergibt einen neuen Absatz."
               style={{ width: '100%', minHeight: 78, boxSizing: 'border-box', resize: 'vertical',
-                background: '#222', border: '1px solid #2E2E2E', borderRadius: 4,
+                background: '#222', border: `1px solid ${C.border}`, borderRadius: 4,
                 padding: '9px 11px', fontSize: 12.5, lineHeight: 1.7, color: C.white,
                 fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
             />
           </div>
         ))}
         {liste.length === 0 && (
-          <div style={{ color: '#7A7A7A', fontSize: 13, padding: '14px 0' }}>
+          <div style={{ color: C.textMid, fontSize: 13, padding: '14px 0' }}>
             Noch keine eigenen Bausteine. Unten stehen Vorschläge aus der Praxis — ein Klick
             legt sie an, den Text kannst du danach frei ändern.
           </div>
@@ -193,12 +194,12 @@ export default function TextbausteineSettings() {
           onChange={e => setNeuTitel(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void anlegen(neuTitel) }}
           placeholder="Neuer Baustein — Titel eingeben"
-          style={{ flex: 1, background: '#222', border: '1px solid #2E2E2E', borderRadius: 6,
+          style={{ flex: 1, background: '#222', border: `1px solid ${C.border}`, borderRadius: 6,
             padding: '10px 12px', fontSize: 13, color: C.white,
             fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
         />
         <button onClick={() => void anlegen(neuTitel)}
-          style={{ background: C.copper, color: '#0D0D0D', border: 'none', borderRadius: 6,
+          style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 6,
             padding: '10px 20px', fontSize: 13, fontWeight: 800, cursor: 'pointer',
             fontFamily: 'Helvetica Neue,sans-serif' }}>Anlegen</button>
       </div>
@@ -206,19 +207,19 @@ export default function TextbausteineSettings() {
       {offeneVorschlaege.length > 0 && (
         <div>
           <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase',
-            color: '#8A8A8A', marginBottom: 10 }}>Vorschläge aus der Praxis</div>
+            color: C.textMid, marginBottom: 10 }}>Vorschläge aus der Praxis</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {offeneVorschlaege.map(v => (
               <button key={v.titel} onClick={() => void anlegen(v.titel, v.inhalt)}
                 title={v.inhalt}
-                style={{ background: '#1C1C1C', border: '1px solid #2E2E2E', borderRadius: 20,
-                  padding: '7px 14px', fontSize: 12, color: '#B0B0B0', cursor: 'pointer',
+                style={{ background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 20,
+                  padding: '7px 14px', fontSize: 12, color: C.white, cursor: 'pointer',
                   fontFamily: 'Helvetica Neue,sans-serif' }}>
                 + {v.titel}
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: '#7A7A7A', marginTop: 10, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 11, color: C.textMid, marginTop: 10, lineHeight: 1.6 }}>
             Vorformuliert, aber nicht in Stein: Nach dem Anlegen kannst du jeden Text ändern.
             Prüfe ihn einmal auf deinen Betrieb — besonders Fristen und Prozentsätze.
           </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { C } from '@/lib/types'
 import { useEffect, useMemo, useState } from 'react'
 import { buildPDF } from '@/lib/pdf'
 import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
@@ -118,7 +119,7 @@ export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
   // kleine Vorschau in der Spalte mit vergroessert, sobald das Vollbild offen ist.
   const blatt = (hoehe: number, massstab: number, feste: boolean) => (
     <div style={{
-      border: '1px solid #2E2E2E', borderRadius: 8, overflow: 'hidden',
+      border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden',
       background: '#e8e8e8', height: hoehe,
       width: feste ? Math.round(A4_BREIT * massstab) + 2 : '100%',
       maxWidth: feste ? '100%' : spaltenBreite,
@@ -151,12 +152,12 @@ export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
           }}
         >
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexShrink: 0 }}>
-            <div style={{ color: '#C8885A', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
+            <div style={{ color: C.copper, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
               Vorschau — Beispielangebot
             </div>
             <button
               onClick={e => { e.stopPropagation(); setGross(false) }}
-              style={{ background: 'transparent', color: '#8A8A8A', border: '1px solid #2E2E2E',
+              style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`,
                 borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer',
                 fontFamily: 'Helvetica Neue,sans-serif' }}
             >
@@ -171,20 +172,20 @@ export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
 
       <div style={{
         fontSize: 10, letterSpacing: 2, textTransform: 'uppercase',
-        color: '#8A8A8A', marginBottom: 8,
+        color: C.textMid, marginBottom: 8,
       }}>
         Vorschau — Beispielangebot
       </div>
       {blatt(520, kleinMassstab, false)}
       <button
         onClick={() => setGross(true)}
-        style={{ marginTop: 8, width: '100%', background: 'transparent', color: '#C8885A',
-          border: '1px solid #2E2E2E', borderRadius: 6, padding: '9px 0', fontSize: 12,
+        style={{ marginTop: 8, width: '100%', background: 'transparent', color: C.copper,
+          border: `1px solid ${C.border}`, borderRadius: 6, padding: '9px 0', fontSize: 12,
           cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
       >
         ⤢ Groß anzeigen
       </button>
-      <div style={{ fontSize: 11, color: '#7A7A7A', marginTop: 8, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 11, color: C.textMid, marginTop: 8, lineHeight: 1.6 }}>
         Beispieldaten. Das Angebot zeigt eine Gruppe mit Unterpositionen, eine
         Alternativposition und eine Position mit Stückzahl — damit jede Einstellung
         hier sichtbar wird. Änderungen greifen sofort, gespeichert wird erst mit

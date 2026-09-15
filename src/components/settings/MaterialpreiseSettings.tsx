@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { akzentTon, ton } from '@/lib/theme'
 import { C } from '@/lib/types'
 import { istVeraltet, VERALTET_NACH_TAGEN } from '@/lib/materialpreise'
 
@@ -109,7 +110,7 @@ export default function MaterialpreiseSettings() {
       </div>
 
       {veraltete > 0 && (
-        <div style={{ background: '#3a2a1a', border: '1px solid #6a4a2a', borderRadius: 3, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: '#E0A860' }}>
+        <div style={{ background: akzentTon('44'), border: `1px solid ${akzentTon('77')}`, borderRadius: 3, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: C.warn }}>
           {veraltete === 1
             ? '1 Preis ist älter als ein Jahr.'
             : `${veraltete} Preise sind älter als ein Jahr.`}
@@ -118,7 +119,7 @@ export default function MaterialpreiseSettings() {
       )}
 
       {fehler && (
-        <div style={{ background: '#3a1a1a', border: '1px solid #6a3a3a', borderRadius: 3, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: '#E08080' }}>
+        <div style={{ background: ton(C.err, '22'), border: `1px solid ${ton(C.err, '44')}`, borderRadius: 3, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: C.err }}>
           {fehler}
         </div>
       )}
@@ -137,7 +138,7 @@ export default function MaterialpreiseSettings() {
         const alt = istVeraltet(p.stand, heuteStr)
         return (
           <div key={p.id} style={{
-            border: `1px solid ${alt ? '#6a4a2a' : C.border}`, borderRadius: 3,
+            border: `1px solid ${alt ? akzentTon('77') : C.border}`, borderRadius: 3,
             padding: 12, marginBottom: 8, opacity: p.aktiv ? 1 : 0.5,
             display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
           }}>
@@ -158,7 +159,7 @@ export default function MaterialpreiseSettings() {
             >
               {EINHEITEN.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
-            <div style={{ fontSize: 11, color: alt ? '#E0A860' : C.textMid, minWidth: 130 }}>
+            <div style={{ fontSize: 11, color: alt ? C.warn : C.textMid, minWidth: 130 }}>
               Stand {alsDatum(p.stand)}
               {alt && ` — über ${Math.round(VERALTET_NACH_TAGEN / 365)} Jahr alt`}
             </div>

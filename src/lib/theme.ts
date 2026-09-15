@@ -18,6 +18,9 @@ export type Palette = {
   surface2: string  // Eingabefelder, zweite Ebene
   border: string    // Rahmen, Trennlinien
   darkbg: string    // Kopfzeile, Leisten
+  ok: string        // Erfolg, "gespeichert", gewonnen
+  err: string       // Fehler, verloren, Warnkasten
+  warn: string      // Hinweis, Testversion, offen
 }
 
 /** Die Palette von heute — bleibt fuer jede dunkle Primaerfarbe byte-identisch. */
@@ -30,6 +33,9 @@ export const PALETTE_DUNKEL: Palette = {
   surface2: '#2A2A2A',
   border: '#2E2E2E',
   darkbg: '#141414',
+  ok: '#5ABE6A',
+  err: '#E05A5A',
+  warn: '#F5C518',
 }
 
 /**
@@ -114,6 +120,10 @@ export function leitePaletteAb(primaer: string | null | undefined, akzent: strin
     surface2: mische(primary, richtung, 0.08),
     border: mische(primary, richtung, 0.16),
     darkbg: mische(primary, richtung, 0.03),
+    // Statusfarben fuer hellen Grund: dunkler, damit sie als Schrift lesbar bleiben.
+    ok: '#2E7D32',
+    err: '#B3261E',
+    warn: '#7A5F00',
   }
 }
 
@@ -127,6 +137,9 @@ export const THEME_VARS: Record<keyof Palette, string> = {
   surface2: '--c-surface2',
   border: '--c-border',
   darkbg: '--c-darkbg',
+  ok: '--c-ok',
+  err: '--c-err',
+  warn: '--c-warn',
 }
 
 /** Palette auf ein Element (in der Praxis document.documentElement) schreiben. */
@@ -148,6 +161,11 @@ export function wendePaletteAn(
  * `alphaHex` ist der alte zweistellige Hex-Anhang (00..FF).
  */
 export function akzentTon(alphaHex: string): string {
+  return ton('var(--c-accent, #C8885A)', alphaHex)
+}
+
+/** Beliebige Farbe (auch eine CSS-Variable) mit Transparenz — gueltiges CSS. */
+export function ton(farbe: string, alphaHex: string): string {
   const prozent = Math.round((parseInt(alphaHex, 16) / 255) * 100)
-  return `color-mix(in srgb, var(--c-accent, #C8885A) ${prozent}%, transparent)`
+  return `color-mix(in srgb, ${farbe} ${prozent}%, transparent)`
 }

@@ -160,7 +160,7 @@ export default function BauweiseSettings() {
       )}
 
       {listenFehler && (
-        <div style={{ fontSize: 11, color: '#E05A5A', marginBottom: 14, lineHeight: 1.5 }}>{listenFehler}</div>
+        <div style={{ fontSize: 11, color: C.err, marginBottom: 14, lineHeight: 1.5 }}>{listenFehler}</div>
       )}
 
       {regeln.length === 0 && (
@@ -222,12 +222,12 @@ export default function BauweiseSettings() {
               </div>
 
               {r.konflikt_hinweis && (
-                <div style={{ fontSize: 10, color: '#E0B05A', marginTop: 6 }}>
+                <div style={{ fontSize: 10, color: C.warn, marginTop: 6 }}>
                   ⚠ Du hast das kürzlich wieder anders gemacht — greift diese Regel noch?
                 </div>
               )}
               {r.aktiv && !imPromptIds.has(r.id) && (
-                <div style={{ fontSize: 10, color: '#E05A5A', marginTop: 6 }}>
+                <div style={{ fontSize: 10, color: C.err, marginTop: 6 }}>
                   Wird derzeit NICHT mitgeschickt — Obergrenze von {MAX_REGELN_IM_PROMPT} Regeln erreicht.
                 </div>
               )}
@@ -265,7 +265,7 @@ export default function BauweiseSettings() {
             style={{ width: '100%', background: C.black, color: C.white, border: `1px solid ${C.border}`, borderRadius: 3, padding: '6px 8px', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 10 }}
           />
           {neuFehler && (
-            <div style={{ fontSize: 11, color: '#E05A5A', marginBottom: 10, lineHeight: 1.5 }}>{neuFehler}</div>
+            <div style={{ fontSize: 11, color: C.err, marginBottom: 10, lineHeight: 1.5 }}>{neuFehler}</div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button

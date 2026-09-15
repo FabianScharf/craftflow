@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  normalisiereHex, istHell, kontrast, leitePaletteAb, akzentTon, PALETTE_DUNKEL,
+  normalisiereHex, istHell, kontrast, leitePaletteAb, akzentTon, ton, PALETTE_DUNKEL,
 } from '../src/lib/theme.ts'
 
 // Kundenrueckmeldung vom 2026-09-15 (Tischlerei ueber Instagram): "wenn man einen
@@ -76,4 +76,17 @@ test('Akzent-Toenung: gueltiges CSS statt Hex-Anhang an eine Variable', () => {
   assert.match(t, /^color-mix\(in srgb, var\(--c-accent, #C8885A\) 33%, transparent\)$/)
   assert.equal(akzentTon('FF'), 'color-mix(in srgb, var(--c-accent, #C8885A) 100%, transparent)')
   assert.equal(akzentTon('0A'), 'color-mix(in srgb, var(--c-accent, #C8885A) 4%, transparent)')
+})
+
+test('Statusfarben: auf hellem Grund dunkel genug, auf dunklem Grund hell genug (Kontrast >= 4,5)', () => {
+  for (const grund of ['#FFFFFF', '#F5F2EE', '#0D0D0D', '#1F3A5F']) {
+    const p = leitePaletteAb(grund, '#C8885A')
+    for (const f of ['ok', 'err', 'warn']) {
+      assert.ok(kontrast(p[f], p.primary) >= 4.5, `${grund} ${f} ${p[f]}: ${kontrast(p[f], p.primary)}`)
+    }
+  }
+})
+
+test('ton(): beliebige Farbe mit Transparenz als color-mix', () => {
+  assert.equal(ton('var(--c-ok, #5ABE6A)', '22'), 'color-mix(in srgb, var(--c-ok, #5ABE6A) 13%, transparent)')
 })

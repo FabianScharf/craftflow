@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { akzentTon, normalisiereHex, leitePaletteAb, wendePaletteAn } from '@/lib/theme'
+import { akzentTon, normalisiereHex, leitePaletteAb, wendePaletteAn, ton } from '@/lib/theme'
 import { createClient } from '@/utils/supabase/client'
 import { normalizeKsId } from '@/lib/types'
 import { PlanGate } from '@/components/PlanGate'
@@ -26,8 +26,9 @@ const C = {
   copper:  'var(--c-accent, #C8885A)',
   white:   'var(--c-text, #F5F2EE)',
   textMid: 'var(--c-text-mid, #8A8A8A)',
-  ok:      '#5ABE6A',
-  err:     '#E05A5A',
+  ok:      'var(--c-ok, #5ABE6A)',
+  err:     'var(--c-err, #E05A5A)',
+  warn:    'var(--c-warn, #F5C518)',
 }
 
 const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
@@ -711,17 +712,17 @@ export default function SettingsPage() {
                 <div>
                   <label style={lbl}>Vorschau</label>
                   <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                    <div style={{ background: profil.farbe_primaer || '#0D0D0D', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ background: profil.farbe_primaer || C.black, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
                       {logoPreview && <img src={logoPreview} alt="Logo" style={{ height: 26, width: 'auto' }} />}
-                      <span style={{ color: profil.farbe_akzent || '#C8885A', fontWeight: 800, letterSpacing: 3, fontSize: 13 }}>
+                      <span style={{ color: profil.farbe_akzent || C.copper, fontWeight: 800, letterSpacing: 3, fontSize: 13 }}>
                         {profil.firma_name || 'FIRMENNAME'}
                       </span>
                     </div>
-                    <div style={{ background: profil.farbe_primaer || '#0D0D0D', padding: '10px 18px 14px', display: 'flex', gap: 8 }}>
-                      <div style={{ background: profil.farbe_akzent || '#C8885A', borderRadius: 4, padding: '7px 14px', fontSize: 12, fontWeight: 700, color: profil.farbe_primaer || '#0D0D0D' }}>
+                    <div style={{ background: profil.farbe_primaer || C.black, padding: '10px 18px 14px', display: 'flex', gap: 8 }}>
+                      <div style={{ background: profil.farbe_akzent || C.copper, borderRadius: 4, padding: '7px 14px', fontSize: 12, fontWeight: 700, color: profil.farbe_primaer || C.black }}>
                         Speichern
                       </div>
-                      <div style={{ border: `1px solid ${profil.farbe_akzent || '#C8885A'}`, borderRadius: 4, padding: '7px 14px', fontSize: 12, color: profil.farbe_akzent || '#C8885A' }}>
+                      <div style={{ border: `1px solid ${profil.farbe_akzent || C.copper}`, borderRadius: 4, padding: '7px 14px', fontSize: 12, color: profil.farbe_akzent || C.copper }}>
                         Abbrechen
                       </div>
                     </div>
@@ -845,7 +846,7 @@ export default function SettingsPage() {
                         nur den Namen zu lesen. */}
                     <div style={{
                       marginTop: 10, padding: '14px 16px', background: '#FFFFFF',
-                      borderRadius: 6, border: `1px solid ${C.border}`, color: '#1a1a1a',
+                      borderRadius: 6, border: `1px solid ${C.border}`, color: C.gray1,
                       fontFamily: SCHRIFTEN[(profil.pdf_schriftart as keyof typeof SCHRIFTEN) ?? 'opensans']?.stapel
                         ?? SCHRIFTEN.opensans.stapel,
                     }}>
@@ -892,7 +893,7 @@ export default function SettingsPage() {
                     <label style={lbl}>Akzentfarbe auf PDF</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: C.gray1, borderRadius: 6, border: `1px solid ${C.border}` }}>
                       <div style={{ width: 24, height: 24, borderRadius: 4, background: profil.farbe_akzent || C.copper, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: C.white }}>{profil.farbe_akzent || '#C8885A'}</span>
+                      <span style={{ fontSize: 13, color: C.white }}>{profil.farbe_akzent || C.copper}</span>
                       <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>— Tabellenlinien, Summe, Hinweisbox</span>
                     </div>
                     <p style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>
@@ -944,9 +945,9 @@ export default function SettingsPage() {
                       </label>
 
                       {profil.pdf_briefpapier_url ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#1a2a1a', border: '1px solid #3a6a3a', borderRadius: 6, marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: ton(C.ok, '22'), border: `1px solid ${ton(C.ok, '66')}`, borderRadius: 6, marginBottom: 12 }}>
                           <span style={{ fontSize: 18, flexShrink: 0 }}>📄</span>
-                          <span style={{ fontSize: 12, color: '#90EE90', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Briefpapier hochgeladen</span>
+                          <span style={{ fontSize: 12, color: C.ok, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Briefpapier hochgeladen</span>
                           <a
                             href={profil.pdf_briefpapier_url}
                             target="_blank"
@@ -975,7 +976,7 @@ export default function SettingsPage() {
                         >
                           {bpUploading ? 'Wird hochgeladen…' : profil.pdf_briefpapier_url ? 'PDF ersetzen' : 'PDF hochladen'}
                         </button>
-                        {bpMsg && <span style={{ fontSize: 12, color: bpMsg.startsWith('Fehler') ? '#E05A5A' : '#90EE90' }}>{bpMsg}</span>}
+                        {bpMsg && <span style={{ fontSize: 12, color: bpMsg.startsWith('Fehler') ? C.err : C.ok }}>{bpMsg}</span>}
                       </div>
 
                       <p style={{ fontSize: 11, color: C.textMid, marginTop: 12, lineHeight: 1.6 }}>
@@ -1536,8 +1537,8 @@ export default function SettingsPage() {
                 <div style={{
                   marginBottom: 20, padding: '12px 16px', borderRadius: 6,
                   background: stripeMsg.type === 'ok' ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)',
-                  border: `1px solid ${stripeMsg.type === 'ok' ? '#5ABE6A' : C.err}`,
-                  fontSize: 13, color: stripeMsg.type === 'ok' ? '#5ABE6A' : C.err,
+                  border: `1px solid ${stripeMsg.type === 'ok' ? C.ok : C.err}`,
+                  fontSize: 13, color: stripeMsg.type === 'ok' ? C.ok : C.err,
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 }}>
                   {stripeMsg.text}
@@ -1618,8 +1619,8 @@ export default function SettingsPage() {
                         disabled={isCurrent || !!checkoutLoading}
                         style={{
                           background: isCurrent ? 'transparent' : C.copper,
-                          color: isCurrent ? '#5ABE6A' : C.black,
-                          border: `1px solid ${isCurrent ? '#5ABE6A' : C.copper}`,
+                          color: isCurrent ? C.ok : C.black,
+                          border: `1px solid ${isCurrent ? C.ok : C.copper}`,
                           borderRadius: 6, padding: '10px 0', fontSize: 13, fontWeight: 700,
                           cursor: isCurrent || checkoutLoading ? 'not-allowed' : 'pointer',
                           fontFamily: 'Helvetica Neue, sans-serif', width: '100%',
@@ -1675,13 +1676,13 @@ export default function SettingsPage() {
                     <div style={{
                       marginTop: 8, padding: '8px 10px', borderRadius: 4, fontSize: 12,
                       background: gutscheinMsg.type === 'ok' ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)',
-                      color: gutscheinMsg.type === 'ok' ? '#5ABE6A' : C.err,
+                      color: gutscheinMsg.type === 'ok' ? C.ok : C.err,
                       border: `1px solid ${gutscheinMsg.type === 'ok' ? '#5ABE6A44' : '#E05A5A44'}`,
                     }}>{gutscheinMsg.text}</div>
                   )}
                 </div>
               ) : (
-                <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(90,190,106,.08)', borderRadius: 8, border: '1px solid #5ABE6A44', fontSize: 12, color: '#5ABE6A' }}>
+                <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(90,190,106,.08)', borderRadius: 8, border: '1px solid #5ABE6A44', fontSize: 12, color: C.ok }}>
                   ✓ Gutschein <strong>{profil.gutschein_code}</strong> aktiv
                 </div>
               )}
@@ -1767,7 +1768,7 @@ export default function SettingsPage() {
                   const l = mailLauf[k]; if (!l) return null
                   return (
                     <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 4, fontSize: 12, lineHeight: 1.6,
-                      background: l.ok ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)', color: l.ok ? '#5ABE6A' : C.err,
+                      background: l.ok ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)', color: l.ok ? C.ok : C.err,
                       border: `1px solid ${l.ok ? '#5ABE6A44' : '#E05A5A44'}` }}>
                       <div>{l.meldung}</div>
                       {l.absender && <div style={{ color: C.textMid, marginTop: 4 }}>Absender: {l.absender} · Betreff: {l.betreff}</div>}
@@ -1811,12 +1812,12 @@ export default function SettingsPage() {
                       const tipp = mailBestaetigung[r.kennung] ?? ''
                       const fertig = r.offen === 0 && r.gesendet > 0
                       return (
-                        <div key={r.kennung} style={{ background: C.gray1, border: `1px solid ${fertig ? '#2E3E2E' : C.border}`, borderRadius: 8, padding: 14, marginBottom: 10 }}>
+                        <div key={r.kennung} style={{ background: C.gray1, border: `1px solid ${fertig ? ton(C.ok, '44') : C.border}`, borderRadius: 8, padding: 14, marginBottom: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{r.titel}</div>
                               <div style={{ fontSize: 11, color: C.textMid, marginTop: 2, fontFamily: 'monospace' }}>{r.kennung} · geschrieben {r.erstellt}</div>
-                              <div style={{ fontSize: 11.5, color: fertig ? '#5ABE6A' : C.textMid, marginTop: 4 }}>
+                              <div style={{ fontSize: 11.5, color: fertig ? C.ok : C.textMid, marginTop: 4 }}>
                                 {r.gesendet === 0 ? 'Noch nicht verschickt' : `${r.gesendet} verschickt${r.zuletzt ? `, zuletzt ${new Date(r.zuletzt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}`}
                                 {r.offen > 0 && r.gesendet > 0 && ` · ${r.offen} noch offen`}
                               </div>
@@ -1861,7 +1862,7 @@ export default function SettingsPage() {
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – Gutscheincodes</h2>
               <p style={{ fontSize: 12, color: C.textMid, marginBottom: 20 }}>Codes erstellen, bearbeiten und deaktivieren. Bestehende Zugänge bleiben bei Code-Löschung erhalten.</p>
 
-              {adminMsg && <div style={{ padding: '8px 12px', borderRadius: 4, fontSize: 12, marginBottom: 12, background: 'rgba(90,190,106,.1)', color: '#5ABE6A', border: '1px solid #5ABE6A44' }}>{adminMsg}</div>}
+              {adminMsg && <div style={{ padding: '8px 12px', borderRadius: 4, fontSize: 12, marginBottom: 12, background: 'rgba(90,190,106,.1)', color: C.ok, border: '1px solid #5ABE6A44' }}>{adminMsg}</div>}
 
               {/* Neue Code anlegen */}
               <button onClick={() => setShowNewCode(v => !v)} style={{ marginBottom: 16, background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
@@ -2003,7 +2004,7 @@ function SaveRow({ saving, msg, onSave }: { saving: boolean; msg: string; onSave
         onClick={onSave}
         disabled={saving}
         style={{
-          background: saving ? '#7a5535' : C.copper,
+          background: saving ? akzentTon('77') : C.copper,
           color: C.black, border: 'none', borderRadius: 6,
           padding: '10px 22px', fontSize: 13, fontWeight: 700,
           cursor: saving ? 'not-allowed' : 'pointer',
@@ -2179,7 +2180,7 @@ function AuswertungSection({ isMobile = false }: { isMobile?: boolean }) {
             {Object.entries(data.nachTyp).map(([typ, v]) => (
               <div key={typ} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: typ === 'Angebot' ? C.copper : typ === 'Auftragsbestätigung' ? '#5ABE6A' : C.textMid }} />
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: typ === 'Angebot' ? C.copper : typ === 'Auftragsbestätigung' ? C.ok : C.textMid }} />
                   <span style={{ fontSize: 13, color: C.white }}>{typ}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>

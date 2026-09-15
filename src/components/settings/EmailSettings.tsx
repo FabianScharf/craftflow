@@ -6,7 +6,7 @@ import { usePlan } from '@/hooks/usePlan'
 const C = {
   black: 'var(--c-primary, #0D0D0D)', dark: 'var(--c-darkbg, #141414)', gray1: 'var(--c-surface1, #1A1A1A)', gray2: 'var(--c-surface2, #222222)',
   border: 'var(--c-border, #2E2E2E)', copper: 'var(--c-accent, #C8885A)', white: 'var(--c-text, #F5F2EE)',
-  textMid: 'var(--c-text-mid, #8A8A8A)', ok: '#5ABE6A', err: '#E05A5A',
+  textMid: 'var(--c-text-mid, #8A8A8A)', ok: 'var(--c-ok, #5ABE6A)', err: 'var(--c-err, #E05A5A)', warn: 'var(--c-warn, #F5C518)',
 }
 
 const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
@@ -230,7 +230,7 @@ export function EmailSettings() {
           onClick={save}
           disabled={saving || !isStarter}
           style={{
-            background: saving || !isStarter ? '#7a5535' : C.copper,
+            background: saving || !isStarter ? akzentTon('77') : C.copper,
             color: C.black, border: 'none', borderRadius: 6,
             padding: '10px 22px', fontSize: 13, fontWeight: 700,
             cursor: saving || !isStarter ? 'not-allowed' : 'pointer',

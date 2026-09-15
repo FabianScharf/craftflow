@@ -230,6 +230,9 @@ export const C = {
   gray2: 'var(--c-surface2, #2A2A2A)',
   textMid: 'var(--c-text-mid, #8A8A8A)',
   border: 'var(--c-border, #2E2E2E)',
+  ok: 'var(--c-ok, #5ABE6A)',
+  err: 'var(--c-err, #E05A5A)',
+  warn: 'var(--c-warn, #F5C518)',
 }
 
 export const CAT_COL: Record<string, string> = {

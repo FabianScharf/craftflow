@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { akzentTon } from '@/lib/theme'
+import { akzentTon, ton } from '@/lib/theme'
 import { usePlan } from '@/hooks/usePlan'
 import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
@@ -2102,9 +2102,9 @@ export default function CraftFlow() {
      ONBOARDING MODAL
   ══════════════════════════════════════════════════ */
   const kalibKnopf = (aktiv: boolean) => ({
-    background: aktiv ? '#2A2018' : '#1C1C1C',
-    border: `1px solid ${aktiv ? C.copper : '#2E2E2E'}`,
-    color: aktiv ? C.white : '#B0B0B0',
+    background: aktiv ? akzentTon('22') : C.gray1,
+    border: `1px solid ${aktiv ? C.copper : C.border}`,
+    color: aktiv ? C.white : C.white,
     borderRadius: 7, padding: '9px 12px', fontSize: 12, cursor: 'pointer',
     textAlign: 'left' as const,
   })
@@ -2130,7 +2130,7 @@ export default function CraftFlow() {
             onClick={() => setzen(an ? gewaehlt.filter(x => x !== b.schluessel) : [...gewaehlt, b.schluessel])}>
             <div style={{ fontWeight: 600 }}>{b.text}</div>
             {b.hinweis && (
-              <div style={{ color: an ? '#9A8A7A' : '#6A6A6A', fontSize: 10.5, marginTop: 2, lineHeight: 1.4 }}>
+              <div style={{ color: an ? C.textMid : C.textMid, fontSize: 10.5, marginTop: 2, lineHeight: 1.4 }}>
                 {b.hinweis}
               </div>
             )}
@@ -2155,11 +2155,11 @@ export default function CraftFlow() {
   const kalibFrage = (titel: string, kind: React.ReactNode, hinweis = '', fussnote = '') => (
     <div style={{ marginBottom: 16 }}>
       <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: hinweis ? 3 : 8 }}>{titel}</div>
-      {hinweis && <div style={{ color: '#7A7A7A', fontSize: 11, marginBottom: 8, lineHeight: 1.5 }}>{hinweis}</div>}
+      {hinweis && <div style={{ color: C.textMid, fontSize: 11, marginBottom: 8, lineHeight: 1.5 }}>{hinweis}</div>}
       {kind}
       {fussnote && (
-        <div style={{ marginTop: 9, background: '#1F1B16', border: '1px solid #3A2E22',
-          borderRadius: 8, padding: '8px 11px', color: '#C0AE9A', fontSize: 11.5, lineHeight: 1.55 }}>
+        <div style={{ marginTop: 9, background: C.gray1, border: `1px solid ${akzentTon('44')}`,
+          borderRadius: 8, padding: '8px 11px', color: C.white, fontSize: 11.5, lineHeight: 1.55 }}>
           {fussnote}
         </div>
       )}
@@ -2173,7 +2173,7 @@ export default function CraftFlow() {
       title: 'Dein KI-Assistent für Angebote',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
+          <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
             CraftFlow erstellt Angebote aus deiner Sprache. Beschreibe einfach, was gebaut werden soll — die Kalkulation entsteht automatisch.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2182,9 +2182,9 @@ export default function CraftFlow() {
               { icon: '✨', text: 'KI kalkuliert Stunden, Material und Montage' },
               { icon: '📄', text: 'Angebot als PDF — fertig zum Versenden' },
             ].map(({ icon, text }) => (
-              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#1C1C1C', borderRadius: 8, padding: '11px 14px' }}>
+              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, background: C.gray1, borderRadius: 8, padding: '11px 14px' }}>
                 <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
-                <span style={{ color: '#C0C0C0', fontSize: 13, lineHeight: 1.5 }}>{text}</span>
+                <span style={{ color: C.white, fontSize: 13, lineHeight: 1.5 }}>{text}</span>
               </div>
             ))}
           </div>
@@ -2197,7 +2197,7 @@ export default function CraftFlow() {
       title: 'So beschreibst du ein Projekt',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+          <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
             Je mehr Details du gibst, desto genauer die Kalkulation:
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2206,11 +2206,11 @@ export default function CraftFlow() {
               { icon: '🌲', title: 'Material', text: 'Massivholz (Eiche, Nussbaum …) oder Dekormöbel (Weiß matt, Beton …)' },
               { icon: '📐', title: 'Breite × Höhe × Tiefe', text: 'Alle drei Maße in cm oder mm — oder die verfügbare Nische' },
             ].map(({ icon, title, text }) => (
-              <div key={title} style={{ display: 'flex', gap: 12, background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', alignItems: 'flex-start' }}>
+              <div key={title} style={{ display: 'flex', gap: 12, background: C.gray1, borderRadius: 8, padding: '12px 14px', alignItems: 'flex-start' }}>
                 <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
                 <div>
                   <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title}</div>
-                  <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>{text}</div>
+                  <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.5 }}>{text}</div>
                 </div>
               </div>
             ))}
@@ -2224,7 +2224,7 @@ export default function CraftFlow() {
       title: 'So beschreibst du ein Projekt',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+          <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
             Und diese zwei Punkte machen die Kalkulation komplett:
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2232,18 +2232,18 @@ export default function CraftFlow() {
               { icon: '⚙️', title: 'Ausstattung', text: 'Türen, Schubladen, Klappen, LED, Akustikstoff — jedes Detail zählt' },
               { icon: '📍', title: 'Montageort', text: 'Kundenadresse nennen — die KI berechnet die Anfahrt automatisch' },
             ].map(({ icon, title, text }) => (
-              <div key={title} style={{ display: 'flex', gap: 12, background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', alignItems: 'flex-start' }}>
+              <div key={title} style={{ display: 'flex', gap: 12, background: C.gray1, borderRadius: 8, padding: '12px 14px', alignItems: 'flex-start' }}>
                 <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
                 <div>
                   <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title}</div>
-                  <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>{text}</div>
+                  <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.5 }}>{text}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 16, background: '#1A1A1A', border: `1px solid #2A2A2A`, borderRadius: 8, padding: '12px 14px' }}>
+          <div style={{ marginTop: 16, background: C.gray1, border: `1px solid #2A2A2A`, borderRadius: 8, padding: '12px 14px' }}>
             <div style={{ color: C.copper, fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 }}>Beispiel</div>
-            <p style={{ color: '#8A8A8A', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+            <p style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, margin: 0 }}>
               „Einbauschrank Eiche massiv, 280 × 230 × 60 cm, 3 Drehtüren, 2 Schubladen Legrabox, Montage in 63517 Rodenbach"
             </p>
           </div>
@@ -2256,31 +2256,31 @@ export default function CraftFlow() {
       title: 'Deine KI-Werkzeuge',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
+          <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
             Nach jeder Kalkulation stehen dir zwei KI-Werkzeuge zur Verfügung:
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ background: '#1C1C1C', border: `1px solid #2A2A2A`, borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ background: C.gray1, border: `1px solid #2A2A2A`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#252525', border: `1px solid ${akzentTon('33')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔧</div>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: C.gray2, border: `1px solid ${akzentTon('33')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔧</div>
                 <div>
                   <div style={{ color: C.white, fontSize: 13, fontWeight: 800 }}>KI-Optimierung</div>
                   <div style={{ color: C.copper, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>Analyse</div>
                 </div>
               </div>
-              <p style={{ color: '#8A8A8A', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+              <p style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, margin: 0 }}>
                 Prüft das Angebot auf fehlende Angaben und Unklarheiten — und gibt dir konkrete Verbesserungsvorschläge, bevor du sendest.
               </p>
             </div>
-            <div style={{ background: '#1C1C1C', border: `1px solid #2A2A2A`, borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ background: C.gray1, border: `1px solid #2A2A2A`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#252525', border: `1px solid ${akzentTon('33')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🎯</div>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: C.gray2, border: `1px solid ${akzentTon('33')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🎯</div>
                 <div>
                   <div style={{ color: C.white, fontSize: 13, fontWeight: 800 }}>Kalkulations-Check</div>
                   <div style={{ color: C.copper, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>Erklärung</div>
                 </div>
               </div>
-              <p style={{ color: '#8A8A8A', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+              <p style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, margin: 0 }}>
                 Erklärt detailliert warum die KI genau diese Stunden und Materialmengen berechnet hat — du kannst direkt Rückmeldung geben und die Kalkulation anpassen.
               </p>
             </div>
@@ -2294,7 +2294,7 @@ export default function CraftFlow() {
       title: 'Vier Fragen zu deinem Betrieb',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
+          <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
             Damit hier deine Zeiten gelten und nicht die CraftFlow-Werte.
           </p>
           {kalibFrage('Welche Maschinen hast du?',
@@ -2317,13 +2317,13 @@ export default function CraftFlow() {
       title: `Was nimmst du für ${refMoebel.name === 'Innentüren' ? 'diese Türen' : 'dieses Stück'}?`,
       content: (
         <div>
-          <div style={{ background: '#1C1C1C', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+          <div style={{ background: C.gray1, borderRadius: 8, padding: 14, marginBottom: 14 }}>
             <div style={{ color: C.copper, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
               {refMoebel.name}
             </div>
-            <div style={{ color: '#B0B0B0', fontSize: 12.5, lineHeight: 1.7 }}>{refMoebel.text}</div>
+            <div style={{ color: C.white, fontSize: 12.5, lineHeight: 1.7 }}>{refMoebel.text}</div>
           </div>
-          <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6, marginBottom: 16 }}>
+          <div style={{ color: C.textMid, fontSize: 11.5, lineHeight: 1.6, marginBottom: 16 }}>
             Das Möbel richtet sich nach dem, was du gerade angekreuzt hast. Genau diese fünf
             Dinge braucht CraftFlow immer: Möbelart, Maße, Material, Ausstattung, Montage.
             So sieht eine gute Beschreibung aus.
@@ -2333,8 +2333,8 @@ export default function CraftFlow() {
               w => setKalib({ ...kalib, antwort_grund: w })),
             refGrund.hinweis,
             RANDBAENDER.includes(kalib.antwort_grund) ? RANDHINWEIS : '')}
-          <div style={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8,
-            padding: '10px 14px', color: '#8A8A8A', fontSize: 12 }}>
+          <div style={{ background: C.gray1, border: '1px solid #2A2A2A', borderRadius: 8,
+            padding: '10px 14px', color: C.textMid, fontSize: 12 }}>
             🔒 Diese Angabe sieht niemand außer dir.
           </div>
         </div>
@@ -2346,7 +2346,7 @@ export default function CraftFlow() {
       title: `Dasselbe Stück, ${refDiff.length === 2 ? 'zwei' : 'drei'} Varianten`,
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 12.5, lineHeight: 1.6, marginBottom: 16 }}>
+          <p style={{ color: C.textMid, fontSize: 12.5, lineHeight: 1.6, marginBottom: 16 }}>
             Hier streuen die Betriebe am stärksten. Weißt du eine Zahl gerade nicht, sag es —
             geraten ist schlechter als offen gelassen.
           </p>
@@ -2358,7 +2358,7 @@ export default function CraftFlow() {
                 RANDBAENDER.includes(kalib[kalibFeld[f.schluessel]]) ? RANDHINWEIS : '')}
             </div>
           ))}
-          <div style={{ color: '#7A7A7A', fontSize: 11.5, lineHeight: 1.6 }}>
+          <div style={{ color: C.textMid, fontSize: 11.5, lineHeight: 1.6 }}>
             Bei &bdquo;weiß ich gerade nicht&ldquo; rechne ich in diesem Bereich mit dem CraftFlow-Wert.
             Du kannst es jederzeit unter Einstellungen → Mein Betrieb nachtragen.
           </div>
@@ -2371,7 +2371,7 @@ export default function CraftFlow() {
       title: 'Bessere Ergebnisse bekommen',
       content: (
         <div>
-          <p style={{ color: '#9A9A9A', fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+          <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
             Die KI schätzt — du weißt es besser. So holst du das Beste heraus:
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2392,11 +2392,11 @@ export default function CraftFlow() {
                 text: 'Je präziser Maße, Material und Ausstattung — desto besser die Kalkulation.',
               },
             ].map(({ icon, title, text }) => (
-              <div key={title} style={{ background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 12 }}>
+              <div key={title} style={{ background: C.gray1, borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 12 }}>
                 <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
                 <div>
                   <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{title}</div>
-                  <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>{text}</div>
+                  <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.5 }}>{text}</div>
                 </div>
               </div>
             ))}
@@ -2404,7 +2404,7 @@ export default function CraftFlow() {
           {/* Die Starthilfe erklärt alles hier Gezeigte ausführlich, mit echten
               Beispielen — der Wizard bleibt absichtlich kurz. */}
           <a href="https://www.getcraftflow.de/willkommen" target="_blank" rel="noreferrer"
-            style={{ display: 'block', marginTop: 14, background: '#1A1A1A', border: `1px solid ${C.copper}55`, borderRadius: 8, padding: '12px 14px', textDecoration: 'none' }}>
+            style={{ display: 'block', marginTop: 14, background: C.gray1, border: `1px solid ${C.copper}55`, borderRadius: 8, padding: '12px 14px', textDecoration: 'none' }}>
             <div style={{ color: C.copper, fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>Ausführliche Starthilfe</div>
             <div style={{ color: C.white, fontSize: 12.5, lineHeight: 1.5 }}>Alle Schritte mit Beispielen — vom Einrichten bis zum PDF: <span style={{ color: C.copper }}>getcraftflow.de/willkommen →</span></div>
           </a>
@@ -2448,18 +2448,18 @@ export default function CraftFlow() {
     const isFirst = onboardingStep === 0
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <div style={{ background: '#141414', border: `1px solid #2A2A2A`, borderRadius: 14, padding: '24px 24px 20px', width: '100%', maxWidth: 420, height: 560, display: 'flex', flexDirection: 'column', fontFamily: 'Helvetica Neue,sans-serif' }}>
+        <div style={{ background: C.gray2, border: `1px solid #2A2A2A`, borderRadius: 14, padding: '24px 24px 20px', width: '100%', maxWidth: 420, height: 560, display: 'flex', flexDirection: 'column', fontFamily: 'Helvetica Neue,sans-serif' }}>
 
           {/* Schritt-Punkte */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: 7, marginBottom: 20, flexShrink: 0 }}>
             {ONBOARDING_STEPS.map((_, i) => (
-              <div key={i} style={{ width: i === onboardingStep ? 20 : 7, height: 7, borderRadius: 4, background: i === onboardingStep ? C.copper : '#2E2E2E', transition: 'all 0.25s' }} />
+              <div key={i} style={{ width: i === onboardingStep ? 20 : 7, height: 7, borderRadius: 4, background: i === onboardingStep ? C.copper : C.border, transition: 'all 0.25s' }} />
             ))}
           </div>
 
           {/* Kopf */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexShrink: 0 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: '#1E1E1E', border: `1px solid #2E2E2E`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.gray1, border: `1px solid #2E2E2E`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
               {step.icon}
             </div>
             <div>
@@ -2484,7 +2484,7 @@ export default function CraftFlow() {
               </button>
               <button
                 onClick={() => finishOnboarding(false)}
-                style={{ background: 'transparent', color: '#7A7A7A', border: '1px solid #2A2A2A', borderRadius: 8, padding: '11px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                style={{ background: 'transparent', color: C.textMid, border: '1px solid #2A2A2A', borderRadius: 8, padding: '11px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
               >
                 Direkt loslegen
               </button>
@@ -2493,7 +2493,7 @@ export default function CraftFlow() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, flexShrink: 0 }}>
               <button
                 onClick={() => { if (!isFirst) setOnboardingStep(s => s - 1) }}
-                style={{ background: 'transparent', color: isFirst ? 'transparent' : '#6A6A6A', border: 'none', fontSize: 13, cursor: isFirst ? 'default' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', padding: '4px 0', pointerEvents: isFirst ? 'none' : 'auto' }}
+                style={{ background: 'transparent', color: isFirst ? 'transparent' : C.textMid, border: 'none', fontSize: 13, cursor: isFirst ? 'default' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', padding: '4px 0', pointerEvents: isFirst ? 'none' : 'auto' }}
               >
                 ← Zurück
               </button>
@@ -2511,7 +2511,7 @@ export default function CraftFlow() {
             <div style={{ textAlign: 'center', marginTop: 12, flexShrink: 0 }}>
               <button
                 onClick={() => finishOnboarding(false)}
-                style={{ background: 'transparent', border: 'none', color: '#484848', fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', padding: 0 }}
+                style={{ background: 'transparent', border: 'none', color: C.textMid, fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif', padding: 0 }}
               >
                 Nicht mehr anzeigen
               </button>
@@ -2571,7 +2571,7 @@ export default function CraftFlow() {
         </p>
 
         {pwError && (
-          <div style={{ background: 'rgba(224,90,90,.1)', border: '1px solid #E05A5A', borderRadius: 6, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#E05A5A' }}>
+          <div style={{ background: 'rgba(224,90,90,.1)', border: `1px solid ${C.err}`, borderRadius: 6, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: C.err }}>
             {pwError}
           </div>
         )}
@@ -2583,7 +2583,7 @@ export default function CraftFlow() {
             const isEnterprise = plan.id === 'enterprise'
             return (
               <div key={plan.id} style={{
-                background: isEnterprise ? '#1a1510' : C.gray1,
+                background: isEnterprise ? akzentTon('22') : C.gray1,
                 border: `2px solid ${isEnterprise ? C.copper : C.border}`,
                 borderRadius: 10, padding: '22px 20px',
                 display: 'flex', flexDirection: 'column', gap: 14, position: 'relative',
@@ -2723,7 +2723,7 @@ export default function CraftFlow() {
               <div style={{ color: C.textMid, fontSize: 10 }}>Fragen · Hilfe · Erste Schritte</div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button onClick={() => sendHelpMessage('Zeig mir die Erste Schritte Anleitung')} style={{ background: '#2a1f14', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', letterSpacing: 0.5 }}>
+              <button onClick={() => sendHelpMessage('Zeig mir die Erste Schritte Anleitung')} style={{ background: akzentTon('22'), color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 4, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', letterSpacing: 0.5 }}>
                 ERSTE SCHRITTE
               </button>
               <button onClick={() => setHelpOpen(false)} style={{ background: 'transparent', border: 'none', color: C.textMid, cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
@@ -2734,7 +2734,7 @@ export default function CraftFlow() {
               <div key={i} style={{
                 alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
                 maxWidth: '88%',
-                background: msg.role === 'user' ? C.copper : '#1e1e1e',
+                background: msg.role === 'user' ? C.copper : C.gray1,
                 color: msg.role === 'user' ? C.black : C.white,
                 borderRadius: msg.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
                 padding: '9px 12px', fontSize: 12, lineHeight: 1.5,
@@ -2752,7 +2752,7 @@ export default function CraftFlow() {
               </div>
             ))}
             {helpLoading && (
-              <div style={{ alignSelf: 'flex-start', background: '#1e1e1e', borderRadius: '12px 12px 12px 2px', padding: '9px 14px', fontSize: 12, color: C.textMid }}>···</div>
+              <div style={{ alignSelf: 'flex-start', background: C.gray1, borderRadius: '12px 12px 12px 2px', padding: '9px 14px', fontSize: 12, color: C.textMid }}>···</div>
             )}
           </div>
           <div style={{ padding: '10px 12px', borderTop: `1px solid ${C.border}`, flexShrink: 0, display: 'flex', gap: 8 }}>
@@ -2762,12 +2762,12 @@ export default function CraftFlow() {
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendHelpMessage()}
               placeholder="Frage stellen …"
               disabled={helpLoading}
-              style={{ flex: 1, background: '#1a1a1a', border: `1px solid ${C.border}`, borderRadius: 6, color: C.white, padding: '8px 10px', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', opacity: helpLoading ? 0.5 : 1 }}
+              style={{ flex: 1, background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 6, color: C.white, padding: '8px 10px', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none', opacity: helpLoading ? 0.5 : 1 }}
             />
             <button
               onClick={() => sendHelpMessage()}
               disabled={!helpInput.trim() || helpLoading}
-              style={{ background: helpInput.trim() && !helpLoading ? C.copper : '#3a2a1a', color: helpInput.trim() && !helpLoading ? C.black : '#6a4a2a', border: 'none', borderRadius: 6, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: helpInput.trim() && !helpLoading ? 'pointer' : 'not-allowed' }}
+              style={{ background: helpInput.trim() && !helpLoading ? C.copper : akzentTon('44'), color: helpInput.trim() && !helpLoading ? C.black : akzentTon('77'), border: 'none', borderRadius: 6, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: helpInput.trim() && !helpLoading ? 'pointer' : 'not-allowed' }}
             >→</button>
           </div>
         </div>
@@ -2780,9 +2780,9 @@ export default function CraftFlow() {
   ══════════════════════════════════════════════════ */
   if (screen === 'projekte') {
     const statusColors: Record<string, { color: string; label: string }> = {
-      gewonnen:   { color: '#5ABE6A', label: 'Gewonnen' },
+      gewonnen:   { color: C.ok, label: 'Gewonnen' },
       verhandelt: { color: brandAccent, label: 'Verhandelt' },
-      verloren:   { color: '#E05A5A', label: 'Verloren' },
+      verloren:   { color: C.err, label: 'Verloren' },
       offen:      { color: C.textMid, label: 'Offen' },
     }
     return (
@@ -2816,8 +2816,8 @@ export default function CraftFlow() {
                 Das lässt sich nicht rückgängig machen.
               </div>
               {loeschFehler && (
-                <div style={{ background: '#3A1A1A', border: '1px solid #6A2A2A', borderRadius: 8,
-                  padding: '9px 12px', color: '#FFB0B0', fontSize: 12.5, lineHeight: 1.5, marginBottom: 18 }}>
+                <div style={{ background: ton(C.err, '22'), border: '1px solid #6A2A2A', borderRadius: 8,
+                  padding: '9px 12px', color: C.err, fontSize: 12.5, lineHeight: 1.5, marginBottom: 18 }}>
                   {loeschFehler}
                 </div>
               )}
@@ -2834,7 +2834,7 @@ export default function CraftFlow() {
                 <button
                   onClick={() => void loeschenBestaetigt()}
                   disabled={loeschLaeuft}
-                  style={{ background: '#E05A5A', color: '#1A0A0A', border: 'none', borderRadius: 7,
+                  style={{ background: C.err, color: ton(C.err, '22'), border: 'none', borderRadius: 7,
                     padding: '10px 20px', fontSize: 13, fontWeight: 800,
                     cursor: loeschLaeuft ? 'default' : 'pointer', opacity: loeschLaeuft ? 0.6 : 1,
                     fontFamily: 'Helvetica Neue,sans-serif' }}
@@ -3026,7 +3026,7 @@ export default function CraftFlow() {
           <button onClick={() => setScreen('app')} style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`, borderRadius: 3, padding: '6px 16px', cursor: 'pointer', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif' }}>← Zurück</button>
         </div>
         <div style={{ padding: 14, maxWidth: 760, margin: '0 auto' }}>
-          <div style={{ background: '#1a2a1a', border: '1px solid #3a6a3a', borderRadius: 4, padding: '12px 16px', marginBottom: 14, fontSize: 13, color: '#90EE90' }}>
+          <div style={{ background: ton(C.ok, '22'), border: `1px solid ${ton(C.ok, '66')}`, borderRadius: 4, padding: '12px 16px', marginBottom: 14, fontSize: 13, color: C.ok }}>
             💡 PDF speichern: Teilen-Symbol → &quot;Als PDF sichern&quot;
           </div>
           <div style={{ background: '#fff', borderRadius: 4, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,.5)' }}
@@ -3078,7 +3078,7 @@ export default function CraftFlow() {
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
               {isRecording && (
                 <>
-                  <div style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', border: '2px solid #cc2222', animation: 'cfpulse 1.4s ease-in-out infinite', pointerEvents: 'none' }} />
+                  <div style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', border: `2px solid ${C.err}`, animation: 'cfpulse 1.4s ease-in-out infinite', pointerEvents: 'none' }} />
                   <div style={{ position: 'absolute', width: 140, height: 140, borderRadius: '50%', border: '2px solid #cc222244', animation: 'cfpulse 1.4s ease-in-out infinite 0.3s', pointerEvents: 'none' }} />
                 </>
               )}
@@ -3087,7 +3087,7 @@ export default function CraftFlow() {
                 disabled={isTranscribing || loading}
                 style={{
                   width: 120, height: 120, borderRadius: '50%',
-                  background: isRecording ? '#cc2222' : isTranscribing ? C.gray2 : C.copper,
+                  background: isRecording ? C.err : isTranscribing ? C.gray2 : C.copper,
                   border: 'none',
                   cursor: (isTranscribing || loading) ? 'wait' : 'pointer',
                   fontSize: 52,
@@ -3105,7 +3105,7 @@ export default function CraftFlow() {
 
             <div style={{
               marginTop: 18, fontSize: 13, fontWeight: isRecording ? 700 : 400,
-              color: isRecording ? '#ff6666' : isTranscribing ? C.copper : C.textMid,
+              color: isRecording ? C.err : isTranscribing ? C.copper : C.textMid,
               letterSpacing: isRecording ? 1 : 0,
             }}>
               {micStatus === 'idle' && 'Tippen zum Aufnehmen'}
@@ -3113,7 +3113,7 @@ export default function CraftFlow() {
                 <span>
                   {'● '}
                   {String(Math.floor(recSeconds / 60)).padStart(2, '0')}:{String(recSeconds % 60).padStart(2, '0')}
-                  {recSeconds >= MAX_REC_SECONDS - 30 ? <span style={{ color: '#ff4444', marginLeft: 8 }}>⚠ Max. 5 Min.</span> : ' – zum Stoppen tippen'}
+                  {recSeconds >= MAX_REC_SECONDS - 30 ? <span style={{ color: C.err, marginLeft: 8 }}>⚠ Max. 5 Min.</span> : ' – zum Stoppen tippen'}
                 </span>
               )}
               {micStatus === 'transcribing' && 'Wird transkribiert…'}
@@ -3266,14 +3266,14 @@ export default function CraftFlow() {
           )}
 
           {startStatus === 'error' && startMsg && (
-            <div style={{ marginTop: 14, background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: '#ff9999' }}>
+            <div style={{ marginTop: 14, background: ton(C.err, '22'), border: '1px solid #4a2a2a', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: C.err }}>
               {startMsg}
             </div>
           )}
 
           {/* KI-Chat-Fenster bei Rückfragen */}
           {startStatus === 'fragen' && (
-            <div style={{ marginTop: 14, background: '#0d1520', border: `1px solid ${akzentTon('55')}`, borderRadius: 10, padding: '16px' }}>
+            <div style={{ marginTop: 14, background: C.gray1, border: `1px solid ${akzentTon('55')}`, borderRadius: 10, padding: '16px' }}>
               <div style={{ color: C.copper, fontWeight: 700, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>
                 KI BRAUCHT NOCH INFORMATIONEN
               </div>
@@ -3298,7 +3298,7 @@ export default function CraftFlow() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={startFragenMic}
-                  style={{ background: fragenMicStatus === 'recording' ? '#5a1a1a' : fragenMicStatus === 'transcribing' ? C.gray2 : C.gray1, border: `1px solid ${fragenMicStatus === 'recording' ? '#ff6666' : C.border}`, borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontSize: 16, color: fragenMicStatus === 'recording' ? '#ff6666' : C.textMid, flexShrink: 0 }}
+                  style={{ background: fragenMicStatus === 'recording' ? ton(C.err, '44') : fragenMicStatus === 'transcribing' ? C.gray2 : C.gray1, border: `1px solid ${fragenMicStatus === 'recording' ? C.err : C.border}`, borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontSize: 16, color: fragenMicStatus === 'recording' ? C.err : C.textMid, flexShrink: 0 }}
                 >
                   {fragenMicStatus === 'recording' ? '⏹' : fragenMicStatus === 'transcribing' ? '⟳' : '🎙️'}
                 </button>
@@ -3426,9 +3426,9 @@ export default function CraftFlow() {
                   disabled={saveCustomerStatus === 'saving' || saveCustomerStatus === 'saved'}
                   style={{
                     width: '100%',
-                    background: saveCustomerStatus === 'saved' ? '#1a3a1a' : 'transparent',
-                    color: saveCustomerStatus === 'saved' ? '#90EE90' : saveCustomerStatus === 'saving' ? C.textMid : C.copper,
-                    border: `1px solid ${saveCustomerStatus === 'saved' ? '#3a6a3a' : saveCustomerStatus === 'duplicate' || saveCustomerStatus === 'error' ? '#8b2222' : C.copper}`,
+                    background: saveCustomerStatus === 'saved' ? ton(C.ok, '22') : 'transparent',
+                    color: saveCustomerStatus === 'saved' ? C.ok : saveCustomerStatus === 'saving' ? C.textMid : C.copper,
+                    border: `1px solid ${saveCustomerStatus === 'saved' ? ton(C.ok, '66') : saveCustomerStatus === 'duplicate' || saveCustomerStatus === 'error' ? ton(C.err, '66') : C.copper}`,
                     borderRadius: 4, padding: '11px 0',
                     cursor: saveCustomerStatus === 'saving' || saveCustomerStatus === 'saved' ? 'default' : 'pointer',
                     fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif',
@@ -3439,7 +3439,7 @@ export default function CraftFlow() {
                   {(saveCustomerStatus === 'idle' || saveCustomerStatus === 'duplicate' || saveCustomerStatus === 'error') && '+ In Kundendatenbank speichern'}
                 </button>
                 {(saveCustomerStatus === 'duplicate' || saveCustomerStatus === 'error') && (
-                  <div style={{ marginTop: 6, fontSize: 11, color: '#ff9999', padding: '6px 10px', background: '#1a0d0d', borderRadius: 3, border: '1px solid #4a2020' }}>
+                  <div style={{ marginTop: 6, fontSize: 11, color: C.err, padding: '6px 10px', background: ton(C.err, '22'), borderRadius: 3, border: '1px solid #4a2020' }}>
                     {saveCustomerStatus === 'duplicate' ? '⚠ Bereits vorhanden (gleicher Name + PLZ).' : `✕ ${saveCustomerMsg}`}
                   </div>
                 )}
@@ -3497,9 +3497,9 @@ export default function CraftFlow() {
                 disabled={allInquiryStatus === 'loading'}
                 style={{
                   flex: 1, minWidth: 160,
-                  background: allInquiryStatus === 'done' ? '#1a3a1a' : 'transparent',
-                  color: !darfNutzen('starter') ? C.textMid : allInquiryStatus === 'done' ? '#90EE90' : allInquiryStatus === 'loading' ? C.textMid : C.copper,
-                  border: `1px solid ${!darfNutzen('starter') ? C.border : allInquiryStatus === 'done' ? '#3a6a3a' : allInquiryStatus === 'error' ? '#8b2222' : C.copper}`,
+                  background: allInquiryStatus === 'done' ? ton(C.ok, '22') : 'transparent',
+                  color: !darfNutzen('starter') ? C.textMid : allInquiryStatus === 'done' ? C.ok : allInquiryStatus === 'loading' ? C.textMid : C.copper,
+                  border: `1px solid ${!darfNutzen('starter') ? C.border : allInquiryStatus === 'done' ? ton(C.ok, '66') : allInquiryStatus === 'error' ? ton(C.err, '66') : C.copper}`,
                   borderRadius: 3, padding: '8px 12px',
                   cursor: allInquiryStatus === 'loading' ? 'wait' : 'pointer',
                   fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
@@ -3525,7 +3525,7 @@ export default function CraftFlow() {
                       style={{ position: 'fixed', inset: 0, zIndex: 49 }}
                       onClick={() => setExportMenuOpen(false)}
                     />
-                    <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#1E1E1E', border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden', zIndex: 50, minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
+                    <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden', zIndex: 50, minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
                       {[
                         { label: '📋 CSV – Vollexport', action: () => { exportFullCSV(); setExportMenuOpen(false) } },
                         { label: '🗄 SQL (.sql)', action: () => { exportSQL(); setExportMenuOpen(false) } },
@@ -3551,7 +3551,7 @@ export default function CraftFlow() {
                   </>
                 )}
               </div>
-              <button onClick={copyToClipboard} style={{ background: copiedFeedback ? '#1a3a1a' : 'transparent', color: copiedFeedback ? '#90EE90' : C.textMid, border: `1px solid ${copiedFeedback ? '#3a6a3a' : C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
+              <button onClick={copyToClipboard} style={{ background: copiedFeedback ? ton(C.ok, '22') : 'transparent', color: copiedFeedback ? C.ok : C.textMid, border: `1px solid ${copiedFeedback ? ton(C.ok, '66') : C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif' }}>
                 {copiedFeedback ? '✓ Kopiert' : '⎘ Kopieren'}
               </button>
             </div>
@@ -3571,12 +3571,12 @@ export default function CraftFlow() {
                       return (
                         <div key={c.supplierId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '5px 8px', borderRadius: 4, background: isSelected ? `${akzentTon('10')}` : C.gray1, border: `1px solid ${isSelected ? akzentTon('44') : C.border}` }}>
                           <input type="checkbox" checked={isSelected} onChange={() => toggleCandidate('all', g.gruppe, c.supplierId)} style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }} />
-                          <span style={{ fontSize: 11, color: c.ist_favorit ? '#F5C518' : C.textMid, flexShrink: 0 }}>★</span>
+                          <span style={{ fontSize: 11, color: c.ist_favorit ? C.warn : C.textMid, flexShrink: 0 }}>★</span>
                           <span style={{ fontSize: 12, color: C.white, flex: 1 }}>{c.supplierName}</span>
                           {c.phone && <span style={{ fontSize: 11, color: C.textMid }}>{c.phone}</span>}
                           {isSelected && (
                             planCanUse('pro') ? (
-                              isSent ? <span style={{ fontSize: 11, color: '#90EE90' }}>✓ Gesendet</span> : (
+                              isSent ? <span style={{ fontSize: 11, color: C.ok }}>✓ Gesendet</span> : (
                                 <button onClick={() => sendInquiryEmail(c.email, c.subject, c.body)} disabled={isSending}
                                   style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '2px 8px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, flexShrink: 0 }}>
                                   {isSending ? '⟳…' : '✉ Senden'}
@@ -3630,7 +3630,7 @@ export default function CraftFlow() {
               </div>
             )}
             {allInquiryStatus === 'error' && (
-              <div style={{ background: '#1a0d0d', border: '1px solid #4a2a2a', borderRadius: 4, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: '#ff9999' }}>
+              <div style={{ background: ton(C.err, '22'), border: '1px solid #4a2a2a', borderRadius: 4, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: C.err }}>
                 Fehler beim Erstellen der Anfragen.
               </div>
             )}
@@ -3746,10 +3746,10 @@ export default function CraftFlow() {
                       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
                         <button onClick={() => verschiebePos(p.id, -1)} disabled={i === 0}
                           title="Nach oben"
-                          style={{ background: 'transparent', color: i === 0 ? '#3A3A3A' : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 7px', cursor: i === 0 ? 'default' : 'pointer', fontSize: 11 }}>↑</button>
+                          style={{ background: 'transparent', color: i === 0 ? C.border : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 7px', cursor: i === 0 ? 'default' : 'pointer', fontSize: 11 }}>↑</button>
                         <button onClick={() => verschiebePos(p.id, 1)} disabled={i === pos.length - 1}
                           title="Nach unten"
-                          style={{ background: 'transparent', color: i === pos.length - 1 ? '#3A3A3A' : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 7px', cursor: i === pos.length - 1 ? 'default' : 'pointer', fontSize: 11 }}>↓</button>
+                          style={{ background: 'transparent', color: i === pos.length - 1 ? C.border : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 7px', cursor: i === pos.length - 1 ? 'default' : 'pointer', fontSize: 11 }}>↓</button>
                       </div>
                       <button onClick={e => { e.stopPropagation(); delPos(p.id) }} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>✕</button>
                     </div>
@@ -3908,7 +3908,7 @@ export default function CraftFlow() {
                               </div>
                             )}
                             {ist === 'error' && (
-                              <div style={{ fontSize: 12, color: '#ff9999', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ fontSize: 12, color: C.err, padding: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
                                 Fehler beim Erstellen der Anfragen.
                                 <button onClick={() => startInquiry(p.id, p.titel, p.material)} style={{ background: 'transparent', color: C.copper, border: 'none', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', fontFamily: 'Helvetica Neue,sans-serif', padding: 0 }}>
                                   Erneut versuchen
@@ -3930,12 +3930,12 @@ export default function CraftFlow() {
                                       return (
                                         <div key={c.supplierId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '5px 8px', borderRadius: 4, background: isSelected ? `${akzentTon('10')}` : C.gray1, border: `1px solid ${isSelected ? akzentTon('44') : C.border}` }}>
                                           <input type="checkbox" checked={isSelected} onChange={() => toggleCandidate(`pos-${p.id}`, g.gruppe, c.supplierId)} style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }} />
-                                          <span style={{ fontSize: 11, color: c.ist_favorit ? '#F5C518' : C.textMid, flexShrink: 0 }}>★</span>
+                                          <span style={{ fontSize: 11, color: c.ist_favorit ? C.warn : C.textMid, flexShrink: 0 }}>★</span>
                                           <span style={{ fontSize: 12, color: C.white, flex: 1 }}>{c.supplierName}</span>
                                           {c.phone && <span style={{ fontSize: 11, color: C.textMid }}>{c.phone}</span>}
                                           {isSelected && (
                                             planCanUse('pro') ? (
-                                              isSent ? <span style={{ fontSize: 11, color: '#90EE90' }}>✓ Gesendet</span> : (
+                                              isSent ? <span style={{ fontSize: 11, color: C.ok }}>✓ Gesendet</span> : (
                                                 <button onClick={() => sendInquiryEmail(c.email, c.subject, c.body)} disabled={isSending}
                                                   style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '2px 8px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, flexShrink: 0 }}>
                                                   {isSending ? '⟳…' : '✉ Senden'}
@@ -4120,7 +4120,7 @@ export default function CraftFlow() {
             {/* Passt der Preis nicht? Genau hier hat der abgesprungene Testkunde die
                 App geschlossen — statt eines Auswegs stand da nichts. */}
             {istKalibriert === false && (
-              <div style={{ background: '#1A1A1A', border: `1px solid ${akzentTon('44')}`, borderRadius: 4,
+              <div style={{ background: C.gray1, border: `1px solid ${akzentTon('44')}`, borderRadius: 4,
                 padding: '14px 16px', marginBottom: 12 }}>
                 <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 5 }}>
                   Passt der Preis nicht zu deinem Betrieb?
@@ -4214,7 +4214,7 @@ export default function CraftFlow() {
                     <button
                       onClick={checkToggleRecording}
                       disabled={checkMicStatus === 'transcribing' || checkLoading}
-                      style={{ background: checkMicStatus === 'recording' ? '#cc2222' : C.gray2, color: checkMicStatus === 'recording' ? '#fff' : C.textMid, border: `1px solid ${checkMicStatus === 'recording' ? '#cc2222' : C.border}`, borderRadius: 5, padding: '8px 12px', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+                      style={{ background: checkMicStatus === 'recording' ? C.err : C.gray2, color: checkMicStatus === 'recording' ? '#fff' : C.textMid, border: `1px solid ${checkMicStatus === 'recording' ? C.err : C.border}`, borderRadius: 5, padding: '8px 12px', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
                     >
                       {checkMicStatus === 'transcribing' ? '⟳' : '🎤'}
                     </button>
@@ -4331,7 +4331,7 @@ export default function CraftFlow() {
                     <button
                       onClick={optimToggleRecording}
                       disabled={optimMicStatus === 'transcribing' || optimLoading}
-                      style={{ background: optimMicStatus === 'recording' ? '#cc2222' : C.gray2, color: optimMicStatus === 'recording' ? '#fff' : C.textMid, border: `1px solid ${optimMicStatus === 'recording' ? '#cc2222' : C.border}`, borderRadius: 5, padding: '8px 12px', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+                      style={{ background: optimMicStatus === 'recording' ? C.err : C.gray2, color: optimMicStatus === 'recording' ? '#fff' : C.textMid, border: `1px solid ${optimMicStatus === 'recording' ? C.err : C.border}`, borderRadius: 5, padding: '8px 12px', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
                     >
                       {optimMicStatus === 'transcribing' ? '⟳' : '🎤'}
                     </button>
@@ -4384,7 +4384,7 @@ export default function CraftFlow() {
                           onClick={() => setBausteinIds(prev =>
                             an ? prev.filter(x => x !== b.id) : [...prev, b.id])}
                           style={{
-                            background: an ? '#2A2018' : C.gray2,
+                            background: an ? akzentTon('22') : C.gray2,
                             border: `1px solid ${an ? C.copper : C.border}`,
                             color: an ? C.white : C.textMid,
                             borderRadius: 20, padding: '6px 13px', fontSize: 12,
@@ -4450,13 +4450,13 @@ export default function CraftFlow() {
             <button
               onClick={saveProject}
               disabled={saveStatus === 'saving'}
-              style={{ width: '100%', background: saveStatus === 'saved' ? '#1a3a1a' : C.darkbg, color: saveStatus === 'saved' ? '#5ABE6A' : saveStatus === 'error' ? '#E05A5A' : C.textMid, border: `1px solid ${saveStatus === 'saved' ? '#3a6a3a' : saveStatus === 'error' ? '#6a3a3a' : C.border}`, padding: '12px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, letterSpacing: 1, cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer', marginBottom: 8 }}
+              style={{ width: '100%', background: saveStatus === 'saved' ? ton(C.ok, '22') : C.darkbg, color: saveStatus === 'saved' ? C.ok : saveStatus === 'error' ? C.err : C.textMid, border: `1px solid ${saveStatus === 'saved' ? ton(C.ok, '66') : saveStatus === 'error' ? ton(C.err, '44') : C.border}`, padding: '12px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, letterSpacing: 1, cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer', marginBottom: 8 }}
             >
               {saveStatus === 'saving' ? '…' : saveStatus === 'saved' ? '✓ Gespeichert' : saveStatus === 'error' ? '✗ Fehler beim Speichern' : '💾 Änderungen speichern'}
             </button>
 
             {usage !== null && usage.remaining !== null && usage.remaining <= 3 && (
-              <div style={{ textAlign: 'center', fontSize: 11, color: usage.remaining === 0 ? '#E05A5A' : '#C8885A', marginBottom: 8 }}>
+              <div style={{ textAlign: 'center', fontSize: 11, color: usage.remaining === 0 ? C.err : C.copper, marginBottom: 8 }}>
                 {usage.remaining === 0
                   ? `Limit erreicht (${usage.count}/${usage.limit} Angebote diesen Monat)`
                   : `Noch ${usage.remaining} von ${usage.limit} Angeboten diesen Monat`}
@@ -4525,7 +4525,7 @@ export default function CraftFlow() {
               if (currentProjectId) {
                 fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'pdf_export', projectId: currentProjectId, data: { preis_netto: totals.net } }) })
               }
-            }} disabled={pdfGenerating || (usage !== null && !usage.erlaubt)} style={{ width: '100%', background: pdfGenerating ? '#7a5535' : usage !== null && !usage.erlaubt ? '#3a2a1a' : C.copper, color: pdfGenerating ? '#ccc' : usage !== null && !usage.erlaubt ? '#6a4a2a' : C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: pdfGenerating || (usage !== null && !usage.erlaubt) ? 'not-allowed' : 'pointer' }}>
+            }} disabled={pdfGenerating || (usage !== null && !usage.erlaubt)} style={{ width: '100%', background: pdfGenerating ? akzentTon('77') : usage !== null && !usage.erlaubt ? akzentTon('44') : C.copper, color: pdfGenerating ? '#ccc' : usage !== null && !usage.erlaubt ? akzentTon('77') : C.black, border: 'none', padding: '14px 0', borderRadius: 3, fontSize: 13, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, letterSpacing: 2, cursor: pdfGenerating || (usage !== null && !usage.erlaubt) ? 'not-allowed' : 'pointer' }}>
               {pdfGenerating ? '⏳ PDF WIRD ERZEUGT…' : '▶ DOKUMENT ALS PDF ANZEIGEN'}
             </button>
           </div>

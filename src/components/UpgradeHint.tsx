@@ -1,4 +1,6 @@
 'use client'
+import { C } from '@/lib/types'
+import { akzentTon } from '@/lib/theme'
 import { PLAN_FEATURES, type FeatureKey, type Plan } from '@/hooks/usePlan'
 
 const PLAN_LABEL: Record<Plan, string> = {
@@ -16,7 +18,7 @@ export function UpgradeHint({ feature, inline = false }: Props) {
 
   if (inline) {
     return (
-      <span style={{ fontSize: 10, color: '#C8885A', marginLeft: 6, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 10, color: C.copper, marginLeft: 6, whiteSpace: 'nowrap' }}>
         🔒 ab {PLAN_LABEL[minPlan]}
       </span>
     )
@@ -26,8 +28,8 @@ export function UpgradeHint({ feature, inline = false }: Props) {
     <div
       onClick={() => window.location.href = '/settings#plan'}
       style={{
-        background: '#1a1200', border: '1px solid #C8885A44', borderRadius: 6,
-        padding: '10px 14px', fontSize: 12, color: '#C8885A', cursor: 'pointer',
+        background: akzentTon('22'), border: `1px solid ${akzentTon('44')}`, borderRadius: 6,
+        padding: '10px 14px', fontSize: 12, color: C.copper, cursor: 'pointer',
         display: 'flex', alignItems: 'center', gap: 8,
       }}
     >

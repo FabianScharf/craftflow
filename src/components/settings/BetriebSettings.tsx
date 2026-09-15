@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { akzentTon, ton } from '@/lib/theme'
 import { C } from '@/lib/types'
 import { BETRIEBSFRAGEN, referenzFuer, referenzPreis, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 
@@ -178,7 +179,7 @@ export default function BetriebSettings() {
             onClick={() => setzen(an ? gewaehlt.filter(x => x !== b.schluessel) : [...gewaehlt, b.schluessel])}>
             <div style={{ fontWeight: 600 }}>{b.text}</div>
             {b.hinweis && (
-              <div style={{ color: an ? '#9A8A7A' : '#6A6A6A', fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
+              <div style={{ color: an ? C.textMid : C.textMid, fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
                 {b.hinweis}
               </div>
             )}
@@ -189,9 +190,9 @@ export default function BetriebSettings() {
   )
 
   const knopf = (aktiv: boolean) => ({
-    background: aktiv ? '#2A2018' : '#1C1C1C',
-    border: `1px solid ${aktiv ? C.copper : '#2E2E2E'}`,
-    color: aktiv ? C.white : '#B0B0B0',
+    background: aktiv ? akzentTon('22') : C.gray1,
+    border: `1px solid ${aktiv ? C.copper : C.border}`,
+    color: aktiv ? C.white : C.white,
     borderRadius: 8, padding: '10px 14px', fontSize: 13, cursor: 'pointer',
     textAlign: 'left' as const,
   })
@@ -202,7 +203,7 @@ export default function BetriebSettings() {
   ) => (
     <div style={{ marginBottom: 26 }}>
       <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{titel}</div>
-      {hinweis && <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10, lineHeight: 1.5 }}>{hinweis}</div>}
+      {hinweis && <div style={{ color: C.textMid, fontSize: 12, marginBottom: 10, lineHeight: 1.5 }}>{hinweis}</div>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {werte.map(w => (
           <button key={w.wert} onClick={() => setzen(w.wert)} style={knopf(aktuell === w.wert)}>
@@ -211,8 +212,8 @@ export default function BetriebSettings() {
         ))}
       </div>
       {fussnote && (
-        <div style={{ marginTop: 10, background: '#1F1B16', border: '1px solid #3A2E22',
-          borderRadius: 8, padding: '9px 12px', color: '#C0AE9A', fontSize: 12, lineHeight: 1.55 }}>
+        <div style={{ marginTop: 10, background: C.gray1, border: `1px solid ${akzentTon('44')}`,
+          borderRadius: 8, padding: '9px 12px', color: C.white, fontSize: 12, lineHeight: 1.55 }}>
           {fussnote}
         </div>
       )}
@@ -245,30 +246,30 @@ export default function BetriebSettings() {
   const antwort = (frage: string) => String(k[schluesselZuFeld[frage]] ?? '')
   const setzeAntwort = (frage: string, w: string) => setK({ ...k, [schluesselZuFeld[frage]]: w })
 
-  if (laedt) return <div style={{ color: '#7A7A7A', fontSize: 13 }}>Lädt …</div>
+  if (laedt) return <div style={{ color: C.textMid, fontSize: 13 }}>Lädt …</div>
 
   return (
     <div>
       <h2 style={{ color: C.white, fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Mein Betrieb</h2>
-      <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
+      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
         Aus diesen Angaben gelten deine Zeiten statt der CraftFlow-Werte.
         Deine Preise sieht niemand außer dir.
       </p>
 
       {fehler && (
-        <div style={{ background: '#3A1A1A', border: '1px solid #6A2A2A', borderRadius: 8,
-          padding: '10px 14px', color: '#FFB0B0', fontSize: 13, marginBottom: 20 }}>{fehler}</div>
+        <div style={{ background: ton(C.err, '22'), border: '1px solid #6A2A2A', borderRadius: 8,
+          padding: '10px 14px', color: C.err, fontSize: 13, marginBottom: 20 }}>{fehler}</div>
       )}
 
       <div style={{ marginBottom: 26 }}>
         <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Welche Maschinen hast du?</div>
-        <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10 }}>Mehrfachauswahl</div>
+        <div style={{ color: C.textMid, fontSize: 12, marginBottom: 10 }}>Mehrfachauswahl</div>
         {mehrfach('maschinen', k.maschinen, w => setK({ ...k, maschinen: w }))}
       </div>
 
       <div style={{ marginBottom: 26 }}>
         <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Was baust du?</div>
-        <div style={{ color: '#7A7A7A', fontSize: 12, marginBottom: 10 }}>
+        <div style={{ color: C.textMid, fontSize: 12, marginBottom: 10 }}>
           Mehrfachauswahl — wähl alles, was bei dir regelmäßig vorkommt.
         </div>
         {mehrfach('schwerpunkt', k.schwerpunkt, w => setK({ ...k, schwerpunkt: w }))}
@@ -279,19 +280,19 @@ export default function BetriebSettings() {
         'Diese Frage ändert deine Kalkulation nicht — sie hilft uns zu verstehen, wofür CraftFlow gebraucht wird.',
         liste('stueckzahlen'), k.stueckzahlen, w => setK({ ...k, stueckzahlen: w }))}
 
-      <div style={{ height: 1, background: '#2E2E2E', margin: '30px 0' }} />
+      <div style={{ height: 1, background: C.border, margin: '30px 0' }} />
 
-      <div style={{ background: '#1C1C1C', borderRadius: 8, padding: 16, marginBottom: 22 }}>
+      <div style={{ background: C.gray1, borderRadius: 8, padding: 16, marginBottom: 22 }}>
         <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
           Das Referenzmöbel: {ref.name}
         </div>
-        <div style={{ color: '#B0B0B0', fontSize: 13, lineHeight: 1.7 }}>{ref.text}</div>
-        <div style={{ color: '#7A7A7A', fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
+        <div style={{ color: C.white, fontSize: 13, lineHeight: 1.7 }}>{ref.text}</div>
+        <div style={{ color: C.textMid, fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
           Es richtet sich nach dem, was du oben angekreuzt hast. Genau diese fünf Dinge
           braucht CraftFlow immer: Möbelart, Maße, Material, Ausstattung, Montage.
         </div>
         {anker && (
-          <div style={{ color: '#8A8A8A', fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
+          <div style={{ color: C.textMid, fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
             Mit deinen Stundensätzen rechnet CraftFlow dafür zurzeit{' '}
             <b style={{ color: C.copper }}>{anker.preis.toLocaleString('de-DE')} €</b>
             {anker.teiler > 1 ? ' je Stück' : ''}
@@ -309,22 +310,22 @@ export default function BetriebSettings() {
         </div>
       ))}
 
-      <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.6, marginBottom: 24 }}>
+      <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, marginBottom: 24 }}>
         &bdquo;Weiß ich gerade nicht&ldquo; ist eine gültige Antwort: Dann rechne ich in diesem
         Bereich mit dem CraftFlow-Wert. Du kannst es jederzeit hier nachtragen.
       </div>
 
       <button onClick={() => void speichern(false)} style={{
-        background: C.copper, border: 'none', borderRadius: 8, color: '#0D0D0D',
+        background: C.copper, border: 'none', borderRadius: 8, color: C.black,
         padding: '12px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
         Speichern und neu berechnen
       </button>
-      {gespeichert && <span style={{ color: '#7ACC7A', fontSize: 13, marginLeft: 14 }}>Gespeichert.</span>}
+      {gespeichert && <span style={{ color: C.ok, fontSize: 13, marginLeft: 14 }}>Gespeichert.</span>}
 
-      <div style={{ height: 1, background: '#2E2E2E', margin: '30px 0' }} />
+      <div style={{ height: 1, background: C.border, margin: '30px 0' }} />
 
       <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Deine Zeitfaktoren</div>
-      <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
         Deine Zeiten im Verhältnis zu den CraftFlow-Werten. Du kannst
         jeden Wert von Hand überschreiben — dann gilt deine Zahl statt der abgeleiteten.
       </p>
@@ -333,14 +334,14 @@ export default function BetriebSettings() {
         const wert = Number(k[feld])
         return (
           <div key={feld} style={{ display: 'flex', alignItems: 'center', gap: 14,
-            background: '#1C1C1C', borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
+            background: C.gray1, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
             <input type="number" step="0.01" min="0.6" max="1.4" value={Number.isFinite(wert) ? wert : ''}
               onChange={e => { setFaktorenMeldung(null); setK({ ...k, [feld]: e.target.value === '' ? NaN : Number(e.target.value) }) }}
-              style={{ width: 80, background: '#141414', border: '1px solid #2E2E2E',
+              style={{ width: 80, background: C.gray2, border: `1px solid ${C.border}`,
                 borderRadius: 6, color: C.white, padding: '8px 10px', fontSize: 14 }} />
             <div>
               <div style={{ color: C.white, fontSize: 13, fontWeight: 700 }}>{name}</div>
-              <div style={{ color: '#7A7A7A', fontSize: 12, lineHeight: 1.5 }}>
+              <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.5 }}>
                 {was} — {erklaere(wert)}
               </div>
             </div>
@@ -352,53 +353,53 @@ export default function BetriebSettings() {
         <button onClick={() => void speichern(true)} disabled={!faktorenGeaendert || faktorenSpeichern} style={{
           background: faktorenGeaendert ? C.copper : 'transparent',
           border: faktorenGeaendert ? 'none' : `1px solid ${C.border}`, borderRadius: 8,
-          color: faktorenGeaendert ? '#0D0D0D' : C.textMid, fontWeight: faktorenGeaendert ? 700 : 400,
+          color: faktorenGeaendert ? C.black : C.textMid, fontWeight: faktorenGeaendert ? 700 : 400,
           padding: '10px 18px', fontSize: 13, cursor: faktorenGeaendert ? 'pointer' : 'default',
           opacity: faktorenSpeichern ? 0.6 : 1 }}>
           {faktorenSpeichern ? 'Speichert …' : 'Faktoren von Hand übernehmen'}
         </button>
         {faktorenMeldung && (
-          <span style={{ fontSize: 13, color: faktorenMeldung.ok ? '#7ACC7A' : '#FFB0B0' }}>{faktorenMeldung.text}</span>
+          <span style={{ fontSize: 13, color: faktorenMeldung.ok ? C.ok : C.err }}>{faktorenMeldung.text}</span>
         )}
         {!faktorenMeldung && !faktorenGeaendert && (
           <span style={{ fontSize: 12, color: C.textMid }}>Ändere einen Wert, dann kannst du ihn hier übernehmen.</span>
         )}
       </div>
 
-      <div style={{ height: 1, background: '#2E2E2E', margin: '30px 0' }} />
+      <div style={{ height: 1, background: C.border, margin: '30px 0' }} />
 
       <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
         Aus gewonnenen Angeboten lernen
       </div>
-      <p style={{ color: '#8A8A8A', fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
         CraftFlow vergleicht, was es vorgeschlagen hat, mit dem, was in deinen
         gewonnenen Angeboten wirklich stand — und zieht die Faktoren nach. Das ist
         Marktwahrheit, keine Schätzung. Ab drei gewonnenen Angeboten je Bereich.
       </p>
 
       {schleife && (
-        <div style={{ background: '#1C1C1C', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-          <div style={{ color: '#8A8A8A', fontSize: 12, marginBottom: schleife.begruendung.length ? 10 : 0 }}>
+        <div style={{ background: C.gray1, borderRadius: 8, padding: 14, marginBottom: 14 }}>
+          <div style={{ color: C.textMid, fontSize: 12, marginBottom: schleife.begruendung.length ? 10 : 0 }}>
             {schleife.angebote} gewonnene Angebote ausgewertet.
           </div>
           {schleife.begruendung.length === 0
-            ? <div style={{ color: '#7A7A7A', fontSize: 12 }}>Noch zu wenig Material — es ändert sich nichts.</div>
+            ? <div style={{ color: C.textMid, fontSize: 12 }}>Noch zu wenig Material — es ändert sich nichts.</div>
             : schleife.begruendung.map(z => (
-                <div key={z} style={{ color: '#C0C0C0', fontSize: 12.5, lineHeight: 1.7 }}>{z}</div>
+                <div key={z} style={{ color: C.white, fontSize: 12.5, lineHeight: 1.7 }}>{z}</div>
               ))}
         </div>
       )}
 
       <button disabled={schleifeLaeuft} onClick={() => void schleifeNachsehen()} style={{
-        background: 'transparent', border: '1px solid #3A3A3A', borderRadius: 8,
-        color: '#B0B0B0', padding: '10px 18px', fontSize: 13,
+        background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8,
+        color: C.white, padding: '10px 18px', fontSize: 13,
         cursor: schleifeLaeuft ? 'default' : 'pointer', marginRight: 10 }}>
         {schleifeLaeuft ? 'Rechnet …' : 'Nachsehen, was sich ändern würde'}
       </button>
 
       {schleife && schleife.begruendung.length > 0 && (
         <button disabled={schleifeLaeuft} onClick={() => void schleifeUebernehmen()} style={{
-          background: C.copper, border: 'none', borderRadius: 8, color: '#0D0D0D',
+          background: C.copper, border: 'none', borderRadius: 8, color: C.black,
           padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
           Übernehmen
         </button>
