@@ -132,17 +132,23 @@ function nochGueltig(bis: string | null | undefined, jetzt: Date): boolean {
 }
 
 /**
- * Reihenfolge (Controller, 16.09.):
+ * Reihenfolge (Controller, 16.09.; Regel 2 korrigiert Fix-Runde 2):
  * 1. Testphase läuft → Enterprise.
- * 2. Aktives Stripe-Abo → gespeicherter Plan (falls gültig, sonst Solo).
+ * 2. Aktives Stripe-Abo → gespeicherter Plan, UNBEDINGT (keine Datumsprüfung).
  * 3. Kein BEENDETES Abo, gespeicherter Plan ≠ Solo (Gutschein/Admin) UND gültig → dieser Plan.
  * 4. Sonst → 'gesperrt' (kein Funktion, kein Deckel).
+ *
+ * Schritt 2 prüft `plan_gueltig_bis` bewusst NICHT: Dieses Feld setzt ausschließlich
+ * `redeem_coupon` (Gutschein-Ablauf) und der Stripe-Webhook löscht es nie. Wer erst
+ * einen Gutschein hatte und danach ein echtes Abo kauft, würde sonst nach Ablauf des
+ * alten Gutschein-Datums still auf 'solo' zurückgestuft — obwohl das Abo läuft und
+ * bezahlt ist (Critical aus dem Review, Fix-Runde 2). Ein aktives Abo zählt immer.
  *
  * "Kein beendetes Abo" in Schritt 3 ist entscheidend: Ein früher bezahlter, dann
  * gekündigter Plan bleibt in der DB stehen (Fabians Regel: Plan nicht zurücksetzen),
  * darf nach dem Ende des Abos aber nicht länger zählen — sonst wäre die Kündigung
  * wirkungslos. Nur ein Plan OHNE Abo-Historie (abo_status null, z. B. Gutschein
- * oder Admin-Vergabe) darf über Schritt 3 durchrutschen.
+ * oder Admin-Vergabe) durchläuft die Datumsprüfung in Schritt 3.
  */
 export function effektiverPlan(
   profil: ProfilFuerPlan | null | undefined,
@@ -154,7 +160,7 @@ export function effektiverPlan(
   const gespeicherterPlan: Plan = istPlan(profil?.plan) ? profil!.plan as Plan : 'solo'
 
   if (profil?.abo_status === 'aktiv') {
-    return nochGueltig(profil?.plan_gueltig_bis, jetzt) ? gespeicherterPlan : 'solo'
+    return gespeicherterPlan
   }
   if (profil?.abo_status !== 'beendet' && gespeicherterPlan !== 'solo' && nochGueltig(profil?.plan_gueltig_bis, jetzt)) {
     return gespeicherterPlan

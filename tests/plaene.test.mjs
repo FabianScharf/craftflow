@@ -107,6 +107,17 @@ test('effektiverPlan: Aufgabe-0-Matrix aus dem Brief', () => {
   }, jetzt), 'starter')
 })
 
+// Fix-Runde 2 (Critical aus dem Review): plan_gueltig_bis wird nur von redeem_coupon
+// gesetzt und vom Stripe-Webhook nie gelöscht. Wer erst einen Gutschein hatte und danach
+// ein echtes Abo kauft, darf durch das alte (abgelaufene) Gutschein-Datum NICHT auf
+// 'solo' zurückgestuft werden — ein aktives Abo zählt unbedingt, ohne Datumsprüfung.
+test('effektiverPlan: aktives Abo zählt unabhängig vom (veralteten) Gutschein-Ablaufdatum', () => {
+  const jetzt = new Date('2026-09-16T12:00:00Z')
+  const gestern = '2026-09-15T00:00:00Z'
+  assert.equal(effektiverPlan({ plan: 'pro', abo_status: 'aktiv', plan_gueltig_bis: gestern }, jetzt), 'pro')
+  assert.equal(sperrgrund({ plan: 'pro', abo_status: 'aktiv', plan_gueltig_bis: gestern }, jetzt), null)
+})
+
 test('sperrgrund: gutschein nur bei abgelaufenem Nicht-Solo-Plan ohne aktives Abo, sonst testphase, null wenn offen', () => {
   const jetzt = new Date('2026-09-16T12:00:00Z')
   const abgelaufenerTrial = '2026-08-01T00:00:00Z'
