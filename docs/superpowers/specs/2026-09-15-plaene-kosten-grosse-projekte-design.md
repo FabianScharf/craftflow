@@ -61,10 +61,15 @@ teuerste Vorgang an den Deckel gebunden.
 ### Warum diese Zahlen tragen
 
 Eine Analyse kostet bei Sonnet 4.6 etwa 0,15–0,25 $ (mit Caching weniger), eine
-Optimieren-Runde etwa 0,09 $. Preise brutto, netto nach Stripe ≈ Solo 5,50 €, Starter
-23,70 €, Pro 40,20 €, Enterprise 65 €. Schlimmster Fall mit den Deckeln oben:
-Solo ≈ 1,20 €, Starter ≈ 7,50 €, Pro ≈ 25 €, Enterprise ≈ 60 €. Typisch liegt jeder Plan
-weit darunter. Fixkosten grob 65 €/Monat → zwei Pro-Kunden decken sie.
+Optimieren-Runde etwa 0,09 $.
+
+**Die Preise sind Nettopreise** (Fabian, 15.09.): CraftFlow wird nur an Unternehmen
+verkauft, die Umsatzsteuer kommt obendrauf und wird abgeführt. Sie muss überall klar
+ersichtlich sein („zzgl. MwSt.“, „nur für Unternehmen“). Nach Stripe-Gebühr (≈ 1,5 % des
+Bruttobetrags + 0,25 €) bleiben netto ≈ Solo 6,60 €, Starter 28,20 €, Pro 47,90 €,
+Enterprise 77,30 €. Schlimmster Fall mit den Deckeln oben: Solo ≈ 1,20 €, Starter ≈
+7,50 €, Pro ≈ 25 €, Enterprise ≈ 60 €. Typisch liegt jeder Plan weit darunter. Fixkosten
+grob 65 €/Monat → zwei Pro-Kunden decken sie.
 
 ## 4. Umsetzung in vier Teilen
 
@@ -100,6 +105,18 @@ Erreichen denselben Kasten. Kein Rätselraten, jede Grenze nennt den Plan, der s
 
 **Testphase:** `effectivePlan = 'enterprise'` bleibt. Der Gutschein setzt `plan` direkt —
 keine Änderung nötig.
+
+**Stripe muss die Steuer wirklich aufschlagen (Pflicht, gefunden 15.09.):** Der Checkout
+(`/api/stripe/checkout`) übergibt heute nur `price` und `quantity`, ohne Steuerangabe.
+Ohne hinterlegte Steuer zieht Stripe exakt den Preis ein und weist keine USt aus — dann
+wären 49 € faktisch brutto. Zwei Wege, Fabian entscheidet:
+1. **Feste Steuer 19 %:** In Stripe eine Tax Rate „USt 19 %“ anlegen und je Position
+   `tax_rates` mitgeben. Einfach, keine Zusatzkosten, passt für Kunden in Deutschland.
+2. **Stripe Tax:** `automatic_tax: { enabled: true }` plus `tax_id_collection`, Preise in
+   Stripe auf „exklusive Steuer“ stellen. Rechnet auch Reverse Charge für EU-Betriebe,
+   kostet je Transaktion einen kleinen Aufschlag.
+In beiden Fällen: Checkout einmal im Testmodus durchspielen und die Rechnung prüfen
+(Netto, USt, Brutto getrennt).
 
 **Tests:** `tests/plaene.test.mjs` — jede Zahl der Matrix oben steht einmal im Test, dazu
 Monotonie (kein höherer Plan hat weniger als ein niedrigerer).
@@ -168,7 +185,9 @@ gemeinsame Matrix beenden.
 - FAQ-Eintrag „Was heißt Fair Use bei Enterprise?“ und „Was passiert, wenn ich eine
   Grenze erreiche?“ (Antwort: Hinweis in der App, Upgrade mit einem Klick, nichts geht
   verloren).
-- Bruttopreise mit „inkl. MwSt.“, weil Handwerker vergleichen, was sie überweisen.
+- **Nettopreise, klar gekennzeichnet:** „zzgl. MwSt.“ direkt am Preis, dazu der Satz
+  „CraftFlow richtet sich ausschließlich an Unternehmen.“ Gleiche Formulierung wie in der
+  App unter „Mein Plan“.
 
 ## 5. Reihenfolge
 
