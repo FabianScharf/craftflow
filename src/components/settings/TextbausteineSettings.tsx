@@ -146,7 +146,7 @@ export default function TextbausteineSettings() {
                 value={b.titel}
                 onChange={e => aendern(b.id, { titel: e.target.value })}
                 placeholder="Titel, z.B. Ausführungszeitraum"
-                style={{ flex: 1, minWidth: 0, background: '#222', border: `1px solid ${C.border}`,
+                style={{ flex: 1, minWidth: 0, background: C.gray2, border: `1px solid ${C.border}`,
                   borderRadius: 4, padding: '8px 10px', fontSize: 13, fontWeight: 700,
                   color: C.white, fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
               />
@@ -174,7 +174,7 @@ export default function TextbausteineSettings() {
               onChange={e => aendern(b.id, { inhalt: e.target.value })}
               placeholder="Text des Bausteins. Eine Leerzeile ergibt einen neuen Absatz."
               style={{ width: '100%', minHeight: 78, boxSizing: 'border-box', resize: 'vertical',
-                background: '#222', border: `1px solid ${C.border}`, borderRadius: 4,
+                background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 4,
                 padding: '9px 11px', fontSize: 12.5, lineHeight: 1.7, color: C.white,
                 fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
             />
@@ -194,7 +194,7 @@ export default function TextbausteineSettings() {
           onChange={e => setNeuTitel(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void anlegen(neuTitel) }}
           placeholder="Neuer Baustein — Titel eingeben"
-          style={{ flex: 1, background: '#222', border: `1px solid ${C.border}`, borderRadius: 6,
+          style={{ flex: 1, background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 6,
             padding: '10px 12px', fontSize: 13, color: C.white,
             fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
         />

@@ -3282,7 +3282,7 @@ export default function CraftFlow() {
               </div>
               <div style={{ marginBottom: 14 }}>
                 {startMsg.split('\n').map((q, i) => (
-                  <div key={i} style={{ color: 'rgba(240,237,232,0.7)', fontSize: 13, marginBottom: 5, paddingLeft: 10, borderLeft: `2px solid ${akzentTon('66')}`, lineHeight: 1.5 }}>
+                  <div key={i} style={{ color: C.textMid, fontSize: 13, marginBottom: 5, paddingLeft: 10, borderLeft: `2px solid ${akzentTon('66')}`, lineHeight: 1.5 }}>
                     {q}
                   </div>
                 ))}
@@ -3461,10 +3461,10 @@ export default function CraftFlow() {
             <style>{`
               .cf-optim-panel {
                 width: 340px; min-width: 340px;
-                border-left: 2px solid #C8885A44;
+                border-left: 2px solid color-mix(in srgb, var(--c-accent, #C8885A) 27%, transparent);
                 display: flex; flex-direction: column;
                 flex-shrink: 0; overflow: hidden;
-                background: #111;
+                background: var(--c-surface1, #111);
                 height: calc(100vh - 116px);
                 position: sticky; top: 0;
               }
@@ -3473,12 +3473,12 @@ export default function CraftFlow() {
                 display: flex; flex-direction: column; gap: 10px;
               }
               .cf-optim-panel .chat-area::-webkit-scrollbar { width: 4px; }
-              .cf-optim-panel .chat-area::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+              .cf-optim-panel .chat-area::-webkit-scrollbar-thumb { background: var(--c-border, #333); border-radius: 2px; }
               @media (max-width: 640px) {
                 .cf-optim-panel {
                   position: fixed; top: 116px; bottom: 0; left: 0; right: 0;
                   width: 100% !important; min-width: 0; height: auto;
-                  border-left: none; border-top: 2px solid #C8885A; z-index: 200;
+                  border-left: none; border-top: 2px solid var(--c-accent, #C8885A); z-index: 200;
                 }
               }
             `}</style>

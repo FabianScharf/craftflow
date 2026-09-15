@@ -1690,7 +1690,7 @@ export default function SettingsPage() {
               {/* ── Dev-Panel: nur für Owner ── */}
               {userEmail === 'l.m.p.1@gmx.de' && (
                 <div style={{ marginTop: 32, borderTop: `1px dashed ${C.border}`, paddingTop: 20 }}>
-                  <div style={{ fontSize: 10, letterSpacing: 2, color: '#555', textTransform: 'uppercase', marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, letterSpacing: 2, color: C.textMid, textTransform: 'uppercase', marginBottom: 12 }}>
                     🛠 Entwickler — Plan-Override
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1717,7 +1717,7 @@ export default function SettingsPage() {
                       </button>
                     ))}
                   </div>
-                  <div style={{ fontSize: 11, color: '#444', marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 8 }}>
                     Wechselt sofort — kein Stripe, kein Reload nötig.
                   </div>
                 </div>
@@ -1802,7 +1802,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Rundschreiben */}
-                    <div style={{ fontSize: 10, letterSpacing: 2, color: '#666', textTransform: 'uppercase', margin: '16px 0 8px' }}>Rundschreiben an Bestandsnutzer</div>
+                    <div style={{ fontSize: 10, letterSpacing: 2, color: C.textMid, textTransform: 'uppercase', margin: '16px 0 8px' }}>Rundschreiben an Bestandsnutzer</div>
                     <p style={{ fontSize: 11.5, color: C.textMid, marginBottom: 10, lineHeight: 1.6 }}>
                       Reihenfolge je Rundschreiben: <strong style={{ color: C.white }}>Vorschau</strong> → <strong style={{ color: C.white }}>Test an mich</strong> → <strong style={{ color: C.white }}>Probelauf</strong> (zeigt Empfänger, schickt nichts) → <strong style={{ color: C.white }}>Senden</strong>.
                       Wer eine Mail hat, wird markiert — ein zweiter Lauf trifft nur noch die, die fehlen.
