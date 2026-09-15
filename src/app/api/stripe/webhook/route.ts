@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { getSupabaseClient } from '@/lib/supabase'
+import { planFuerPreisId } from '@/lib/plaene'
 import Stripe from 'stripe'
-
-const PRICE_PLAN: Record<string, string> = {
-  'price_1TmSblRvozvhvO9J3EKljmMh': 'solo',
-  'price_1TmScDRvozvhvO9J9tvsywrG': 'starter',
-  'price_1TmScSRvozvhvO9J0RF42acJ': 'pro',
-  'price_1TmSchRvozvhvO9JOduoM8KU': 'enterprise',
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -29,7 +23,13 @@ export async function POST(req: NextRequest) {
     const userId = session.metadata?.userId
     if (userId && session.customer && session.subscription) {
       const sub = await stripe.subscriptions.retrieve(session.subscription as string)
-      const plan = PRICE_PLAN[sub.items.data[0]?.price.id] ?? 'solo'
+      const priceId = sub.items.data[0]?.price.id ?? ''
+      const plan = planFuerPreisId(priceId)
+      if (!plan) {
+        // Unbekannter Preis: NICHT still auf Solo — das war der Fehler vom 15.09.
+        console.error('[stripe] unbekannte Preis-ID im Abo:', priceId, 'user', userId)
+        return NextResponse.json({ received: true, warnung: 'unbekannte Preis-ID' })
+      }
       await db.from('betriebsprofil')
         .update({ stripe_customer_id: session.customer as string, plan })
         .eq('user_id', userId)
@@ -40,7 +40,13 @@ export async function POST(req: NextRequest) {
     const sub = event.data.object as Stripe.Subscription
     const userId = sub.metadata?.userId
     if (userId) {
-      const plan = PRICE_PLAN[sub.items.data[0]?.price.id] ?? 'solo'
+      const priceId = sub.items.data[0]?.price.id ?? ''
+      const plan = planFuerPreisId(priceId)
+      if (!plan) {
+        // Unbekannter Preis: NICHT still auf Solo — das war der Fehler vom 15.09.
+        console.error('[stripe] unbekannte Preis-ID im Abo:', priceId, 'user', userId)
+        return NextResponse.json({ received: true, warnung: 'unbekannte Preis-ID' })
+      }
       await db.from('betriebsprofil').update({ plan }).eq('user_id', userId)
     }
   }

@@ -1,23 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { TRIAL_DAYS } from '@/hooks/usePlan'
-
-export const PLAN_LIMITS: Record<string, number | null> = {
-  solo:       3,
-  starter:    15,
-  pro:        50,
-  enterprise: null,
-}
+import { deckel, effektiverPlan } from '@/lib/plaene'
 
 function currentMonat() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function isInTrial(trialStartsAt: string | null): boolean {
-  if (!trialStartsAt) return false
-  const end = new Date(trialStartsAt).getTime() + TRIAL_DAYS * 86400_000
-  return Date.now() < end
 }
 
 // GET — aktuellen Verbrauch + Limit zurückgeben
@@ -32,9 +19,8 @@ export async function GET() {
     .eq('user_id', user.id)
     .single()
 
-  const inTrial = isInTrial(profil?.trial_starts_at ?? null)
-  const plan = inTrial ? 'enterprise' : (profil?.plan ?? 'solo') as string
-  const limit: number | null = plan in PLAN_LIMITS ? PLAN_LIMITS[plan]! : 3
+  const plan = effektiverPlan(profil)
+  const limit = deckel(plan, 'angebote')
   const monat = currentMonat()
 
   const { data: usage } = await supabase
@@ -67,9 +53,8 @@ export async function POST() {
     .eq('user_id', user.id)
     .single()
 
-  const inTrial = isInTrial(profil?.trial_starts_at ?? null)
-  const plan = inTrial ? 'enterprise' : (profil?.plan ?? 'solo') as string
-  const limit: number | null = plan in PLAN_LIMITS ? PLAN_LIMITS[plan]! : 3
+  const plan = effektiverPlan(profil)
+  const limit = deckel(plan, 'angebote')
   const monat = currentMonat()
 
   const { data: usage } = await supabase

@@ -1,25 +1,43 @@
 'use client'
 import { C } from '@/lib/types'
 import { akzentTon } from '@/lib/theme'
-import { PLAN_FEATURES, type FeatureKey, type Plan } from '@/hooks/usePlan'
+import { mindestPlan, PLAN_LABELS, type Funktion } from '@/hooks/usePlan'
 
-const PLAN_LABEL: Record<Plan, string> = {
-  solo: 'Solo', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise',
+// Sprechende Labels für die Funktionen, die im UI hinter einem Upgrade-Hinweis stehen.
+const LABEL: Record<Funktion, string> = {
+  spracheingabe: 'Spracheingabe',
+  pdf: 'PDF-Angebot',
+  assistent: 'Hilfe-Assistent',
+  dateien: 'Bilder & PDFs hochladen',
+  export: 'Kalkulationsexport',
+  kalibrierung: 'Betriebskalibrierung',
+  bauweise: 'Bauweise-Regeln',
+  materialpreise: 'Materialpreise',
+  gestaltung: 'Textbausteine & Briefpapier',
+  lieferanten: 'Lieferantenanfrage',
+  bloecke: 'Große Projekte in Blöcken',
+  lernschleife: 'Lernschleife',
+  auswertung: 'Auswertung',
+  smtp: 'Versand über eigene E-Mail',
+  ausschreibung: 'Ausschreibungs-Modus',
+  internetsuche: 'Internetsuche',
+  gaeb: 'GAEB-Import',
 }
 
 interface Props {
-  feature: FeatureKey
+  feature: Funktion
   inline?: boolean
 }
 
 export function UpgradeHint({ feature, inline = false }: Props) {
-  const { minPlan, label } = PLAN_FEATURES[feature]
-  const text = `🔒 ${label} — ab ${PLAN_LABEL[minPlan]}`
+  const minPlan = mindestPlan(feature)
+  const label = LABEL[feature]
+  const text = `🔒 ${label} — ab ${PLAN_LABELS[minPlan]}`
 
   if (inline) {
     return (
       <span style={{ fontSize: 10, color: C.copper, marginLeft: 6, whiteSpace: 'nowrap' }}>
-        🔒 ab {PLAN_LABEL[minPlan]}
+        🔒 ab {PLAN_LABELS[minPlan]}
       </span>
     )
   }

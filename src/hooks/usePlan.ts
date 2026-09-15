@@ -1,31 +1,14 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import {
+  PLAN_RANK, TRIAL_DAYS, effektiverPlan, erlaubt as planErlaubt, deckel as planDeckel,
+  mindestPlan, PLAN_LABELS, type Plan, type Funktion, type DeckelArt,
+} from '@/lib/plaene'
 
-export type Plan = 'solo' | 'starter' | 'pro' | 'enterprise'
-
-const PLAN_RANK: Record<Plan, number> = {
-  solo: 1, starter: 2, pro: 3, enterprise: 4,
-}
-
-export const TRIAL_DAYS = 14
-
-export const PLAN_LIMITS_ANGEBOTE: Record<Plan, number | null> = {
-  solo: 3, starter: 15, pro: 50, enterprise: null,
-}
-
-export const PLAN_FEATURES = {
-  spracheingabe:       { minPlan: 'solo'       as Plan, label: 'Spracheingabe' },
-  bildUpload:          { minPlan: 'starter'     as Plan, label: 'Bilder & PDFs hochladen' },
-  kalkulationsexport:  { minPlan: 'starter'     as Plan, label: 'Kalkulationsexport (CSV/Excel)' },
-  lieferantenAnfrage:  { minPlan: 'starter'     as Plan, label: 'Lieferantenanfrage über CraftFlow' },
-  multiUser:           { minPlan: 'starter'     as Plan, label: 'Bis zu 3 Benutzer' },
-  eigeneEmail:         { minPlan: 'pro'         as Plan, label: 'Lieferantenanfrage über eigene E-Mail' },
-  gaebImport:          { minPlan: 'enterprise'  as Plan, label: 'GAEB-Import & Kalkulation' },
-  prioritaetsSupport:  { minPlan: 'enterprise'  as Plan, label: 'Priorisierter Support' },
-} as const
-
-export type FeatureKey = keyof typeof PLAN_FEATURES
+export type { Plan } from '@/lib/plaene'
+export { mindestPlan, PLAN_LABELS, TRIAL_DAYS }
+export type { Funktion, DeckelArt }
 
 export interface UsageInfo {
   count: number
@@ -50,11 +33,9 @@ function calcTrialDaysLeft(trialStartsAt: string | null): number {
   return Math.max(0, TRIAL_DAYS - vergangeneTage)
 }
 
-// Ob der Trial noch laeuft, entscheidet weiterhin die exakte Zeitgrenze —
-// identisch zu /api/usage/route.ts. Waere das an die Kalendertag-Anzeige
-// gekoppelt, wuerde die Oberflaeche am letzten Tag sperren, waehrend der
-// Server noch erlaubt.
-function trialLaeuft(trialStartsAt: string | null): boolean {
+// Reine Zeitprüfung, außerhalb der Komponente — ruft Date.now() nicht direkt
+// im Render-Body auf (sonst meldet react-hooks/purity einen Fehler).
+function istNochInTrial(trialStartsAt: string | null): boolean {
   if (!trialStartsAt) return false
   const start = new Date(trialStartsAt).getTime()
   if (Number.isNaN(start)) return false
@@ -91,15 +72,21 @@ export function usePlan() {
     loadUsage()
   }, [loadUsage])
 
-  const isInTrial = trialLaeuft(trialStartsAt)
+  // Ob der Trial noch laeuft, entscheidet weiterhin die exakte Zeitgrenze —
+  // identisch zu /api/usage/route.ts und effektiverPlan() in plaene.ts. Waere
+  // das an die Kalendertag-Anzeige gekoppelt, wuerde die Oberflaeche am
+  // letzten Tag sperren, waehrend der Server noch erlaubt.
+  const isInTrial = istNochInTrial(trialStartsAt)
   // Während Trial hat jeder Enterprise-Zugriff
-  const effectivePlan: Plan = isInTrial ? 'enterprise' : plan
+  const effectivePlan: Plan = effektiverPlan({ plan, trial_starts_at: trialStartsAt })
 
   // Trial abgelaufen + kein bezahlter Plan = gesperrt
   const trialExpired = trialStartsAt !== null && !isInTrial
   const isBlocked = trialExpired && plan === 'solo'
 
   const canUse = (minPlan: Plan) => PLAN_RANK[effectivePlan] >= PLAN_RANK[minPlan]
+  const erlaubt = (f: Funktion) => planErlaubt(effectivePlan, f)
+  const deckel = (art: DeckelArt) => planDeckel(effectivePlan, art)
 
   const incrementUsage = useCallback(async (): Promise<boolean> => {
     const res = await fetch('/api/usage', { method: 'POST' })
@@ -108,5 +95,8 @@ export function usePlan() {
     return true
   }, [loadUsage])
 
-  return { plan, effectivePlan, isInTrial, trialDaysLeft, loading, canUse, usage, incrementUsage, isBlocked, trialExpired }
+  return {
+    plan, effectivePlan, isInTrial, trialDaysLeft, loading, canUse, erlaubt, deckel,
+    usage, incrementUsage, isBlocked, trialExpired,
+  }
 }
