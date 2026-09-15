@@ -1031,6 +1031,8 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json()
     // Verbrauch mitschreiben: Nachweis fuer das Caching und Grundlage des Kostenzaehlers.
+    // NUR ins Log — Fabian (15.09.): Kostenzahlen sind ausnahmslos fuer ihn bestimmt,
+    // kein Nutzer bekommt sie zu sehen. Deshalb steht `nutzung` nie in der Antwort.
     const nutzung = nutzungAusAntwort((data as { usage?: unknown }).usage)
     console.log(nutzungAlsZeile('analyze', model, nutzung))
     // Extended thinking liefert mehrere Content-Blöcke — wir nehmen nur den text-Block
@@ -1061,7 +1063,7 @@ export async function POST(req: NextRequest) {
     try {
       const parsed = JSON.parse(clean)
       const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert, faktoren)
-      return NextResponse.json({ success: true, data: validated, nutzung })
+      return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))
       return NextResponse.json(

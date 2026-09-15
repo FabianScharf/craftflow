@@ -106,14 +106,21 @@ Monotonie (kein höherer Plan hat weniger als ein niedrigerer).
 
 ### Teil B — Kostenzähler (halber Tag)
 
+- **Ausnahmslos nur für Fabian.** Kein Nutzer sieht je Token- oder Kostenzahlen — weder
+  in der Oberfläche noch in einer API-Antwort (der Wert `nutzung` wurde am 15.09. wieder
+  aus den Antworten von analyze/optimize entfernt; er steht nur im Server-Log).
 - Tabelle `ki_nutzung` (user_id, route, modell, eingabe, cache_geschrieben, cache_gelesen,
-  ausgabe, kosten_usd, projekt_id, created_at). RLS: Nutzer liest nur sich selbst.
+  ausgabe, kosten_usd, projekt_id, created_at). **RLS: keine Nutzer-Policy** — Schreiben
+  und Lesen laufen ausschließlich über den Service-Role-Schlüssel in Server-Routen; die
+  Lese-Route prüft zusätzlich, dass der Anfragende der Admin ist (wie
+  `/api/admin/gutscheincodes`).
 - Schreiben aus `/api/analyze`, `/api/optimize`, `/api/assistant`, `/api/lernschleife`
   über einen Helfer `protokolliereNutzung()` — **darf nie den Hauptvorgang blockieren**
   (try/catch, kein await auf den Erfolg).
 - `src/lib/kinutzung.ts` (gibt es) rechnet Kosten; Preise dort pflegen.
-- Admin-Bereich: Tabelle je Nutzer und Monat — Plan, Planpreis netto, KI-Kosten in €,
-  Marge, Ampel: grün < 30 %, gelb < 50 %, rot darüber. Summenzeile.
+- Admin-Bereich (nur Fabian, wie der bestehende Reiter „Admin“): Tabelle je Nutzer und
+  Monat — Plan, Planpreis netto, KI-Kosten in €, Marge, Ampel: grün < 30 %, gelb < 50 %,
+  rot darüber. Summenzeile.
 - Später möglich: automatische Mail an Fabian bei Rot.
 
 ### Teil C — Große Projekte (zwei bis drei Tage plus Live-Tests)

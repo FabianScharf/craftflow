@@ -501,6 +501,7 @@ export async function POST(req: NextRequest) {
       .filter(b => b.type === 'text')
       .map(b => String(b.text ?? ''))
       .join('')
+    // Nur ins Log, nie in die Antwort — Kostenzahlen sieht ausschliesslich Fabian.
     console.log(nutzungAlsZeile('optimize', 'claude-sonnet-4-6', nutzung))
 
     const parsed = extractJSON(raw)
@@ -511,7 +512,7 @@ export async function POST(req: NextRequest) {
       // Was das Werkzeug getan hat, gehört sichtbar in den Chat — auch und
       // gerade der Fehlerfall. Fehler verschlucken war der Fehler von gestern.
       const zusatz = werkzeugMeldungen.length > 0 ? '\n\n' + werkzeugMeldungen.join(' ') : ''
-      return NextResponse.json({ success: true, message: String(parsed.message ?? '') + zusatz, updatedOffer, nutzung })
+      return NextResponse.json({ success: true, message: String(parsed.message ?? '') + zusatz, updatedOffer })
     }
     console.error('[optimize] unparsable response:', { stop: data.stop_reason, raw: raw.slice(0, 500) })
 
@@ -523,7 +524,7 @@ export async function POST(req: NextRequest) {
     // Ein leerer Text bei gelaufenen Werkzeugen ist kein Fehler, sondern der
     // Normalfall: Das Modell hat gehandelt statt geredet.
     if (raw.trim() === '' && zusatz) {
-      return NextResponse.json({ success: true, message: zusatz, updatedOffer: null, nutzung })
+      return NextResponse.json({ success: true, message: zusatz, updatedOffer: null })
     }
     // Hat ein Werkzeug abgelehnt, ist das der wahre Grund. Ohne diesen Zweig las
     // der Nutzer "nicht verwertbar" und erfuhr nie, dass seine Regel abgelehnt
