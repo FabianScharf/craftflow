@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bauePreisBlock, MAX_PREISE_IM_PROMPT, type FixierterPreis } from './materialpreise'
+import { wendeDeckelAn, deckel, erlaubt, type Plan } from './plaene'
+import { ladeEffektivenPlan } from './planpruefung'
+import { ablehnung, deckelAblehnung } from './plantexte'
 
 // Serverseitige DB-Helfer für fixierte Einkaufspreise. Bewusst getrennt von
 // src/lib/materialpreise.ts, damit die reine Logik dort ohne Supabase testbar
@@ -11,7 +14,7 @@ export async function ladeAktivePreise(
 ): Promise<FixierterPreis[]> {
   const { data, error } = await supabase
     .from('materialpreise')
-    .select('id, bezeichnung, ek, einheit, stand')
+    .select('id, bezeichnung, ek, einheit, stand, created_at')
     .eq('user_id', userId)
     .eq('aktiv', true)
     .order('updated_at', { ascending: false })
@@ -20,13 +23,18 @@ export async function ladeAktivePreise(
   // liest, haelt einen Ausfall fuer "keine Preise vorhanden" — und kalkuliert
   // still mit geschaetzten Werten weiter.
   if (error) { console.error('[preise] ladeAktivePreise:', error.message); return [] }
-  return (data ?? []).map(r => ({
+  const preise = (data ?? []).map(r => ({
     id: r.id as string,
     bezeichnung: r.bezeichnung as string,
     ek: Number(r.ek),
     einheit: r.einheit as string,
     stand: r.stand as string,
+    created_at: r.created_at as string,
   }))
+  // Deckel beim Lesen: die ältesten N gelten, der Rest nicht (Fabian, 15.09.).
+  // Sortierung fürs Prompt bleibt `updated_at desc`, der Deckel rechnet nach `created_at`.
+  const plan = await ladeEffektivenPlan(supabase, userId)
+  return wendeDeckelAn(preise, deckel(plan, 'materialpreise')).filter(p => p.aktivDurchPlan)
 }
 
 export async function preisBlockFuerNutzer(
@@ -55,6 +63,24 @@ export async function speicherePreis(
     .ilike('bezeichnung', p.bezeichnung)
     .maybeSingle()
   if (suchFehler) return { ok: false, grund: suchFehler.message }
+
+  // Deckel nur vor dem Insert-Zweig prüfen — ein Update ersetzt einen
+  // bestehenden Preis und ist kein Wachstum (Fabian, 15.09.).
+  if (!vorhanden) {
+    const plan = await ladeEffektivenPlan(supabase, userId)
+    if (!erlaubt(plan, 'materialpreise')) return { ok: false, grund: ablehnung('materialpreise').error }
+    const grenze = deckel(plan, 'materialpreise')
+    if (grenze !== null) {
+      const { count } = await supabase
+        .from('materialpreise')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('aktiv', true)
+      if ((count ?? 0) >= grenze) {
+        return { ok: false, grund: deckelAblehnung('materialpreise', plan === 'gesperrt' ? 'solo' : (plan as Plan), grenze).error }
+      }
+    }
+  }
 
   const { error } = vorhanden
     ? await supabase.from('materialpreise')

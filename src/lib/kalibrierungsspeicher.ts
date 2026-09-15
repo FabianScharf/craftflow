@@ -7,6 +7,8 @@
 // geprueft und im Klartext zurueckgegeben.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { KEINE_FAKTOREN, type Faktoren } from './zeitfaktoren'
+import { erlaubt } from './plaene'
+import { ladeEffektivenPlan } from './planpruefung'
 
 export type Kalibrierung = {
   mitarbeiter: string
@@ -47,6 +49,11 @@ export async function ladeKalibrierung(
 export async function ladeFaktoren(
   supabase: SupabaseClient, userId: string,
 ): Promise<Faktoren> {
+  // Solo/gesperrt haben keine Kalibrierung — es wird mit den CraftFlow-Werten
+  // gerechnet (Regel beim Wechsel nach unten, Fabian 15.09.). Nach einem
+  // Upgrade gelten die gespeicherten Antworten automatisch wieder.
+  const plan = await ladeEffektivenPlan(supabase, userId)
+  if (!erlaubt(plan, 'kalibrierung')) return { ...KEINE_FAKTOREN }
   const k = await ladeKalibrierung(supabase, userId)
   if (!k || !k.abgeschlossen) return { ...KEINE_FAKTOREN }
   const zahl = (v: unknown) => {

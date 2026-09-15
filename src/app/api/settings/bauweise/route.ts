@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { BEREICHE, normalisiere, type Bereich } from '@/lib/learn'
+import { wendeDeckelAn, deckel } from '@/lib/plaene'
+import { ladeEffektivenPlan, pruefeFunktion, pruefeDeckel } from '@/lib/planpruefung'
 
 const SPALTEN = 'id, bereich, wenn, dann, herkunft, quelle_text, beleg, aktiv, gesendet_zahl, zuletzt_gesendet, konflikt_hinweis, created_at'
 
@@ -28,7 +30,18 @@ export async function GET() {
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ regeln: data ?? [] })
+  const regeln = (data ?? []) as Array<{ id: string; aktiv: boolean; created_at: string }>
+
+  // Deckel beim Lesen: die ältesten N aktiven Regeln gelten, der Rest zeigt
+  // `aktivDurchPlan: false` (Fabian, 15.09.) — nichts wird gelöscht.
+  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const grenze = deckel(plan, 'bauweiseRegeln')
+  const gedeckelt = wendeDeckelAn(regeln.filter(r => r.aktiv), grenze)
+  return NextResponse.json({
+    regeln: regeln.map(r => ({ ...r, aktivDurchPlan: gedeckelt.find(g => g.id === r.id)?.aktivDurchPlan ?? false })),
+    deckel: grenze,
+    plan,
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -48,6 +61,21 @@ export async function POST(req: NextRequest) {
   if (!dann) return NextResponse.json({ error: 'dann erforderlich' }, { status: 400 })
   const wenn = (body.wenn ?? '').trim().slice(0, MAX_WENN_ZEICHEN)
   const herkunft = body.herkunft === 'manuell' ? 'manuell' : 'gelernt'
+
+  // Deckel nur bei manueller Neuanlage prüfen — ein Ersetzen (`ersetztRegelId`)
+  // ist ein Update, kein Wachstum.
+  if (!body.ersetztRegelId) {
+    const funktionsSperre = await pruefeFunktion(supabase, user.id, 'bauweise')
+    if (funktionsSperre) return funktionsSperre
+    const plan = await ladeEffektivenPlan(supabase, user.id)
+    const { count } = await supabase
+      .from('bauweise_regeln')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('aktiv', true)
+    const deckelSperre = pruefeDeckel(plan, 'bauweiseRegeln', count ?? 0)
+    if (deckelSperre) return deckelSperre
+  }
 
   // Ersetzt der Kandidat eine bestehende Regel, wird diese aktualisiert statt
   // eine zweite widersprüchliche Regel anzulegen.

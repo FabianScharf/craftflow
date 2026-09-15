@@ -1,26 +1,31 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { after } from 'next/server'
 import { baueRegelBlock, MAX_REGELN_IM_PROMPT } from './learn'
+import { wendeDeckelAn, deckel, erlaubt, type Plan } from './plaene'
+import { ladeEffektivenPlan } from './planpruefung'
+import { ablehnung, deckelAblehnung } from './plantexte'
 
 // Serverseitige DB-Helfer für den Bauweise-Vault. Bewusst getrennt von
 // src/lib/learn.ts, damit die reine Logik dort ohne Supabase testbar bleibt.
 
-export type AktiveRegel = { id: string; bereich: string; wenn: string; dann: string }
+export type AktiveRegel = { id: string; bereich: string; wenn: string; dann: string; created_at: string }
 
-// Sortierung: zuletzt mitgeschickte zuerst, dann die neuesten. Bei mehr als
-// MAX_REGELN_IM_PROMPT Regeln fallen die ältesten/ungenutzten heraus — das
-// Vault-UI zeigt dem Nutzer, welche das sind (kein stilles Abschneiden).
+// Sortierung: zuletzt mitgeschickte zuerst, dann die neuesten — das bleibt die
+// Reihenfolge fürs Prompt. Der Deckel selbst rechnet nach `created_at` (älteste
+// N aktiv, Fabian 15.09.) — deshalb steht das Feld im select und wird danach
+// gefiltert, bevor der Block gebaut wird.
 export async function ladeAktiveRegeln(supabase: SupabaseClient, userId: string): Promise<AktiveRegel[]> {
   const { data, error } = await supabase
     .from('bauweise_regeln')
-    .select('id, bereich, wenn, dann')
+    .select('id, bereich, wenn, dann, created_at')
     .eq('user_id', userId)
     .eq('aktiv', true)
     .order('zuletzt_gesendet', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(MAX_REGELN_IM_PROMPT)
   if (error) { console.error('[learn] ladeAktiveRegeln:', error.message); return [] }
-  return (data ?? []) as AktiveRegel[]
+  const plan = await ladeEffektivenPlan(supabase, userId)
+  return wendeDeckelAn(data as AktiveRegel[], deckel(plan, 'bauweiseRegeln')).filter(r => r.aktivDurchPlan)
 }
 
 export async function regelBlockFuerNutzer(
@@ -71,6 +76,24 @@ export async function speichereRegel(
       .maybeSingle()
     if (error) return { ok: false, grund: error.message }
     vorhandenId = (data as { id: string } | null)?.id ?? null
+  }
+
+  // Deckel nur vor dem Insert-Zweig prüfen — ein Update ersetzt eine bestehende
+  // Regel und ist kein Wachstum (Fabian, 15.09.).
+  if (!vorhandenId) {
+    const plan = await ladeEffektivenPlan(supabase, userId)
+    if (!erlaubt(plan, 'bauweise')) return { ok: false, grund: ablehnung('bauweise').error }
+    const grenze = deckel(plan, 'bauweiseRegeln')
+    if (grenze !== null) {
+      const { count } = await supabase
+        .from('bauweise_regeln')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('aktiv', true)
+      if ((count ?? 0) >= grenze) {
+        return { ok: false, grund: deckelAblehnung('bauweiseRegeln', plan === 'gesperrt' ? 'solo' : (plan as Plan), grenze).error }
+      }
+    }
   }
 
   const { error } = vorhandenId

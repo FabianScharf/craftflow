@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { wendeDeckelAn, deckel } from '@/lib/plaene'
+import { ladeEffektivenPlan, pruefeFunktion, pruefeDeckel } from '@/lib/planpruefung'
 
 // CRUD für fixierte Einkaufspreise. Aufbau bewusst identisch zu
 // src/app/api/settings/bauweise/route.ts — gleiche Auth-Prüfung, gleiche
@@ -34,7 +36,18 @@ export async function GET() {
     .order('bezeichnung')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ preise: data ?? [] })
+  const preise = (data ?? []) as Array<{ id: string; aktiv: boolean; created_at: string }>
+
+  // Deckel beim Lesen: die ältesten N aktiven Preise gelten, der Rest zeigt
+  // `aktivDurchPlan: false` (Fabian, 15.09.) — nichts wird gelöscht.
+  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const grenze = deckel(plan, 'materialpreise')
+  const gedeckelt = wendeDeckelAn(preise.filter(p => p.aktiv), grenze)
+  return NextResponse.json({
+    preise: preise.map(p => ({ ...p, aktivDurchPlan: gedeckelt.find(g => g.id === p.id)?.aktivDurchPlan ?? false })),
+    deckel: grenze,
+    plan,
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -52,6 +65,17 @@ export async function POST(req: NextRequest) {
 
   const einheit = pruefeEinheit(body.einheit ?? 'Stk')
   if (!einheit) return NextResponse.json({ error: `Einheit muss eine von: ${EINHEITEN.join(', ')}` }, { status: 400 })
+
+  const funktionsSperre = await pruefeFunktion(supabase, user.id, 'materialpreise')
+  if (funktionsSperre) return funktionsSperre
+  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const { count } = await supabase
+    .from('materialpreise')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('aktiv', true)
+  const deckelSperre = pruefeDeckel(plan, 'materialpreise', count ?? 0)
+  if (deckelSperre) return deckelSperre
 
   const { data, error } = await supabase
     .from('materialpreise')
