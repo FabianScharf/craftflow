@@ -9,6 +9,7 @@
 // Wer eine Einstellung ergänzt, ergänzt sie hier. Sonst nirgends.
 
 import type { PDFTextOpts, FirmaOpts, SchriftId } from './pdf'
+import { erlaubt, type EffektiverPlan } from './plaene.ts'
 
 /** Rohes Betriebsprofil, wie es aus /api/settings/betriebsprofil kommt. */
 export type Profilwerte = Record<string, unknown>
@@ -32,8 +33,14 @@ export type Zusatz = {
   angebotsdatum?: string
 }
 
-export function pdfTextOptionen(p: Profilwerte, zusatz: Zusatz = {}): PDFTextOpts {
-  const eigenes = ja(p, 'pdf_eigenes_briefpapier') && !!text(p, 'pdf_briefpapier_url')
+export function pdfTextOptionen(p: Profilwerte, zusatz: Zusatz = {}, plan: EffektiverPlan = 'enterprise'): PDFTextOpts {
+  // Aufgabe 6 (15.09.): Ohne 'gestaltung' im Plan (Solo) fällt das Angebot auf das
+  // Standardlayout zurück — Layout, Schrift, eigenes Briefpapier, Ränder,
+  // Textbausteine und die Spalten Menge/Einheitspreis. Inhalt (Firmendaten,
+  // Kleinunternehmer, Gültigkeit, Zahlungsziel, Anrede/Abschluss, Widerruf,
+  // Massivholz-Hinweis, Unterschrift, Footer-Felder) bleibt unverändert.
+  const gestaltung = erlaubt(plan, 'gestaltung')
+  const eigenes = gestaltung && ja(p, 'pdf_eigenes_briefpapier') && !!text(p, 'pdf_briefpapier_url')
   return {
     anredeVorlage: text(p, 'anrede_vorlage') || undefined,
     nachtext: text(p, 'angebot_abschluss') || undefined,
@@ -42,17 +49,17 @@ export function pdfTextOptionen(p: Profilwerte, zusatz: Zusatz = {}): PDFTextOpt
     hinweis: text(p, 'pdf_hinweis') || undefined,
     logoUrl: text(p, 'logo_url') || undefined,
     angebotsdatum: zusatz.angebotsdatum,
-    layout: text(p, 'pdf_layout') === 'kompakt' ? 'kompakt' : 'klassisch',
-    schriftart: (text(p, 'pdf_schriftart') || 'opensans') as SchriftId,
+    layout: gestaltung && text(p, 'pdf_layout') === 'kompakt' ? 'kompakt' : 'klassisch',
+    schriftart: (gestaltung ? (text(p, 'pdf_schriftart') || 'opensans') : 'opensans') as SchriftId,
     basisUrl: zusatz.basisUrl,
     // Steuer: bis 2026-09-08 standen 19 % fest im Code. Fuer Kleinunternehmer nach
     // § 19 UStG war das Dokument damit formal falsch.
     mwstSatz: zahl(p, 'mwst_satz', 19),
     kleinunternehmer: ja(p, 'kleinunternehmer'),
     gueltigTage: zahl(p, 'angebot_gueltig_tage', 30),
-    bausteine: zusatz.bausteine ?? [],
-    zeigeMenge: ja(p, 'pdf_zeige_menge'),
-    zeigeEinheitspreis: ja(p, 'pdf_zeige_einheitspreis'),
+    bausteine: gestaltung ? (zusatz.bausteine ?? []) : [],
+    zeigeMenge: gestaltung && ja(p, 'pdf_zeige_menge'),
+    zeigeEinheitspreis: gestaltung && ja(p, 'pdf_zeige_einheitspreis'),
     zeigeMassivholz: text(p, 'pdf_zeige_massivholz') !== 'false',
     massivholzText: text(p, 'pdf_massivholz_text') || undefined,
     zeigeUnterschrift: text(p, 'pdf_zeige_unterschrift') !== 'false',
@@ -70,7 +77,8 @@ export function pdfTextOptionen(p: Profilwerte, zusatz: Zusatz = {}): PDFTextOpt
   }
 }
 
-export function pdfFirmaOptionen(p: Profilwerte): FirmaOpts {
+export function pdfFirmaOptionen(p: Profilwerte, plan: EffektiverPlan = 'enterprise'): FirmaOpts {
+  const gestaltung = erlaubt(plan, 'gestaltung')
   return {
     name: text(p, 'firma_name') || undefined,
     inhaber: text(p, 'inhaber') || undefined,
@@ -85,6 +93,6 @@ export function pdfFirmaOptionen(p: Profilwerte): FirmaOpts {
     bic: text(p, 'bic') || undefined,
     telefon: text(p, 'telefon') || undefined,
     website: text(p, 'website') || undefined,
-    akzentfarbe: text(p, 'farbe_akzent') || undefined,
+    akzentfarbe: gestaltung ? (text(p, 'farbe_akzent') || undefined) : undefined,
   }
 }

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 // deshalb in pdftext.ts — der Rest ist Vorlage und wird live im Browser geprueft.
 import { alsAbsaetze, SCHRIFTEN, fontFaces, anredeAus, positionsBloecke, unterNummer } from '../src/lib/pdftext.ts'
 import { nettoSumme } from '../src/lib/types.ts'
+import { pdfTextOptionen, pdfFirmaOptionen } from '../src/lib/pdfoptionen.ts'
 
 const posten = (titel, betrag, extra = {}) => ({
   id: Math.round(Math.random() * 1e9), titel, beschreibung: '',
@@ -162,4 +163,31 @@ test('Die alte Vorlage mit {name} funktioniert unverändert weiter', () => {
 
 test('Ohne Vorlage und ohne Namen entsteht trotzdem eine gültige Anrede', () => {
   assert.equal(anredeAus('', {}), 'Liebe/r Kundin / Kunde,')
+})
+
+// ── Solo: Gestaltung fällt zurück, Inhalt bleibt (Aufgabe 6) ────────────────
+
+test('Solo: Gestaltung fällt auf Standard zurück, Inhalt bleibt', () => {
+  const p = {
+    pdf_layout: 'kompakt', pdf_schriftart: 'lora',
+    pdf_eigenes_briefpapier: true, pdf_briefpapier_url: 'x',
+    pdf_margin_top: 40, farbe_akzent: '#C8102E',
+    angebot_einleitung: 'Hallo', kleinunternehmer: true,
+  }
+  const t = pdfTextOptionen(p, { bausteine: [{ inhalt: 'B' }] }, 'solo')
+  assert.equal(t.layout, 'klassisch')
+  assert.equal(t.schriftart, 'opensans')
+  assert.equal(t.eigeneBriefpapier, false)
+  assert.equal(t.margins, undefined)
+  assert.equal(t.bausteine?.length ?? 0, 0)
+  // Inhalt bleibt: Kleinunternehmer ist keine Gestaltung.
+  assert.equal(t.kleinunternehmer, true)
+  assert.equal(pdfFirmaOptionen(p, 'solo').akzentfarbe, undefined)
+  assert.equal(pdfTextOptionen(p, { bausteine: [{ inhalt: 'B' }] }, 'starter').layout, 'kompakt')
+})
+
+test('Ohne Plan-Argument bleibt das Verhalten wie bisher (Enterprise-Standard)', () => {
+  const p = { pdf_layout: 'kompakt', farbe_akzent: '#C8102E' }
+  assert.equal(pdfTextOptionen(p).layout, 'kompakt')
+  assert.equal(pdfFirmaOptionen(p).akzentfarbe, '#C8102E')
 })

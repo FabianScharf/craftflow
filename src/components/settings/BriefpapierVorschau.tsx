@@ -4,6 +4,7 @@ import { C } from '@/lib/types'
 import { useEffect, useMemo, useState } from 'react'
 import { buildPDF } from '@/lib/pdf'
 import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
+import { usePlan } from '@/hooks/usePlan'
 import type { Angebotsposition, Kunde } from '@/lib/types'
 
 // Lebende Vorschau neben den Einstellungen.
@@ -66,6 +67,10 @@ const BEISPIEL_POSITIONEN: Angebotsposition[] = [
 type Profil = Record<string, string>
 
 export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
+  // Die Vorschau muss zeigen, was der Nutzer tatsächlich bekommt: Solo bleibt beim
+  // Standardlayout (Aufgabe 6), auch wenn hier andere Werte gespeichert sind.
+  const { effectivePlan } = usePlan()
+
   // Die Bausteine mit "immer" gehoeren ins Beispielangebot — sonst zeigt die
   // Vorschau ein Dokument, das es so nie gibt.
   const [bausteine, setBausteine] = useState<Array<{ titel: string; inhalt: string }>>([])
@@ -95,13 +100,13 @@ export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
       pdfTextOptionen(profil, {
         basisUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
         bausteine,
-      }),
-      pdfFirmaOptionen(profil),
+      }, effectivePlan),
+      pdfFirmaOptionen(profil, effectivePlan),
     )
       // Skripte aus dem Vorschau-HTML entfernen — hier wird fremder Text gerendert
       // (eigene Bausteine des Nutzers), und der darf nichts ausführen.
       .replace(/<script[\s\S]*?<\/script>/gi, '')
-  }, [profil, bausteine])
+  }, [profil, bausteine, effectivePlan])
 
   // Fabian am 2026-09-08: "Die Vorschau finde ich gut, aber sehr klein. Hier kann man
   // kaum etwas erkennen." Stimmt — in der Spalte neben den Bedienelementen ist ein

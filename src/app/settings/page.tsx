@@ -135,7 +135,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const { isInTrial, trialDaysLeft, canUse, isBlocked } = usePlan()
+  const { isInTrial, trialDaysLeft, canUse, isBlocked, erlaubt } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
@@ -805,6 +805,16 @@ export default function SettingsPage() {
               {/* TAB: GESTALTUNG */}
               {briefpapierTab === 'gestaltung' && (
                 <div style={{ display: 'grid', gap: 28 }}>
+
+                  {!erlaubt('gestaltung') && (
+                    // Solo bekommt das Standardlayout ohne Rückfrage (Aufgabe 6) —
+                    // kein Sperr-Kasten für den ganzen Bereich (das macht Aufgabe 7),
+                    // nur der Hinweis, dass die Einstellungen unten gespeichert
+                    // bleiben, aber erst ab Starter im PDF wirken.
+                    <div style={{ background: akzentTon('0D'), borderRadius: 6, padding: '10px 12px', fontSize: 12, color: C.textMid, lineHeight: 1.5 }}>
+                      Im Solo-Plan wird das Angebot im Standardlayout erzeugt. Deine Einstellungen bleiben gespeichert und gelten ab dem Starter-Plan.
+                    </div>
+                  )}
 
                   <div>
                     <label style={lbl}>Layout</label>

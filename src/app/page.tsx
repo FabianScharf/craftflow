@@ -4535,8 +4535,8 @@ export default function CraftFlow() {
                 bausteine: bausteine
                   .filter(b => bausteinIds.includes(b.id))
                   .map(b => ({ titel: b.titel, inhalt: b.inhalt })),
-              })
-              const firmaOpts = pdfFirmaOptionen(profilRoh)
+              }, effectivePlan)
+              const firmaOpts = pdfFirmaOptionen(profilRoh, effectivePlan)
               const html = buildPDF(pos, kunde, docNr, docTyp, anschr, widerruf, textOpts, firmaOpts)
               const useOwnLetterhead = profilPdfEigeneBriefpapier && !!profilPdfBriefpapierUrl
               const footerTpl = useOwnLetterhead ? undefined : buildFooterTemplate(docTyp, docNr, firmaOpts, textOpts)
