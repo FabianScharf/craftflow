@@ -148,6 +148,12 @@ zugleich. Die Vault-Roadmap wird entsprechend umgeschrieben.
 
 ### Teil D — Landingpage (halber Tag, Repo `~/craftflow-web`)
 
+Heutiger Stand dort: Die Pläne stehen fest verdrahtet in `app/page.tsx` (ab Zeile ~70,
+Namen wie „Professional“, Texte wie „Foto- & Bildanalyse“, „3 Benutzer“ bei Starter) und
+werden von `components/landing/PricingSection.tsx` gezeichnet. Namen und Grenzen weichen
+von der App ab (App: „Pro“, Starter hat 1 Nutzer). Genau diese Abweichung soll die
+gemeinsame Matrix beenden.
+
 - Preistabelle aus derselben Matrix, gleiche Wortwahl wie in der App. Idealerweise
   eine kleine JSON-Datei, die beide Repos teilen (Kopie mit Test, der Gleichheit prüft).
 - Pro als hervorgehobene Spalte („Beliebt“), Untertitel „Mein eigener Kalkulator“.
