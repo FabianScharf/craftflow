@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { akzentTon } from '@/lib/theme'
 import { usePlan } from '@/hooks/usePlan'
 import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
@@ -2261,7 +2262,7 @@ export default function CraftFlow() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ background: '#1C1C1C', border: `1px solid #2A2A2A`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#252525', border: `1px solid ${C.copper}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔧</div>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#252525', border: `1px solid ${akzentTon('33')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔧</div>
                 <div>
                   <div style={{ color: C.white, fontSize: 13, fontWeight: 800 }}>KI-Optimierung</div>
                   <div style={{ color: C.copper, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>Analyse</div>
@@ -2273,7 +2274,7 @@ export default function CraftFlow() {
             </div>
             <div style={{ background: '#1C1C1C', border: `1px solid #2A2A2A`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#252525', border: `1px solid ${C.copper}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🎯</div>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#252525', border: `1px solid ${akzentTon('33')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🎯</div>
                 <div>
                   <div style={{ color: C.white, fontSize: 13, fontWeight: 800 }}>Kalkulations-Check</div>
                   <div style={{ color: C.copper, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase' }}>Erklärung</div>
@@ -2644,7 +2645,7 @@ export default function CraftFlow() {
   // Kalkulation arbeitet, soll den Knopf sehen, ohne ihn zu suchen.
   // Erscheint nur, wenn wirklich etwas von Hand geaendert wurde.
   const SpeicherLeiste = ungespeichert ? (
-    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2500, background: C.darkbg, borderTop: `1px solid ${C.copper}66`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2500, background: C.darkbg, borderTop: `1px solid ${akzentTon('66')}`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
       <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
         Nicht gespeicherte Änderungen
       </span>
@@ -3136,7 +3137,7 @@ export default function CraftFlow() {
               style={{
                 width: '100%', borderRadius: 10, cursor: uploadingCount > 0 ? 'wait' : 'pointer',
                 border: `2px dashed ${uploadedFiles.length > 0 ? C.copper : C.border}`,
-                background: uploadedFiles.length > 0 ? `${C.copper}10` : C.gray1,
+                background: uploadedFiles.length > 0 ? `${akzentTon('10')}` : C.gray1,
                 overflow: 'hidden',
               }}
             >
@@ -3152,7 +3153,7 @@ export default function CraftFlow() {
                 {/* Fotos – ab Starter */}
                 <div
                   onClick={() => { if (planLaedt) return; if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPhotoRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('starter') ? C.copper + '55' : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${darfNutzen('starter') ? akzentTon('55') : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
                   <span style={{ fontSize: 13 }}>{darfNutzen('starter') ? '📷' : '🔒'}</span>
                   <span style={{ fontSize: 11, color: darfNutzen('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>Fotos</span>
                   {!darfNutzen('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
@@ -3160,7 +3161,7 @@ export default function CraftFlow() {
                 {/* PDFs – ab Starter */}
                 <div
                   onClick={() => { if (planLaedt) return; if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startPdfRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('starter') ? C.copper + '55' : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('starter') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${darfNutzen('starter') ? akzentTon('55') : C.border}`, opacity: darfNutzen('starter') ? 1 : 0.5, cursor: 'pointer' }}>
                   <span style={{ fontSize: 13 }}>{darfNutzen('starter') ? '📄' : '🔒'}</span>
                   <span style={{ fontSize: 11, color: darfNutzen('starter') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>PDFs</span>
                   {!darfNutzen('starter') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB STARTER</span>}
@@ -3168,7 +3169,7 @@ export default function CraftFlow() {
                 {/* GAEB – ab Enterprise */}
                 <div
                   onClick={() => { if (planLaedt) return; if (!planCanUse('enterprise')) { window.location.href = '/settings#plan'; return }; if (uploadingCount === 0) startGaebRef.current?.click() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('enterprise') ? `${C.copper}20` : C.gray1, border: `1px solid ${darfNutzen('enterprise') ? C.copper + '55' : C.border}`, opacity: darfNutzen('enterprise') ? 1 : 0.5, cursor: 'pointer' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: darfNutzen('enterprise') ? `${akzentTon('20')}` : C.gray1, border: `1px solid ${darfNutzen('enterprise') ? akzentTon('55') : C.border}`, opacity: darfNutzen('enterprise') ? 1 : 0.5, cursor: 'pointer' }}>
                   <span style={{ fontSize: 13 }}>{darfNutzen('enterprise') ? '🏗' : '🔒'}</span>
                   <span style={{ fontSize: 11, color: darfNutzen('enterprise') ? C.white : C.textMid, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 600 }}>GAEB (.X83 / .X84)</span>
                   {!darfNutzen('enterprise') && <span style={{ fontSize: 9, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700 }}>AB ENTERPRISE</span>}
@@ -3196,7 +3197,7 @@ export default function CraftFlow() {
               </div>
             )}
             {gaebDetected && (
-              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${C.copper}55`, background: `${C.copper}0A`, padding: '12px 14px' }}>
+              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${akzentTon('55')}`, background: `${akzentTon('0A')}`, padding: '12px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 16 }}>🏗</span>
                   <div style={{ flex: 1 }}>
@@ -3232,7 +3233,7 @@ export default function CraftFlow() {
             placeholder="Oder hier direkt eingeben / Transkription erscheint hier…"
             style={{
               width: '100%', background: C.gray1,
-              border: `1px solid ${startText ? C.copper + '66' : C.border}`,
+              border: `1px solid ${startText ? akzentTon('66') : C.border}`,
               borderRadius: 10, padding: '14px', fontSize: 14, lineHeight: 1.7,
               color: C.white, fontFamily: 'Helvetica Neue,sans-serif',
               resize: 'none', minHeight: 120, boxSizing: 'border-box', outline: 'none',
@@ -3272,7 +3273,7 @@ export default function CraftFlow() {
 
           {/* KI-Chat-Fenster bei Rückfragen */}
           {startStatus === 'fragen' && (
-            <div style={{ marginTop: 14, background: '#0d1520', border: `1px solid ${C.copper}55`, borderRadius: 10, padding: '16px' }}>
+            <div style={{ marginTop: 14, background: '#0d1520', border: `1px solid ${akzentTon('55')}`, borderRadius: 10, padding: '16px' }}>
               <div style={{ color: C.copper, fontWeight: 700, fontSize: 11, letterSpacing: 1, marginBottom: 10 }}>
                 KI BRAUCHT NOCH INFORMATIONEN
               </div>
@@ -3281,7 +3282,7 @@ export default function CraftFlow() {
               </div>
               <div style={{ marginBottom: 14 }}>
                 {startMsg.split('\n').map((q, i) => (
-                  <div key={i} style={{ color: 'rgba(240,237,232,0.7)', fontSize: 13, marginBottom: 5, paddingLeft: 10, borderLeft: `2px solid ${C.copper}66`, lineHeight: 1.5 }}>
+                  <div key={i} style={{ color: 'rgba(240,237,232,0.7)', fontSize: 13, marginBottom: 5, paddingLeft: 10, borderLeft: `2px solid ${akzentTon('66')}`, lineHeight: 1.5 }}>
                     {q}
                   </div>
                 ))}
@@ -3568,7 +3569,7 @@ export default function CraftFlow() {
                       const isSending = sendingEmail === emailKey
                       const isSent = sentEmails.has(emailKey)
                       return (
-                        <div key={c.supplierId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '5px 8px', borderRadius: 4, background: isSelected ? `${C.copper}10` : C.gray1, border: `1px solid ${isSelected ? C.copper + '44' : C.border}` }}>
+                        <div key={c.supplierId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '5px 8px', borderRadius: 4, background: isSelected ? `${akzentTon('10')}` : C.gray1, border: `1px solid ${isSelected ? akzentTon('44') : C.border}` }}>
                           <input type="checkbox" checked={isSelected} onChange={() => toggleCandidate('all', g.gruppe, c.supplierId)} style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }} />
                           <span style={{ fontSize: 11, color: c.ist_favorit ? '#F5C518' : C.textMid, flexShrink: 0 }}>★</span>
                           <span style={{ fontSize: 12, color: C.white, flex: 1 }}>{c.supplierName}</span>
@@ -3661,7 +3662,7 @@ export default function CraftFlow() {
             </div>
 
             {/* Gesamtübersicht oben */}
-            <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${C.copper}44`, overflow: 'hidden', marginBottom: 14 }}>
+            <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${akzentTon('44')}`, overflow: 'hidden', marginBottom: 14 }}>
               <div style={{ display: 'flex' }}>
                 {[{ l: 'Positionen', v: `${pos.length}`, hideOnMobile: false }, { l: 'Netto', v: eur(totals.net), hideOnMobile: false }, { l: 'MwSt.', v: eur(vat), hideOnMobile: true }, { l: 'Brutto', v: eur(gross), hideOnMobile: false }]
                   .filter(item => !isMobile || !item.hideOnMobile)
@@ -3781,8 +3782,8 @@ export default function CraftFlow() {
                     {/* Serienhinweis: Material und Zeiten unten stehen fuer EIN Stueck.
                         Ohne diesen Satz wundert sich der Nutzer ueber den Gesamtpreis. */}
                     {(p.stueckzahl ?? 1) > 1 && (
-                      <div style={{ marginTop: 8, padding: '8px 10px', background: `${C.copper}12`,
-                        border: `1px solid ${C.copper}33`, borderRadius: 3, fontSize: 11,
+                      <div style={{ marginTop: 8, padding: '8px 10px', background: `${akzentTon('12')}`,
+                        border: `1px solid ${akzentTon('33')}`, borderRadius: 3, fontSize: 11,
                         color: C.textMid, lineHeight: 1.6 }}>
                         <b style={{ color: C.copper }}>{p.stueckzahl}× gleiche Stücke.</b>{' '}
                         Material und Zeiten unten gelten für <b>ein</b> Stück.{' '}
@@ -3927,7 +3928,7 @@ export default function CraftFlow() {
                                       const isSending = sendingEmail === emailKey
                                       const isSent = sentEmails.has(emailKey)
                                       return (
-                                        <div key={c.supplierId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '5px 8px', borderRadius: 4, background: isSelected ? `${C.copper}10` : C.gray1, border: `1px solid ${isSelected ? C.copper + '44' : C.border}` }}>
+                                        <div key={c.supplierId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '5px 8px', borderRadius: 4, background: isSelected ? `${akzentTon('10')}` : C.gray1, border: `1px solid ${isSelected ? akzentTon('44') : C.border}` }}>
                                           <input type="checkbox" checked={isSelected} onChange={() => toggleCandidate(`pos-${p.id}`, g.gruppe, c.supplierId)} style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }} />
                                           <span style={{ fontSize: 11, color: c.ist_favorit ? '#F5C518' : C.textMid, flexShrink: 0 }}>★</span>
                                           <span style={{ fontSize: 12, color: C.white, flex: 1 }}>{c.supplierName}</span>
@@ -4119,7 +4120,7 @@ export default function CraftFlow() {
             {/* Passt der Preis nicht? Genau hier hat der abgesprungene Testkunde die
                 App geschlossen — statt eines Auswegs stand da nichts. */}
             {istKalibriert === false && (
-              <div style={{ background: '#1A1A1A', border: `1px solid ${C.copper}44`, borderRadius: 4,
+              <div style={{ background: '#1A1A1A', border: `1px solid ${akzentTon('44')}`, borderRadius: 4,
                 padding: '14px 16px', marginBottom: 12 }}>
                 <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 5 }}>
                   Passt der Preis nicht zu deinem Betrieb?
@@ -4145,7 +4146,7 @@ export default function CraftFlow() {
             {!optimPanelOpen && !checkPanelOpen ? null : checkPanelOpen ? (
               <div className="cf-optim-panel">
                 {/* Header */}
-                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.copper}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: `${C.copper}0A` }}>
+                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${akzentTon('33')}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: `${akzentTon('0A')}` }}>
                   <div>
                     <div style={{ color: C.copper, fontWeight: 800, fontSize: 12, letterSpacing: 1.5 }}>🎯 KALKULATIONS-CHECK</div>
                     <div style={{ color: C.textMid, fontSize: 10, marginTop: 1 }}>Warum die KI auf diese Stunden kam</div>
@@ -4196,7 +4197,7 @@ export default function CraftFlow() {
                   )}
                 </div>
                 {/* Eingabe */}
-                <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.copper}33`, flexShrink: 0, background: `${C.copper}05` }}>
+                <div style={{ padding: '12px 14px', borderTop: `1px solid ${akzentTon('33')}`, flexShrink: 0, background: `${akzentTon('05')}` }}>
                   <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: 0.5 }}>
                     Frage stellen oder Einschätzung teilen:
                   </div>
@@ -4207,7 +4208,7 @@ export default function CraftFlow() {
                     placeholder='z.B. "Position 2 hat tatsächlich 5 Stunden länger gedauert"'
                     rows={3}
                     disabled={checkLoading}
-                    style={{ width: '100%', background: C.gray2, border: `1px solid ${C.copper}44`, borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
+                    style={{ width: '100%', background: C.gray2, border: `1px solid ${akzentTon('44')}`, borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
                   />
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     <button
@@ -4230,7 +4231,7 @@ export default function CraftFlow() {
             ) : (
               <div className="cf-optim-panel">
                 {/* Header */}
-                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.copper}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: `${C.copper}0A` }}>
+                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${akzentTon('33')}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: `${akzentTon('0A')}` }}>
                   <div>
                     <div style={{ color: C.copper, fontWeight: 800, fontSize: 12, letterSpacing: 1.5 }}>✨ KI-OPTIMIERUNG</div>
                     <div style={{ color: C.textMid, fontSize: 10, marginTop: 1 }}>Frage stellen oder Änderung beschreiben</div>
@@ -4298,7 +4299,7 @@ export default function CraftFlow() {
                               <span style={{ fontSize: 10, color: C.textMid }}>
                                 V{v.version_number} · {new Date(v.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                               </span>
-                              <button onClick={() => restoreVersion(v.id)} style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}55`, borderRadius: 2, padding: '2px 7px', cursor: 'pointer', fontSize: 10, fontFamily: 'Helvetica Neue,sans-serif' }}>
+                              <button onClick={() => restoreVersion(v.id)} style={{ background: 'transparent', color: C.copper, border: `1px solid ${akzentTon('55')}`, borderRadius: 2, padding: '2px 7px', cursor: 'pointer', fontSize: 10, fontFamily: 'Helvetica Neue,sans-serif' }}>
                                 Wiederherstellen
                               </button>
                             </div>
@@ -4313,7 +4314,7 @@ export default function CraftFlow() {
                 )}
 
                 {/* Eingabebereich */}
-                <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.copper}33`, flexShrink: 0, background: `${C.copper}05` }}>
+                <div style={{ padding: '12px 14px', borderTop: `1px solid ${akzentTon('33')}`, flexShrink: 0, background: `${akzentTon('05')}` }}>
                   <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: 0.5 }}>
                     Antworte auf die Analyse oder beschreibe eine Änderung:
                   </div>
@@ -4324,7 +4325,7 @@ export default function CraftFlow() {
                     placeholder='z.B. "Holzart ist Eiche massiv" oder "Maße: 240×220×60 cm"'
                     rows={3}
                     disabled={optimLoading}
-                    style={{ width: '100%', background: C.gray2, border: `1px solid ${C.copper}44`, borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
+                    style={{ width: '100%', background: C.gray2, border: `1px solid ${akzentTon('44')}`, borderRadius: 6, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
                   />
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     <button

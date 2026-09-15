@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { akzentTon, normalisiereHex, leitePaletteAb, wendePaletteAn } from '@/lib/theme'
 import { createClient } from '@/utils/supabase/client'
 import { normalizeKsId } from '@/lib/types'
 import { PlanGate } from '@/components/PlanGate'
@@ -18,13 +19,13 @@ import { type Plan, usePlan } from '@/hooks/usePlan'
 
 const C = {
   black:   'var(--c-primary, #0D0D0D)',
-  dark:    '#141414',
-  gray1:   '#1A1A1A',
-  gray2:   '#222222',
-  border:  '#2E2E2E',
+  dark:    'var(--c-darkbg, #141414)',
+  gray1:   'var(--c-surface1, #1A1A1A)',
+  gray2:   'var(--c-surface2, #222222)',
+  border:  'var(--c-border, #2E2E2E)',
   copper:  'var(--c-accent, #C8885A)',
-  white:   '#F5F2EE',
-  textMid: '#8A8A8A',
+  white:   'var(--c-text, #F5F2EE)',
+  textMid: 'var(--c-text-mid, #8A8A8A)',
   ok:      '#5ABE6A',
   err:     '#E05A5A',
 }
@@ -41,6 +42,55 @@ const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
 const lbl: React.CSSProperties = {
   fontSize: 10, letterSpacing: 2, textTransform: 'uppercase',
   color: C.textMid, marginBottom: 4, display: 'block',
+}
+
+/**
+ * Farbwahl mit fuehrendem Textfeld.
+ *
+ * Kundenrueckmeldung 2026-09-15: "der Rotton ging leicht ins Lila" — der Farbwaehler
+ * des Betriebssystems (Mac, iPhone) rechnet eingetippte Codes in ein anderes
+ * Farbprofil um. Deshalb: Der Code im Textfeld gilt. Er wird bereinigt (ohne Raute,
+ * Kleinbuchstaben, Kurzform) und Ungueltiges wird gesagt statt still verschluckt.
+ */
+function FarbFeld({ label, wert, standard, onChange, hinweis }: {
+  label: string; wert: string | undefined; standard: string
+  onChange: (hex: string) => void; hinweis?: string
+}) {
+  const [roh, setRoh] = useState(wert || standard)
+  const [vorher, setVorher] = useState(wert)
+  // Von aussen (Profil geladen) uebernehmen — aber nicht waehrend des Tippens
+  // dazwischenfunken, solange der getippte Code dieselbe Farbe meint.
+  // Abgleich direkt beim Rendern statt im Effekt (React-Muster "adjusting state").
+  if (wert !== vorher) {
+    setVorher(wert)
+    if (normalisiereHex(roh) !== normalisiereHex(wert || standard)) setRoh(wert || standard)
+  }
+  const gueltig = normalisiereHex(roh)
+  return (
+    <div>
+      <label style={lbl}>{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <input
+          type="color"
+          value={gueltig || standard}
+          onChange={e => { const h = normalisiereHex(e.target.value) || standard; setRoh(h); onChange(h) }}
+          style={{ width: 46, height: 36, border: `1px solid ${C.border}`, borderRadius: 4, background: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}
+        />
+        <input
+          value={roh}
+          onChange={e => { setRoh(e.target.value); const h = normalisiereHex(e.target.value); if (h) onChange(h) }}
+          onBlur={() => { if (gueltig) setRoh(gueltig) }}
+          style={inp({ width: 110, borderColor: gueltig ? undefined : C.err })}
+          maxLength={7}
+          placeholder={standard}
+          spellCheck={false}
+          autoCapitalize="off"
+        />
+        {!gueltig && <span style={{ fontSize: 11, color: C.err }}>Kein gültiger Farbcode — z.&nbsp;B. {standard}</span>}
+      </div>
+      {hinweis && <p style={{ fontSize: 11, color: C.textMid, marginTop: 6, lineHeight: 1.5 }}>{hinweis}</p>}
+    </div>
+  )
 }
 
 const STANDARD_CODES = [
@@ -245,12 +295,11 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...profil, onboarding_abgeschlossen: true }),
     })
+    const antwort = await res.json().catch(() => ({})) as { error?: string }
     setProfilSaving(false)
-    setProfilMsg(res.ok ? 'Gespeichert.' : 'Fehler beim Speichern.')
+    setProfilMsg(res.ok ? 'Gespeichert.' : (antwort.error || 'Fehler beim Speichern.'))
     if (res.ok) {
-      const root = document.documentElement
-      if (profil.farbe_primaer) root.style.setProperty('--c-primary', profil.farbe_primaer)
-      if (profil.farbe_akzent) root.style.setProperty('--c-accent', profil.farbe_akzent)
+      wendePaletteAn(document.documentElement, leitePaletteAb(profil.farbe_primaer, profil.farbe_akzent))
     }
     setTimeout(() => setProfilMsg(''), 3000)
   }
@@ -552,7 +601,7 @@ export default function SettingsPage() {
                 <span style={{ fontSize: isMobile ? 20 : 15 }}>{item.icon}</span>
                 <span style={{ flex: 1 }}>{item.label}</span>
                 {item.minPlan && !canUse(item.minPlan) && (
-                  <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${C.copper}50`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0, textTransform: 'capitalize' }}>
+                  <span style={{ fontSize: 9, color: C.copper, border: `1px solid ${akzentTon('50')}`, borderRadius: 3, padding: '1px 4px', letterSpacing: 0.5, flexShrink: 0, textTransform: 'capitalize' }}>
                     {item.minPlan.charAt(0).toUpperCase() + item.minPlan.slice(1)}
                   </span>
                 )}
@@ -563,7 +612,7 @@ export default function SettingsPage() {
             {isInTrial && (
               <div
                 onClick={() => { setSection('plan'); if (isMobile) setMobileShowContent(true) }}
-                style={{ margin: '12px 12px 0', background: `${C.copper}15`, border: `1px solid ${C.copper}44`, borderRadius: 8, padding: '10px 12px', cursor: 'pointer' }}
+                style={{ margin: '12px 12px 0', background: `${akzentTon('15')}`, border: `1px solid ${akzentTon('44')}`, borderRadius: 8, padding: '10px 12px', cursor: 'pointer' }}
               >
                 <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: C.copper, marginBottom: 3 }}>🎁 Testversion</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'} verbleiben</div>
@@ -638,43 +687,25 @@ export default function SettingsPage() {
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: C.white }}>Marketing & CI</h2>
               <div style={{ display: 'grid', gap: 20 }}>
 
-                <div>
-                  <label style={lbl}>Primärfarbe (Hintergrund)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <input
-                      type="color"
-                      value={profil.farbe_primaer || '#0D0D0D'}
-                      onChange={e => setP('farbe_primaer', e.target.value)}
-                      style={{ width: 46, height: 36, border: `1px solid ${C.border}`, borderRadius: 4, background: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}
-                    />
-                    <input
-                      value={profil.farbe_primaer || '#0D0D0D'}
-                      onChange={e => setP('farbe_primaer', e.target.value)}
-                      style={inp({ width: 110 })}
-                      maxLength={7}
-                      placeholder="#0D0D0D"
-                    />
-                  </div>
-                </div>
+                <FarbFeld
+                  label="Primärfarbe (Hintergrund)"
+                  wert={profil.farbe_primaer}
+                  standard="#0D0D0D"
+                  onChange={hex => setP('farbe_primaer', hex)}
+                  hinweis="Bei heller Primärfarbe stellt CraftFlow Schrift und Flächen automatisch auf dunkel um."
+                />
 
-                <div>
-                  <label style={lbl}>Akzentfarbe (Buttons / Highlights)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <input
-                      type="color"
-                      value={profil.farbe_akzent || '#C8885A'}
-                      onChange={e => setP('farbe_akzent', e.target.value)}
-                      style={{ width: 46, height: 36, border: `1px solid ${C.border}`, borderRadius: 4, background: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}
-                    />
-                    <input
-                      value={profil.farbe_akzent || '#C8885A'}
-                      onChange={e => setP('farbe_akzent', e.target.value)}
-                      style={inp({ width: 110 })}
-                      maxLength={7}
-                      placeholder="#C8885A"
-                    />
-                  </div>
-                </div>
+                <FarbFeld
+                  label="Akzentfarbe (Buttons / Highlights / PDF)"
+                  wert={profil.farbe_akzent}
+                  standard="#C8885A"
+                  onChange={hex => setP('farbe_akzent', hex)}
+                />
+
+                <p style={{ fontSize: 11, color: C.textMid, lineHeight: 1.6, margin: 0 }}>
+                  Farbcode am besten direkt ins Textfeld tippen, z.&nbsp;B. <span style={{ color: C.white }}>#C8102E</span>.
+                  Das Farbfenster von Mac und iPhone rechnet eingetippte Codes in ein anderes Farbprofil um — dann stimmt der Ton nicht mehr genau.
+                </p>
 
                 {/* Live-Vorschau */}
                 <div>
@@ -774,7 +805,7 @@ export default function SettingsPage() {
                             border: profil.pdf_layout === opt || (!profil.pdf_layout && opt === 'klassisch')
                               ? `2px solid ${C.copper}` : `1px solid ${C.border}`,
                             background: profil.pdf_layout === opt || (!profil.pdf_layout && opt === 'klassisch')
-                              ? `${C.copper}15` : C.gray2,
+                              ? `${akzentTon('15')}` : C.gray2,
                             color: C.white, fontFamily: 'Helvetica Neue,sans-serif', fontSize: 13, fontWeight: 700,
                           }}
                         >
@@ -1488,7 +1519,7 @@ export default function SettingsPage() {
               <p style={{ fontSize: 11, color: C.textMid, marginBottom: 16 }}>Alle Preise in Euro, netto zzgl. gesetzlicher MwSt. · Angebot richtet sich ausschließlich an Unternehmen (B2B).</p>
 
               {isInTrial && (
-                <div style={{ background: `${C.copper}15`, border: `1px solid ${C.copper}55`, borderRadius: 8, padding: '14px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ background: `${akzentTon('15')}`, border: `1px solid ${akzentTon('55')}`, borderRadius: 8, padding: '14px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ fontSize: 22 }}>🎁</span>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.copper }}>
@@ -1557,8 +1588,8 @@ export default function SettingsPage() {
                           <div style={{
                             marginTop: 10,
                             display: 'inline-flex', alignItems: 'baseline', gap: 5,
-                            background: plan.id === 'enterprise' ? `${C.copper}22` : plan.id === 'pro' ? `${C.copper}15` : 'transparent',
-                            border: plan.id === 'enterprise' || plan.id === 'pro' ? `1px solid ${C.copper}55` : 'none',
+                            background: plan.id === 'enterprise' ? `${akzentTon('22')}` : plan.id === 'pro' ? `${akzentTon('15')}` : 'transparent',
+                            border: plan.id === 'enterprise' || plan.id === 'pro' ? `1px solid ${akzentTon('55')}` : 'none',
                             borderRadius: 6, padding: plan.id === 'enterprise' || plan.id === 'pro' ? '5px 10px' : '0',
                           }}>
                             <span style={{
@@ -1883,7 +1914,7 @@ export default function SettingsPage() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                         <div>
                           <span style={{ fontSize: 15, fontWeight: 700, color: C.white, fontFamily: 'monospace' }}>{c.code}</span>
-                          <span style={{ marginLeft: 10, fontSize: 11, background: C.copper + '22', color: C.copper, borderRadius: 3, padding: '2px 7px', fontWeight: 700 }}>{c.plan.toUpperCase()}</span>
+                          <span style={{ marginLeft: 10, fontSize: 11, background: akzentTon('22'), color: C.copper, borderRadius: 3, padding: '2px 7px', fontWeight: 700 }}>{c.plan.toUpperCase()}</span>
                           {c.beschreibung && <span style={{ marginLeft: 10, fontSize: 11, color: C.textMid }}>{c.beschreibung}</span>}
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
@@ -2102,7 +2133,7 @@ function AuswertungSection({ isMobile = false }: { isMobile?: boolean }) {
         {zeitraeume.map(z => (
           <button key={z.id} onClick={() => setZeitraum(z.id)} style={{
             padding: '7px 14px', borderRadius: 6, border: `1px solid ${zeitraum === z.id ? C.copper : C.border}`,
-            background: zeitraum === z.id ? `${C.copper}22` : 'transparent',
+            background: zeitraum === z.id ? `${akzentTon('22')}` : 'transparent',
             color: zeitraum === z.id ? C.copper : C.textMid,
             fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif',
           }}>{z.label}</button>

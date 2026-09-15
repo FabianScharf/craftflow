@@ -1,11 +1,12 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { akzentTon } from '@/lib/theme'
 import { usePlan } from '@/hooks/usePlan'
 
 const C = {
-  black: '#0D0D0D', dark: '#141414', gray1: '#1A1A1A', gray2: '#222222',
-  border: '#2E2E2E', copper: '#C8885A', white: '#F5F2EE',
-  textMid: '#8A8A8A', ok: '#5ABE6A', err: '#E05A5A',
+  black: 'var(--c-primary, #0D0D0D)', dark: 'var(--c-darkbg, #141414)', gray1: 'var(--c-surface1, #1A1A1A)', gray2: 'var(--c-surface2, #222222)',
+  border: 'var(--c-border, #2E2E2E)', copper: 'var(--c-accent, #C8885A)', white: 'var(--c-text, #F5F2EE)',
+  textMid: 'var(--c-text-mid, #8A8A8A)', ok: '#5ABE6A', err: '#E05A5A',
 }
 
 const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
@@ -113,8 +114,8 @@ export function EmailSettings() {
 
       {/* Info-Banner */}
       <div style={{
-        background: plan === 'solo' ? C.gray1 : `${C.copper}10`,
-        border: `1px solid ${plan === 'solo' ? C.border : `${C.copper}50`}`,
+        background: plan === 'solo' ? C.gray1 : `${akzentTon('10')}`,
+        border: `1px solid ${plan === 'solo' ? C.border : `${akzentTon('50')}`}`,
         borderRadius: 6, padding: '10px 14px',
         fontSize: 12, color: plan === 'solo' ? C.textMid : C.copper,
         marginBottom: 24, lineHeight: 1.6,

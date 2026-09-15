@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { normalisiereHex } from '@/lib/theme'
 
 export async function GET() {
   const supabase = await createClient()
@@ -64,6 +65,21 @@ export async function PATCH(req: NextRequest) {
     } else {
       patch[key] = v
     }
+  }
+
+  // Farbcodes bereinigen; Unsinn abweisen statt ihn in die Datenbank zu lassen.
+  // Ein ungueltiger Code haette die CSS-Variable ungueltig gemacht — die Farbe
+  // waere stumm weggefallen (Kundenrueckmeldung 2026-09-15).
+  for (const key of ['farbe_primaer', 'farbe_akzent'] as const) {
+    if (!(key in patch)) continue
+    const v = patch[key]
+    if (v === '' || v === null || v === undefined) { patch[key] = null; continue }
+    const hex = normalisiereHex(String(v))
+    if (!hex) {
+      const name = key === 'farbe_primaer' ? 'Primärfarbe' : 'Akzentfarbe'
+      return NextResponse.json({ error: `${name}: „${String(v)}“ ist kein gültiger Farbcode (z. B. #C8102E).` }, { status: 400 })
+    }
+    patch[key] = hex
   }
 
   const { error } = await supabase

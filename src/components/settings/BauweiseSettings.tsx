@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { akzentTon } from '@/lib/theme'
 import { C } from '@/lib/types'
 import { BEREICHE, WARNUNG_AB_REGELN, MAX_REGELN_IM_PROMPT, istGleicheRegel, normalisiere } from '@/lib/learn'
 
@@ -152,7 +153,7 @@ export default function BauweiseSettings() {
       </div>
 
       {aktive.length >= WARNUNG_AB_REGELN && (
-        <div style={{ border: `1px solid ${C.copper}55`, background: `${C.copper}15`, borderRadius: 3, padding: 10, marginBottom: 14, fontSize: 11, color: C.white, lineHeight: 1.5 }}>
+        <div style={{ border: `1px solid ${akzentTon('55')}`, background: `${akzentTon('15')}`, borderRadius: 3, padding: 10, marginBottom: 14, fontSize: 11, color: C.white, lineHeight: 1.5 }}>
           Du hast {aktive.length} aktive Regeln. Ab {MAX_REGELN_IM_PROMPT} werden nicht mehr alle
           mitgeschickt — räume am besten auf, was nicht mehr stimmt.
         </div>
@@ -238,7 +239,7 @@ export default function BauweiseSettings() {
       {!neuOffen ? (
         <button
           onClick={() => { setNeuOffen(true); setNeuFehler('') }}
-          style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}55`, borderRadius: 3, padding: '10px 14px', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, cursor: 'pointer' }}
+          style={{ background: 'transparent', color: C.copper, border: `1px solid ${akzentTon('55')}`, borderRadius: 3, padding: '10px 14px', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, cursor: 'pointer' }}
         >
           + Regel selbst anlegen
         </button>

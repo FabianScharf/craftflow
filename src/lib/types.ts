@@ -218,15 +218,18 @@ export const FIRMA = {
 }
 
 // ── CI Farben ────────────────────────────────────────
+// Alle Werte sind CSS-Variablen, die src/lib/theme.ts aus der Primaerfarbe des
+// Nutzers ableitet. Ein heller Grund bekommt so dunkle Schrift und helle Kaesten.
+// Die Rueckfallwerte hinter dem Komma sind die dunkle Standardpalette.
 export const C = {
   black: 'var(--c-primary, #0D0D0D)',
-  darkbg: '#141414',
+  darkbg: 'var(--c-darkbg, #141414)',
   copper: 'var(--c-accent, #C8885A)',
-  white: '#F5F2EE',
-  gray1: '#1E1E1E',
-  gray2: '#2A2A2A',
-  textMid: '#8A8A8A',
-  border: '#2E2E2E',
+  white: 'var(--c-text, #F5F2EE)',
+  gray1: 'var(--c-surface1, #1E1E1E)',
+  gray2: 'var(--c-surface2, #2A2A2A)',
+  textMid: 'var(--c-text-mid, #8A8A8A)',
+  border: 'var(--c-border, #2E2E2E)',
 }
 
 export const CAT_COL: Record<string, string> = {

@@ -27,13 +27,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body style={{ margin: 0, padding: 0, background: '#0D0D0D' }}>
+      <body style={{ margin: 0, padding: 0, background: 'var(--c-primary, #0D0D0D)' }}>
         <ThemeLoader />
         {children}
-        <footer style={{ padding: '14px 24px', borderTop: '1px solid #1E1E1E', display: 'flex', justifyContent: 'center', gap: 24 }}>
-          <a href="/impressum"   style={{ fontSize: 11, color: '#4A4A4A', textDecoration: 'none' }}>Impressum</a>
-          <a href="/datenschutz" style={{ fontSize: 11, color: '#4A4A4A', textDecoration: 'none' }}>Datenschutz</a>
-          <a href="/agb"         style={{ fontSize: 11, color: '#4A4A4A', textDecoration: 'none' }}>AGB</a>
+        <footer style={{ padding: '14px 24px', borderTop: '1px solid var(--c-border, #1E1E1E)', display: 'flex', justifyContent: 'center', gap: 24 }}>
+          <a href="/impressum"   style={{ fontSize: 11, color: 'var(--c-text-mid, #4A4A4A)', textDecoration: 'none' }}>Impressum</a>
+          <a href="/datenschutz" style={{ fontSize: 11, color: 'var(--c-text-mid, #4A4A4A)', textDecoration: 'none' }}>Datenschutz</a>
+          <a href="/agb"         style={{ fontSize: 11, color: 'var(--c-text-mid, #4A4A4A)', textDecoration: 'none' }}>AGB</a>
         </footer>
       </body>
     </html>

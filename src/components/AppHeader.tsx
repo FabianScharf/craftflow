@@ -1,5 +1,6 @@
 'use client'
 
+import { akzentTon } from '@/lib/theme'
 import { usePlan } from '@/hooks/usePlan'
 
 // Die obere Leiste — dieselbe auf jeder Seite.
@@ -18,10 +19,10 @@ import { usePlan } from '@/hooks/usePlan'
 // gemeinsam — es soll genau ein Zeichen geben, kein zweites daneben.
 
 const FARBE = {
-  darkbg: '#141414',
+  darkbg: 'var(--c-darkbg, #141414)',
   black: 'var(--c-primary, #0D0D0D)',
-  border: '#2E2E2E',
-  textMid: '#8A8A8A',
+  border: 'var(--c-border, #2E2E2E)',
+  textMid: 'var(--c-text-mid, #8A8A8A)',
   accent: 'var(--c-accent, #C8885A)',
 }
 
@@ -83,7 +84,7 @@ export function AppHeader({
     {isInTrial && (
       <div
         onClick={() => { window.location.href = '/settings#plan' }}
-        style={{ background: `${FARBE.accent}18`, borderBottom: `1px solid ${FARBE.accent}55`,
+        style={{ background: `${akzentTon('18')}`, borderBottom: `1px solid ${akzentTon('55')}`,
           padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
           gap: 10, cursor: 'pointer' }}
       >
