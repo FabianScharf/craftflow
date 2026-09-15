@@ -131,6 +131,26 @@ ungefragt auf `main`.
   (`pruefeKandidaten` in `src/lib/learn.ts`). Gleiche Haltung wie bei den KI-Zahlen.
 - Lernen darf Speichern und PDF-Export **nie** blockieren.
 
+## Farben / CI (Stand 2026-09-15)
+- Zwei Nutzerfarben (`farbe_primaer`, `farbe_akzent` im Betriebsprofil). Alles andere —
+  Schrift, Nebentext, Kästen, Rahmen, Kopfzeile — leitet `leitePaletteAb()` in
+  `src/lib/theme.ts` daraus ab. **Dunkle** Primärfarbe → heutige Palette byte-identisch;
+  **helle** → dunkle Schrift, Flächen leicht abgesetzt. Kontrast ≥ 4,5 ist per Test belegt.
+- Alle `C`-Konstanten (types.ts, settings/page.tsx, AppHeader, PricingModal, Lieferanten-,
+  EmailSettings) sind CSS-Variablen `var(--c-…, Rückfall)`. **Keine festen Textfarben
+  mehr einführen**, die auf `C.black`/`C.gray*` liegen sollen — sonst kippt der Kontrast
+  bei hellem Grund wieder (Kundenrückmeldung 15.09.: „Schrift kaum noch lesbar“).
+- **Nie** einen Hex-Alpha-Anhang an eine Variable hängen (`${C.copper}55` → ungültiges
+  CSS, fällt stumm weg; war 53× im Code). Stattdessen `akzentTon('55')` aus theme.ts.
+- Farbcode-Eingabe: das Textfeld ist führend (`FarbFeld` in settings/page.tsx),
+  `normalisiereHex()` bereinigt (ohne Raute, klein, Kurzform), Ungültiges wird gemeldet.
+  Der Farbwähler von macOS/iOS rechnet eingetippte Codes in ein anderes Farbprofil um —
+  Ursache des „Rot wird Lila“ aus derselben Rückmeldung. Server (PATCH betriebsprofil)
+  prüft die Codes ebenfalls und antwortet mit 400 + lesbarer Meldung.
+- `ThemeLoader` merkt sich die letzte Palette im localStorage (`craftflow-palette`),
+  damit ein heller Nutzer nicht bei jedem Laden die dunkle Seite aufblitzen sieht.
+- Tests: `tests/theme.test.mjs`.
+
 ## Settings / Kostenstellen (Regeln & Route)
 - **15 Standard-Kostenstellen:** nicht löschbar, nicht umbenennbar — nur Betrag
   ändern oder aus/an. Standard-Erkennung IMMER über `normalizeKsId(code) ∈
