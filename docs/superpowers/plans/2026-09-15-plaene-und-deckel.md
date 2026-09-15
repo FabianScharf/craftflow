@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Jeder Plan (Solo, Starter, Pro, Enterprise) bekommt genau die Funktionen und Deckel aus der Plan-Matrix, serverseitig durchgesetzt, aus einer einzigen Quelle — und die Website zeigt dieselbe Matrix mit Nettopreisen.
+**Goal:** Nach der Testphase sperrt der Server (nicht nur der Browser); jeder Plan (Solo, Starter, Pro, Enterprise) bekommt genau die Funktionen und Deckel aus der Plan-Matrix, serverseitig durchgesetzt, aus einer einzigen Quelle — und die Website zeigt dieselbe Matrix mit Nettopreisen.
 
 **Architecture:** Eine reine Datendatei `src/lib/plaene.ts` (Matrix, Preis-IDs, Deckel-Logik) speist alles: den Browser-Hook `usePlan`, die Sperr-Kästen, die Einstellungen, den Hilfe-Assistenten, den Stripe-Webhook und einen Server-Helfer `src/lib/planpruefung.ts`, der in jeder betroffenen API-Route den effektiven Plan lädt und Funktionen bzw. Deckel prüft. Deckel wirken **beim Lesen** (`wendeDeckelAn`: die ältesten N bleiben aktiv, der Rest wird als „inaktiv durch Plan“ markiert), nie per Massenänderung in der Datenbank. Die Website bekommt eine Kopie der Matrix als JSON; ein Test in diesem Repo prüft die Gleichheit, wenn das Nachbar-Repo vorhanden ist.
 
@@ -47,6 +47,39 @@
 | `~/craftflow-web/lib/plaene.json`, `~/craftflow-web/app/page.tsx` | Website-Preise aus der Matrix, Netto-Hinweis, FAQ |
 | `tests/plaene-website.test.mjs` (neu) | Gleichheit Matrix ↔ Website-JSON |
 | `CLAUDE.md`, Vault | Regeln festhalten |
+
+---
+
+### Task 0: Zugang nach der Testphase wirklich sperren
+
+**Befund (16.09., Fabians Frage „wird der Zugriff nach 14 Tagen wirklich verhindert?“):**
+- Die einzige Sperre ist `isBlocked` in `src/hooks/usePlan.ts:99-100` (`trialExpired && plan === 'solo'`) und wirkt nur auf `src/app/page.tsx:2533` (Paywall-Bildschirm). `/settings` ist nicht gesperrt.
+- **Keine API-Route prüft die Testphase.** `/api/analyze`, `/api/optimize`, `/api/generate-pdf`, `/api/projects`, `/api/transcribe`, `/api/assistant` verlangen nur Login (Middleware). Wer die Paywall umgeht (direkter Aufruf, `/settings`), nutzt die KI unbegrenzt und unbezahlt.
+- `/api/usage` behandelt einen Nutzer mit abgelaufener Testphase als **Solo** und gewährt 3 Angebote/Monat — ohne Zahlung. Ursache: `plan = 'solo'` ist zugleich der Standard für „nie bezahlt“ und der bezahlte 7-€-Plan. Die Datenbank kann beides nicht unterscheiden.
+- Der Angebotszähler zählt nur PDF-Erstellungen (`incrementUsage` in `page.tsx:4470`), nicht Analysen. Der teuerste Vorgang ist ungezählt.
+- Nach einer Zahlung mit dem aktuellen Preis-Satz setzt der Webhook `plan = 'solo'` (Preis unbekannt → `?? 'solo'`) → **der zahlende Kunde bleibt auf der Paywall.** (Behoben in Task 2.)
+- Offen, nur in der Datenbank prüfbar: Wird `trial_starts_at` bei jeder Registrierung gesetzt (Default/Trigger)? Ist es `NULL`, ist `trialExpired` nie wahr und der Nutzer nie gesperrt. Was tut `redeem_coupon` im Oktober?
+
+**Regel (neu):** Nach der Testphase gibt es Zugang **nur** mit aktivem Stripe-Abo oder einem von Fabian/Gutschein gesetzten Plan ungleich Solo. Sonst ist der effektive Plan `'gesperrt'`: keine Funktion, kein Deckel, jede KI-/PDF-/Projekt-Route antwortet 402 mit Meldung und Link zur Plan-Seite. Die Paywall im Browser bleibt als Anzeige.
+
+**Files:**
+- Create: `docs/sql/2026-09-16-abo-status.sql` — `alter table betriebsprofil add column if not exists abo_status text;` (`'aktiv'` | `'beendet'` | null)
+- Modify: `src/app/api/stripe/webhook/route.ts` — `checkout.session.completed` und `customer.subscription.updated` (Status `active`/`trialing`/`past_due`) setzen `abo_status: 'aktiv'`; `customer.subscription.deleted` setzt `abo_status: 'beendet'` (Plan darf stehen bleiben — er zählt ohne Abo nicht mehr)
+- Modify: `src/lib/plaene.ts` — `type Plan` bleibt; neu `type EffektiverPlan = Plan | 'gesperrt'`; `effektiverPlan(profil)` liest zusätzlich `abo_status` und `stripe_customer_id`:
+  1. Testphase läuft → `'enterprise'`
+  2. `abo_status === 'aktiv'` → gespeicherter Plan
+  3. gespeicherter Plan ≠ `'solo'` (Gutschein, Admin) → dieser Plan
+  4. sonst → `'gesperrt'`
+  `erlaubt('gesperrt', …)` ist immer falsch, `deckel('gesperrt', …)` ist 0.
+- Modify: `src/lib/planpruefung.ts` — `pruefeZugang(supabase, userId)`: bei `'gesperrt'` → `NextResponse.json({ error: 'Deine Testphase ist abgelaufen. Wähle einen Plan, um weiterzuarbeiten.', minPlan: 'solo' }, { status: 402 })`
+- Modify: Routen `analyze`, `optimize`, `generate-pdf`, `projects` (POST/PUT), `transcribe`, `assistant`, `usage` (POST) — als erste Prüfung nach dem Login `const zu = await pruefeZugang(…); if (zu) return zu`
+- Modify: `src/hooks/usePlan.ts` — `isBlocked = effectivePlan === 'gesperrt'`; `src/app/settings/page.tsx` — bei `isBlocked` nur den Bereich „Mein Plan“ zeigen
+- Modify: `/api/usage` POST — Analysen zählen (Aufruf aus `analyze/route.ts` nach erfolgreichem KI-Aufruf), nicht mehr nur PDFs. **Fabian entscheidet:** Zählt ein Angebot bei der Analyse (Kostentreiber) oder beim PDF (heute)? Vorschlag: bei der Analyse.
+- Test: `tests/plaene.test.mjs` — `effektiverPlan`: Testphase → enterprise; abgelaufen + abo aktiv + plan pro → pro; abgelaufen + kein Abo + plan solo → gesperrt; abgelaufen + kein Abo + plan enterprise (Gutschein) → enterprise; abo beendet + plan pro → gesperrt.
+
+**Live-Prüfung (Task 9 ergänzen):** Testkonto per SQL auf `trial_starts_at = now() - 30 Tage`, `abo_status = null`, `plan = 'solo'`: `/` zeigt Paywall, `/settings` zeigt nur „Mein Plan“, `POST /api/analyze` → 402 (kein KI-Aufruf, kostet nichts), `POST /api/usage` → 402. Dann `abo_status = 'aktiv'`, `plan = 'pro'` → alles offen. Danach zurücksetzen.
+
+- [ ] Schritte wie oben, Test zuerst, dann Commit `fix(zugang): nach der Testphase sperrt der Server, nicht nur der Browser`
 
 ---
 
