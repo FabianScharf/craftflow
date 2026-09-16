@@ -38,6 +38,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: `„${String(body.status)}“ ist kein gültiger Status.` }, { status: 400 })
     }
     patch.status = body.status
+    // Wiedereröffnen hebt eine frühere Zusammenlegung auf: Ohne das bliebe
+    // zusammengelegt_in gesetzt, und die normale (gefilterte) Liste zeigt den
+    // Wunsch trotz status='offen' weiterhin nicht — nur der Admin-Umschalter
+    // "Ausgeblendete und zusammengelegte anzeigen" (I-1) würde ihn noch finden.
+    // Kein zweiter Schritt nötig: "offen" heißt wieder ein eigenständiger Wunsch.
+    if (body.status === 'offen') patch.zusammengelegt_in = null
   }
 
   if ('zusammengelegt_in' in body) {
