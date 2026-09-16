@@ -97,6 +97,58 @@ export function schneideText(
   return teile
 }
 
+export type Textstueck = { str: string; y: number; eol?: boolean }
+
+/**
+ * Baut aus den rohen Textstücken von pdf.js (`page.getTextContent().items`) wieder
+ * Zeilen zusammen.
+ *
+ * WARUM DAS NÖTIG IST: `unpdf`s `extractText(bytes, { mergePages: true })` liefert bei
+ * einem normalen zweiseitigen Leistungsverzeichnis den KOMPLETTEN Text als EINE Zeile
+ * ohne ein einziges `\n` (Live-Test 16.09., 3.764 Zeichen). Ohne Zeilenumbrüche sieht
+ * `schneideText` keine Positionszeilen und keine Absätze — ein 40-seitiges PDF würde zu
+ * einem einzigen Block (der "überlangen Einzelzeile"), und genau der Zeichendeckel, der
+ * das verhindern soll, greift dann nicht mehr. `schnittRang` verlangt außerdem, dass eine
+ * Positionsnummer am ZEILENANFANG steht — ohne Zeilen ist das unmöglich zu erkennen.
+ * pdf.js liefert pro Textstück die y-Position (`transform[5]`) und `hasEOL`
+ * (Zeilenende laut PDF-Layout) — daraus lässt sich die Zeilenstruktur zuverlässig
+ * rekonstruieren.
+ *
+ * Regeln: eine neue Zeile beginnt, wenn das vorige Stück `eol === true` hatte ODER die
+ * gerundete y-Position um mehr als 1 von der y-Position der aktuellen Zeile abweicht.
+ * Innerhalb einer Zeile werden die Strings mit je einem Leerzeichen verbunden, danach
+ * werden mehrfache Leerzeichen zu einem zusammengefasst und außen getrimmt. Aufeinander
+ * folgende Leerzeilen werden zu einer zusammengefasst (bleibt als Absatztrenner).
+ */
+export function zeilenAusTextstuecken(stuecke: Textstueck[]): string {
+  if (!Array.isArray(stuecke) || stuecke.length === 0) return ''
+
+  const zeilen: string[] = []
+  let aktuelle: string[] = []
+  let zeilenY = 0
+  let vorigesEol = false
+
+  for (const s of stuecke) {
+    const y = Math.round(Number(s?.y) || 0)
+    const neueZeile = aktuelle.length > 0 && (vorigesEol || Math.abs(y - zeilenY) > 1)
+    if (neueZeile) {
+      zeilen.push(aktuelle.join(' ').replace(/\s+/g, ' ').trim())
+      aktuelle = []
+    }
+    if (aktuelle.length === 0) zeilenY = y
+    aktuelle.push(String(s?.str ?? ''))
+    vorigesEol = s?.eol === true
+  }
+  zeilen.push(aktuelle.join(' ').replace(/\s+/g, ' ').trim())
+
+  const ergebnis: string[] = []
+  for (const z of zeilen) {
+    if (z === '' && ergebnis[ergebnis.length - 1] === '') continue
+    ergebnis.push(z)
+  }
+  return ergebnis.join('\n')
+}
+
 export type Block = { nr: number; text: string; bilder: string[] }
 
 /**

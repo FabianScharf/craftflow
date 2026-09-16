@@ -9,13 +9,13 @@
 // Was nicht gelesen werden kann, wird GEMELDET (nichtVerarbeitet), nicht verschwiegen.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { extractText } from 'unpdf'
+import { getDocumentProxy } from 'unpdf'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang, ladeEffektivenPlan } from '@/lib/planpruefung'
 import { deckel, erlaubt } from '@/lib/plaene'
 import { deckelAblehnung, bloeckeAblehnung } from '@/lib/plantexte'
 import { zaehltGegenDeckel, istUuid } from '@/lib/upload'
-import { teileInBloecke, blockInfos, type Block } from '@/lib/bloecke'
+import { teileInBloecke, blockInfos, zeilenAusTextstuecken, type Block } from '@/lib/bloecke'
 
 export const maxDuration = 300
 
@@ -89,7 +89,19 @@ export async function POST(req: NextRequest) {
       continue
     }
     try {
-      const { text: pdfText } = await extractText(new Uint8Array(await blob.arrayBuffer()), { mergePages: true })
+      // Seitenweise mit pdf.js statt `extractText(bytes, { mergePages: true })`: Das
+      // lieferte im Live-Test einen kompletten mehrseitigen Text als EINE Zeile ohne
+      // jedes `\n` — siehe Doku bei `zeilenAusTextstuecken` in bloecke.ts.
+      const pdf = await getDocumentProxy(new Uint8Array(await blob.arrayBuffer()))
+      const seiten: string[] = []
+      for (let seite = 1; seite <= pdf.numPages; seite++) {
+        const tc = await (await pdf.getPage(seite)).getTextContent()
+        const stuecke = (tc.items as Array<{ str?: string; transform?: number[]; hasEOL?: boolean }>)
+          .filter(it => typeof it.str === 'string')
+          .map(it => ({ str: it.str as string, y: it.transform?.[5] ?? 0, eol: it.hasEOL }))
+        seiten.push(zeilenAusTextstuecken(stuecke))
+      }
+      const pdfText = seiten.join('\n\n')
       const sauber = String(pdfText ?? '').trim()
       if (!sauber) {
         // Gescannte PDFs haben keinen Text. Das ist kein Fehler, aber der Nutzer

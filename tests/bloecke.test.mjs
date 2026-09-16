@@ -5,7 +5,7 @@ import {
   schnittRang, schneideText, teileInBloecke, blockInfos,
   GEMEINPOSITIONEN, BLOCK_REGEL, baueKontext,
   vereinigePositionen, brauchtBlockweg, blockFortschrittText,
-  masseAus, findeDubletten,
+  masseAus, findeDubletten, zeilenAusTextstuecken,
 } from '../src/lib/bloecke.ts'
 import { bloeckeAblehnung } from '../src/lib/plantexte.ts'
 
@@ -24,6 +24,39 @@ test('Schnittstellen werden nach Rang erkannt: Positionsnummer vor Seite vor Abs
   assert.equal(schnittRang('Nach einer Leerzeile', ''), 1)
   assert.equal(schnittRang('Mitten im Absatz', 'davor'), 0)
   assert.equal(schnittRang('', 'davor'), 0, 'eine Leerzeile ist selbst keine Grenze')
+})
+
+test('zeilenAusTextstuecken: verschiedene y-Werte werden zu getrennten Zeilen', () => {
+  const zeilen = zeilenAusTextstuecken([
+    { str: 'Erste', y: 100 },
+    { str: 'Zeile', y: 100 },
+    { str: 'Zweite Zeile', y: 80 },
+  ])
+  assert.equal(zeilen, 'Erste Zeile\nZweite Zeile')
+})
+
+test('zeilenAusTextstuecken: hasEOL beendet die Zeile auch bei gleicher y-Position', () => {
+  const zeilen = zeilenAusTextstuecken([
+    { str: 'A', y: 100, eol: true },
+    { str: 'B', y: 100 },
+  ])
+  assert.equal(zeilen, 'A\nB')
+})
+
+test('zeilenAusTextstuecken: eine Positionszeile aus mehreren Textstücken wird erkannt', () => {
+  const zeile = zeilenAusTextstuecken([
+    { str: 'Pos. 3.04', y: 200 },
+    { str: ' ', y: 200 },
+    { str: '9 Stk', y: 200 },
+  ])
+  assert.equal(zeile, 'Pos. 3.04 9 Stk')
+  assert.equal(schnittRang(zeile, 'davor'), 3)
+})
+
+test('zeilenAusTextstuecken: leer, null oder kein Array ergibt einen leeren String', () => {
+  assert.equal(zeilenAusTextstuecken([]), '')
+  assert.equal(zeilenAusTextstuecken(null), '')
+  assert.equal(zeilenAusTextstuecken(undefined), '')
 })
 
 test('Kurzer Text bleibt ein Block', () => {
