@@ -117,7 +117,11 @@ export default function WuenscheSettings() {
       <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
         Du kannst alle Stimmen auf ein Thema legen. Ist ein Wunsch fertig, bekommst du
         die Stimmen zurück. Es gibt keinen monatlichen Nachschub — dein Konto ist ein
-        fester Vorrat je Plan.
+        fester Vorrat je Plan.{' '}
+        {/* Fabian, 16.09.: Von hier direkt zur öffentlichen Roadmap — was geplant, in Arbeit und fertig ist. */}
+        Was daraus geplant, in Arbeit oder fertig ist, steht auf der{' '}
+        <a href="https://www.getcraftflow.de/roadmap" target="_blank" rel="noreferrer"
+          style={{ color: C.copper, textDecoration: 'underline' }}>Roadmap</a>.
       </p>
 
       {fehler && <div style={{ color: C.err, fontSize: 13, marginBottom: 14 }}>{fehler}</div>}
