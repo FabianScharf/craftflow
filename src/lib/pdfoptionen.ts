@@ -33,7 +33,10 @@ export type Zusatz = {
   angebotsdatum?: string
 }
 
-export function pdfTextOptionen(p: Profilwerte, zusatz: Zusatz = {}, plan: EffektiverPlan = 'enterprise'): PDFTextOpts {
+// Standard 'solo', NICHT 'enterprise' (Audit 2026-09-17, I5): Wer den Plan zu
+// uebergeben vergisst, bekam bisher stumm die volle Gestaltung. Fail closed —
+// lieber einmal zu viel Standardlayout als eine verschenkte Plan-Funktion.
+export function pdfTextOptionen(p: Profilwerte, zusatz: Zusatz = {}, plan: EffektiverPlan = 'solo'): PDFTextOpts {
   // Aufgabe 6 (15.09.): Ohne 'gestaltung' im Plan (Solo) fällt das Angebot auf das
   // Standardlayout zurück — Layout, Schrift, eigenes Briefpapier, Ränder,
   // Textbausteine und die Spalten Menge/Einheitspreis. Inhalt (Firmendaten,
@@ -80,7 +83,7 @@ export function pdfTextOptionen(p: Profilwerte, zusatz: Zusatz = {}, plan: Effek
   }
 }
 
-export function pdfFirmaOptionen(p: Profilwerte, plan: EffektiverPlan = 'enterprise'): FirmaOpts {
+export function pdfFirmaOptionen(p: Profilwerte, plan: EffektiverPlan = 'solo'): FirmaOpts {
   const gestaltung = erlaubt(plan, 'gestaltung')
   return {
     name: text(p, 'firma_name') || undefined,

@@ -3,7 +3,9 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { PDFDocument } from 'pdf-lib'
 import { createClient } from '@/utils/supabase/server'
-import { pruefeZugang } from '@/lib/planpruefung'
+import { pruefeZugang, ladeEffektivenPlan } from '@/lib/planpruefung'
+import { erlaubt } from '@/lib/plaene'
+import { istEigenesBriefpapier } from '@/lib/briefpapier'
 
 /**
  * Schriften in das HTML einbacken, statt sie laden zu lassen.
@@ -24,14 +26,19 @@ import { pruefeZugang } from '@/lib/planpruefung'
  * Im Browser bleibt die Adressvariante: Dort ist es dieselbe Herkunft, also kein
  * CORS-Fall, und die Vorschau muss nichts nachladen, was sie nicht ohnehin hat.
  */
-async function schriftenEinbacken(html: string): Promise<string> {
+async function schriftenEinbacken(html: string, darfGestalten = true): Promise<string> {
   const treffer = [...html.matchAll(/url\('[^']*\/fonts\/([a-z0-9-]+\.woff2)'\)/g)]
   if (treffer.length === 0) return html
   let raus = html
   for (const t of treffer) {
-    const datei = t[1]
+    let datei = t[1]
     // Nur Namen aus dem eigenen Schriftordner — nie ein Pfad aus der Anfrage.
     if (!/^[a-z0-9-]+\.woff2$/.test(datei)) continue
+    // Schriftwahl ist eine Plan-Funktion (Audit 2026-09-17, I5). Das fertige HTML
+    // baut der Browser — der Server kann es nicht neu setzen, aber er kann dafür
+    // sorgen, dass ohne 'gestaltung' die GLYPHEN aus der Standardschrift kommen.
+    // Der Schnitt (400/700) bleibt erhalten, das Layout ändert sich nicht.
+    if (!darfGestalten) datei = datei.endsWith('-700.woff2') ? 'open-sans-700.woff2' : 'open-sans-400.woff2'
     try {
       const daten = await readFile(path.join(process.cwd(), 'public', 'fonts', datei))
       raus = raus.replace(t[0], `url(data:font/woff2;base64,${daten.toString('base64')})`)
@@ -85,22 +92,59 @@ export async function POST(req: NextRequest) {
   const zu = await pruefeZugang(supabase, user.id)
   if (zu) return zu
 
-  const { html, letterheadUrl, filename, margins, footerTemplate } = await req.json() as {
+  // `letterheadUrl` aus dem Anfragekörper wird BEWUSST ignoriert (Audit 2026-09-17,
+  // Critical 3): Sie wurde ungeprüft serverseitig abgerufen und der Inhalt ins PDF
+  // gelegt — jede interne Adresse war damit erreichbar (SSRF). Das Briefpapier kommt
+  // ab jetzt ausschließlich aus dem eigenen Betriebsprofil, siehe unten.
+  const { html, filename, footerTemplate } = await req.json() as {
     html: string
-    letterheadUrl?: string
     filename?: string
-    margins?: { top: number; bottom: number; left: number; right: number }
     footerTemplate?: string
   }
 
   if (!html) return NextResponse.json({ error: 'Kein HTML' }, { status: 400 })
+
+  // Gestaltung ist eine Plan-Funktion (ab Starter). Bisher entschied darüber allein
+  // der Browser (pdfTextOptionen mit `effectivePlan`) — der Server nahm fertiges HTML
+  // plus Briefpapier entgegen und fragte nicht nach (Audit 2026-09-17, I5). Jetzt
+  // kommt der Plan serverseitig, nie aus einem Feld im Anfragekörper.
+  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const darfGestalten = erlaubt(plan, 'gestaltung')
+
+  // Eigenes Briefpapier: aus dem EIGENEN Profil laden, nicht aus der Anfrage.
+  let letterheadUrl: string | null = null
+  if (darfGestalten) {
+    const { data: profil, error: profilErr } = await supabase
+      .from('betriebsprofil')
+      .select('pdf_eigenes_briefpapier, pdf_briefpapier_url')
+      .eq('user_id', user.id)
+      .single()
+    // Supabase wirft nicht — ohne diese Prüfung sähe ein Ausfall aus wie „kein
+    // Briefpapier hinterlegt", und das Angebot käme still ohne Briefpapier heraus.
+    if (profilErr) {
+      console.error('[pdf] Betriebsprofil:', profilErr.message)
+      return NextResponse.json({ error: 'Dein Betriebsprofil ist gerade nicht erreichbar. Bitte gleich noch einmal versuchen.' }, { status: 503 })
+    }
+    const eigenes = profil?.pdf_eigenes_briefpapier === true
+    const adresse = (profil?.pdf_briefpapier_url as string | null) ?? null
+    if (eigenes && adresse) {
+      if (!istEigenesBriefpapier(adresse, process.env.NEXT_PUBLIC_SUPABASE_URL, user.id)) {
+        console.error('[pdf] Briefpapier-Adresse abgelehnt:', adresse)
+        return NextResponse.json(
+          { error: 'Die hinterlegte Briefpapier-Datei liegt nicht in deinem CraftFlow-Speicher. Bitte lade das Briefpapier in den Einstellungen neu hoch.' },
+          { status: 400 },
+        )
+      }
+      letterheadUrl = adresse
+    }
+  }
 
   // HTML → PDF via Puppeteer
   const browser = await launchBrowser()
   let contentPdfBytes: Uint8Array
   try {
     const page = await browser.newPage()
-    await page.setContent(await schriftenEinbacken(html), { waitUntil: 'load', timeout: 30000 })
+    await page.setContent(await schriftenEinbacken(html, darfGestalten), { waitUntil: 'load', timeout: 30000 })
     // Margins are set via @page CSS in the HTML — Puppeteer margin must be 0
     // to avoid double-applying margins (CSS @page takes precedence over Puppeteer).
     // Auf die Schriften warten, bevor gedruckt wird.
@@ -142,8 +186,11 @@ export async function POST(req: NextRequest) {
 
   // Briefpapier-Overlay via pdf-lib
   if (letterheadUrl) {
-    const lhRes = await fetch(letterheadUrl)
-    if (lhRes.ok) {
+    // Mit Zeitgrenze: Ein hängender Abruf hielte sonst die ganze Lambda bis zum
+    // maxDuration-Ende fest (Audit 2026-09-17, Critical 3).
+    const lhRes = await fetch(letterheadUrl, { signal: AbortSignal.timeout(10_000) })
+      .catch(e => { console.error('[pdf] Briefpapier nicht abrufbar:', e); return null })
+    if (lhRes?.ok) {
       const lhBytes = new Uint8Array(await lhRes.arrayBuffer())
 
       const lhDoc = await PDFDocument.load(lhBytes)

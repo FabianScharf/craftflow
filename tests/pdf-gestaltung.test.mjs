@@ -191,8 +191,11 @@ test('Solo: Gestaltung fällt auf Standard zurück, Inhalt bleibt', () => {
   assert.equal(pdfTextOptionen(p, { bausteine: [{ inhalt: 'B' }] }, 'starter').layout, 'kompakt')
 })
 
-test('Ohne Plan-Argument bleibt das Verhalten wie bisher (Enterprise-Standard)', () => {
+// Audit 2026-09-17 (I5): Der Standardwert war 'enterprise' — wer den Plan zu
+// übergeben vergaß, bekam stumm die volle Gestaltung. Jetzt 'solo': fail closed.
+// Lieber einmal zu viel Standardlayout als eine verschenkte Plan-Funktion.
+test('Ohne Plan-Argument gilt Solo — Standardlayout, keine Akzentfarbe', () => {
   const p = { pdf_layout: 'kompakt', farbe_akzent: '#C8102E' }
-  assert.equal(pdfTextOptionen(p).layout, 'kompakt')
-  assert.equal(pdfFirmaOptionen(p).akzentfarbe, '#C8102E')
+  assert.equal(pdfTextOptionen(p).layout, 'klassisch')
+  assert.equal(pdfFirmaOptionen(p).akzentfarbe, undefined)
 })

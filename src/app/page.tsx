@@ -4995,16 +4995,13 @@ export default function CraftFlow() {
                 const res = await fetch('/api/generate-pdf', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
+                  // Kein `letterheadUrl` und keine `margins` mehr: Das Briefpapier
+                  // holt sich der Server aus dem eigenen Betriebsprofil (Audit
+                  // 2026-09-17, Critical 3 — die Adresse aus dem Anfragekörper war
+                  // eine offene SSRF), die Ränder stehen ohnehin im CSS des HTML.
                   body: JSON.stringify({
                     html,
-                    letterheadUrl: useOwnLetterhead ? profilPdfBriefpapierUrl : undefined,
                     filename: `${docTyp}_${docNr}`,
-                    margins: {
-                      top: profilPdfMarginTop,
-                      bottom: profilPdfMarginBottom,
-                      left: profilPdfMarginLeft,
-                      right: profilPdfMarginRight,
-                    },
                     footerTemplate: footerTpl,
                   }),
                 })
