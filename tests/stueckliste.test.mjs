@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  zaehleTeile, plattenflaeche, erwarteteWerkstattzeit, deckelNachStueckliste, KEINE_TEILE,
+  zaehleTeile, plattenflaeche, erwarteteWerkstattzeit, deckelNachStueckliste, stuecklisteDeckelGilt, KEINE_TEILE,
 } from '../src/lib/stueckliste.ts'
 
 // ── Geeicht an zwei WIRKLICH gemessenen Kalkulationen ─────────────────────────
@@ -99,4 +99,23 @@ test('Mehr Ausstattung bedeutet mehr erwartete Zeit', () => {
 test('Der Deckel ist doppelt so hoch wie die Erwartung', () => {
   const teile = { ...KEINE_TEILE, drehtueren: 2 }
   assert.equal(deckelNachStueckliste(8, teile), Math.round(erwarteteWerkstattzeit(8, teile) * 2))
+})
+
+// ── Massivholz faellt aus dem Stueckliste-Deckel heraus ───────────────────────
+// Vorfall 2026-09-17 (Live-Test, Esstisch Eiche massiv 200 x 90 cm): Die Route
+// meldete "Werkstattzeit von 14,4 h auf 4,4 h" — der Tisch war damit um zwei
+// Drittel zu billig. Die Formel oben ist an Plattenmoebeln geeicht.
+
+test('Massivholz wird nie nach Stueckliste gedeckelt', () => {
+  assert.equal(stuecklisteDeckelGilt(true, 0), false)
+  assert.equal(stuecklisteDeckelGilt(true, 2.4), false)
+})
+
+test('Mit Laufmetern greift die genauere Laufmeter-Pruefung, nicht der Stueckliste-Deckel', () => {
+  assert.equal(stuecklisteDeckelGilt(false, 2.4), false)
+  assert.equal(stuecklisteDeckelGilt(false, 0.3), false)
+})
+
+test('Dekormoebel ohne Laufmeter — genau dafuer ist der Deckel da', () => {
+  assert.equal(stuecklisteDeckelGilt(false, 0), true)
 })

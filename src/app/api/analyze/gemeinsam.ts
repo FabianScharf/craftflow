@@ -5,7 +5,7 @@
 
 import { normalizeKsId } from '@/lib/types'
 import { kappeZeiten, kappeOhneLaufmeter, ALTBAU_RE } from '@/lib/zeitpruefung'
-import { zaehleTeile, plattenflaeche, deckelNachStueckliste } from '@/lib/stueckliste'
+import { zaehleTeile, plattenflaeche, deckelNachStueckliste, stuecklisteDeckelGilt } from '@/lib/stueckliste'
 import { parseLaufmeter } from '@/lib/laufmeter'
 import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { bucheUm } from '@/lib/handarbeit'
@@ -736,7 +736,13 @@ export function validateAndFix(
     // kommt der Deckel aus der Stueckliste: Plattenflaeche plus gezaehlte Beschlaege.
     // Die Formel ist an zwei wirklich gemessenen Kalkulationen geeicht, siehe
     // src/lib/stueckliste.ts.
-    if (!(lm > 0)) {
+    //
+    // ABER NICHT BEI MASSIVHOLZ (Vorfall 2026-09-17, Esstisch Eiche 200 x 90 cm):
+    // Dort meldete die Route „Werkstattzeit von 14,4 h auf 4,4 h" — der Tisch war
+    // damit um zwei Drittel zu billig. Die Formel ist an Plattenmoebeln geeicht und
+    // kennt kein Abrichten, Verleimen, Pressen, Aushaerten, Schleifen, Oelen.
+    // Begruendung ausfuehrlich in src/lib/stueckliste.ts.
+    if (stuecklisteDeckelGilt(massiv, lm)) {
       const teile = zaehleTeile(descText)
       const m2 = plattenflaeche(pos.material as Array<{ einheit?: string; menge?: number }>)
       const s = kappeOhneLaufmeter(az, deckelNachStueckliste(m2, teile))
@@ -744,6 +750,10 @@ export function validateAndFix(
         az = s.zeilen as typeof az
         console.warn('[analyze] Zeiten gekappt (Stückliste):', s.hinweise.join(' '))
       }
+    } else if (massiv && !(lm > 0)) {
+      console.warn('[analyze] Stückliste-Deckel übersprungen: Massivholz —',
+        'die Formel ist an Plattenmöbeln geeicht und kappt Massivholzzeiten fälschlich.',
+        String(pos.titel ?? ''))
     }
 
     // 6c. Zeitfaktoren der Betriebskalibrierung. NACH der Deckelung, damit die

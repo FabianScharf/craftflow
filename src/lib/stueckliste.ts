@@ -108,3 +108,28 @@ export function deckelNachStueckliste(m2: number, teile: Teile): number {
   const erwartet = erwarteteWerkstattzeit(m2, teile)
   return erwartet > 0 ? Math.round(erwartet * OBERGRENZE) : 0
 }
+
+/**
+ * Darf der Stueckliste-Deckel ueberhaupt angewendet werden?
+ *
+ * VORFALL 2026-09-17 (Live-Test, Esstisch Eiche massiv 200 x 90 cm): Die Meldung
+ * lautete „Zeiten gekappt (Stückliste): Werkstattzeit von 14,4 h auf 4,4 h". Damit
+ * war der Tisch um zwei Drittel zu billig. Der Grund: Die Formel oben ist an zwei
+ * PLATTENmoebeln geeicht (Referenzschrank, Rollcontainer) und rechnet in
+ * Zuschnitt-plus-Zusammenbau-Minuten je m² Plattenflaeche. Massivholz hat davon
+ * nichts: abrichten, hobeln, verleimen, pressen, aushaerten lassen, schleifen,
+ * oelen — Arbeitsgaenge, die in der Formel schlicht nicht vorkommen. Fabians
+ * Richtwert sagt dazu +30 bis 60 % Mehrzeit gegenueber Dekor, die Formel deckelt
+ * stattdessen bei 2,0 x einer viel zu kleinen Grundzahl.
+ *
+ * Deshalb: Bei Massivholz wird nicht gedeckelt. Lieber ungeprueft als
+ * nachweislich falsch gekappt — die Laufmeter-Pruefung und die
+ * Plausibilitaetswarnung bleiben davon unberuehrt.
+ */
+export function stuecklisteDeckelGilt(massiv: boolean, lm: number): boolean {
+  if (massiv) return false
+  // Mit Laufmetern greift die genauere Laufmeter-Pruefung; der Stueckliste-Deckel
+  // ist ausdruecklich der Ersatz fuer Moebel ohne Laufmeter.
+  if (lm > 0) return false
+  return true
+}
