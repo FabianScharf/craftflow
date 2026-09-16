@@ -69,3 +69,14 @@ export function stimmenAblehnung(plan: Plan): { error: string; minPlan: Plan | n
     minPlan: naechsterPlanMitMehr('wunschStimmen', plan),
   }
 }
+
+/**
+ * 403-Antwortkörper für die Blockanalyse. Eigener Satz statt ablehnung('bloecke'),
+ * weil der Nutzer hier nicht „eine Funktion“ vermisst, sondern gerade ein großes
+ * Projekt hochgeladen hat. Der Plan-Name kommt aus der Matrix — wandert die Funktion
+ * einmal in einen anderen Plan, wandert der Text mit.
+ */
+export function bloeckeAblehnung(): { error: string; minPlan: Plan } {
+  const minPlan = mindestPlan('bloecke')
+  return { error: `Große Projekte in Blöcken sind ab dem ${PLAN_LABELS[minPlan]}-Plan möglich.`, minPlan }
+}
