@@ -9,6 +9,10 @@ export async function POST(req: NextRequest) {
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
   const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
   if (sperre) return sperre
+  // Versand läuft ausschließlich über die eigene SMTP-Konfiguration des Nutzers
+  // (kein CraftFlow-eigener Versandweg hier) — das ist ab Pro (Funktion 'smtp').
+  const smtpSperre = await pruefeFunktion(supabase, user.id, 'smtp')
+  if (smtpSperre) return smtpSperre
 
   // SMTP-Konfiguration laden
   const { data: emailCfg } = await supabase
