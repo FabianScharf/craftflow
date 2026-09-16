@@ -1360,6 +1360,12 @@ export default function CraftFlow() {
     setStartStatus('loading'); setStartMsg(''); setStartMinPlan(null); setBlockLaeuft(true)
     setBloecke([]); setNichtVerarbeitet([]); setBlockAktuell(0); setBlockFehlerPartiell(false)
 
+    // Außerhalb von try/catch deklariert, damit der catch-Zweig (Netzfehler mitten im
+    // Blocklauf) weiß, wie viele Positionen schon feststehen und an welchem Block es
+    // hakte — sonst verschwindet dieses Wissen mit dem try-Block.
+    let gesammelt: Angebotsposition[] = []
+    let blockNrAktuell = 0
+
     try {
       const vor = await fetch('/api/analyze/vorbereiten', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1381,12 +1387,12 @@ export default function CraftFlow() {
       setBloecke(liste)
       setNichtVerarbeitet(jv.nichtVerarbeitet ?? [])
 
-      let gesammelt: Angebotsposition[] = []
       let kundeAusBlock1 = { name: '', zusatz: '', strasse: '', ort: '', projekt: '' }
       let hatFehler = false
 
       for (const b of liste) {
         if (abbrechenRef.current) break
+        blockNrAktuell = b.nr
         setBlockAktuell(b.nr)
         const res = await fetch('/api/analyze/block', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1455,9 +1461,20 @@ export default function CraftFlow() {
         setStartStatus('idle')
       }
     } catch (e) {
+      // Netzfehler mitten im Blocklauf (fetch schlägt fehl oder wirft): Was bis hierher
+      // entstanden ist, bleibt stehen — genauso wie im !res.ok-Zweig oben, sonst sieht der
+      // Nutzer trotz vorhandener Positionen nur eine allgemeine Fehlermeldung ohne den
+      // Knopf "Mit N Positionen weiter".
+      const teilHinweis = gesammelt.length > 0
+        ? ` Die bisherigen ${gesammelt.length} ${gesammelt.length === 1 ? 'Position bleibt' : 'Positionen bleiben'} erhalten.`
+        : ''
+      const fehlerText = e instanceof Error ? e.message : 'Unbekannt'
+      const vorspann = blockNrAktuell > 0 ? `Block ${blockNrAktuell}: ` : 'Fehler: '
       setStartStatus('error')
-      setStartMsg(`Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
+      setStartMsg(`${vorspann}${fehlerText}${teilHinweis}`)
       setBlockLaeuft(false)
+      setBlockAktuell(0)
+      if (gesammelt.length > 0) setBlockFehlerPartiell(true)
     }
   }, [startText, userKs, userMatGruppen, refreshUsage])
 
