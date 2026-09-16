@@ -208,21 +208,42 @@ export async function POST(req: NextRequest) {
     })
 
     const model = 'claude-sonnet-4-6'
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'interleaved-thinking-2025-05-14',
-      },
-      body: JSON.stringify({
-        model, max_tokens: 16000, temperature: 1,
-        thinking: { type: 'enabled', budget_tokens: 5000 },
-        system: systemBloecke,
-        messages: [{ role: 'user', content: userContent }],
-      }),
-    })
+    let response: Response
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'interleaved-thinking-2025-05-14',
+        },
+        body: JSON.stringify({
+          model, max_tokens: 16000, temperature: 1,
+          thinking: { type: 'enabled', budget_tokens: 5000 },
+          system: systemBloecke,
+          messages: [{ role: 'user', content: userContent }],
+        }),
+        // I-4 (Controller-Review 16.09.): Vercel maxDuration = 300 s killt die
+        // Funktion sonst OHNE dass dieser catch-Zweig läuft — gibFrei() würde nie
+        // aufgerufen, das reservierte Angebot bliebe für den Monat verbraucht.
+        // Eigenes Limit knapp darunter, damit der Fall hier landet statt im
+        // harten Vercel-Timeout.
+        signal: AbortSignal.timeout(260_000),
+      })
+    } catch (e: unknown) {
+      const istTimeout = e instanceof Error && (e.name === 'AbortError' || e.name === 'TimeoutError')
+      console.error('[analyze/block] Claude fetch fehlgeschlagen:', e)
+      await gibFrei()
+      if (istTimeout) {
+        return NextResponse.json({
+          success: false,
+          error: 'Dieser Block hat zu lange gedauert (über 4 Minuten). Bitte das Projekt in kleinere Dateien teilen und erneut versuchen.',
+          blockNr, hinweise,
+        }, { status: 504 })
+      }
+      throw e
+    }
     if (!response.ok) {
       const err = await response.text()
       console.error('[analyze/block] Claude error:', response.status, err)
