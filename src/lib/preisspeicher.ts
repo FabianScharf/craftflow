@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bauePreisBlock, MAX_PREISE_IM_PROMPT, type FixierterPreis } from './materialpreise'
-import { wendeDeckelAn, deckel, erlaubt, type Plan } from './plaene'
+import { deckel, erlaubt, type Plan } from './plaene'
 import { ladeEffektivenPlan } from './planpruefung'
 import { ablehnung, deckelAblehnung } from './plantexte'
 
@@ -8,33 +8,68 @@ import { ablehnung, deckelAblehnung } from './plantexte'
 // src/lib/materialpreise.ts, damit die reine Logik dort ohne Supabase testbar
 // bleibt — gleiche Aufteilung wie learn.ts / bauweise.ts.
 
-export async function ladeAktivePreise(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<FixierterPreis[]> {
-  const { data, error } = await supabase
-    .from('materialpreise')
-    .select('id, bezeichnung, ek, einheit, stand, created_at')
-    .eq('user_id', userId)
-    .eq('aktiv', true)
-    .order('updated_at', { ascending: false })
-    .limit(MAX_PREISE_IM_PROMPT)
-  // Supabase wirft nicht, sondern liefert { data: null, error }. Wer nur data
-  // liest, haelt einen Ausfall fuer "keine Preise vorhanden" — und kalkuliert
-  // still mit geschaetzten Werten weiter.
-  if (error) { console.error('[preise] ladeAktivePreise:', error.message); return [] }
-  const preise = (data ?? []).map(r => ({
+type PreisMitStand = FixierterPreis & { created_at: string; updated_at: string }
+
+function zuFixierterPreis(r: Record<string, unknown>): PreisMitStand {
+  return {
     id: r.id as string,
     bezeichnung: r.bezeichnung as string,
     ek: Number(r.ek),
     einheit: r.einheit as string,
     stand: r.stand as string,
     created_at: r.created_at as string,
-  }))
-  // Deckel beim Lesen: die ältesten N gelten, der Rest nicht (Fabian, 15.09.).
-  // Sortierung fürs Prompt bleibt `updated_at desc`, der Deckel rechnet nach `created_at`.
+    updated_at: r.updated_at as string,
+  }
+}
+
+// Reihenfolge fürs Prompt bleibt `updated_at` absteigend — egal ob die Auswahl
+// selbst per Deckel (älteste N nach created_at) oder per DB-Sortierung
+// (unbegrenzter Plan) zustande kam.
+function sortiereFuerPrompt(preise: PreisMitStand[]): FixierterPreis[] {
+  return [...preise]
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    .map(({ updated_at: _updatedAt, ...rest }) => rest)
+}
+
+// Deckel VOR limit() (Fabian, 15.09.): Bei einem endlichen Plan-Deckel wird ZUERST
+// nach `created_at` aufsteigend sortiert und mit `limit(grenze)` geholt — das SIND
+// die ältesten N, exakt dieselbe Auswahl, die die GET-Anzeige (wendeDeckelAn über
+// ALLE Einträge) als aktivDurchPlan markiert. Erst danach wird für den Prompt in
+// die bisherige Reihenfolge (`updated_at` absteigend) umsortiert — vorher hätte
+// die DB-seitige Recency-Sortierung samt Limit schon Einträge aussortiert, die
+// laut Deckel eigentlich aktiv gewesen wären: Prompt und GET-Anzeige zeigten
+// dadurch unterschiedliche aktive Preise.
+export async function ladeAktivePreise(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<FixierterPreis[]> {
   const plan = await ladeEffektivenPlan(supabase, userId)
-  return wendeDeckelAn(preise, deckel(plan, 'materialpreise')).filter(p => p.aktivDurchPlan)
+  const grenze = deckel(plan, 'materialpreise')
+
+  if (grenze !== null) {
+    const { data, error } = await supabase
+      .from('materialpreise')
+      .select('id, bezeichnung, ek, einheit, stand, created_at, updated_at')
+      .eq('user_id', userId)
+      .eq('aktiv', true)
+      .order('created_at', { ascending: true })
+      .limit(grenze)
+    // Supabase wirft nicht, sondern liefert { data: null, error }. Wer nur data
+    // liest, haelt einen Ausfall fuer "keine Preise vorhanden" — und kalkuliert
+    // still mit geschaetzten Werten weiter.
+    if (error) { console.error('[preise] ladeAktivePreise:', error.message); return [] }
+    return sortiereFuerPrompt((data ?? []).map(zuFixierterPreis))
+  }
+
+  const { data, error } = await supabase
+    .from('materialpreise')
+    .select('id, bezeichnung, ek, einheit, stand, created_at, updated_at')
+    .eq('user_id', userId)
+    .eq('aktiv', true)
+    .order('updated_at', { ascending: false })
+    .limit(MAX_PREISE_IM_PROMPT)
+  if (error) { console.error('[preise] ladeAktivePreise:', error.message); return [] }
+  return (data ?? []).map(zuFixierterPreis).map(({ updated_at: _updatedAt, ...rest }) => rest)
 }
 
 export async function preisBlockFuerNutzer(

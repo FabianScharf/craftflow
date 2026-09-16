@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { after } from 'next/server'
 import { baueRegelBlock, MAX_REGELN_IM_PROMPT } from './learn'
-import { wendeDeckelAn, deckel, erlaubt, type Plan } from './plaene'
+import { deckel, erlaubt, type Plan } from './plaene'
 import { ladeEffektivenPlan } from './planpruefung'
 import { ablehnung, deckelAblehnung } from './plantexte'
 
@@ -9,23 +9,56 @@ import { ablehnung, deckelAblehnung } from './plantexte'
 // src/lib/learn.ts, damit die reine Logik dort ohne Supabase testbar bleibt.
 
 export type AktiveRegel = { id: string; bereich: string; wenn: string; dann: string; created_at: string }
+type RegelMitVersand = AktiveRegel & { zuletzt_gesendet: string | null }
 
-// Sortierung: zuletzt mitgeschickte zuerst, dann die neuesten — das bleibt die
-// Reihenfolge fürs Prompt. Der Deckel selbst rechnet nach `created_at` (älteste
-// N aktiv, Fabian 15.09.) — deshalb steht das Feld im select und wird danach
-// gefiltert, bevor der Block gebaut wird.
+// Reihenfolge fürs Prompt: zuletzt mitgeschickte zuerst, dann die neuesten zuerst.
+// Gilt für beide Fälle unten — egal ob die Auswahl selbst per Deckel (älteste N)
+// oder per DB-Sortierung (unbegrenzter Plan) zustande kam.
+function sortiereFuerPrompt(regeln: RegelMitVersand[]): AktiveRegel[] {
+  return [...regeln]
+    .sort((a, b) => {
+      if (a.zuletzt_gesendet === b.zuletzt_gesendet) return b.created_at.localeCompare(a.created_at)
+      if (a.zuletzt_gesendet === null) return 1
+      if (b.zuletzt_gesendet === null) return -1
+      return b.zuletzt_gesendet.localeCompare(a.zuletzt_gesendet)
+    })
+    .map(({ zuletzt_gesendet: _zuletztGesendet, ...rest }) => rest)
+}
+
+// Deckel VOR limit() (Fabian, 15.09.): Bei einem endlichen Plan-Deckel wird ZUERST
+// nach `created_at` aufsteigend sortiert und mit `limit(grenze)` geholt — das SIND
+// die ältesten N, exakt dieselbe Auswahl, die die GET-Anzeige (wendeDeckelAn über
+// ALLE Einträge) als aktivDurchPlan markiert. Erst danach wird für den Prompt in
+// die bisherige Reihenfolge (zuletzt_gesendet/created_at absteigend) umsortiert —
+// vorher hätte die DB-seitige Recency-Sortierung samt Limit schon Einträge
+// aussortiert, die laut Deckel eigentlich aktiv gewesen wären: Prompt und
+// GET-Anzeige zeigten dadurch unterschiedliche aktive Regeln.
 export async function ladeAktiveRegeln(supabase: SupabaseClient, userId: string): Promise<AktiveRegel[]> {
+  const plan = await ladeEffektivenPlan(supabase, userId)
+  const grenze = deckel(plan, 'bauweiseRegeln')
+
+  if (grenze !== null) {
+    const { data, error } = await supabase
+      .from('bauweise_regeln')
+      .select('id, bereich, wenn, dann, created_at, zuletzt_gesendet')
+      .eq('user_id', userId)
+      .eq('aktiv', true)
+      .order('created_at', { ascending: true })
+      .limit(grenze)
+    if (error) { console.error('[learn] ladeAktiveRegeln:', error.message); return [] }
+    return sortiereFuerPrompt((data ?? []) as RegelMitVersand[])
+  }
+
   const { data, error } = await supabase
     .from('bauweise_regeln')
-    .select('id, bereich, wenn, dann, created_at')
+    .select('id, bereich, wenn, dann, created_at, zuletzt_gesendet')
     .eq('user_id', userId)
     .eq('aktiv', true)
     .order('zuletzt_gesendet', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(MAX_REGELN_IM_PROMPT)
   if (error) { console.error('[learn] ladeAktiveRegeln:', error.message); return [] }
-  const plan = await ladeEffektivenPlan(supabase, userId)
-  return wendeDeckelAn(data as AktiveRegel[], deckel(plan, 'bauweiseRegeln')).filter(r => r.aktivDurchPlan)
+  return ((data ?? []) as RegelMitVersand[]).map(({ zuletzt_gesendet: _zuletztGesendet, ...rest }) => rest)
 }
 
 export async function regelBlockFuerNutzer(
