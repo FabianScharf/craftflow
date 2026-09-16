@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang } from '@/lib/planpruefung'
 
+// Derselbe private Bucket wie in /api/upload (docs/sql/2026-09-16-bloecke-storage.sql).
+const BUCKET = 'projektdateien'
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
@@ -99,6 +102,22 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       .maybeSingle()
     if (findeErr) return NextResponse.json({ error: findeErr.message }, { status: 500 })
     if (!vorhanden) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 })
+
+    // I-5 (Controller-Review 16.09.): Hochgeladene Dateien (Fotos, PDFs,
+    // `_vorbereitet.json`) blieben bisher im privaten Bucket liegen — bis zu 60
+    // Dateien à 10 MB je Projekt, über die Oberfläche nach dem Löschen nicht mehr
+    // erreichbar. Bewusst NICHT blockierend: Ein Storage-Fehler darf das Löschen
+    // des Projekts selbst nicht verhindern, nur geloggt werden.
+    const { data: dateien, error: listErr } = await supabase.storage
+      .from(BUCKET)
+      .list(`${user.id}/${id}`, { limit: 1000 })
+    if (listErr) {
+      console.error('[projects] Storage-Dateien auflisten:', listErr.message)
+    } else if (dateien && dateien.length > 0) {
+      const pfade = dateien.map(d => `${user.id}/${id}/${d.name}`)
+      const { error: removeErr } = await supabase.storage.from(BUCKET).remove(pfade)
+      if (removeErr) console.error('[projects] Storage-Dateien löschen:', removeErr.message)
+    }
 
     const { error: versionErr } = await supabase
       .from('offer_versions')
