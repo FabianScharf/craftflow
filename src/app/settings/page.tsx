@@ -10,6 +10,7 @@ import { AppHeader } from '@/components/AppHeader'
 import { LieferantenSettings } from '@/components/settings/LieferantenSettings'
 import { EmailSettings } from '@/components/settings/EmailSettings'
 import BauweiseSettings from '@/components/settings/BauweiseSettings'
+import WuenscheSettings from '@/components/settings/WuenscheSettings'
 import MaterialpreiseSettings from '@/components/settings/MaterialpreiseSettings'
 import BetriebSettings from '@/components/settings/BetriebSettings'
 import BriefpapierVorschau from '@/components/settings/BriefpapierVorschau'
@@ -138,7 +139,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 
 export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse, isBlocked } = usePlan()
-  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
+  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'wuensche' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
   const [bpMsg, setBpMsg] = useState('')
@@ -538,6 +539,7 @@ export default function SettingsPage() {
     { id: 'materialpreise',   label: 'Materialpreise',  icon: '🏷' },
     { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' as Plan },
     { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'pro'     as Plan },
+    { id: 'wuensche',         label: 'Wünsche',         icon: '💬' },
     { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
     { id: 'hilfe',            label: 'Hilfe',           icon: '💡' },
     ...(userEmail === 'l.m.p.1@gmx.de' ? [{ id: 'admin' as typeof section, label: 'Admin', icon: '🛠' }] : []),
@@ -1764,6 +1766,8 @@ export default function SettingsPage() {
               )}
             </div>
           )}
+
+          {section === 'wuensche' && <WuenscheSettings />}
 
           {/* ── Hilfe ──────────────────────────────────── */}
           {section === 'hilfe' && (
