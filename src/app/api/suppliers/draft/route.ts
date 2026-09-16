@@ -1,6 +1,29 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  ACHTUNG — OFFENE PRODUKTENTSCHEIDUNG (Audit 2026-09-17, Important 5)
+//
+//  Diese Route legt den Lieferanten-Entwurf über EIN EINZIGES, global
+//  konfiguriertes Gmail-Konto an (GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET /
+//  GMAIL_REFRESH_TOKEN aus der Umgebung) — für ALLE Mandanten dasselbe.
+//
+//  Das heißt in der Praxis: Die Anfrage eines jeden CraftFlow-Kunden landet als
+//  Entwurf in Fabians eigenem Postfach, nicht im Postfach des Kunden. Mit ihr
+//  landen dort dessen Geschäftsdaten — Lieferant, Materialien, Mengen, Preise,
+//  Projektbezug. Die Daten verschiedener Kunden vermischen sich in einem
+//  fremden Postfach.
+//
+//  Das Verhalten wurde am 2026-09-17 BEWUSST NICHT geändert (Auftrag des
+//  Controllers). Zwei Wege stehen offen und gehören Fabian entschieden:
+//    a) Route als internes Werkzeug kennzeichnen und für Kunden abschalten.
+//    b) Auf denselben Weg wie suppliers/inquiry/send umstellen — eigener
+//       SMTP-Zugang je Nutzer, dann landet der Entwurf beim Absender selbst.
+//
+//  Bis dahin: keine weiteren Mandanten auf diese Route lassen.
+// ═══════════════════════════════════════════════════════════════════════════
+
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@/utils/supabase/server'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 function getGmailClient() {
   const clientId = process.env.GMAIL_CLIENT_ID
@@ -23,6 +46,12 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+
+    // Lieferantenverwaltung ist ab Starter. Diese Route ruft zusaetzlich die
+    // Gmail-API (externe Kosten) — ohne Pruefung fuer jeden Plan offen
+    // (Audit 2026-09-17, I3).
+    const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+    if (sperre) return sperre
 
     const { supplierId, templateId, variables = {} } = await req.json() as {
       supplierId: string

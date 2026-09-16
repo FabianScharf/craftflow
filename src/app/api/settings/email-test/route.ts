@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import nodemailer from 'nodemailer'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+
+  // Diese Route verbindet sich zu einem beliebigen SMTP-Server und verschickt eine
+  // Mail. email-config nebenan prueft 'smtp' (Pro) — hier fehlte es (Audit 2026-09-17, I2).
+  const sperre = await pruefeFunktion(supabase, user.id, 'smtp')
+  if (sperre) return sperre
 
   const { host, port, user: smtpUser, password, fromEmail, fromName } = await req.json() as {
     host: string; port: number; user: string; password?: string; fromEmail: string; fromName: string

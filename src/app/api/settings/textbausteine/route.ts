@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { pruefeFunktion } from '@/lib/planpruefung'
 
 // Eigene Textbausteine des Betriebs.
 //
@@ -48,6 +49,13 @@ export async function POST(req: NextRequest) {
   const { supabase, user, error } = await nutzer()
   if (error || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
+  // Textbausteine gehören zur Funktion 'gestaltung' (ab Starter). Im Browser sperrt
+  // PlanGate funktion="gestaltung", der Server nicht (Audit 2026-09-17, I4).
+  // LESEN (GET) bleibt offen: Ein Solo-Betrieb soll seine früher angelegten
+  // Bausteine weiter sehen — sie wirken dann nur nicht mehr im Angebot.
+  const sperre = await pruefeFunktion(supabase, user.id, 'gestaltung')
+  if (sperre) return sperre
+
   const b = await req.json() as Baustein
   const titel = String(b.titel ?? '').trim()
   if (!titel) return NextResponse.json({ error: 'Ein Baustein braucht einen Titel' }, { status: 400 })
@@ -76,6 +84,9 @@ export async function PUT(req: NextRequest) {
   const { supabase, user, error } = await nutzer()
   if (error || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
+  const sperre = await pruefeFunktion(supabase, user.id, 'gestaltung')
+  if (sperre) return sperre
+
   const b = await req.json() as Baustein
   if (!b.id) return NextResponse.json({ error: 'id fehlt' }, { status: 400 })
 
@@ -96,6 +107,9 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { supabase, user, error } = await nutzer()
   if (error || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+
+  const sperre = await pruefeFunktion(supabase, user.id, 'gestaltung')
+  if (sperre) return sperre
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id fehlt' }, { status: 400 })
