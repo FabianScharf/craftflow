@@ -7,6 +7,7 @@ import { deckel, type EffektiverPlan } from '@/lib/plaene'
 import { ladeEffektivenPlan, pruefeZugang } from '@/lib/planpruefung'
 import { deckelAblehnung } from '@/lib/plantexte'
 import { aktuellerMonat, reserviereAngebot, gibAngebotFrei } from '@/lib/angebotszaehler'
+import { stempelPreisfaktor, PREISFAKTOR_STANDARD, klemmePreisfaktor } from '@/lib/preisfaktor'
 
 export const maxDuration = 300
 
@@ -958,6 +959,7 @@ export async function POST(req: NextRequest) {
     // serverseitig geladen, nicht vom Frontend geschickt — was das Frontend
     // nicht sendet, kann nicht manipuliert werden.
     let firmenStandort = ''
+    let preisfaktorNutzer = PREISFAKTOR_STANDARD
     let regelBlock = ''
     let preisBlock = ''
     let regelIds: string[] = []
@@ -978,15 +980,19 @@ export async function POST(req: NextRequest) {
           for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
           lackBlock = lackBlockFuer(kal)
         } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
-        const { data: profil } = await supabase
+        const { data: profil, error: profilErr } = await supabase
           .from('betriebsprofil')
-          .select('strasse, plz, ort')
+          .select('strasse, plz, ort, preisfaktor')
           .eq('user_id', user.id)
           .single()
+        if (profilErr) console.error('[analyze] Betriebsprofil:', profilErr.message)
         if (profil) {
           const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
+        // Der Preisfaktor geht NIE in den Prompt — er wird erst nach der Antwort
+        // auf die Positionen gestempelt (Spec: Vault beeinflusst keine Preise).
+        preisfaktorNutzer = klemmePreisfaktor(profil?.preisfaktor) ?? PREISFAKTOR_STANDARD
         try {
           const r = await regelBlockFuerNutzer(supabase, user.id)
           regelBlock = r.block
@@ -1129,6 +1135,14 @@ export async function POST(req: NextRequest) {
     try {
       const parsed = JSON.parse(clean)
       const validated = 'fragen' in parsed ? parsed : validateAndFix(parsed as Record<string, unknown>, text ?? '', customSaetze, matGruppen, deaktiviert, faktoren)
+      // Preisfaktor des Betriebs auf die frisch entstandenen Positionen stempeln.
+      // Nach validateAndFix, damit der deterministische vkStunde-/aufschlag-Override
+      // unberuehrt bleibt — der Faktor ist reine Nachrechnung auf den Endpreis.
+      const positionenRoh = (validated as { positionen?: unknown }).positionen
+      if (Array.isArray(positionenRoh)) {
+        (validated as { positionen: unknown }).positionen =
+          stempelPreisfaktor(positionenRoh as Array<{ preisfaktor?: number }>, preisfaktorNutzer)
+      }
       // Angebot zählt bei der Analyse, nicht mehr beim PDF-Export (Fabian, 16.09.) —
       // das ist der teure Schritt, hier entsteht die Kalkulation. Aber NUR bei einem
       // echten Angebot (Positionen vorhanden): Eine reine Rückfrage ({"fragen":[...]},

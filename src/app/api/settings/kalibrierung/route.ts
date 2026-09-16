@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { kostenstellenSollZustand } from '@/lib/kalibrierung'
 import { normalizeKsId } from '@/lib/types'
-import { berechneFaktoren, deckele, referenzFuer } from '@/lib/kalibrierung'
+import { berechneFaktoren, deckeleHand, referenzFuer } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { pruefeFunktion } from '@/lib/planpruefung'
 
@@ -86,8 +86,10 @@ export async function PUT(req: NextRequest) {
 
   // Ausnahme: ein von Hand gesetzter Faktor aus den Einstellungen. Er ueberschreibt
   // die Ableitung bewusst — steht so im Reiter "Mein Betrieb" — und wird gedeckelt.
+  // Handeingaben duerfen 0,50 bis 3,00 sein (deckeleHand); die ABLEITUNG aus den
+  // Antworten bleibt bei 0,60 bis 1,40 (deckele, in berechneFaktoren).
   const vonHand = (k: string, standard: number) =>
-    b[k] === undefined || b[k] === null || b[k] === '' ? standard : deckele(Number(b[k]))
+    b[k] === undefined || b[k] === null || b[k] === '' ? standard : deckeleHand(Number(b[k]))
 
   const r = await speichereKalibrierung(supabase, user.id, {
     mitarbeiter:     text('mitarbeiter'),

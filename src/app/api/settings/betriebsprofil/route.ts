@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { normalisiereHex } from '@/lib/theme'
+import { klemmePreisfaktor } from '@/lib/preisfaktor'
 
 export async function GET() {
   const supabase = await createClient()
@@ -41,6 +42,7 @@ export async function PATCH(req: NextRequest) {
     'pdf_schriftart', 'pdf_zeige_menge', 'pdf_zeige_einheitspreis',
     'kleinunternehmer',
     'benchmark_zustimmung',
+    'preisfaktor',
     'plan',
   ]
   const boolFields = new Set([
@@ -65,6 +67,20 @@ export async function PATCH(req: NextRequest) {
     } else {
       patch[key] = v
     }
+  }
+
+  // Preisfaktor: 0,50-3,00. Unsinn wird abgewiesen statt stillschweigend
+  // umgedeutet — ein NaN in dieser Spalte wuerde jede Angebotssumme zerstoeren.
+  if ('preisfaktor' in patch) {
+    const roh = patch.preisfaktor
+    const wert = klemmePreisfaktor(roh)
+    if (wert === null) {
+      return NextResponse.json(
+        { error: `Preisfaktor: „${String(roh)}“ ist keine Zahl zwischen 0,50 und 3,00.` },
+        { status: 400 },
+      )
+    }
+    patch.preisfaktor = wert
   }
 
   // Farbcodes bereinigen; Unsinn abweisen statt ihn in die Datenbank zu lassen.

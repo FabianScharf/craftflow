@@ -13,6 +13,7 @@ import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktor
 import { bucheUm } from '@/lib/handarbeit'
 import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
+import { stempelPreisfaktor, PREISFAKTOR_STANDARD, klemmePreisfaktor } from '@/lib/preisfaktor'
 import { ladeEffektivenPlan, pruefeZugang, pruefeDeckel } from '@/lib/planpruefung'
 
 export const maxDuration = 120
@@ -225,7 +226,8 @@ function applyUserRates(
   customSaetze: Record<string, number>,
   matGruppen: Array<{ name: string; aufschlag_prozent: number }>,
   deaktiviert: Set<string> = new Set(),
-  faktoren: Faktoren = KEINE_FAKTOREN
+  faktoren: Faktoren = KEINE_FAKTOREN,
+  preisfaktor: number = PREISFAKTOR_STANDARD,
 ): Record<string, unknown> {
   const positionen = offer.positionen
   if (!Array.isArray(positionen)) return offer
@@ -251,6 +253,12 @@ function applyUserRates(
       : pos.material
     return { ...pos, arbeitszeit, material }
   })
+  // Neue Positionen aus dem Chat bekommen den heutigen Preisfaktor; bereits
+  // gestempelte behalten ihren. Sonst wuerde ein Optimieren-Lauf ein verschicktes
+  // Angebot rueckwirkend teurer machen.
+  offer.positionen = stempelPreisfaktor(
+    offer.positionen as Array<{ preisfaktor?: number }>, preisfaktor,
+  )
   return offer
 }
 
@@ -334,6 +342,7 @@ export async function POST(req: NextRequest) {
     // Im selben Zug: gelernte Bauweise-Regeln dieses Nutzers (Bauweise-Vault),
     // serverseitig geladen, nicht vom Frontend geschickt.
     let firmenStandort = ''
+    let preisfaktorNutzer = PREISFAKTOR_STANDARD
     let regelBlock = ''
     let preisBlock = ''
     let regelIds: string[] = []
@@ -362,11 +371,13 @@ export async function POST(req: NextRequest) {
         const sperre = pruefeDeckel(plan, 'optimierenRunden', rundenBisher)
         if (sperre) return sperre
         supabaseFuerRunden = supabase
-        const { data: profil } = await supabase
+        const { data: profil, error: profilErr } = await supabase
           .from('betriebsprofil')
-          .select('strasse, plz, ort')
+          .select('strasse, plz, ort, preisfaktor')
           .eq('user_id', user.id)
           .single()
+        if (profilErr) console.error('[optimize] Betriebsprofil:', profilErr.message)
+        preisfaktorNutzer = klemmePreisfaktor(profil?.preisfaktor) ?? PREISFAKTOR_STANDARD
         if (profil) {
           const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
@@ -542,7 +553,7 @@ export async function POST(req: NextRequest) {
     const parsed = extractJSON(raw)
     if (parsed) {
       const updatedOffer = parsed.updatedOffer
-        ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen, deaktiviert, faktoren)
+        ? applyUserRates(parsed.updatedOffer as Record<string, unknown>, customSaetze, matGruppen, deaktiviert, faktoren, preisfaktorNutzer)
         : null
       // Was das Werkzeug getan hat, gehört sichtbar in den Chat — auch und
       // gerade der Fehlerfall. Fehler verschlucken war der Fehler von gestern.
