@@ -39,7 +39,7 @@ const abPlan = (f: Parameters<typeof mindestPlan>[0]) => `ab dem ${PLAN_LABELS[m
  * passen — ein Test liest die Datei und vergleicht.
  */
 export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
-  { id: 'wuensche', label: 'Wünsche', zweck: 'Funktionswünsche vorschlagen und über die Vorschläge anderer abstimmen. Jeder Plan darf mitmachen; wie viele Stimmen jemand hat, hängt am Plan (Solo 1, Starter 3, Pro 10, Enterprise 30). Je Wunsch höchstens eine Stimme; Stimmen lassen sich jederzeit zurücknehmen. Was geplant, in Arbeit oder fertig ist, steht auch öffentlich auf www.getcraftflow.de/roadmap' },
+  { id: 'wuensche', label: 'Wünsche', zweck: 'Funktionswünsche vorschlagen und über die Vorschläge anderer abstimmen. Jeder Plan darf mitmachen; wie viele Stimmen jemand hat, hängt am Plan (Solo 1, Starter 3, Pro 10, Enterprise 30) — alle Stimmen auf einen Wunsch möglich, Stimmen kommen bei fertigen Wünschen zurück, kein monatlicher Nachschub. Was geplant, in Arbeit oder fertig ist, steht auch öffentlich auf www.getcraftflow.de/roadmap' },
   { id: 'firma', label: 'Firmendaten', zweck: 'Name, Inhaber, Adresse, Logo, Kontakt' },
   { id: 'buchhaltung', label: 'Buchhaltung', zweck: 'USt-IdNr., Steuernummer, IBAN, Umsatzsteuersatz, Kleinunternehmerregelung nach § 19 UStG, Gültigkeitsdauer der Angebote, Angebotsnummern' },
   { id: 'dokumente', label: 'Dokumente', zweck: 'Anrede-Vorlage, Einleitung, Grußformel, Zahlungskondition, Widerrufsbelehrung' },

@@ -197,10 +197,14 @@ ungefragt auf `main`.
 - Tests ohne React/Supabase: `plaene.ts`, `plantexte.ts` importieren nur untereinander
   (mit `.ts`-Endung — `allowImportingTsExtensions` ist gesetzt).
 
-## Wünsche-Community (Stand 2026-09-16)
+## Wünsche-Community (Stand 2026-09-16, abends: Stimmenkonto)
 - **Stimmenbudget je Plan** (1 / 3 / 10 / 30) steht als Deckel-Art `wunschStimmen` in
-  `src/lib/plaene.ts` — nirgends sonst. Je Wunsch höchstens **eine** Stimme je Nutzer
-  (Primärschlüssel `(wunsch_id, user_id)`).
+  `src/lib/plaene.ts` — nirgends sonst. Stimmen sind stapelbar: beliebig viele Stimmen
+  auf einen Wunsch möglich, alle Stimmen auf ein Thema legen ist erlaubt. Stimmen kommen
+  zurück, sobald ein Wunsch fertig, ausgeblendet oder zusammengelegt ist, oder der
+  Nutzer sie selbst zurückzieht. Kein monatlicher Nachschub — das Konto ist ein fester
+  Vorrat je Plan. Primärschlüssel der Tabelle ist jetzt `id` (nicht mehr
+  `(wunsch_id, user_id)`, SQL `docs/sql/2026-09-17-stimmen-stapelbar.sql`).
 - **Wechsel nach unten wie überall:** die ältesten N Stimmen bleiben aktiv, weitere
   zählen nicht (`wendeDeckelAn` über `wunsch_stimmen.created_at`). Nichts wird gelöscht.
 - **Gezählt wird serverseitig, nie in einer SQL-View:** Ob eine Stimme zählt, hängt am

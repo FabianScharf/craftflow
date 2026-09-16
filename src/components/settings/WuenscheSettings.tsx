@@ -10,7 +10,7 @@ import { STATUS_LABEL, WUNSCH_STATUS, TITEL_MAX, BESCHREIBUNG_MAX, type WunschSt
 
 type Wunsch = {
   id: string; titel: string; beschreibung: string; status: WunschStatus
-  created_at: string; stimmen: number; eigeneStimme: boolean; vonDir: boolean
+  created_at: string; stimmen: number; eigeneStimmen: number; vonDir: boolean
   zusammengelegt_in?: string | null
 }
 
@@ -20,7 +20,7 @@ const STATUS_FARBE: Record<WunschStatus, string> = {
 
 export default function WuenscheSettings() {
   const [wuensche, setWuensche] = useState<Wunsch[]>([])
-  const [budget, setBudget] = useState({ gesamt: 0, benutzt: 0 })
+  const [budget, setBudget] = useState({ gesamt: 0, benutzt: 0, ruhend: 0 })
   const [istAdmin, setIstAdmin] = useState(false)
   const [laedt, setLaedt] = useState(true)
   const [fehler, setFehler] = useState('')
@@ -37,12 +37,12 @@ export default function WuenscheSettings() {
   async function laden(alle = zeigeAlle) {
     const res = await fetch(alle ? '/api/wuensche?alle=1' : '/api/wuensche')
     const j = await res.json().catch(() => ({})) as {
-      wuensche?: Wunsch[]; budget?: { gesamt: number; benutzt: number }; istAdmin?: boolean; error?: string
+      wuensche?: Wunsch[]; budget?: { gesamt: number; benutzt: number; ruhend: number }; istAdmin?: boolean; error?: string
     }
     // Supabase wirft nicht — der echte Grund gehoert auf den Bildschirm, nicht ins Log.
     if (!res.ok) { setFehler(j.error ?? `Laden fehlgeschlagen (${res.status})`); setLaedt(false); return }
     setWuensche(j.wuensche ?? [])
-    setBudget(j.budget ?? { gesamt: 0, benutzt: 0 })
+    setBudget(j.budget ?? { gesamt: 0, benutzt: 0, ruhend: 0 })
     setIstAdmin(j.istAdmin === true)
     setLaedt(false)
   }
@@ -61,14 +61,22 @@ export default function WuenscheSettings() {
     await laden()
   }
 
-  async function stimmeUmschalten(w: Wunsch) {
+  async function stimmeHinzufuegen(w: Wunsch) {
     setMeldung(null)
-    const res = await fetch(`/api/wuensche/${w.id}/stimme`, { method: w.eigeneStimme ? 'DELETE' : 'POST' })
+    const res = await fetch(`/api/wuensche/${w.id}/stimme`, { method: 'POST' })
     const j = await res.json().catch(() => ({})) as { error?: string; minPlan?: string | null }
     if (!res.ok) {
       setMeldung({ ok: false, text: j.error ?? 'Das hat nicht geklappt.', planLink: !!j.minPlan })
       return
     }
+    await laden()
+  }
+
+  async function stimmeZurueck(w: Wunsch) {
+    setMeldung(null)
+    const res = await fetch(`/api/wuensche/${w.id}/stimme`, { method: 'DELETE' })
+    const j = await res.json().catch(() => ({})) as { error?: string }
+    if (!res.ok) { setMeldung({ ok: false, text: j.error ?? 'Das hat nicht geklappt.' }); return }
     await laden()
   }
 
@@ -102,9 +110,14 @@ export default function WuenscheSettings() {
   return (
     <div>
       <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Wünsche</div>
-      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 8 }}>
         Was fehlt dir in CraftFlow? Schreib es auf und stimm über die Vorschläge der
         anderen ab. Was die meisten Stimmen hat, wird als Nächstes gebaut.
+      </p>
+      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+        Du kannst alle Stimmen auf ein Thema legen. Ist ein Wunsch fertig, bekommst du
+        die Stimmen zurück. Es gibt keinen monatlichen Nachschub — dein Konto ist ein
+        fester Vorrat je Plan.
       </p>
 
       {fehler && <div style={{ color: C.err, fontSize: 13, marginBottom: 14 }}>{fehler}</div>}
@@ -114,6 +127,13 @@ export default function WuenscheSettings() {
         Du hast {budget.benutzt} von {budget.gesamt} Stimmen vergeben.
         {!kannNochStimmen && (
           <span style={{ color: C.textMid }}> Nimm eine zurück oder wechsle den Plan, um weiter abzustimmen.</span>
+        )}
+        {budget.ruhend > 0 && (
+          <div style={{ color: C.textMid, marginTop: 4 }}>
+            {budget.ruhend} weitere {budget.ruhend === 1 ? 'ruht' : 'ruhen'}, weil dein Plan
+            weniger Stimmen hat — {budget.ruhend === 1 ? 'sie zählt' : 'sie zählen'} wieder,
+            sobald du hochstufst.
+          </div>
         )}
       </div>
 
@@ -173,22 +193,41 @@ export default function WuenscheSettings() {
 
       {wuensche.map(w => {
         const versteckt = w.status === 'ausgeblendet' || !!w.zusammengelegt_in
+        const fertig = w.status === 'fertig'
+        const kannAbstimmen = !versteckt && !fertig
         return (
         <div key={w.id} style={{ display: 'flex', gap: 14, alignItems: 'flex-start',
           background: C.gray1, borderRadius: 8, padding: '12px 14px', marginBottom: 10,
           opacity: versteckt ? 0.5 : 1 }}>
-          <button onClick={() => void stimmeUmschalten(w)}
-            title={w.eigeneStimme ? 'Stimme zurücknehmen' : 'Für diesen Wunsch stimmen'}
-            disabled={!w.eigeneStimme && !kannNochStimmen}
-            style={{
-              minWidth: 56, background: w.eigeneStimme ? C.copper : 'transparent',
-              border: w.eigeneStimme ? 'none' : `1px solid ${C.border}`, borderRadius: 8,
-              color: w.eigeneStimme ? C.black : C.white, fontWeight: 700, fontSize: 13,
-              padding: '10px 6px', textAlign: 'center',
-              cursor: (!w.eigeneStimme && !kannNochStimmen) ? 'default' : 'pointer',
-              opacity: (!w.eigeneStimme && !kannNochStimmen) ? 0.45 : 1 }}>
-            ▲<br />{w.stimmen}
-          </button>
+          <div style={{ minWidth: 56, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
+            {kannAbstimmen && (
+              <button onClick={() => void stimmeHinzufuegen(w)} title="Eine Stimme dazu"
+                disabled={!kannNochStimmen}
+                style={{
+                  background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 6,
+                  color: C.white, fontWeight: 700, fontSize: 13, padding: '3px 6px',
+                  cursor: kannNochStimmen ? 'pointer' : 'default', opacity: kannNochStimmen ? 1 : 0.4 }}>
+                ▲
+              </button>
+            )}
+            <div style={{ textAlign: 'center', fontWeight: 700, fontSize: 18, padding: '2px 0',
+              color: w.eigeneStimmen > 0 ? C.copper : C.white }}>
+              {w.stimmen}
+            </div>
+            {kannAbstimmen && w.eigeneStimmen > 0 && (
+              <button onClick={() => void stimmeZurueck(w)} title="Eine eigene Stimme zurück"
+                style={{
+                  background: 'transparent', border: `1px solid ${C.copper}`, borderRadius: 6,
+                  color: C.copper, fontWeight: 700, fontSize: 13, padding: '3px 6px', cursor: 'pointer' }}>
+                ▼
+              </button>
+            )}
+            {w.eigeneStimmen > 0 && (
+              <div style={{ textAlign: 'center', fontSize: 10, color: C.copper, marginTop: 2 }}>
+                deine {w.eigeneStimmen}
+              </div>
+            )}
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ color: C.white, fontSize: 13.5, fontWeight: 700 }}>{w.titel}</span>

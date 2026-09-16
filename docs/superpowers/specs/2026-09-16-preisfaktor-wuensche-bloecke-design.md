@@ -87,6 +87,18 @@ Punkte und pushen erst dann“).
 - Admin (nur Fabian): Status-Auswahl, „Ausblenden“, „Zusammenlegen in …“.
 - Website `/roadmap`: drei Spalten Geplant / In Arbeit / Fertig; Link in der Navigation und im FAQ-Eintrag „Was passiert mit meinen Wünschen?“.
 
+### Entscheidung 16.09. abends: Stimmen stapelbar (Stimmenkonto)
+Nachtrag, ersetzt die Regel „je Wunsch höchstens eine Stimme“ oben unter Entscheidungen:
+Jeder Nutzer hat ein festes Stimmenkonto je Plan und darf beliebig viele Stimmen auf
+EINEN Wunsch legen (stapeln). Stimmen kommen zurück, sobald ein Wunsch `fertig`,
+`ausgeblendet` oder zusammengelegt ist, oder wenn der Nutzer sie zurückzieht. Kein
+monatlicher Nachschub. Beim Wechsel nach unten bleiben die ältesten Stimmen aktiv, der
+Rest ruht, nichts wird gelöscht. Primärschlüssel von `wunsch_stimmen` ist jetzt `id`
+(nicht mehr `(wunsch_id, user_id)`, SQL `docs/sql/2026-09-17-stimmen-stapelbar.sql`).
+`GET /api/wuensche` liefert `eigeneStimmen: number` (ersetzt `eigeneStimme: boolean`)
+und `budget.ruhend`; fertige Wünsche zeigen ihre Stimmenzahl weiter, belegen aber kein
+Budget mehr.
+
 ---
 
 ## Teil C — Große Projekte in Blöcken
