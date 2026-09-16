@@ -654,6 +654,9 @@ export default function CraftFlow() {
   // Große Projekte in Blöcken (Spec 2026-09-16, Teil C).
   const [bloecke, setBloecke] = useState<Array<{ nr: number; vorschau: string; zeichen: number; bilder: number }>>([])
   const [nichtVerarbeitet, setNichtVerarbeitet] = useState<Array<{ name: string; grund: string }>>([])
+  // Was die Blockroute je Block übersprungen hat (unlesbares Bild, unbekannter
+  // Bildtyp, zu groß) — I-2: sonst verschwindet das stillschweigend (Spec:97).
+  const [blockHinweise, setBlockHinweise] = useState<string[]>([])
   const [blockAktuell, setBlockAktuell] = useState(0)
   const [blockLaeuft, setBlockLaeuft] = useState(false)
   // Ein Block ist mitten im Lauf fehlgeschlagen, aber vorherige Blöcke haben schon
@@ -1393,6 +1396,7 @@ export default function CraftFlow() {
     abbruchControllerRef.current = new AbortController()
     setStartStatus('loading'); setStartMsg(''); setStartMinPlan(null); setBlockLaeuft(true)
     setBloecke([]); setNichtVerarbeitet([]); setBlockAktuell(0); setBlockFehlerPartiell(false)
+    setBlockHinweise([])
 
     // Außerhalb von try/catch deklariert, damit der catch-Zweig (Netzfehler mitten im
     // Blocklauf) weiß, wie viele Positionen schon feststehen und an welchem Block es
@@ -1403,6 +1407,7 @@ export default function CraftFlow() {
     let blockNrAktuell = 0
     let kundeAusBlock1: Kunde = { name: '', zusatz: '', strasse: '', ort: '', projekt: '' }
     let anschreibenAusBlock1 = ''
+    const hinweiseGesammelt: string[] = []
 
     // C-1: dasselbe Übernehmen wie im Direktweg — Projekt speichern (PUT auf den vom
     // Upload angelegten Entwurf), Vergleichsstand setzen, Version „Erstfassung der KI"
@@ -1464,8 +1469,16 @@ export default function CraftFlow() {
             deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
           }),
         })
-        const j = await res.json().catch(() => ({})) as
-          { success?: boolean; error?: string; minPlan?: string | null; data?: Record<string, unknown> }
+        const j = await res.json().catch(() => ({})) as {
+          success?: boolean; error?: string; minPlan?: string | null
+          data?: Record<string, unknown>; hinweise?: string[]
+        }
+        // I-2: was die Route übersprungen hat (unlesbares/zu großes/unbekanntes Bild)
+        // nicht stumm verwerfen — steht in jeder Antwort (Erfolg wie Fehler).
+        if (Array.isArray(j.hinweise) && j.hinweise.length > 0) {
+          hinweiseGesammelt.push(...j.hinweise.map(h => `Block ${b.nr}: ${h}`))
+          setBlockHinweise([...hinweiseGesammelt])
+        }
         if (!res.ok || !j.success) {
           // Kein throw: Was bis hierher entstanden ist, bleibt stehen. Der Nutzer
           // sieht, an welchem Block es gehakt hat, und kann neu ansetzen.
@@ -1479,6 +1492,17 @@ export default function CraftFlow() {
           break
         }
         const daten = j.data ?? {}
+        // I-2: Die KI hat Rückfragen statt Positionen geliefert — das ist kein
+        // stiller Leerlauf, sondern muss wie ein Fehler gemeldet werden.
+        if (Array.isArray(daten.fragen) && daten.fragen.length > 0) {
+          hatFehler = true
+          const teilHinweis = gesammelt.length > 0
+            ? ` Die bisherigen ${gesammelt.length} ${gesammelt.length === 1 ? 'Position bleibt' : 'Positionen bleiben'} erhalten.`
+            : ''
+          setStartStatus('error')
+          setStartMsg(`Block ${b.nr}: Die KI hat Rückfragen: ${(daten.fragen as string[]).join(' ')}${teilHinweis}`)
+          break
+        }
         if (b.nr === 1 && daten.kunde) {
           const kd = daten.kunde as Record<string, string>
           kundeAusBlock1 = {
@@ -1498,6 +1522,8 @@ export default function CraftFlow() {
         gesammelt = vereinigePositionen(gesammelt, neue)
         setPos(gesammelt)
         refreshUsage().catch(() => {})
+        // I-2: 0 Positionen und keine Rückfragen in diesem Block ist kein Fehler —
+        // einfach mit dem nächsten Block weitermachen (Schleife läuft ohnehin weiter).
       }
 
       setBlockLaeuft(false)
@@ -1515,6 +1541,11 @@ export default function CraftFlow() {
         setScreen('app')
         setTab('kalkulation')
         setStartStatus('idle')
+      } else {
+        // I-2: kein Fehler, aber auch keine einzige Position über alle Blöcke —
+        // der Bildschirm darf nicht auf "lädt" stehen bleiben.
+        setStartStatus('error')
+        setStartMsg('Keine Positionen erkannt — bitte Text/Fotos prüfen.')
       }
     } catch (e) {
       // Abbruch per Knopf ist KEIN Fehler: der Nutzer hat den laufenden Block bewusst
@@ -3562,6 +3593,13 @@ export default function CraftFlow() {
                 {blockLaeuft && blockAktuell > 0 && (
                   <div style={{ color: C.copper, marginTop: 6 }}>
                     {blockFortschrittText(blockAktuell, bloecke.length, pos.length)}
+                  </div>
+                )}
+                {/* I-2: von der Blockroute übersprungene Bilder je Block — sonst
+                    unsichtbar für den Nutzer (Spec:97 "nichts stumm verwerfen"). */}
+                {blockHinweise.length > 0 && (
+                  <div style={{ color: C.textMid, marginTop: 6, fontSize: 11.5 }}>
+                    {blockHinweise.join(' · ')}
                   </div>
                 )}
               </div>
