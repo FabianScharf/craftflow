@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { akzentTon } from '@/lib/theme'
 import { usePlan } from '@/hooks/usePlan'
+import type { Plan } from '@/lib/plaene'
 
 const C = {
   black: 'var(--c-primary, #0D0D0D)', dark: 'var(--c-darkbg, #141414)', gray1: 'var(--c-surface1, #1A1A1A)', gray2: 'var(--c-surface2, #222222)',
@@ -41,7 +42,12 @@ const defaultConfig = (): EmailConfig => ({
 })
 
 export function EmailSettings() {
-  const { plan, loading: planLoading } = usePlan()
+  // Der WIRKSAME Plan, nicht der gespeicherte: In der Testphase ist jeder Enterprise,
+  // das Profil steht aber weiter auf 'solo'. Mit dem rohen Wert zeigte dieser Bereich
+  // einem Testnutzer „ab dem Starter-Plan" (Fabian, 16.09.). 'gesperrt' zählt wie solo —
+  // die Paywall davor greift ohnehin.
+  const { effectivePlan, loading: planLoading } = usePlan()
+  const plan: Plan = effectivePlan === 'gesperrt' ? 'solo' : effectivePlan
   const [cfg, setCfg] = useState<EmailConfig>(defaultConfig())
   const [smtpPassword, setSmtpPassword] = useState('')
   const [saving, setSaving] = useState(false)
