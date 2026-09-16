@@ -78,6 +78,18 @@ export function aktiveStimmen(
   return (stimmen ?? []).filter(s => erlaubt.has(`${s.user_id}|${s.wunsch_id}`))
 }
 
+/**
+ * Stimmen auf ausgeblendete oder zusammengelegte Wünsche zählen nicht gegen das Budget.
+ * GEFUNDEN 16.09. (Fabians Screenshot): „2 von 30 Stimmen vergeben", sichtbar war eine —
+ * die zweite hing an einem ausgeblendeten Testwunsch, den niemand mehr sieht und dessen
+ * Stimme niemand zurückziehen kann. Gelöscht wird nichts: Blendet der Admin den Wunsch
+ * wieder ein, zählt die Stimme wieder.
+ */
+export function ohneVersteckte(stimmen: Stimme[], versteckteIds: Iterable<string>): Stimme[] {
+  const versteckt = new Set(versteckteIds)
+  return (stimmen ?? []).filter(s => !versteckt.has(s.wunsch_id))
+}
+
 /** Zählt je Wunsch die aktiven Stimmen. Wünsche ohne aktive Stimme stehen mit 0 drin. */
 export function stimmenJeWunsch(
   stimmen: Stimme[],

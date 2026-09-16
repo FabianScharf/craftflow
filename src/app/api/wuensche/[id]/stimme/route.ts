@@ -9,7 +9,7 @@ import { getSupabaseClient } from '@/lib/supabase'
 import { pruefeZugang } from '@/lib/planpruefung'
 import { stimmenAblehnung } from '@/lib/plantexte'
 import { istPlan, type EffektiverPlan, type Plan, type ProfilFuerPlan } from '@/lib/plaene'
-import { stimmenbudget, aktiveStimmen, stimmenJeWunsch, type Stimme } from '@/lib/wuensche'
+import { stimmenbudget, aktiveStimmen, stimmenJeWunsch, ohneVersteckte, type Stimme } from '@/lib/wuensche'
 import { effektiverPlan } from '@/lib/plaene'
 
 /** Aktive Stimmenzahl EINES Wunsches — für die Antwort, damit die Liste sofort stimmt. */
@@ -59,7 +59,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const budget = stimmenbudget(profil as ProfilFuerPlan)
-  const benutzt = aktiveStimmen((eigene ?? []) as Stimme[], { [user.id]: profil as ProfilFuerPlan }).length
+  // Stimmen auf ausgeblendete/zusammengelegte Wünsche belegen kein Budget (ohneVersteckte).
+  const { data: versteckteRoh } = await getSupabaseClient()
+    .from('wuensche').select('id').or('status.eq.ausgeblendet,zusammengelegt_in.not.is.null')
+  const zaehlbar = ohneVersteckte((eigene ?? []) as Stimme[], ((versteckteRoh ?? []) as Array<{ id: string }>).map(w => String(w.id)))
+  const benutzt = aktiveStimmen(zaehlbar, { [user.id]: profil as ProfilFuerPlan }).length
   if (benutzt >= budget) {
     const plan: EffektiverPlan = effektiverPlan(profil as ProfilFuerPlan)
     const fuerText: Plan = istPlan(plan) ? plan : 'solo'

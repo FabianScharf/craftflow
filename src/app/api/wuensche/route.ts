@@ -12,7 +12,7 @@ import { getSupabaseClient } from '@/lib/supabase'
 import { pruefeZugang } from '@/lib/planpruefung'
 import type { ProfilFuerPlan } from '@/lib/plaene'
 import {
-  pruefeTexte, stimmenbudget, stimmenJeWunsch, VORSCHLAEGE_JE_TAG, type Stimme,
+  pruefeTexte, stimmenbudget, stimmenJeWunsch, ohneVersteckte, VORSCHLAEGE_JE_TAG, type Stimme,
 } from '@/lib/wuensche'
 
 const ADMIN_EMAIL = 'l.m.p.1@gmx.de'
@@ -29,7 +29,13 @@ async function ladeStimmenUndProfile(): Promise<{
     console.error('[wuensche] Stimmen laden:', stimmenErr.message)
     return { stimmen: [], profile: {}, fehler: stimmenErr.message }
   }
-  const stimmen = (stimmenRoh ?? []) as Stimme[]
+  // Stimmen auf Ausgeblendetes/Zusammengelegtes zählen nicht (siehe ohneVersteckte).
+  const { data: versteckteRoh, error: vErr } = await service
+    .from('wuensche')
+    .select('id')
+    .or('status.eq.ausgeblendet,zusammengelegt_in.not.is.null')
+  if (vErr) console.error('[wuensche] versteckte Wünsche laden:', vErr.message)
+  const stimmen = ohneVersteckte((stimmenRoh ?? []) as Stimme[], (versteckteRoh ?? []).map(w => String(w.id)))
   const ids = [...new Set(stimmen.map(s => s.user_id))]
   if (ids.length === 0) return { stimmen, profile: {}, fehler: null }
   const { data: profileRoh, error: profilErr } = await service

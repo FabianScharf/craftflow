@@ -107,3 +107,15 @@ test('Volles Budget wird mit Zahl, Ausweg und nächstem Plan abgelehnt', () => {
     minPlan: null,
   })
 })
+
+test('Stimmen auf ausgeblendete oder zusammengelegte Wünsche zählen nicht gegen das Budget', async () => {
+  const { ohneVersteckte } = await import('../src/lib/wuensche.ts')
+  const stimmen = [
+    { wunsch_id: 'a', user_id: 'u1', created_at: '2026-09-16T10:00:00Z' },
+    { wunsch_id: 'b', user_id: 'u1', created_at: '2026-09-16T11:00:00Z' },
+    { wunsch_id: 'c', user_id: 'u2', created_at: '2026-09-16T12:00:00Z' },
+  ]
+  assert.deepEqual(ohneVersteckte(stimmen, ['a']).map(s => s.wunsch_id), ['b', 'c'])
+  assert.deepEqual(ohneVersteckte(stimmen, []).length, 3)
+  assert.deepEqual(ohneVersteckte(null, ['a']), [])
+})
