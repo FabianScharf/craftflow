@@ -13,13 +13,17 @@ export async function GET(req: NextRequest) {
     const versionId = searchParams.get('versionId')
 
     if (versionId) {
+      // maybeSingle statt single: .single() liefert bei "nichts gefunden" einen
+      // Fehler, und daraus wurde eine 500 — obwohl eine fehlende oder fremde
+      // Version schlicht 404 ist (Audit 2026-09-17, Minor 12).
       const { data, error } = await supabase
         .from('offer_versions')
         .select('id, version_number, created_at, description, data')
         .eq('id', versionId)
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (!data) return NextResponse.json({ error: 'Diese Version gibt es nicht.' }, { status: 404 })
       return NextResponse.json(data)
     }
 

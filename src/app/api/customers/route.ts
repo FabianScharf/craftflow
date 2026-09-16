@@ -15,13 +15,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name ist erforderlich' }, { status: 400 })
     }
 
-    const { data: existing } = await supabase
+    const { data: existing, error: dubletteErr } = await supabase
       .from('customers')
       .select('id')
       .eq('user_id', user.id)
       .ilike('name', name.trim())
       .eq('zip', zip?.trim() || '')
       .limit(1)
+    // Supabase wirft nicht: Ohne diese Pruefung fiel ein DB-Ausfall waehrend der
+    // Dubletten-Pruefung stillschweigend durch zum Insert (Audit 2026-09-17, Minor 10).
+    if (dubletteErr) {
+      console.error('[customers] Dubletten-Pruefung:', dubletteErr.message)
+      return NextResponse.json({ error: dubletteErr.message }, { status: 500 })
+    }
 
     if (existing?.length) {
       return NextResponse.json({ duplicate: true }, { status: 409 })

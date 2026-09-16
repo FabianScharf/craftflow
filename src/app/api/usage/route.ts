@@ -11,11 +11,14 @@ export async function GET() {
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
-  const { data: profil } = await supabase
+  const { data: profil, error: profilErr } = await supabase
     .from('betriebsprofil')
     .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
     .eq('user_id', user.id)
     .single()
+  // Faellt in der Praxis fail-closed auf 'gesperrt' — aber bisher unbemerkt und
+  // ungeloggt (Audit 2026-09-17, Minor 11).
+  if (profilErr) console.error('[usage] Betriebsprofil:', profilErr.message)
 
   const plan = effektiverPlan(profil)
   const limit = deckel(plan, 'angebote')
@@ -43,11 +46,14 @@ export async function POST() {
   const zu = await pruefeZugang(supabase, user.id)
   if (zu) return zu
 
-  const { data: profil } = await supabase
+  const { data: profil, error: profilErr } = await supabase
     .from('betriebsprofil')
     .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
     .eq('user_id', user.id)
     .single()
+  // Faellt in der Praxis fail-closed auf 'gesperrt' — aber bisher unbemerkt und
+  // ungeloggt (Audit 2026-09-17, Minor 11).
+  if (profilErr) console.error('[usage] Betriebsprofil:', profilErr.message)
 
   const plan = effektiverPlan(profil)
   const limit = deckel(plan, 'angebote')
