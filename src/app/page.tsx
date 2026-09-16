@@ -433,6 +433,9 @@ export default function CraftFlow() {
   // ueberhaupt nicht."
   const [loeschFrage, setLoeschFrage] = useState<{ id: string; titel: string } | null>(null)
   const [loeschFehler, setLoeschFehler] = useState('')
+  // Fehler beim Laden der Projektliste — ohne Anzeige sieht ein Ausfall aus wie
+  // "keine Projekte vorhanden" (Audit 2026-09-17, I8).
+  const [projekteFehler, setProjekteFehler] = useState('')
   const [loeschLaeuft, setLoeschLaeuft] = useState(false)
 
   const deleteProject = useCallback(async (id: string, titel: string) => {
@@ -457,7 +460,20 @@ export default function CraftFlow() {
   }, [loeschFrage])
 
   useEffect(() => {
-    fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) })
+    // Ohne res.ok-Pruefung blieb die Projektliste bei 401/500 stumm leer — der
+    // Nutzer haette geglaubt, seine Projekte seien weg (Audit 2026-09-17, I8).
+    fetch('/api/projects')
+      .then(async r => {
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({})) as { error?: string }
+          setProjekteFehler(j.error ?? `Projekte konnten nicht geladen werden (${r.status}).`)
+          return null
+        }
+        setProjekteFehler('')
+        return r.json()
+      })
+      .then(d => { if (Array.isArray(d)) setProjects(d) })
+      .catch(() => setProjekteFehler('Projekte konnten nicht geladen werden — keine Verbindung.'))
   }, [])
 
   // Eigene Textbausteine laden. Die mit "immer" sind in einem neuen Angebot
@@ -673,6 +689,9 @@ export default function CraftFlow() {
   const abbruchControllerRef = useRef<AbortController | null>(null)
   const [fragenInput, setFragenInput] = useState('')
   const [fragenMicStatus, setFragenMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
+  // Eigener Meldungsplatz im Rueckfragen-Fenster: Der Fehler darf startStatus nicht
+  // auf 'error' drehen, sonst verschwinden die Rueckfragen der KI vom Bildschirm.
+  const [fragenMicFehler, setFragenMicFehler] = useState('')
   const fragenMediaRecorderRef = useRef<MediaRecorder | null>(null)
   const fragenAudioChunksRef = useRef<Blob[]>([])
   const [progressIdx, setProgressIdx] = useState(0)
@@ -1611,9 +1630,18 @@ export default function CraftFlow() {
           const form = new FormData()
           form.append('audio', blob, mimeType === 'audio/webm' ? 'fragen.webm' : 'fragen.mp4')
           const res = await fetch('/api/transcribe', { method: 'POST', body: form })
-          const json = await res.json()
-          if (json.text) setFragenInput(prev => prev ? prev + ' ' + json.text : json.text)
-        } catch {}
+          const json = await res.json().catch(() => ({})) as { text?: string; error?: string }
+          // Ohne res.ok-Pruefung sprang das Mikrofon kommentarlos auf "idle" zurueck —
+          // der Nutzer erfuhr nie, warum nichts ankam (Audit 2026-09-17, I9).
+          if (!res.ok || !json.text) {
+            setFragenMicFehler(json.error ?? 'Die Aufnahme konnte nicht übertragen werden. Bitte noch einmal versuchen oder tippen.')
+          } else {
+            setFragenMicFehler('')
+            setFragenInput(prev => prev ? prev + ' ' + json.text : json.text!)
+          }
+        } catch {
+          setFragenMicFehler('Die Aufnahme konnte nicht übertragen werden — keine Verbindung.')
+        }
         setFragenMicStatus('idle')
       }
       recorder.start()
@@ -1678,9 +1706,18 @@ export default function CraftFlow() {
           const fd = new FormData()
           fd.append('audio', blob, `audio.${ext}`)
           const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
-          const json = await res.json()
-          if (json.success && json.text) setOptimInput(prev => prev ? prev + ' ' + json.text : json.text)
-        } catch (e) { console.error('[optim-mic]', e) }
+          const json = await res.json().catch(() => ({})) as { success?: boolean; text?: string; error?: string }
+          // Audit 2026-09-17 (I9): res.ok wurde nie geprueft — ein Fehler der Route
+          // (fehlender Schluessel, Whisper-Fehler) blieb voellig unsichtbar.
+          if (!res.ok || !json.success || !json.text) {
+            setOptimMessages(prev => [...prev, { role: 'assistant', content: json.error ?? 'Die Aufnahme konnte nicht übertragen werden. Bitte noch einmal versuchen oder tippen.' }])
+          } else {
+            setOptimInput(prev => prev ? prev + ' ' + json.text : json.text!)
+          }
+        } catch (e) {
+          console.error('[optim-mic]', e)
+          setOptimMessages(prev => [...prev, { role: 'assistant', content: 'Die Aufnahme konnte nicht übertragen werden — keine Verbindung.' }])
+        }
         setOptimMicStatus('idle')
       }
       mr.start()
@@ -1718,9 +1755,17 @@ export default function CraftFlow() {
           const fd = new FormData()
           fd.append('audio', blob, `audio.${ext}`)
           const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
-          const json = await res.json()
-          if (json.success && json.text) setCheckInput(prev => prev ? prev + ' ' + json.text : json.text)
-        } catch (e) { console.error('[check-mic]', e) }
+          const json = await res.json().catch(() => ({})) as { success?: boolean; text?: string; error?: string }
+          // Audit 2026-09-17 (I9): siehe Optimieren-Mikrofon oben.
+          if (!res.ok || !json.success || !json.text) {
+            setCheckMessages(prev => [...prev, { role: 'assistant', content: json.error ?? 'Die Aufnahme konnte nicht übertragen werden. Bitte noch einmal versuchen oder tippen.' }])
+          } else {
+            setCheckInput(prev => prev ? prev + ' ' + json.text : json.text!)
+          }
+        } catch (e) {
+          console.error('[check-mic]', e)
+          setCheckMessages(prev => [...prev, { role: 'assistant', content: 'Die Aufnahme konnte nicht übertragen werden — keine Verbindung.' }])
+        }
         setCheckMicStatus('idle')
       }
       mr.start()
@@ -3274,6 +3319,12 @@ export default function CraftFlow() {
 
         {/* Liste */}
         <div style={{ maxWidth: 700, margin: '0 auto', padding: '16px 16px 28px' }}>
+          {projekteFehler && (
+            <div style={{ marginBottom: 14, background: ton(C.err, '22'), border: '1px solid #4a2a2a',
+              borderRadius: 8, padding: '12px 14px', fontSize: 13, color: C.err }}>
+              {projekteFehler}
+            </div>
+          )}
           {projects.length === 0 ? (
             <div style={{ textAlign: 'center', paddingTop: 80, color: C.textMid }}>
               <div style={{ fontSize: 40, marginBottom: 16 }}>📋</div>
@@ -3763,6 +3814,9 @@ export default function CraftFlow() {
                 rows={3}
                 style={{ width: '100%', background: C.gray1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '11px 13px', fontSize: 13, color: C.white, fontFamily: 'Helvetica Neue,sans-serif', resize: 'none', boxSizing: 'border-box', outline: 'none', marginBottom: 8 }}
               />
+              {fragenMicFehler && (
+                <div style={{ fontSize: 12, color: C.err, marginBottom: 8 }}>{fragenMicFehler}</div>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={startFragenMic}
