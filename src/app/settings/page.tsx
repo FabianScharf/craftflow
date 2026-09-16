@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { akzentTon, normalisiereHex, leitePaletteAb, wendePaletteAn, ton } from '@/lib/theme'
+import { dominanteFarbe } from '@/lib/logofarbe'
 import { createClient } from '@/utils/supabase/client'
 import { normalizeKsId } from '@/lib/types'
 import { PlanGate } from '@/components/PlanGate'
@@ -390,6 +391,37 @@ export default function SettingsPage() {
     }
   }
 
+  // Farbton aus dem hochgeladenen Logo lesen (Rückmeldung Tischlerei Lembeck, 16.09.:
+  // eingetippt war #75001D, das Logo hat #813732 — den Code kennt kaum ein Betrieb).
+  // Läuft komplett im Browser: Bild laden, auf höchstens 400 px verkleinern, Bildpunkte
+  // lesen, kräftigste Farbe bestimmen. Gespeichert wird wie jede Änderung erst unten.
+  const [logoFarbeMsg, setLogoFarbeMsg] = useState('')
+  const [logoFarbeLaeuft, setLogoFarbeLaeuft] = useState(false)
+  async function farbeAusLogo() {
+    if (!logoPreview) return
+    setLogoFarbeLaeuft(true); setLogoFarbeMsg('')
+    try {
+      const res = await fetch(logoPreview, { cache: 'no-store' })
+      if (!res.ok) throw new Error(`Logo nicht ladbar (${res.status})`)
+      const bitmap = await createImageBitmap(await res.blob())
+      const faktor = Math.min(1, 400 / Math.max(bitmap.width, bitmap.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(bitmap.width * faktor))
+      canvas.height = Math.max(1, Math.round(bitmap.height * faktor))
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Kein Zeichenbereich')
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      const hex = dominanteFarbe(ctx.getImageData(0, 0, canvas.width, canvas.height).data)
+      if (!hex) { setLogoFarbeMsg('Im Logo ist keine kräftige Farbe zu finden — es besteht aus Schwarz, Weiß oder Grau.'); return }
+      setP('farbe_akzent', hex)
+      setLogoFarbeMsg(`Farbton ${hex} aus dem Logo übernommen. Unten auf „Speichern“ drücken, damit er gilt.`)
+    } catch (e) {
+      setLogoFarbeMsg('Fehler: Das Logo konnte nicht gelesen werden' + (e instanceof Error && e.message ? ` (${e.message}).` : '.'))
+    } finally {
+      setLogoFarbeLaeuft(false)
+    }
+  }
+
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -719,6 +751,25 @@ export default function SettingsPage() {
                   standard="#C8885A"
                   onChange={hex => setP('farbe_akzent', hex)}
                 />
+
+                {logoPreview && (
+                  <div style={{ marginTop: -8 }}>
+                    <button
+                      onClick={() => void farbeAusLogo()}
+                      disabled={logoFarbeLaeuft}
+                      style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`,
+                        borderRadius: 5, padding: '8px 14px', fontSize: 12, fontWeight: 600,
+                        cursor: logoFarbeLaeuft ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                    >
+                      {logoFarbeLaeuft ? 'Lese Logo …' : 'Farbton aus dem Logo übernehmen'}
+                    </button>
+                    {logoFarbeMsg && (
+                      <div style={{ fontSize: 11, color: logoFarbeMsg.startsWith('Fehler') ? C.err : C.textMid, marginTop: 6, lineHeight: 1.6 }}>
+                        {logoFarbeMsg}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <p style={{ fontSize: 11, color: C.textMid, lineHeight: 1.6, margin: 0 }}>
                   Farbcode am besten direkt ins Textfeld tippen, z.&nbsp;B. <span style={{ color: C.white }}>#C8102E</span>.
