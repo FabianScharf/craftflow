@@ -46,3 +46,14 @@ export function zaehltGegenDeckel(name: string): boolean {
 export function bauePfad(userId: string, projektId: string, uuid: string, name: string): string {
   return `${userId}/${projektId}/${uuid}-${sichererName(name)}`
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+/**
+ * Sieht das wie eine echte UUID aus (v1–v5)? Gegen Pfad-Traversal und fremde IDs,
+ * bevor `projekt_id` aus dem Client überhaupt in eine Datenbankabfrage geht
+ * (Fix-Runde 1, Review-Important: `projekt_id` wurde bis dahin ungeprüft übernommen).
+ */
+export function istUuid(v: string): boolean {
+  return UUID_REGEX.test(v)
+}

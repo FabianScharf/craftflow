@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   MAX_BYTES, ERLAUBTE_TYPEN, ERLAUBTE_ENDUNGEN,
-  sichererName, pruefeDatei, zaehltGegenDeckel, bauePfad,
+  sichererName, pruefeDatei, zaehltGegenDeckel, bauePfad, istUuid,
 } from '../src/lib/upload.ts'
 
 test('Grenzen wörtlich aus der Spec: 10 MB, JPG/PNG/WEBP/PDF', () => {
@@ -65,4 +65,16 @@ test('bauePfad: <user_id>/<projekt_id>/<uuid>-<sicherer Name>', () => {
     bauePfad('u1', 'p1', 'uuid-123', 'Küchenfoto (1).jpg'),
     'u1/p1/uuid-123-K_chenfoto _1_.jpg',
   )
+})
+
+test('istUuid: erkennt gültige UUIDs, lehnt Pfad-Traversal und Unsinn ab', () => {
+  assert.equal(istUuid('550e8400-e29b-41d4-a716-446655440000'), true)
+  assert.equal(istUuid('550E8400-E29B-41D4-A716-446655440000'), true, 'Groß-/Kleinschreibung egal')
+  assert.equal(istUuid('a/b'), false)
+  assert.equal(istUuid('../x'), false)
+  assert.equal(istUuid(''), false)
+  assert.equal(istUuid('nicht-mal-annaehernd-eine-uuid'), false)
+  // Version (13. Stelle) muss 1–5 sein, Variante (17. Stelle) 8/9/a/b — sonst keine echte UUID.
+  assert.equal(istUuid('550e8400-e29b-61d4-a716-446655440000'), false, 'ungültige Version 6')
+  assert.equal(istUuid('550e8400-e29b-41d4-c716-446655440000'), false, 'ungültige Variante c')
 })
