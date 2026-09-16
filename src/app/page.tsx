@@ -1084,8 +1084,9 @@ export default function CraftFlow() {
           fd.append('audio', blob, `audio.${ext}`)
           const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
           const json = await res.json().catch(() => ({})) as { success?: boolean; text?: string; error?: string }
-          if (res.ok && json.success && json.text) {
-            setStartText(prev => prev ? prev + ' ' + json.text : json.text)
+          const erkannt = json.text
+          if (res.ok && json.success && erkannt) {
+            setStartText(prev => prev ? prev + ' ' + erkannt : erkannt)
           } else {
             // Vierte Mikrofon-Stelle (Review 17.09.): vorher nur console.error — der Nutzer sah nichts.
             console.error('Transkription Fehler:', json.error ?? res.status)
