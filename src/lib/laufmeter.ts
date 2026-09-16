@@ -17,6 +17,15 @@
 //
 // Verwandter Vorfall 2026-07-04: Damals wurden m² als Meter gezaehlt, Preise bis
 // zum Sechsfachen. Dieselbe Familie von Fehlern.
+//
+// VORFALL 2026-09-16 — TAUSENDERPUNKT IN mm-MASSKETTEN:
+// Deutsche Leistungsverzeichnisse schreiben Millimeter mit Tausenderpunkt:
+// "2.400 x 2.650 x 600 mm". `zahl('2.400')` gab 2,4 (parseFloat behandelt den
+// Punkt als Dezimaltrennzeichen), und der mm-Teiler 1000 machte daraus 0,0024 m.
+// Jede Beschreibung mit einer solchen Masskette bekam dadurch praktisch 0 lfm —
+// und `kappeZeiten` deckelte die Werkstattzeit der Position auf nahe 0 Stunden.
+// Fix: Ein Punkt gefolgt von GENAU DREI Ziffern vor einer mm/cm-Einheit ist ein
+// Tausendertrenner, kein Komma-Ersatz — siehe `TAUSENDER_RE`.
 
 export const MAX_PLAUSIBLE_LM = 25
 
@@ -38,6 +47,17 @@ const KETTE_RE = /(\d+(?:[,.]\d+)?)\s*[x×]\s*(\d+(?:[,.]\d+)?)\s*[x×]\s*(\d+(?
 const zahl = (s: string) => parseFloat(s.replace(',', '.'))
 const deckel = (n: number) => Math.min(Math.max(n, 0), MAX_PLAUSIBLE_LM)
 
+// Punkt gefolgt von genau drei Ziffern (keine weiteren Nachkommastellen) ist ein
+// Tausendertrenner: "2.400" = zweitausendvierhundert. "2.40" (zwei Ziffern) bleibt
+// eine Dezimalzahl. Nur relevant vor mm/cm — bei "m" bräuchte niemand eine
+// vierstellige Zahl vor dem Komma.
+const TAUSENDER_RE = /^\d{1,3}(?:\.\d{3})+$/
+
+function zahlMitEinheit(s: string, mmOderCm: boolean): number {
+  if (mmOderCm && TAUSENDER_RE.test(s)) return parseFloat(s.replace(/\./g, ''))
+  return zahl(s)
+}
+
 export function parseLaufmeter(text: string): number {
   const t = text ?? ''
 
@@ -50,8 +70,9 @@ export function parseLaufmeter(text: string): number {
   // 2. Masskette: erste Zahl ist die Breite, Einheit steht am Ende.
   const kette = t.match(KETTE_RE)
   if (kette) {
-    const teiler = kette[4].toLowerCase() === 'mm' ? 1000 : kette[4].toLowerCase() === 'cm' ? 100 : 1
-    return deckel(zahl(kette[1]) / teiler)
+    const einheit = kette[4].toLowerCase()
+    const teiler = einheit === 'mm' ? 1000 : einheit === 'cm' ? 100 : 1
+    return deckel(zahlMitEinheit(kette[1], einheit === 'mm' || einheit === 'cm') / teiler)
   }
 
   // 3. Sonst alle Meter-Angaben summieren — mehrere Schraenke nebeneinander sind

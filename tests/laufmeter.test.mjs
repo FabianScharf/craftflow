@@ -43,3 +43,21 @@ test('Ohne Massangabe null', () => {
 test('Unplausible Werte werden gedeckelt', () => {
   assert.equal(parseLaufmeter('Wand 90,0 m breit'), 25)
 })
+
+// Vorfall 2026-09-16: Tausenderpunkt in mm-Massketten wurde als Komma gelesen —
+// "2.400 mm" ergab 2,4 mm statt 2,4 m, und die Position bekam ~0 h Werkstattzeit.
+test('Masskette mit Tausenderpunkt in Millimetern ergibt die Breite in Metern', () => {
+  assert.equal(parseLaufmeter('Einbauschrank Flur, raumhoch, 2.400 x 2.650 x 600 mm, Korpus Eiche'), 2.4)
+})
+
+test('Masskette mit Tausenderpunkt, kleinere Breite', () => {
+  assert.equal(parseLaufmeter('Regal 1.400 x 250 x 30 mm'), 1.4)
+})
+
+test('Masskette in Metern mit Komma bleibt unveraendert', () => {
+  assert.equal(parseLaufmeter('Schrank 2,40 x 2,65 x 0,60 m'), 2.4)
+})
+
+test('Masskette in Millimetern ohne Tausenderpunkt bleibt unveraendert', () => {
+  assert.equal(parseLaufmeter('Schrank 2400 x 2650 x 600 mm'), 2.4)
+})

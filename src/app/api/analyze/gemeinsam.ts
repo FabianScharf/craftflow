@@ -612,7 +612,13 @@ export function validateAndFix(
   const activeSaetze = { ...STUNDENSAETZE, ...customSaetze }
 
   // Parse lm from original user input once — AI output may omit measurements.
-  const inputLm = parseLaufmeter(originalInput)
+  // 2026-09-16: Bei einem Leistungsverzeichnis mit mehreren Positionen hat diese EINE
+  // Zahl (aus dem ganzen Eingabetext) auf JEDE Position gewirkt — eine falsche oder
+  // zufällig passende Maßkette aus Position 1 wurde allen anderen Positionen
+  // aufgezwungen. `inputLm` ist nur dann sicher EINER Position zuzuordnen, wenn die
+  // KI-Antwort genau eine Position enthält; bei mehreren zählt ausschließlich der
+  // Text der jeweiligen Position (siehe unten, `descText`).
+  const inputLm = positionen.length === 1 ? parseLaufmeter(originalInput) : 0
 
   data.positionen = positionen.map((raw: unknown) => {
     const pos = raw as Pos
@@ -663,7 +669,11 @@ export function validateAndFix(
     //    Scales Zuschnitt + Zusammenbau proportionally when AI is too low.
     //    Applied before hardware-count check so both constraints stack.
     const descText = [pos.beschreibung ?? '', pos.titel ?? ''].join(' ')
-    const lm = inputLm > 0 ? inputLm : parseLaufmeter(descText)
+    let lm = inputLm > 0 ? inputLm : parseLaufmeter(descText)
+    // Kein Möbel ist schmaler als 30 cm — alles darunter ist Parser-Rauschen (eine
+    // erkannte, aber irrelevante Zahl), kein echtes Laufmeter-Maß (2026-09-16).
+    // Die Position fällt dann in den Stückliste-Deckel weiter unten (`!(lm > 0)`).
+    if (lm < 0.3) lm = 0
     if (lm > 0) {
       const hPerLm = massiv ? 5 : 4.5
       const minWorkshopMin = Math.round(lm * hPerLm * 60)
