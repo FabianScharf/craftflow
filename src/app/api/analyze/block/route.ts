@@ -21,6 +21,7 @@ import { preisBlockFuerNutzer } from '@/lib/preisspeicher'
 import { ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
 import { normalizeKsId } from '@/lib/types'
+import { bildMedientyp, istUuid } from '@/lib/upload'
 
 export const maxDuration = 300
 
@@ -28,8 +29,20 @@ const BUCKET = 'projektdateien'
 const VORBEREITET = '_vorbereitet.json'
 
 export async function POST(req: NextRequest) {
+  // Außerhalb des try deklariert, damit der äußerste catch (unerwarteter Fehler nach
+  // der Reservierung, z. B. beim Bilder-Download oder Claude-Fetch) die Reservierung
+  // ebenfalls wieder freigeben kann — nicht nur die erwarteten Fehlerpfade weiter unten.
+  let supabase: Awaited<ReturnType<typeof createClient>> | null = null
+  let reserviertMonat: string | null = null
+  let freigegeben = false
+  const gibFrei = async () => {
+    if (freigegeben || !reserviertMonat || !supabase) return
+    freigegeben = true
+    try { await gibAngebotFrei(supabase, reserviertMonat) }
+    catch (e) { console.error('[analyze/block] gibAngebotFrei:', e) }
+  }
   try {
-    const supabase = await createClient()
+    supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
     const zu = await pruefeZugang(supabase, user.id)
@@ -45,6 +58,25 @@ export async function POST(req: NextRequest) {
     const blockNr = Number(body.blockNr)
     if (!projektId || !Number.isFinite(blockNr) || blockNr < 1) {
       return NextResponse.json({ error: 'Projekt oder Blocknummer fehlt' }, { status: 400 })
+    }
+
+    // Fix-Runde 1 (Review-Important): `projekt_id` kam bisher ungeprüft aus dem Client —
+    // weder als gültige UUID noch als Eigentum des Nutzers geprüft. Gleiches Muster wie
+    // in /api/upload und /api/analyze/vorbereiten, VOR der Angebots-Reservierung, damit
+    // ein ungültiges Projekt nichts reserviert. Fail closed: ein Supabase-Fehler zählt
+    // wie „kein passendes Projekt".
+    if (!istUuid(projektId)) {
+      return NextResponse.json({ error: 'Ungültiges Projekt.' }, { status: 400 })
+    }
+    const { data: projektRow, error: projErr } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projektId)
+      .eq('user_id', user.id)
+      .single()
+    if (projErr || !projektRow) {
+      if (projErr) console.error('[analyze/block] Projekt-Prüfung:', projErr.message)
+      return NextResponse.json({ error: 'Ungültiges Projekt.' }, { status: 400 })
     }
 
     // Die vorbereiteten Blöcke liegen im Projektordner (Task C2).
@@ -73,25 +105,38 @@ export async function POST(req: NextRequest) {
         { status: 403 },
       )
     }
-    let freigegeben = false
-    const gibFrei = async () => {
-      if (freigegeben) return
-      freigegeben = true
-      try { await gibAngebotFrei(supabase, monat) }
-      catch (e) { console.error('[analyze/block] gibAngebotFrei:', e) }
-    }
+    reserviertMonat = monat
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) { await gibFrei(); return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 }) }
 
     // Bilder dieses Blocks aus dem privaten Bucket holen und als base64 anhängen.
-    const bilderB64: string[] = []
+    // Medientyp kommt aus den echten Bytes (Magic Bytes), nicht pauschal "image/jpeg" —
+    // Claude lehnt sonst z. B. ein PNG mit falsch deklariertem Typ komplett ab (Fix-Runde 1,
+    // Live-Test 2026-09-16). Nie stumm: ein nicht erkennbares Bild landet in "hinweise".
+    const bilder: Array<{ b64: string; mediaType: 'image/png' | 'image/jpeg' | 'image/webp' }> = []
+    const hinweise: string[] = []
     for (const pfad of block.bilder ?? []) {
       const { data: bild, error } = await supabase.storage.from(BUCKET).download(pfad)
-      if (error || !bild) { console.error('[analyze/block] Bild:', pfad, error?.message); continue }
-      const b64 = Buffer.from(await bild.arrayBuffer()).toString('base64')
-      if (b64.length > MAX_IMAGE_B64_BYTES) { console.error('[analyze/block] Bild zu groß:', pfad); continue }
-      bilderB64.push(b64)
+      if (error || !bild) {
+        console.error('[analyze/block] Bild:', pfad, error?.message)
+        hinweise.push(`${pfad}: konnte nicht geladen werden — übersprungen`)
+        continue
+      }
+      const buf = Buffer.from(await bild.arrayBuffer())
+      const mediaType = bildMedientyp(new Uint8Array(buf), pfad)
+      if (!mediaType) {
+        console.error('[analyze/block] Bild: unbekannter Medientyp:', pfad)
+        hinweise.push(`${pfad}: unbekannter Bildtyp — übersprungen`)
+        continue
+      }
+      const b64 = buf.toString('base64')
+      if (b64.length > MAX_IMAGE_B64_BYTES) {
+        console.error('[analyze/block] Bild zu groß:', pfad)
+        hinweise.push(`${pfad}: zu groß — übersprungen`)
+        continue
+      }
+      bilder.push({ b64, mediaType })
     }
 
     // Nutzerspezifisches wie in /api/analyze — serverseitig geladen.
@@ -153,8 +198,8 @@ export async function POST(req: NextRequest) {
     if (nutzerBlock.trim()) systemBloecke.push({ type: 'text', text: nutzerBlock })
 
     const userContent: object[] = []
-    for (const b64 of bilderB64) {
-      userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } })
+    for (const { b64, mediaType } of bilder) {
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } })
     }
     const kontext = String(body.kontext ?? '').trim()
     userContent.push({
@@ -182,7 +227,7 @@ export async function POST(req: NextRequest) {
       const err = await response.text()
       console.error('[analyze/block] Claude error:', response.status, err)
       await gibFrei()
-      return NextResponse.json({ success: false, error: `Claude ${response.status}: ${err}` }, { status: 502 })
+      return NextResponse.json({ success: false, error: `Claude ${response.status}: ${err}`, hinweise }, { status: 502 })
     }
 
     const data = await response.json() as { content?: Array<{ type: string; text?: string }> }
@@ -202,15 +247,16 @@ export async function POST(req: NextRequest) {
       }
       const hatPositionen = Array.isArray(positionen) && positionen.length > 0
       if (!hatPositionen) await gibFrei()
-      return NextResponse.json({ success: true, data: validated, blockNr, bloeckeGesamt: bloecke.length })
+      return NextResponse.json({ success: true, data: validated, blockNr, bloeckeGesamt: bloecke.length, hinweise })
     } catch {
       console.error('[analyze/block] JSON parse failed, raw:', rawText.slice(0, 300))
       await gibFrei()
-      return NextResponse.json({ success: false, error: 'JSON Parse Fehler', blockNr }, { status: 500 })
+      return NextResponse.json({ success: false, error: 'JSON Parse Fehler', blockNr, hinweise }, { status: 500 })
     }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     console.error('[analyze/block] unhandled error:', msg)
+    await gibFrei()
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

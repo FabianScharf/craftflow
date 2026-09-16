@@ -57,3 +57,39 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 export function istUuid(v: string): boolean {
   return UUID_REGEX.test(v)
 }
+
+/**
+ * Echter Bild-Medientyp aus den ersten Bytes (Magic Bytes), mit Fallback auf die
+ * Dateiendung. Fix-Runde 1 (Live-Test 2026-09-16): Die Block-Route schickte JEDES
+ * Bild als `image/jpeg` an Claude — bei einem hochgeladenen PNG antwortet Claude mit
+ * 400 ("the image appears to be a image/png image"), weil der deklarierte Typ nicht
+ * zu den echten Bytes passt. Dateien werden seit Teil C unverändert hochgeladen
+ * (PNG, WebP, JPEG), also muss der Typ aus der Datei selbst kommen, nicht geraten
+ * werden. Unbekannt (weder Bytes noch Endung eindeutig) → null, der Aufrufer
+ * überspringt das Bild dann NAMENTLICH statt es mit falschem Typ zu senden.
+ */
+export function bildMedientyp(bytes: Uint8Array, name: string): 'image/png' | 'image/jpeg' | 'image/webp' | null {
+  // PNG-Signatur: 89 50 4E 47 ...
+  if (bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return 'image/png'
+  }
+  // JPEG-Signatur: FF D8 FF
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg'
+  }
+  // WebP: RIFF-Container (Bytes 0–3) mit "WEBP"-Kennung ab Byte 8
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) {
+    return 'image/webp'
+  }
+  // Magic Bytes nicht erkannt (z. B. abgeschnittener Download) — Endung als Fallback.
+  const punkt = name.lastIndexOf('.')
+  const endung = punkt >= 0 ? name.slice(punkt).toLowerCase() : ''
+  if (endung === '.png') return 'image/png'
+  if (endung === '.jpg' || endung === '.jpeg') return 'image/jpeg'
+  if (endung === '.webp') return 'image/webp'
+  return null
+}
