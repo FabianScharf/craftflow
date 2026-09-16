@@ -401,7 +401,12 @@ export default function SettingsPage() {
     if (!logoPreview) return
     setLogoFarbeLaeuft(true); setLogoFarbeMsg('')
     try {
-      const res = await fetch(logoPreview, { cache: 'no-store' })
+      // Cache-Brecher in der URL: Das Logo liegt immer unter demselben Pfad (Upsert). Ohne
+      // ihn liefert der Storage-CDN nach „Logo ersetzen" noch das ALTE Bild — im Live-Test
+      // (16.09.) kam so die Farbe des vorherigen Logos zurück. `cache: 'no-store'` allein
+      // reicht nicht, das überstimmt nur den Browser-Cache, nicht den CDN.
+      const trenner = logoPreview.includes('?') ? '&' : '?'
+      const res = await fetch(`${logoPreview}${trenner}v=${Date.now()}`, { cache: 'no-store' })
       if (!res.ok) throw new Error(`Logo nicht ladbar (${res.status})`)
       const bitmap = await createImageBitmap(await res.blob())
       const faktor = Math.min(1, 400 / Math.max(bitmap.width, bitmap.height))
