@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { akzentTon, ton } from '@/lib/theme'
 import { C } from '@/lib/types'
 import { BETRIEBSFRAGEN, referenzFuer, referenzPreis, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
+import { klemmePreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
 import { PlanGate } from '@/components/PlanGate'
 
 // Einstellungen -> Mein Betrieb. Zeigt dieselben Fragen wie die Erst-Anmeldung
@@ -72,6 +73,12 @@ export default function BetriebSettings() {
   // den Ankerpreis, mit DEMSELBEN ref wie der Text darueber.
   const [saetze, setSaetze] = useState<Record<string, number> | null>(null)
   const [aufschlag, setAufschlag] = useState(0.30)
+  // Preisfaktor: eigener Zustand, eigenes Laden, eigener Knopf — dasselbe Muster wie
+  // "Faktoren von Hand uebernehmen" (aktiv nur bei Aenderung, Meldung daneben).
+  const [preisfaktor, setPreisfaktor] = useState<number>(PREISFAKTOR_STANDARD)
+  const [preisfaktorGeladen, setPreisfaktorGeladen] = useState<number>(PREISFAKTOR_STANDARD)
+  const [preisfaktorMeldung, setPreisfaktorMeldung] = useState<{ ok: boolean; text: string } | null>(null)
+  const [preisfaktorSpeichern, setPreisfaktorSpeichern] = useState(false)
 
   useEffect(() => { void laden() }, [])
 
@@ -105,6 +112,14 @@ export default function BetriebSettings() {
       const j = await res.json().catch(() => ({})) as { error?: string }
       setFehler(j.error ?? `Laden fehlgeschlagen (${res.status})`)
     }
+    // Der Preisfaktor steht im Betriebsprofil, nicht in der Kalibrierung.
+    const resP = await fetch('/api/settings/betriebsprofil')
+    if (resP.ok) {
+      const jp = await resP.json() as { profil?: { preisfaktor?: number | string | null } | null }
+      const wert = klemmePreisfaktor(jp.profil?.preisfaktor) ?? PREISFAKTOR_STANDARD
+      setPreisfaktor(wert)
+      setPreisfaktorGeladen(wert)
+    }
     setLaedt(false)
   }
 
@@ -112,10 +127,11 @@ export default function BetriebSettings() {
     setFehler(''); setGespeichert(false); setFaktorenMeldung(null)
     if (mitFaktoren) {
       // Erst pruefen, dann senden — sonst landet eine leere Eingabe als 0 beim Server.
+      // Grenzen wie serverseitig (deckeleHand): 0,50 bis 3,00.
       for (const { feld, name } of FAKTOR_TEXTE) {
         const w = Number(k[feld])
-        if (!Number.isFinite(w) || w < 0.6 || w > 1.4) {
-          setFaktorenMeldung({ ok: false, text: `${name}: Bitte einen Wert zwischen 0,60 und 1,40 eintragen.` })
+        if (!Number.isFinite(w) || w < 0.5 || w > 3) {
+          setFaktorenMeldung({ ok: false, text: `${name}: Bitte einen Wert zwischen 0,50 und 3,00 eintragen.` })
           return
         }
       }
@@ -147,6 +163,27 @@ export default function BetriebSettings() {
 
   const faktorenGeaendert = FAKTOR_TEXTE.some(({ feld }) =>
     Math.abs(Number(k[feld]) - Number(faktorenGeladen[feld] ?? k[feld])) > 0.0001)
+
+  const preisfaktorGeaendert = Math.abs(Number(preisfaktor) - Number(preisfaktorGeladen)) > 0.0001
+
+  async function speicherePreisfaktor() {
+    setPreisfaktorMeldung(null)
+    const wert = klemmePreisfaktor(preisfaktor)
+    if (wert === null || Number(preisfaktor) < 0.5 || Number(preisfaktor) > 3) {
+      setPreisfaktorMeldung({ ok: false, text: 'Bitte einen Wert zwischen 0,50 und 3,00 eintragen.' })
+      return
+    }
+    setPreisfaktorSpeichern(true)
+    const res = await fetch('/api/settings/betriebsprofil', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preisfaktor: wert }),
+    })
+    const j = await res.json().catch(() => ({})) as { error?: string }
+    setPreisfaktorSpeichern(false)
+    if (!res.ok) { setPreisfaktorMeldung({ ok: false, text: j.error ?? 'Speichern fehlgeschlagen' }); return }
+    setPreisfaktor(wert); setPreisfaktorGeladen(wert)
+    setPreisfaktorMeldung({ ok: true, text: 'Gespeichert — der Faktor gilt für neue Positionen.' })
+  }
 
   async function schleifeNachsehen() {
     setSchleifeLaeuft(true); setFehler('')
@@ -331,7 +368,9 @@ export default function BetriebSettings() {
       <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Deine Zeitfaktoren</div>
       <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
         Deine Zeiten im Verhältnis zu den CraftFlow-Werten. Du kannst
-        jeden Wert von Hand überschreiben — dann gilt deine Zahl statt der abgeleiteten.
+        jeden Wert von Hand überschreiben (0,50 bis 3,00) — dann gilt deine Zahl statt
+        der abgeleiteten. Achtung: Zeitfaktoren verändern auch „Stunden gesamt“. Wenn du
+        nur teurer verkaufen willst, nimm den Preisfaktor darunter.
       </p>
 
       {FAKTOR_TEXTE.map(({ feld, name, was }) => {
@@ -339,7 +378,7 @@ export default function BetriebSettings() {
         return (
           <div key={feld} style={{ display: 'flex', alignItems: 'center', gap: 14,
             background: C.gray1, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
-            <input type="number" step="0.01" min="0.6" max="1.4" value={Number.isFinite(wert) ? wert : ''}
+            <input type="number" step="0.01" min="0.5" max="3" value={Number.isFinite(wert) ? wert : ''}
               onChange={e => { setFaktorenMeldung(null); setK({ ...k, [feld]: e.target.value === '' ? NaN : Number(e.target.value) }) }}
               style={{ width: 80, background: C.gray2, border: `1px solid ${C.border}`,
                 borderRadius: 6, color: C.white, padding: '8px 10px', fontSize: 14 }} />
@@ -367,6 +406,48 @@ export default function BetriebSettings() {
         )}
         {!faktorenMeldung && !faktorenGeaendert && (
           <span style={{ fontSize: 12, color: C.textMid }}>Ändere einen Wert, dann kannst du ihn hier übernehmen.</span>
+        )}
+      </div>
+
+      <div style={{ height: 1, background: C.border, margin: '30px 0' }} />
+
+      <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Preisfaktor</div>
+      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+        Multipliziert den Preis jeder neuen Position. Stunden und Stundensätze bleiben,
+        wie sie sind. 1,00 = CraftFlow-Preis, 1,20 = 20 % teurer.
+      </p>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14,
+        background: C.gray1, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
+        <input type="number" step="0.01" min="0.5" max="3"
+          value={Number.isFinite(preisfaktor) ? preisfaktor : ''}
+          onChange={e => { setPreisfaktorMeldung(null); setPreisfaktor(e.target.value === '' ? NaN : Number(e.target.value)) }}
+          style={{ width: 80, background: C.gray2, border: `1px solid ${C.border}`,
+            borderRadius: 6, color: C.white, padding: '8px 10px', fontSize: 14 }} />
+        <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.5 }}>
+          {Math.abs(Number(preisfaktor) - 1) < 0.005
+            ? 'Ich rechne den CraftFlow-Preis.'
+            : Number(preisfaktor) > 1
+              ? `Ich schlage ${Math.round((Number(preisfaktor) - 1) * 100)} % auf jede neue Position auf.`
+              : `Ich gebe ${Math.round((1 - Number(preisfaktor)) * 100)} % auf jede neue Position nach.`}
+          <br />Bereits erstellte Angebote bleiben, wie sie sind.
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
+        <button onClick={() => void speicherePreisfaktor()} disabled={!preisfaktorGeaendert || preisfaktorSpeichern} style={{
+          background: preisfaktorGeaendert ? C.copper : 'transparent',
+          border: preisfaktorGeaendert ? 'none' : `1px solid ${C.border}`, borderRadius: 8,
+          color: preisfaktorGeaendert ? C.black : C.textMid, fontWeight: preisfaktorGeaendert ? 700 : 400,
+          padding: '10px 18px', fontSize: 13, cursor: preisfaktorGeaendert ? 'pointer' : 'default',
+          opacity: preisfaktorSpeichern ? 0.6 : 1 }}>
+          {preisfaktorSpeichern ? 'Speichert …' : 'Preisfaktor übernehmen'}
+        </button>
+        {preisfaktorMeldung && (
+          <span style={{ fontSize: 13, color: preisfaktorMeldung.ok ? C.ok : C.err }}>{preisfaktorMeldung.text}</span>
+        )}
+        {!preisfaktorMeldung && !preisfaktorGeaendert && (
+          <span style={{ fontSize: 12, color: C.textMid }}>Ändere den Wert, dann kannst du ihn hier übernehmen.</span>
         )}
       </div>
 

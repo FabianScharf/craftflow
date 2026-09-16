@@ -20,6 +20,7 @@ import { buildPDF, buildFooterTemplate, SCHRIFTEN, type FirmaOpts, type SchriftI
 import { positionenAusKi } from '@/lib/kiantwort'
 import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
 import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
+import { klemmePreisfaktor, angezeigterPreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
 // Ein Zeichen, eine Definition — sonst steht irgendwann ein zweites CF daneben.
 import { AppHeader } from '@/components/AppHeader'
 
@@ -117,8 +118,10 @@ const ReadOnly = ({ value }: { value: string }) => (
 )
 
 /* ── Default Position ─────────────────────────────── */
-const defaultAngebotspos = (id: number): Angebotsposition => ({
+const defaultAngebotspos = (id: number, preisfaktor = 1): Angebotsposition => ({
   id, titel: 'Neue Position', beschreibung: '', material: [], arbeitszeit: [],
+  // Faktor 1,00 bleibt weg — sonst steht das Feld in jedem Angebot herum.
+  ...(preisfaktor !== 1 ? { preisfaktor } : {}),
 })
 
 /* ── GAEB Parser (client-side) ─────────────────────── */
@@ -721,7 +724,7 @@ export default function CraftFlow() {
     f: 'titel' | 'beschreibung' | 'stueckzahl' | 'gruppe' | 'alternativ',
     v: string | number | boolean,
   ) => setPos(prev => prev.map(p => p.id === id ? { ...p, [f]: v } as Angebotsposition : p))
-  const addPos = () => setPos(prev => [...prev, defaultAngebotspos(Date.now())])
+  const addPos = () => setPos(prev => [...prev, defaultAngebotspos(Date.now(), preisfaktorAktuell)])
   const delPos = (id: number) => setPos(prev => prev.filter(p => p.id !== id))
 
   /**
@@ -789,6 +792,10 @@ export default function CraftFlow() {
   ]
 
   const totals = { net: nettoSumme(pos) }
+  // Preisfaktor des Betriebs fuer NEU angelegte Positionen. Das rohe Profil liegt
+  // bereits vor (profilRoh) — dieselbe Quelle wie die PDF-Optionen.
+  const preisfaktorAktuell = klemmePreisfaktor(profilRoh.preisfaktor) ?? PREISFAKTOR_STANDARD
+  const preisfaktorAnzeige = angezeigterPreisfaktor(pos)
   const materialGesamt = materialkostenGesamt(pos)
   const stundenGesamtWert = stundenGesamt(pos)
   const vat = totals.net * 0.19
@@ -1042,7 +1049,7 @@ export default function CraftFlow() {
     setStartMsg('')
     setMicStatus('idle')
     setKunde({ name: '', zusatz: '', strasse: '', ort: '', projekt: '' })
-    setPos([defaultAngebotspos(Date.now())])
+    setPos([defaultAngebotspos(Date.now(), preisfaktorAktuell)])
     setDocNr(`${nummernPrefix}-${nummernNaechste}`)
     setDocTyp('Angebot')
     setAnschr(dokEinleitung || 'vielen Dank für Ihre Anfrage. Wir unterbreiten Ihnen gerne folgendes Angebot:')
@@ -3735,6 +3742,13 @@ export default function CraftFlow() {
                 {[
                   { l: 'Materialkosten gesamt', v: eur(materialGesamt) },
                   { l: 'Stunden gesamt', v: `${stundenGesamtWert.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h` },
+                  // Nur zeigen, wenn er wirklich wirkt (Spec: nur wenn ungleich 1,00).
+                  ...(preisfaktorAnzeige === null ? [] : [{
+                    l: 'Preisfaktor',
+                    v: preisfaktorAnzeige === 'gemischt'
+                      ? 'gemischt'
+                      : preisfaktorAnzeige.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                  }]),
                 ].map(({ l, v }, i) => (
                   <div key={l} style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
                     <div style={{ padding: '11px 6px', textAlign: 'center' }}>
