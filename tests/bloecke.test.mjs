@@ -1,16 +1,18 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  MAX_ZEICHEN_JE_BLOCK, MAX_BILDER_JE_BLOCK,
+  MAX_ZEICHEN_JE_BLOCK, MAX_BILDER_JE_BLOCK, MAX_POSITIONEN_JE_BLOCK,
   schnittRang, schneideText, teileInBloecke, blockInfos,
   GEMEINPOSITIONEN, BLOCK_REGEL, baueKontext,
   vereinigePositionen, brauchtBlockweg, blockFortschrittText,
+  masseAus, findeDubletten,
 } from '../src/lib/bloecke.ts'
 import { bloeckeAblehnung } from '../src/lib/plantexte.ts'
 
-test('Die Grenzen stehen fest: 8.000 Zeichen und 6 Bilder je Block', () => {
+test('Die Grenzen stehen fest: 8.000 Zeichen, 6 Bilder und 12 Positionen je Block', () => {
   assert.equal(MAX_ZEICHEN_JE_BLOCK, 8000)
   assert.equal(MAX_BILDER_JE_BLOCK, 6)
+  assert.equal(MAX_POSITIONEN_JE_BLOCK, 12)
 })
 
 test('Schnittstellen werden nach Rang erkannt: Positionsnummer vor Seite vor Absatz', () => {
@@ -65,6 +67,30 @@ test('Eine einzelne überlange Zeile wird nicht weggeworfen', () => {
   const teile = schneideText(`kurz\n${lang}\nkurz2`, 100)
   assert.ok(teile.some(t => t.includes(lang)), 'die lange Zeile fehlt')
   assert.equal(teile.join('\n'), `kurz\n${lang}\nkurz2`)
+})
+
+test('Höchstens 12 Positionen je Block — auch wenn der Text weit unter dem Zeichenlimit bleibt', () => {
+  // Live-Test 2026-09-16: genau dieser Fall (viele kurze Positionen, wenig Zeichen)
+  // hat die KI-Antwort bei max_tokens abgeschnitten, bevor die Zeichengrenze griff.
+  const zeilen = []
+  for (let i = 1; i <= 30; i++) {
+    zeilen.push(`Pos. ${i}.01 Position ${i}`)
+    zeilen.push(`Beschreibung Position ${i}`)
+  }
+  const text = zeilen.join('\n')
+  const teile = schneideText(text)
+  assert.equal(teile.length, 3, 'drei Blöcke aus 30 Positionen bei einer Grenze von 12')
+  const positionenJeTeil = teile.map(t => (t.match(/^Pos\. \d+\.01/gm) ?? []).length)
+  assert.deepEqual(positionenJeTeil, [12, 12, 6])
+  for (const t of teile) {
+    assert.ok(/^Pos\. \d+\.01/.test(t), `Block beginnt nicht an einer Positionszeile: ${t.slice(0, 30)}`)
+  }
+  assert.equal(teile.join('\n'), text, 'kein Zeichen darf verloren gehen')
+})
+
+test('Text ohne Positionsnummern bleibt vom Positionsdeckel unberührt', () => {
+  const text = Array.from({ length: 10 }, (_, i) => `Absatz ${i} ohne jede Positionsnummer.`).join('\n\n')
+  assert.deepEqual(schneideText(text), [text.trim()])
 })
 
 test('Bilder werden in Upload-Reihenfolge verteilt, höchstens sechs je Block', () => {
@@ -152,4 +178,46 @@ test('Der Fortschrittstext nennt den Block und die bisherigen Positionen', () =>
   assert.equal(blockFortschrittText(3, 7, 12), 'Block 3 von 7 — bisher 12 Positionen')
   assert.equal(blockFortschrittText(1, 1, 1), 'Block 1 von 1 — bisher 1 Position')
   assert.equal(blockFortschrittText(1, 4, 0), 'Block 1 von 4 — bisher 0 Positionen')
+})
+
+test('Maße werden erkannt und vergleichbar gemacht', () => {
+  assert.equal(masseAus('Schrank 2000 x 600 x 2400 mm'), '2000x600x2400')
+  assert.equal(masseAus('Schrank 2000×600×2400'), '2000x600x2400')
+  assert.equal(masseAus('B 2000 mm, H 2400 mm'), '')
+  assert.equal(masseAus('ohne Maß'), '')
+  assert.equal(masseAus('Platte 1200x800'), '1200x800')
+})
+
+test('Gleicher Titel UND gleiche Maße ergeben einen Dublettenhinweis — verschmolzen wird nichts', () => {
+  const hinweise = findeDubletten([
+    { titel: 'Unterschrank', beschreibung: '2000 x 600 x 900 mm, Eiche' },
+    { titel: 'Hängeschrank', beschreibung: '2000 x 350 x 700 mm' },
+    { titel: ' unterschrank ', beschreibung: 'Maße 2000x600x900, Eiche furniert' },
+  ])
+  assert.deepEqual(hinweise, [{ art: 'dublette', titel: 'Unterschrank', nummern: [1, 3] }])
+})
+
+test('Gleicher Titel mit verschiedenen Maßen ist keine Dublette', () => {
+  assert.deepEqual(findeDubletten([
+    { titel: 'Unterschrank', beschreibung: '2000 x 600 x 900' },
+    { titel: 'Unterschrank', beschreibung: '1200 x 600 x 900' },
+  ]), [])
+})
+
+test('Gemeinpositionen werden gemeldet, sobald sie mehr als einmal vorkommen', () => {
+  // DAS RISIKO AUS DER SPEC: Die KI legt trotz Anweisung in Block 3 noch einmal
+  // "Planung" an. Gemeldet, nicht verschmolzen — entscheiden soll der Schreiner.
+  const hinweise = findeDubletten([
+    { titel: 'Planung und Aufmaß', beschreibung: '' },
+    { titel: 'Unterschrank', beschreibung: '2000 x 600 x 900' },
+    { titel: 'Planung', beschreibung: '' },
+    { titel: 'Anfahrt und Montage-Pauschale', beschreibung: '' },
+  ])
+  assert.deepEqual(hinweise, [{ art: 'gemeinposition', titel: 'Planung', nummern: [1, 3] }])
+})
+
+test('Ein einzelnes Vorkommen meldet nichts, und leere Listen stürzen nicht ab', () => {
+  assert.deepEqual(findeDubletten([{ titel: 'Planung' }]), [])
+  assert.deepEqual(findeDubletten([]), [])
+  assert.deepEqual(findeDubletten(null), [])
 })

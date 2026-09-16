@@ -230,7 +230,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: `Claude ${response.status}: ${err}`, hinweise }, { status: 502 })
     }
 
-    const data = await response.json() as { content?: Array<{ type: string; text?: string }> }
+    const data = await response.json() as {
+      content?: Array<{ type: string; text?: string }>
+      stop_reason?: string
+      usage?: Record<string, unknown>
+    }
+    // Nur ins Log, NIE in die API-Antwort — Kosten/Token gehen den Client nichts an.
+    console.log('[analyze/block] stop_reason:', data.stop_reason, 'usage:', JSON.stringify(data.usage ?? {}))
+    if (data.stop_reason === 'max_tokens') {
+      // Live-Test 2026-09-16: max_tokens 16000 (inkl. 5.000 Denken) reicht für ~30
+      // Positionen nicht — die Antwort brach mitten im JSON ab. Ein Parse-Versuch
+      // würde nur denselben "JSON Parse Fehler" liefern, ohne die echte Ursache zu
+      // nennen. MAX_POSITIONEN_JE_BLOCK in bloecke.ts verhindert das inzwischen beim
+      // Vorbereiten — dieser Zweig bleibt als Netz für alle anderen Fälle.
+      await gibFrei()
+      return NextResponse.json({
+        success: false,
+        error: 'Die Antwort für diesen Block wurde zu lang und abgeschnitten. Bitte das Projekt in kleinere Dateien teilen oder erneut versuchen.',
+        blockNr, hinweise,
+      }, { status: 500 })
+    }
     const rawText = (data.content ?? []).find(b => b.type === 'text')?.text ?? ''
     const start = rawText.indexOf('{')
     const clean = start === -1 ? rawText : rawText.slice(start, rawText.lastIndexOf('}') + 1)
