@@ -140,6 +140,7 @@ Die obere Leiste ist auf jeder Seite gleich: Zeichen und Titel links, rechts vie
 → Großer Mikrofon-Knopf: das Projekt einfach diktieren
 → Textfeld darunter: dasselbe eintippen
 → Fotos, PDF oder GAEB-Datei hochladen (GAEB ${abPlan('gaeb')})
+→ Große Projekte (viele Fotos, langes Leistungsverzeichnis): hochladen, dann „Großes Projekt in Blöcken kalkulieren". CraftFlow teilt Text und Bilder in Blöcke und rechnet sie nacheinander; du siehst „Block 3 von 7" und die bisherigen Positionen. Abbrechen geht jederzeit, das Ergebnis bis dahin bleibt. Jeder Block zählt als ein Angebot. Ab dem Pro-Plan.
 → "Kalkulation generieren" — die KI erstellt die vollständige Kalkulation
 Tipp: Je mehr Details, desto genauer. Möbelart, Maße, Material, Ausstattung und ob montiert wird — diese fünf braucht CraftFlow immer.
 

@@ -433,3 +433,32 @@ Checkliste vor jedem PDF-Commit:
 **Grundsatz für alles am PDF** (mit Fabian abgestimmt, 2026-09-08):
 Würde irgendjemand die andere Variante freiwillig wählen? Ja → Einstellung.
 Nein → Fehler, und der wird behoben, nicht zur Wahl gestellt.
+
+---
+
+## Große Projekte in Blöcken (Stand 2026-09-16)
+- **Nichts wird stumm gekürzt.** Die alte 10.000-Zeichen-Grenze in `/api/analyze` gilt nur
+  noch für kleine Projekte ohne Dateien. Große Projekte laufen über
+  `POST /api/upload` → `POST /api/analyze/vorbereiten` → `POST /api/analyze/block` (je Block).
+- **Die reine Teil-Logik liegt in `src/lib/bloecke.ts`** (importfrei, `tests/bloecke.test.mjs`):
+  schneiden (≤ 8.000 Zeichen, ≤ 12 Positionen, ≤ 6 Bilder), Kontext bauen, Positionen vereinigen, Dubletten
+  finden. Der Test prüft nicht nur die Schnittstellen, sondern dass sich der Ausgangstext
+  wieder zusammensetzen lässt — das ist die Gegenprobe gegen stilles Wegwerfen.
+- **Schnittregel:** Positionsnummer vor Seitengrenze vor Absatz. Eine einzelne überlange
+  Zeile bildet ihren eigenen Block — lieber ein zu großer Block als eine verschwundene Zeile.
+- **Höchstens 12 Positionen je Block** (`MAX_POSITIONEN_JE_BLOCK`). Grund: Bei ~30 Positionen wurde die KI-Antwort abgeschnitten (max_tokens) und das JSON war unlesbar — Live-Test 16.09. Die Route loggt `stop_reason` und `usage` nur serverseitig; Kosten und Token erscheinen nie in einer API-Antwort.
+- **Block 1 trägt Kunde, Kopfdaten und die Gemeinpositionen.** Folgeblöcke bekommen den
+  Kontext (`baueKontext`) und die feste Prompt-Regel `BLOCK_REGEL` — ein eigener,
+  unveränderlicher System-Block, damit `cache_control` greift. Nutzertext gehört nie hinein.
+- **Jeder Block reserviert ein Angebot** (`reserviere_angebot` VOR dem KI-Aufruf); ohne
+  Positionen wird es wieder freigegeben. Sieben Blöcke = sieben Angebote.
+- **Dateien liegen im privaten Bucket `projektdateien`**, Pfad `<user_id>/<projekt_id>/<uuid>-<name>`,
+  eine Anfrage je Datei (damit fällt die 4,5-MB-Wand von Vercel). Dateien mit führendem
+  Unterstrich sind interne Zwischenstände (`_vorbereitet.json`) und zählen nicht gegen den
+  Dateien-Deckel. SQL: `docs/sql/2026-09-16-bloecke-storage.sql` — **mit GRANTs.**
+- **Dubletten werden gemeldet, nie verschmolzen.** Zwei gleich benannte Möbel mit gleichen
+  Maßen können zwei echte Möbel sein; automatisch zusammengelegt wäre das Angebot
+  stillschweigend zu billig.
+- `src/app/api/analyze/gemeinsam.ts` hält `SYSTEM_PROMPT` und `validateAndFix` — beide
+  Analyse-Routen lesen dort. Zwei Kopien des Systemprompts wären der sichere Weg in
+  auseinanderlaufende Kalkulationen.
