@@ -19,8 +19,18 @@ export function PlanGate({ minPlan, funktion, children, fallback }: {
   children: React.ReactNode
   fallback?: React.ReactNode
 }) {
-  const { canUse, erlaubt, loading } = usePlan()
-  if (loading) return null
+  const { canUse, erlaubt, loading, planUnbekannt } = usePlan()
+  // Frueher stand hier `return null`. Im Screenshot-Audit 2026-09-16 sahen dadurch
+  // mehrere Einstellungsseiten komplett leer aus, solange der Plan noch lud — ohne
+  // Ueberschrift, ohne Hinweis, ohne Fehler. Ein Wort ist besser als nichts.
+  if (loading) return (
+    <div style={{ padding: '28px 20px', textAlign: 'center', fontSize: 13, color: C.textMid }}>
+      Lädt …
+    </div>
+  )
+  // Der Plan liess sich nicht laden (Notbremse in usePlan). Dann lieber zeigen als
+  // sperren — jede bezahlte Aktion haengt serverseitig ohnehin an planpruefung.ts.
+  if (planUnbekannt) return <>{children}</>
   const ok = funktion ? erlaubt(funktion) : canUse(minPlan ?? 'solo')
   if (ok) return <>{children}</>
   if (fallback) return <>{fallback}</>

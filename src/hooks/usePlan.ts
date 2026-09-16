@@ -50,6 +50,11 @@ export function usePlan() {
   const [aboStatus, setAboStatus] = useState<string | null>(null)
   const [planGueltigBis, setPlanGueltigBis] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // Der Plan liess sich auch nach der Notbremse nicht laden. Dann gilt: nichts
+  // behaupten — weder "erlaubt" noch "gesperrt". Die Oberflaeche zeigt die
+  // Inhalte (der Server prueft ohnehin jede bezahlte Aktion selbst), aber keine
+  // Sperrkarte, die auf einer Vermutung beruht.
+  const [planUnbekannt, setPlanUnbekannt] = useState(false)
   const [usage, setUsage] = useState<UsageInfo | null>(null)
 
   const loadUsage = useCallback(async () => {
@@ -72,13 +77,27 @@ export function usePlan() {
   //
   // PGRST116 ("kein Datensatz") ist KEIN Ausfall, sondern ein Konto ohne
   // Betriebsprofil. Das läuft wie bisher mit den Startwerten weiter.
+  //
+  // NOTBREMSE (Screenshot-Audit 2026-09-16): Bleibt `loading` fuer immer stehen,
+  // bleibt auch jeder PlanGate-Bereich fuer immer leer — im automatisierten
+  // Rundgang sahen mehrere Einstellungsseiten deshalb aus, als gaebe es sie nicht.
+  // Nach 10 Sekunden endet der Ladezustand daher in jedem Fall, mit `planUnbekannt`.
+  // Das ist bewusst ein Fail-Open, und zwar NUR im Browser: jede bezahlte Aktion
+  // haengt serverseitig an planpruefung.ts, nicht an diesem Wert.
   useEffect(() => {
     let abgebrochen = false
+    let fertig = false
+    const notbremse = setTimeout(() => {
+      if (abgebrochen || fertig) return
+      console.error('[usePlan] Plan nach 10 s nicht geladen — Oberflaeche laeuft ohne Plan weiter (planUnbekannt)')
+      setPlanUnbekannt(true)
+      setLoading(false)
+    }, 10_000)
     const laden = async (versuch: number) => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (abgebrochen) return
-      if (!user) { setLoading(false); return }
+      if (!user) { fertig = true; setLoading(false); return }
       const { data, error } = await supabase
         .from('betriebsprofil')
         .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
@@ -95,11 +114,13 @@ export function usePlan() {
       setAboStatus(data?.abo_status ?? null)
       setPlanGueltigBis(data?.plan_gueltig_bis ?? null)
       setTrialDaysLeft(calcTrialDaysLeft(data?.trial_starts_at ?? null))
+      fertig = true
+      setPlanUnbekannt(false)
       setLoading(false)
     }
     void laden(0)
     loadUsage()
-    return () => { abgebrochen = true }
+    return () => { abgebrochen = true; clearTimeout(notbremse) }
   }, [loadUsage])
 
   // Ob der Trial noch laeuft, entscheidet weiterhin die exakte Zeitgrenze —
@@ -121,7 +142,10 @@ export function usePlan() {
   // 'solo', kein trial_starts_at, kein Abo) errechnet sich sonst selbst als
   // 'gesperrt' — jede Seite würde beim Laden kurz die Paywall aufblitzen sehen.
   const trialExpired = trialStartsAt !== null && !isInTrial
-  const isBlocked = !loading && effectivePlan === 'gesperrt'
+  // `!planUnbekannt` aus demselben Grund wie `!loading`: Nach der Notbremse stehen
+  // wieder nur die Startwerte da, aus denen sich 'gesperrt' errechnet. Eine Paywall
+  // aus einem Ladefehler ist schlimmer als eine Seite ohne Sperre.
+  const isBlocked = !loading && !planUnbekannt && effectivePlan === 'gesperrt'
   const sperrgrund = () => planSperrgrund(profilFuerPlan)
 
   // 'gesperrt' hat Rang 0: niedriger als jeder echte Plan, canUse also immer falsch.
@@ -137,7 +161,7 @@ export function usePlan() {
   }, [loadUsage])
 
   return {
-    plan, effectivePlan, isInTrial, trialDaysLeft, loading, canUse, erlaubt, deckel,
+    plan, effectivePlan, isInTrial, trialDaysLeft, loading, planUnbekannt, canUse, erlaubt, deckel,
     usage, incrementUsage, refreshUsage: loadUsage, isBlocked, trialExpired, sperrgrund,
   }
 }
