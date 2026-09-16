@@ -3,22 +3,10 @@ import { normalizeKsId } from '@/lib/types'
 import { createClient } from '@/utils/supabase/server'
 import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
 import { preisBlockFuerNutzer } from '@/lib/preisspeicher'
-import { deckel, PLAN_LABELS, PLAN_REIHE, type Plan, type EffektiverPlan } from '@/lib/plaene'
+import { deckel, type EffektiverPlan } from '@/lib/plaene'
 import { ladeEffektivenPlan, pruefeZugang } from '@/lib/planpruefung'
 import { deckelAblehnung } from '@/lib/plantexte'
-import { ladeAngebotsstand, zaehleAngebotHoch } from '@/lib/angebotszaehler'
-
-// Nächster Plan mit einem höheren (oder unbegrenzten) Angebote-Deckel als `plan`
-// — für die 403-Antwort, wenn der Angebots-Deckel erreicht ist. null = schon Enterprise.
-function naechsterPlanMitMehrAngeboten(plan: Plan): Plan | null {
-  const aktuellesLimit = deckel(plan, 'angebote') ?? Infinity
-  const idx = PLAN_REIHE.indexOf(plan)
-  for (let i = idx + 1; i < PLAN_REIHE.length; i++) {
-    const kandidatLimit = deckel(PLAN_REIHE[i], 'angebote')
-    if (kandidatLimit === null || kandidatLimit > aktuellesLimit) return PLAN_REIHE[i]
-  }
-  return null
-}
+import { aktuellerMonat, reserviereAngebot, gibAngebotFrei } from '@/lib/angebotszaehler'
 
 export const maxDuration = 300
 
@@ -817,10 +805,23 @@ export async function POST(req: NextRequest) {
     // (z. B. Middleware-Lücke) → weiter wie bisher, keine Sperre.
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    let angebotsStand: { count: number; monat: string } | null = null
     // Für den Dateien-Deckel weiter unten (sobald rawImages feststeht) — hier schon
     // laden, damit der Plan nicht ein zweites Mal aus der DB geholt werden muss.
     let plan: EffektiverPlan | null = null
+    // Gesetzt, sobald ein Angebot atomar reserviert wurde (reserviere_angebot,
+    // Fix-Runde 16.09.) — Reservierung VOR dem KI-Aufruf statt Lesen+Vergleichen,
+    // sonst könnten zwei gleichzeitige Anfragen denselben letzten Platz beide für
+    // sich sehen (klassisches Race, TOCTOU). Wird in jedem Fehlerpfad NACH der
+    // Reservierung wieder freigegeben (gibAngebotFrei) — außer beim echten Erfolg
+    // (Positionen vorhanden), dann ist der reservierte Platz endgültig verbraucht.
+    let reservierterMonat: string | null = null
+    let reservierungFreigegeben = false
+    const gibReservierungFrei = async () => {
+      if (!user || !reservierterMonat || reservierungFreigegeben) return
+      reservierungFreigegeben = true
+      try { await gibAngebotFrei(supabase, reservierterMonat) }
+      catch (e) { console.error('[usage] gibAngebotFrei (analyze):', e) }
+    }
     if (user) {
       const zu = await pruefeZugang(supabase, user.id)
       if (zu) return zu
@@ -828,17 +829,17 @@ export async function POST(req: NextRequest) {
       // pruefeZugang hat 'gesperrt' bereits ausgeschlossen — plan ist hier ein echter Plan.
       if (plan !== 'gesperrt') {
         const limit = deckel(plan, 'angebote')
-        angebotsStand = await ladeAngebotsstand(supabase, user.id)
-        if (limit !== null && angebotsStand.count >= limit) {
+        const monat = aktuellerMonat()
+        const reservierung = await reserviereAngebot(supabase, monat, limit)
+        if (!reservierung.ok) {
+          // limit ist hier nie null: reserviere_angebot lehnt nur bei einem
+          // endlichen Limit ab (siehe docs/sql/2026-09-16-angebot-reservieren.sql).
           return NextResponse.json(
-            {
-              success: false,
-              error: `Im ${PLAN_LABELS[plan]}-Plan sind ${limit} Angebote pro Monat möglich.`,
-              minPlan: naechsterPlanMitMehrAngeboten(plan),
-            },
+            { success: false, ...deckelAblehnung('angebote', plan, limit ?? 0) },
             { status: 403 },
           )
         }
+        reservierterMonat = monat
       }
     }
 
@@ -891,6 +892,9 @@ export async function POST(req: NextRequest) {
     if (user && plan) {
       const grenze = deckel(plan, 'dateien')
       if (grenze !== null && rawImages.length > grenze) {
+        // Kein KI-Aufruf hier — die oben reservierte Angebots-Reservierung wieder
+        // freigeben, sonst kostet eine abgelehnte Anfrage trotzdem das Kontingent.
+        await gibReservierungFrei()
         return NextResponse.json(
           { success: false, ...deckelAblehnung('dateien', plan === 'gesperrt' ? 'solo' : plan, grenze) },
           { status: 403 },
@@ -914,6 +918,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!text && images.length === 0) {
+      await gibReservierungFrei()
       return NextResponse.json({ error: 'Kein Text oder Bild' }, { status: 400 })
     }
 
@@ -925,6 +930,7 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
+      await gibReservierungFrei()
       return NextResponse.json({ error: 'Kein API Key konfiguriert' }, { status: 500 })
     }
 
@@ -1080,6 +1086,7 @@ export async function POST(req: NextRequest) {
     if (!response.ok) {
       const err = await response.text()
       console.error('[analyze] Claude error:', response.status, err)
+      await gibReservierungFrei()
       return NextResponse.json(
         { success: false, error: `Claude ${response.status}: ${err}` },
         { status: 502 }
@@ -1127,18 +1134,16 @@ export async function POST(req: NextRequest) {
       // echten Angebot (Positionen vorhanden): Eine reine Rückfrage ({"fragen":[...]},
       // keine "positionen") ist kein Angebot und darf das Kontingent nicht kosten —
       // sonst würde ein Klärungsdialog über mehrere Runden den Deckel leerkaufen
-      // (Fix-Runde 1, Controller 16.09.). Gezählt wird erst NACH erfolgreichem
-      // KI-Aufruf: ein abgelehnter/fehlgeschlagener Aufruf (Deckel oben, oder
-      // JSON-Parse-Fehler unten) darf das Kontingent ebenfalls nicht kosten.
+      // (Fix-Runde 1, Controller 16.09.). Der Platz wurde oben bereits reserviert
+      // (reserviereAngebot, VOR dem KI-Aufruf) — kein Hochzählen mehr hier. Ohne
+      // Positionen wird die Reservierung wieder freigegeben (gibAngebotFrei).
       const hatPositionen = Array.isArray((validated as { positionen?: unknown }).positionen)
         && (validated as { positionen: unknown[] }).positionen.length > 0
-      if (user && angebotsStand && hatPositionen) {
-        try { await zaehleAngebotHoch(supabase, user.id, angebotsStand.monat, angebotsStand.count) }
-        catch (e) { console.error('[usage] zaehleAngebotHoch (analyze):', e) }
-      }
+      if (!hatPositionen) await gibReservierungFrei()
       return NextResponse.json({ success: true, data: validated })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))
+      await gibReservierungFrei()
       return NextResponse.json(
         { success: false, error: 'JSON Parse Fehler', raw: rawText.slice(0, 300) },
         { status: 500 }

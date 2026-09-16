@@ -24,14 +24,46 @@ export async function ladeAngebotsstand(
   return { count: data?.angebote_count ?? 0, monat }
 }
 
-export async function zaehleAngebotHoch(
+/**
+ * Reserviert atomar einen Angebots-Platz für den Monat — VOR dem teuren KI-Aufruf
+ * (Fix-Runde 16.09.), nicht mehr per Lesen+Vergleichen+Hochzählen danach. Das alte
+ * Muster (ladeAngebotsstand → vergleichen → zaehleAngebotHoch nach Erfolg) hatte
+ * eine Race Condition: zwei gleichzeitige Anfragen im letzten freien Platz sahen
+ * beide "noch Platz frei" und beide zählten hoch — der Deckel liess sich damit
+ * knapp überschreiten. `reserviere_angebot` (SQL, security definer) macht Prüfen
+ * und Erhöhen in einem atomaren `insert … on conflict … do update … where`.
+ *
+ * `limit`: null = unbegrenzt (Plan-Deckel), dann erhöht die SQL-Funktion immer.
+ * Rückgabe `{ ok: false, count }`: Deckel erreicht, NICHTS wurde erhöht — `count`
+ * ist der aktuelle Stand für die Fehlermeldung. Ruft der Aufrufer im Anschluss
+ * `gibAngebotFrei` auf (z. B. weil die KI keine Positionen lieferte), wird die
+ * Reservierung wieder freigegeben — sie zählt dann nicht als verbrauchtes Angebot.
+ */
+export async function reserviereAngebot(
   supabase: SupabaseClient,
-  userId: string,
   monat: string,
-  count: number,
+  limit: number | null,
+): Promise<{ ok: boolean; count: number }> {
+  const { data, error } = await supabase.rpc('reserviere_angebot', { p_monat: monat, p_limit: limit })
+  // Supabase wirft nicht, sondern liefert { data: null, error } — ein Ausfall hier
+  // darf nicht als "Platz frei" durchgehen (das würde den Deckel aushebeln), also
+  // fail-closed wie bei pruefeZugang: kein erfolgreicher Zugriff ohne Bestätigung.
+  if (error) {
+    console.error('[angebotszaehler] reserviereAngebot:', error.message)
+    return { ok: false, count: 0 }
+  }
+  return data as { ok: boolean; count: number }
+}
+
+/**
+ * Gibt eine zuvor reservierte Reservierung wieder frei (Angebot ohne Positionen,
+ * fehlgeschlagener KI-Aufruf, JSON-Parse-Fehler — s. /api/analyze). Nie blockierend:
+ * ein Fehler hier wird geloggt, darf die Antwort an den Nutzer aber nicht aufhalten.
+ */
+export async function gibAngebotFrei(
+  supabase: SupabaseClient,
+  monat: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from('plan_usage')
-    .upsert({ user_id: userId, monat, angebote_count: count + 1 }, { onConflict: 'user_id,monat' })
-  if (error) console.error('[angebotszaehler] zaehleAngebotHoch:', error.message)
+  const { error } = await supabase.rpc('gib_angebot_frei', { p_monat: monat })
+  if (error) console.error('[angebotszaehler] gibAngebotFrei:', error.message)
 }
