@@ -197,6 +197,24 @@ ungefragt auf `main`.
 - Tests ohne React/Supabase: `plaene.ts`, `plantexte.ts` importieren nur untereinander
   (mit `.ts`-Endung — `allowImportingTsExtensions` ist gesetzt).
 
+## Wünsche-Community (Stand 2026-09-16)
+- **Stimmenbudget je Plan** (1 / 3 / 10 / 30) steht als Deckel-Art `wunschStimmen` in
+  `src/lib/plaene.ts` — nirgends sonst. Je Wunsch höchstens **eine** Stimme je Nutzer
+  (Primärschlüssel `(wunsch_id, user_id)`).
+- **Wechsel nach unten wie überall:** die ältesten N Stimmen bleiben aktiv, weitere
+  zählen nicht (`wendeDeckelAn` über `wunsch_stimmen.created_at`). Nichts wird gelöscht.
+- **Gezählt wird serverseitig, nie in einer SQL-View:** Ob eine Stimme zählt, hängt am
+  Plan ihres Urhebers, und die Plan-Logik steht in `plaene.ts`. Die reine Zählung liegt
+  in `src/lib/wuensche.ts` (`stimmenJeWunsch`), getestet in `tests/wuensche.test.mjs`.
+- Fremde Stimmen und fremde Betriebsprofile darf niemand lesen (RLS). Die Zählung läuft
+  deshalb über den Service-Role-Client (`getSupabaseClient`) und gibt **nur Zahlen** heraus.
+- **Status:** `offen | geplant | in_arbeit | fertig | ausgeblendet`. Status setzen,
+  zusammenlegen und ausblenden macht ausschließlich `PATCH /api/admin/wuensche/[id]`
+  (Fabians E-Mail) — für `authenticated` gibt es bewusst keine update-Policy.
+- **Öffentlich** ist nur `GET /api/wuensche/oeffentlich` (`PUBLIC_PATHS`, 5 Minuten Cache,
+  ohne Nutzerdaten). Die Website `/roadmap` liest sie mit `revalidate = 300`.
+- SQL: `docs/sql/2026-09-16-wuensche.sql` — **mit GRANTs.**
+
 ## Settings / Kostenstellen (Regeln & Route)
 - **15 Standard-Kostenstellen:** nicht löschbar, nicht umbenennbar — nur Betrag
   ändern oder aus/an. Standard-Erkennung IMMER über `normalizeKsId(code) ∈
