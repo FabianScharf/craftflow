@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { getSupabaseClient } from '@/lib/supabase'
 import { RUNDSCHREIBEN, rundschreibenFinden, merkerName, willkommensMail } from '@/lib/mail/vorlagen'
 import { sendeMail, mailAbsender } from '@/lib/mail/resend'
+import { ADMIN_EMAIL } from '@/lib/admin'
 
 /**
  * Rundschreiben an Bestandsnutzer — Liste, Vorschau, Test, Probelauf, Versand.
@@ -22,7 +23,6 @@ import { sendeMail, mailAbsender } from '@/lib/mail/resend'
  */
 export const maxDuration = 300
 
-const ADMIN_EMAIL = 'l.m.p.1@gmx.de'
 
 type Konto = { id: string; email: string; meta: Record<string, unknown> }
 

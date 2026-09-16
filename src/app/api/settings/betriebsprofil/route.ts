@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { normalisiereHex } from '@/lib/theme'
 import { klemmePreisfaktor } from '@/lib/preisfaktor'
+import {
+  PROFIL_FELDER, PROFIL_BOOL_FELDER, PROFIL_ZAHL_FELDER, darfGeschriebenWerden,
+} from '@/lib/profilfelder'
 
 export async function GET() {
   const supabase = await createClient()
@@ -26,39 +29,20 @@ export async function PATCH(req: NextRequest) {
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
   const body = await req.json() as Record<string, unknown>
-  const allowed = [
-    'firma_name', 'firma_zusatz', 'inhaber', 'strasse', 'plz', 'ort',
-    'telefon', 'email', 'website', 'ust_id', 'steuernummer',
-    'iban', 'bic', 'bank_name',
-    'farbe_primaer', 'farbe_akzent', 'logo_url',
-    'angebotsnummer_prefix', 'angebotsnummer_naechste', 'angebot_gueltig_tage',
-    'zahlungsziel_tage', 'angebot_einleitung', 'angebot_abschluss',
-    'zahlungskonditionen_text', 'mwst_satz', 'onboarding_abgeschlossen',
-    'anrede_vorlage', 'widerrufsbelehrung_text', 'agb_text',
-    'pdf_layout', 'pdf_zeige_bic', 'pdf_zeige_telefon', 'pdf_zeige_website', 'pdf_hinweis',
-    'pdf_zeige_massivholz', 'pdf_massivholz_text', 'pdf_zeige_unterschrift', 'pdf_unterschrift_text',
-    'pdf_eigenes_briefpapier', 'pdf_briefpapier_url',
-    'pdf_margin_top', 'pdf_margin_bottom', 'pdf_margin_left', 'pdf_margin_right',
-    'pdf_schriftart', 'pdf_zeige_menge', 'pdf_zeige_einheitspreis',
-    'kleinunternehmer',
-    'benchmark_zustimmung',
-    'preisfaktor',
-    'plan',
-  ]
-  const boolFields = new Set([
-    'pdf_eigenes_briefpapier', 'pdf_zeige_bic', 'pdf_zeige_telefon', 'pdf_zeige_website',
-    'pdf_zeige_massivholz', 'pdf_zeige_unterschrift', 'benchmark_zustimmung',
-    'pdf_zeige_menge', 'pdf_zeige_einheitspreis', 'kleinunternehmer',
-    'onboarding_abgeschlossen',
-  ])
-  const numFields = new Set([
-    'pdf_margin_top', 'pdf_margin_bottom', 'pdf_margin_left', 'pdf_margin_right',
-    'mwst_satz', 'zahlungsziel_tage', 'angebot_gueltig_tage', 'angebotsnummer_naechste',
-  ])
+  // Die Liste steht in src/lib/profilfelder.ts — rein, getestet und mit einer
+  // ausdrücklichen Sperrliste für plan/abo_status/plan_gueltig_bis/trial_starts_at
+  // und alle stripe_*-Felder (Audit 2026-09-17, Critical: über 'plan' in dieser
+  // Liste konnte sich jeder Nutzer selbst Enterprise geben).
+  // Fabians Entwickler-Umschalter für den Plan läuft jetzt über
+  // PATCH /api/admin/plan mit E-Mail-Prüfung.
+  const allowed = PROFIL_FELDER
+  const boolFields = new Set(PROFIL_BOOL_FELDER)
+  const numFields = new Set(PROFIL_ZAHL_FELDER)
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
     if (!(key in body)) continue
+    if (!darfGeschriebenWerden(key)) continue
     const v = body[key]
     if (boolFields.has(key)) {
       patch[key] = v === true || v === 'true'

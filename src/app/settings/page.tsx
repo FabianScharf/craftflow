@@ -19,6 +19,7 @@ import TextbausteineSettings from '@/components/settings/TextbausteineSettings'
 import { SCHRIFTEN, SCHRIFT_GRUPPEN } from '@/lib/pdftext'
 import { type Plan, usePlan } from '@/hooks/usePlan'
 import { PLAN_REIHE, PLAENE, PREIS_IDS, PLAN_LABELS, deckel as planDeckelFuer, merkmaleFuerAnzeige } from '@/lib/plaene'
+import { istAdmin } from '@/lib/admin'
 
 const C = {
   black:   'var(--c-primary, #0D0D0D)',
@@ -552,7 +553,7 @@ export default function SettingsPage() {
     { id: 'wuensche',         label: 'Wünsche',         icon: '💬' },
     { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
     { id: 'hilfe',            label: 'Hilfe',           icon: '💡' },
-    ...(userEmail === 'l.m.p.1@gmx.de' ? [{ id: 'admin' as typeof section, label: 'Admin', icon: '🛠' }] : []),
+    ...(istAdmin(userEmail) ? [{ id: 'admin' as typeof section, label: 'Admin', icon: '🛠' }] : []),
   ]
   // Gesperrt: nur "Mein Plan" in der Seitenleiste — der Rest bleibt unerreichbar,
   // solange kein gültiger Plan/Abo vorliegt (Aufgabe 0). navItems bleibt die
@@ -1776,7 +1777,7 @@ export default function SettingsPage() {
               )}
 
               {/* ── Dev-Panel: nur für Owner ── */}
-              {userEmail === 'l.m.p.1@gmx.de' && (
+              {istAdmin(userEmail) && (
                 <div style={{ marginTop: 32, borderTop: `1px dashed ${C.border}`, paddingTop: 20 }}>
                   <div style={{ fontSize: 10, letterSpacing: 2, color: C.textMid, textTransform: 'uppercase', marginBottom: 12 }}>
                     🛠 Entwickler — Plan-Override
@@ -1786,11 +1787,19 @@ export default function SettingsPage() {
                       <button
                         key={p}
                         onClick={async () => {
-                          await fetch('/api/settings/betriebsprofil', {
+                          // Eigene Admin-Route mit E-Mail-Prüfung (Audit 2026-09-17,
+                          // Critical): 'plan' ist aus der Whitelist von
+                          // /api/settings/betriebsprofil entfernt.
+                          const res = await fetch('/api/admin/plan', {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ plan: p }),
                           })
+                          if (!res.ok) {
+                            const j = await res.json().catch(() => ({})) as { error?: string }
+                            setStripeMsg({ type: 'err', text: j.error ?? `Plan-Wechsel fehlgeschlagen (${res.status})` })
+                            return
+                          }
                           setProfil(prev => ({ ...prev, plan: p }))
                         }}
                         style={{
@@ -1843,7 +1852,7 @@ export default function SettingsPage() {
           )}
 
           {/* ── Admin Panel ─────────────────────────────── */}
-          {section === 'admin' && userEmail === 'l.m.p.1@gmx.de' && (
+          {section === 'admin' && istAdmin(userEmail) && (
             <div style={{ padding: '24px 20px', maxWidth: 720 }}>
               {/* ── Mails: Willkommens-Mail + Rundschreiben ── */}
               {(() => {

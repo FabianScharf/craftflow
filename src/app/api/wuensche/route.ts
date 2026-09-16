@@ -15,8 +15,7 @@ import {
   pruefeTexte, stimmenbudget, stimmenJeWunsch, aktiveStimmen, ohneVersteckte,
   eigeneStimmenJeWunsch, VORSCHLAEGE_JE_TAG, type Stimme,
 } from '@/lib/wuensche'
-
-const ADMIN_EMAIL = 'l.m.p.1@gmx.de'
+import { ADMIN_EMAIL } from '@/lib/admin'
 
 /**
  * Alle Stimmen (roh) + dieselben ohne die, die kein Budget mehr belegen, + die

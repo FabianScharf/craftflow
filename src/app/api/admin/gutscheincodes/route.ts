@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-
-const ADMIN_EMAIL = 'l.m.p.1@gmx.de'
+import { ADMIN_EMAIL } from '@/lib/admin'
 
 async function guard() {
   const supabase = await createClient()
