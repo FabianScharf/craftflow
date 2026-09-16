@@ -46,7 +46,7 @@ export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
   { id: 'auswertung', label: 'Auswertung', zweck: `Zahlen zu den eigenen Angeboten (${abPlan('auswertung')})` },
   { id: 'marketing', label: 'Marketing & CI', zweck: 'Akzentfarbe und Logo für Dokumente' },
   { id: 'briefpapier', label: 'Briefpapier', zweck: 'Aussehen des PDFs: Layout, Schriftart, Spalten der Positionstabelle, eigenes Briefpapier, Seitenränder — mit lebender Vorschau daneben' },
-  { id: 'betrieb', label: 'Mein Betrieb', zweck: `Betriebskalibrierung (${abPlan('kalibrierung')}): acht bis neun Fragen (je nach Schwerpunkt) zu Maschinen, Schwerpunkt, Montage, Stückzahlen und einem Referenzmöbel. Daraus rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten. Dort auch: Lernschleife aus gewonnenen Angeboten (${abPlan('lernschleife')})` },
+  { id: 'betrieb', label: 'Mein Betrieb', zweck: `Betriebskalibrierung (${abPlan('kalibrierung')}): acht bis neun Fragen (je nach Schwerpunkt) zu Maschinen, Schwerpunkt, Montage, Stückzahlen und einem Referenzmöbel. Daraus rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten. Dort auch: Zeitfaktoren von Hand (0,50 bis 3,00), der Preisfaktor und die Lernschleife aus gewonnenen Angeboten (${abPlan('lernschleife')})` },
   { id: 'kostenstellen', label: 'Kostenstellen', zweck: 'Stundensatz je Kostenstelle, eigene Kostenstellen anlegen, nicht genutzte abschalten' },
   { id: 'warenaufschlaege', label: 'Warenaufschläge', zweck: 'Materialaufschlag je Warengruppe' },
   { id: 'bauweise', label: 'Meine Bauweise', zweck: `Gelernte Wenn-Dann-Regeln des Betriebs, z.B. "Rückwände immer aus 8 mm Spanplatte". Die KI merkt sie sich aus dem Optimieren-Chat und hält sich daran (${abPlan('bauweise')})` },
@@ -64,7 +64,7 @@ export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
 export const PFLICHTTHEMEN = [
   'Stückzahl', 'Alternativposition', 'Gruppe', 'Textbaustein', 'Schriftart',
   'Kleinunternehmer', 'Materialpreise', 'Bauweise', 'Mein Betrieb',
-  'Optimieren', 'Vorschau', 'Briefpapier',
+  'Optimieren', 'Vorschau', 'Briefpapier', 'Preisfaktor',
 ] as const
 
 export type WissenDaten = {
@@ -196,6 +196,8 @@ ${kostenstellenTeil(daten.saetze)}
 → MEINE BAUWEISE: Regeln wie "Rückwände immer 8 mm Spanplatte, nicht HDF". Die KI hält sich daran, in jedem neuen Angebot.
 → MEIN BETRIEB: Die Betriebskalibrierung. Acht bis neun Fragen, je nach Schwerpunkt — danach rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten.
   Neun bei den Referenzmöbeln Einbauschrank, Einbauküche, Innentüren — acht bei Treppe, Massivholztisch. Rate die Aufteilung nicht, wenn du das Referenzmöbel nicht kennst; nenne dann die Spanne.
+→ PREISFAKTOR: Einstellungen → Mein Betrieb. Multipliziert den Preis jeder neuen Position — Material und Lohn zusammen. Stunden und Stundensätze bleiben, wie sie sind. 1,00 = CraftFlow-Preis, 1,20 = 20 % teurer. Erlaubt sind 0,50 bis 3,00. Wichtig: Er wirkt nur auf Positionen, die NACH dem Einstellen entstehen — bereits erstellte Angebote ändern sich nicht. Im Angebots-PDF steht er nicht; der Kunde sieht nur Endpreise.
+→ ZEITFAKTOREN gegen PREISFAKTOR: Zeitfaktoren ändern die Minuten und damit auch „Stunden gesamt" und den Export. Wer nur teurer verkaufen will, nimmt den Preisfaktor.
 → BRIEFPAPIER: Schriftart, Spalten, eigenes Briefpapier — mit einer Vorschau daneben, die bei jedem Klick mitgeht.
 → KLEINUNTERNEHMER: Wer nach § 19 UStG keine Umsatzsteuer ausweist, stellt das unter Buchhaltung ein. Dann entfällt die MwSt-Zeile und der vorgeschriebene Hinweis erscheint.
 
@@ -213,5 +215,6 @@ ${kostenstellenTeil(daten.saetze)}
 → "Wie ändere ich meine Stundensätze?" — Einstellungen → Kostenstellen.
 → "Kann ich mein eigenes Briefpapier verwenden?" — Ja, Einstellungen → Briefpapier, PDF hochladen. Kopf und Fuß von CraftFlow werden dann ausgeblendet.
 → "Wie biete ich eine Alternative an?" — In der Kalkulation bei der Position "Alternativposition" ankreuzen. Sie steht dann mit Preis in Klammern im Angebot und zählt nicht in die Summe.
-→ "Wie rechne ich 20 gleiche Möbel?" — Stückzahl an der Position setzen. Material und Zeiten bleiben für ein Stück, CraftFlow rechnet hoch und berücksichtigt die Mengenstaffel.`
+→ "Wie rechne ich 20 gleiche Möbel?" — Stückzahl an der Position setzen. Material und Zeiten bleiben für ein Stück, CraftFlow rechnet hoch und berücksichtigt die Mengenstaffel.
+→ "Wie verkaufe ich einfach 20 % teurer?" — Einstellungen → Mein Betrieb → Preisfaktor auf 1,20 stellen und übernehmen. Ab dann rechnet CraftFlow jede neue Position 20 % höher; Stunden und Stundensätze bleiben gleich.`
 }
