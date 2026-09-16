@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   MAX_ZEICHEN_JE_BLOCK, MAX_BILDER_JE_BLOCK,
   schnittRang, schneideText, teileInBloecke, blockInfos,
+  GEMEINPOSITIONEN, BLOCK_REGEL, baueKontext,
 } from '../src/lib/bloecke.ts'
 import { bloeckeAblehnung } from '../src/lib/plantexte.ts'
 
@@ -104,4 +105,26 @@ test('Die Ablehnung nennt den Plan, der Blöcke freischaltet — wörtlich wie i
     error: 'Große Projekte in Blöcken sind ab dem Pro-Plan möglich.',
     minPlan: 'pro',
   })
+})
+
+test('Die Gemeinpositionen stehen fest und nur in Block 1', () => {
+  assert.deepEqual(GEMEINPOSITIONEN, ['Planung', 'Besprechung', 'Konstruktion', 'Montage-Pauschale', 'Anfahrt'])
+  // Der Satz muss WOERTLICH so im Prompt stehen (Spec 2026-09-16, Teil C).
+  assert.ok(BLOCK_REGEL.includes(
+    'Gemeinpositionen (Planung, Besprechung, Anfahrt/Montage-Pauschale) nur in Block 1; in Folgeblöcken NICHT erneut anlegen'))
+  // Fester Block, kein Nutzertext — sonst greift das Prompt-Caching nicht.
+  assert.ok(!BLOCK_REGEL.includes('${'))
+})
+
+test('Der Kontext trägt Kunde, Kopfdaten und die bisherigen Titel', () => {
+  const k = baueKontext({ kunde: 'Familie Meier, Gelnhausen', kopf: 'Umbau Küche', titel: ['Unterschrank', 'Hängeschrank'] })
+  assert.ok(k.includes('Familie Meier, Gelnhausen'))
+  assert.ok(k.includes('Umbau Küche'))
+  assert.ok(k.includes('Unterschrank'))
+  assert.ok(k.includes('Hängeschrank'))
+  assert.equal(baueKontext({ titel: [] }), '', 'ohne Inhalt entsteht kein leerer Block')
+  // Lange Titellisten werden gekürzt, damit der Kontext nicht selbst zum Block wird.
+  const viele = baueKontext({ titel: Array.from({ length: 200 }, (_, i) => `Position ${i}`) })
+  assert.ok(viele.length < 4000, `Kontext zu lang: ${viele.length}`)
+  assert.ok(viele.includes('Position 199'), 'die zuletzt erzeugten Titel müssen drin sein')
 })

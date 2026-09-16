@@ -113,3 +113,45 @@ export function blockInfos(bloecke: Block[]): BlockInfo[] {
     }
   })
 }
+
+/**
+ * Positionen, die für das ganze Projekt EINMAL anfallen. In Block 1 gehören sie hin,
+ * in jedem weiteren wären sie doppelt — das Angebot wäre um sie zu teuer.
+ */
+export const GEMEINPOSITIONEN = ['Planung', 'Besprechung', 'Konstruktion', 'Montage-Pauschale', 'Anfahrt']
+
+/**
+ * Feste Prompt-Ergänzung für jede Blockanalyse. Enthält BEWUSST keinen Nutzertext:
+ * Nur ein unveränderlicher Block kann zwischengespeichert werden (cache_control), und
+ * er kostet dann ab dem zweiten Aufruf ein Zehntel.
+ */
+export const BLOCK_REGEL = `
+## DIESE ANFRAGE IST EIN AUSSCHNITT EINES GROSSEN PROJEKTS
+Du bekommst das Projekt in mehreren Blöcken nacheinander. Halte dich an diese Regeln:
+- Kalkuliere AUSSCHLIESSLICH, was in diesem Block steht. Erfinde nichts dazu und
+  wiederhole nichts aus früheren Blöcken.
+- Gemeinpositionen (Planung, Besprechung, Anfahrt/Montage-Pauschale) nur in Block 1; in Folgeblöcken NICHT erneut anlegen.
+- Kunde und Kopfdaten stehen in Block 1. In Folgeblöcken gibst du "kunde" NICHT erneut aus.
+- Stelle KEINE Rückfragen ("fragen"), solange dieser Block kalkulierbar ist. Fehlt etwas,
+  kalkuliere mit dem üblichen Fall und schreibe es in die "warnung" der Position.`
+
+/**
+ * Der Kontext, den Block 2 und folgende mitbekommen: Kunde, Kopfdaten und die bisher
+ * erzeugten Positionstitel. Leer, wenn es nichts zu sagen gibt — ein leerer Block
+ * würde nur Token kosten.
+ *
+ * Die Titelliste wird von HINTEN gekürzt: Die zuletzt erzeugten Titel sagen am
+ * meisten darüber, wo die Kalkulation gerade steht.
+ */
+export function baueKontext(k: { kunde?: string; kopf?: string; titel: string[] }): string {
+  const zeilen: string[] = []
+  if (k.kunde?.trim()) zeilen.push(`Kunde: ${k.kunde.trim()}`)
+  if (k.kopf?.trim()) zeilen.push(`Bauvorhaben: ${k.kopf.trim()}`)
+  const titel = (k.titel ?? []).filter(Boolean).slice(-60)
+  if (titel.length > 0) {
+    zeilen.push('Bereits kalkulierte Positionen (NICHT wiederholen):')
+    for (const t of titel) zeilen.push(`- ${String(t).slice(0, 80)}`)
+  }
+  if (zeilen.length === 0) return ''
+  return `## STAND AUS DEN VORHERIGEN BLÖCKEN\n${zeilen.join('\n')}`
+}
