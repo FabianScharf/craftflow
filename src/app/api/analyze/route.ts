@@ -17,6 +17,13 @@ import { SYSTEM_PROMPT, STUNDENSAETZE, validateAndFix, MAX_IMAGE_B64_BYTES } fro
 export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
+  // Außerhalb des try: Der äußerste catch (unerwarteter Fehler NACH der Reservierung,
+  // z. B. ein Netzwerkfehler beim Claude-Aufruf oder ein kaputtes response.json())
+  // muss die Reservierung ebenfalls freigeben können — sonst ist das Angebot für den
+  // Monat verbraucht, obwohl der Nutzer nichts bekommen hat (Audit 2026-09-17,
+  // Critical 2). Die Schwesterroute analyze/block macht es seit jeher so.
+  // Doppelte Freigabe ist ausgeschlossen: gibReservierungFrei merkt sich das selbst.
+  let freigabe: (() => Promise<void>) | null = null
   try {
     // Guard: Vercel limit ist 4.5 MB body
     const contentLength = Number(req.headers.get('content-length') ?? 0)
@@ -68,6 +75,7 @@ export async function POST(req: NextRequest) {
       try { await gibAngebotFrei(supabase, reservierterMonat) }
       catch (e) { console.error('[usage] gibAngebotFrei (analyze):', e) }
     }
+    freigabe = gibReservierungFrei
     if (user) {
       const zu = await pruefeZugang(supabase, user.id)
       if (zu) return zu
@@ -134,9 +142,22 @@ export async function POST(req: NextRequest) {
 
     // Dateien-Deckel je Projekt (Spec 2026-09-15, Aufgabe 5) — VOR dem KI-Aufruf.
     // PDF-Seiten werden im Browser zu Bildern, zählen also als Dateien: Aufwand = Bilder.
+    //
+    // WECHSEL NACH UNTEN (Audit 2026-09-17, I10): Wer von Pro auf Starter wechselt,
+    // wurde hier komplett abgewiesen — bei Bauweise-Regeln, Materialpreisen und
+    // Wunsch-Stimmen bleiben dagegen die ältesten N aktiv (wendeDeckelAn). Jetzt
+    // gilt dieselbe Regel: die ersten N Dateien (Reihenfolge = Upload-Reihenfolge,
+    // also die ältesten) gehen an die KI, der Rest wird GEMELDET statt die ganze
+    // Analyse zu verweigern. Nichts wird gelöscht, ein Upgrade wirkt sofort.
+    //
+    // Ausnahme bleibt der Deckel 0 (Solo): Dort gibt es keinen Datei-Upload, den
+    // man kappen könnte — das ist eine Funktions-, keine Mengenfrage, also weiter
+    // die 403 mit dem Text aus plantexte.ts.
+    const hinweise: string[] = []
+    let dateienRoh = rawImages
     if (user && plan) {
       const grenze = deckel(plan, 'dateien')
-      if (grenze !== null && rawImages.length > grenze) {
+      if (grenze === 0 && rawImages.length > 0) {
         // Kein KI-Aufruf hier — die oben reservierte Angebots-Reservierung wieder
         // freigeben, sonst kostet eine abgelehnte Anfrage trotzdem das Kontingent.
         await gibReservierungFrei()
@@ -145,10 +166,19 @@ export async function POST(req: NextRequest) {
           { status: 403 },
         )
       }
+      if (grenze !== null && rawImages.length > grenze) {
+        const zuviel = rawImages.length - grenze
+        dateienRoh = rawImages.slice(0, grenze)
+        hinweise.push(
+          `Dein Plan erlaubt ${grenze} ${grenze === 1 ? 'Datei' : 'Dateien'} je Projekt. ` +
+          `Verwendet wurden die ${grenze} zuerst hochgeladenen, ` +
+          `${zuviel} weitere ${zuviel === 1 ? 'Datei blieb' : 'Dateien blieben'} unberücksichtigt.`,
+        )
+      }
     }
 
     // Bilder auf max. 4 MB base64 begrenzen; zu große still überspringen
-    const images = rawImages.filter(img => {
+    const images = dateienRoh.filter(img => {
       const size = img.length
       if (size > MAX_IMAGE_B64_BYTES) {
         console.error('[analyze] image dropped — too large:', Math.round(size / 1024), 'KB')
@@ -158,7 +188,7 @@ export async function POST(req: NextRequest) {
     })
 
     console.log('[analyze] images:', images.length, '(raw:', rawImages.length, '), text len:', text?.length ?? 0)
-    if (rawImages.length > 0 && images.length === 0 && text) {
+    if (dateienRoh.length > 0 && images.length === 0 && text) {
       console.log('[analyze] alle Bilder gefiltert — fahre mit Text-only fort')
     }
 
@@ -395,7 +425,9 @@ export async function POST(req: NextRequest) {
       const hatPositionen = Array.isArray((validated as { positionen?: unknown }).positionen)
         && (validated as { positionen: unknown[] }).positionen.length > 0
       if (!hatPositionen) await gibReservierungFrei()
-      return NextResponse.json({ success: true, data: validated })
+      // `hinweise`: was der Plan-Deckel von den Dateien weggelassen hat — gemeldet,
+      // nie verschwiegen. Nie Kosten oder Token (Fabians Regel).
+      return NextResponse.json({ success: true, data: validated, hinweise })
     } catch {
       console.error('[analyze] JSON parse failed, raw:', rawText.slice(0, 300))
       await gibReservierungFrei()
@@ -407,6 +439,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unbekannter Fehler'
     console.error('[analyze] unhandled error:', msg)
+    if (freigabe) await freigabe()
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

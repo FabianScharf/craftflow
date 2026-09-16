@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentProxy } from 'unpdf'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang, ladeEffektivenPlan } from '@/lib/planpruefung'
-import { deckel, erlaubt } from '@/lib/plaene'
+import { deckel, erlaubt, wendeDeckelAn } from '@/lib/plaene'
 import { deckelAblehnung, bloeckeAblehnung } from '@/lib/plantexte'
 import { zaehltGegenDeckel, istUuid } from '@/lib/upload'
 import { teileInBloecke, blockInfos, zeilenAusTextstuecken, type Block } from '@/lib/bloecke'
@@ -24,6 +24,23 @@ const VORBEREITET = '_vorbereitet.json'
 const BILD_ENDUNGEN = ['.jpg', '.jpeg', '.png', '.webp']
 
 export async function POST(req: NextRequest) {
+  // Äußeres try/catch (Audit 2026-09-17, Minor 14): Ein unerwarteter Fehler — etwa in
+  // `unpdf` bei einem kaputten PDF — kam bisher als rohe Next.js-500 ohne eine Zeile
+  // Deutsch beim Nutzer an. Hier wird nichts reserviert, es gibt also nichts
+  // freizugeben; es geht allein um eine lesbare Meldung.
+  try {
+    return await vorbereiten(req)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unbekannter Fehler'
+    console.error('[vorbereiten] unhandled error:', msg)
+    return NextResponse.json(
+      { error: `Die Vorbereitung ist fehlgeschlagen: ${msg}` },
+      { status: 500 },
+    )
+  }
+}
+
+async function vorbereiten(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
@@ -64,10 +81,30 @@ export async function POST(req: NextRequest) {
 
   const plan = await ladeEffektivenPlan(supabase, user.id)
   const grenze = deckel(plan, 'dateien')
-  if (grenze !== null && nutzdateien.length > grenze) {
+  // Deckel 0 (Solo) bleibt eine Ablehnung: Dort gibt es keinen Datei-Upload, den man
+  // kappen könnte — Funktionsfrage, keine Mengenfrage.
+  if (grenze === 0 && nutzdateien.length > 0) {
     return NextResponse.json(
       { ...deckelAblehnung('dateien', plan === 'gesperrt' ? 'solo' : plan, grenze) },
       { status: 403 },
+    )
+  }
+  // Wechsel nach unten (Audit 2026-09-17, I10): dieselbe Regel wie bei Bauweise-
+  // Regeln, Materialpreisen und Wunsch-Stimmen — die ÄLTESTEN N bleiben aktiv, der
+  // Rest ruht. Nichts wird gelöscht, ein Upgrade wirkt sofort. Vorher wurde die
+  // ganze Vorbereitung verweigert, sobald eine Datei zu viel am Projekt hing.
+  const hinweise: string[] = []
+  const mitDeckel = wendeDeckelAn(
+    nutzdateien.map(d => ({ ...d, created_at: String(d.created_at ?? '') })),
+    grenze,
+  )
+  const aktiveDateien = mitDeckel.filter(d => d.aktivDurchPlan)
+  const ruhende = mitDeckel.filter(d => !d.aktivDurchPlan)
+  if (ruhende.length > 0) {
+    hinweise.push(
+      `Dein Plan erlaubt ${grenze} ${grenze === 1 ? 'Datei' : 'Dateien'} je Projekt. ` +
+      `Nicht berücksichtigt ${ruhende.length === 1 ? 'wurde' : 'wurden'}: ` +
+      `${ruhende.map(d => d.name).join(', ')}.`,
     )
   }
 
@@ -75,7 +112,7 @@ export async function POST(req: NextRequest) {
   const bildPfade: string[] = []
   let gesamtText = String(text ?? '').trim()
 
-  for (const d of nutzdateien) {
+  for (const d of aktiveDateien) {
     const pfad = `${ordner}/${d.name}`
     const endung = d.name.slice(d.name.lastIndexOf('.')).toLowerCase()
     if (BILD_ENDUNGEN.includes(endung)) { bildPfade.push(pfad); continue }
@@ -131,5 +168,5 @@ export async function POST(req: NextRequest) {
     })
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
 
-  return NextResponse.json({ bloecke: blockInfos(bloecke), nichtVerarbeitet })
+  return NextResponse.json({ bloecke: blockInfos(bloecke), nichtVerarbeitet, hinweise })
 }

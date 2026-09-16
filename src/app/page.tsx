@@ -654,6 +654,10 @@ export default function CraftFlow() {
   // Große Projekte in Blöcken (Spec 2026-09-16, Teil C).
   const [bloecke, setBloecke] = useState<Array<{ nr: number; vorschau: string; zeichen: number; bilder: number }>>([])
   const [nichtVerarbeitet, setNichtVerarbeitet] = useState<Array<{ name: string; grund: string }>>([])
+  // Was der Plan-Deckel von den hochgeladenen Dateien weggelassen hat. Der Server
+  // lehnt seit dem 2026-09-17 nicht mehr die ganze Analyse ab (Regel „die ältesten N
+  // bleiben aktiv"), er MELDET stattdessen — und das muss sichtbar sein.
+  const [dateiHinweise, setDateiHinweise] = useState<string[]>([])
   // Was die Blockroute je Block übersprungen hat (unlesbares Bild, unbekannter
   // Bildtyp, zu groß) — I-2: sonst verschwindet das stillschweigend (Spec:97).
   const [blockHinweise, setBlockHinweise] = useState<string[]>([])
@@ -993,7 +997,7 @@ export default function CraftFlow() {
       }),
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let json: { success?: boolean; error?: string; data?: any }
+    let json: { success?: boolean; error?: string; data?: any; hinweise?: string[] }
     try {
       json = await res.json()
     } catch {
@@ -1001,6 +1005,8 @@ export default function CraftFlow() {
       throw new Error(`Server Fehler (${res.status}) – bitte erneut versuchen.`)
     }
     if (!res.ok || !json.success) throw new Error(json.error || `API Fehler: ${res.status}`)
+    // Weggelassene Dateien meldet der Server hier — nie stumm verwerfen.
+    setDateiHinweise(Array.isArray(json.hinweise) ? json.hinweise : [])
     return json.data
   }, [userKs, userMatGruppen])
 
@@ -1298,12 +1304,14 @@ export default function CraftFlow() {
     if (!textToUse.trim() && imageB64s.length === 0) return
     // Dateien-Deckel je Projekt (Aufgabe 5) — spart nur den Fehlversuch, der
     // Server prüft ohnehin (analyze/route.ts).
+    // Nur noch der Deckel 0 (Solo) haelt hier an: Dort gibt es keinen Datei-Upload.
+    // Ueber der Grenze wird NICHT mehr abgewiesen — der Server nimmt die aeltesten N
+    // und meldet den Rest in `hinweise` (Audit 2026-09-17, I10). Wuerde der Browser
+    // weiter blockieren, kaeme diese Regel nie zum Tragen.
     const dateienGrenze = planDeckelFn('dateien')
-    if (dateienGrenze !== null && uploadedFiles.length > dateienGrenze) {
+    if (dateienGrenze === 0 && uploadedFiles.length > 0) {
       const planName = effectivePlan === 'gesperrt' ? 'Solo' : PLAN_LABELS[effectivePlan]
-      setStartMsg(dateienGrenze === 0
-        ? `Im ${planName}-Plan ist kein Datei-Upload möglich.`
-        : `Im ${planName}-Plan sind ${dateienGrenze} Dateien je Projekt möglich.`)
+      setStartMsg(`Im ${planName}-Plan ist kein Datei-Upload möglich.`)
       return
     }
     // Projektname aus GAEB vorbelegen
@@ -1428,6 +1436,7 @@ export default function CraftFlow() {
       const jv = await vor.json().catch(() => ({})) as {
         bloecke?: Array<{ nr: number; vorschau: string; zeichen: number; bilder: number }>
         nichtVerarbeitet?: Array<{ name: string; grund: string }>
+        hinweise?: string[]
         error?: string; minPlan?: string | null
       }
       if (!vor.ok) {
@@ -1440,6 +1449,7 @@ export default function CraftFlow() {
       const liste = jv.bloecke ?? []
       setBloecke(liste)
       setNichtVerarbeitet(jv.nichtVerarbeitet ?? [])
+      setDateiHinweise(jv.hinweise ?? [])
 
       let hatFehler = false
 
@@ -3582,6 +3592,17 @@ export default function CraftFlow() {
                 {uploadedFiles.filter(f => f.stand === 'fehler').map(f => (
                   <div key={f.id}>{f.name}: {f.grund}</div>
                 ))}
+              </div>
+            )}
+
+            {/* Vom Plan-Deckel ruhend gestellte Dateien — gemeldet, nie stumm
+                weggelassen (Audit 2026-09-17, I10). Gilt für beide Wege: Direktweg
+                (/api/analyze) und Blockweg (/api/analyze/vorbereiten). */}
+            {dateiHinweise.length > 0 && (
+              <div style={{ background: C.gray1, border: `1px solid ${akzentTon('44')}`, borderRadius: 8,
+                padding: '10px 12px', marginTop: 8, fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>
+                {dateiHinweise.map((h, i) => <div key={i}>{h}</div>)}
+                <a href="/settings#plan" style={{ color: C.copper, textDecoration: 'underline' }}>Plan wechseln</a>
               </div>
             )}
 
