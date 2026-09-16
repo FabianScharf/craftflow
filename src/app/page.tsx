@@ -3194,7 +3194,7 @@ export default function CraftFlow() {
                 Das lässt sich nicht rückgängig machen.
               </div>
               {loeschFehler && (
-                <div style={{ background: ton(C.err, '22'), border: '1px solid #6A2A2A', borderRadius: 8,
+                <div style={{ background: ton(C.err, '22'), border: `1px solid ${ton(C.err, '66')}`, borderRadius: 8,
                   padding: '9px 12px', color: C.err, fontSize: 12.5, lineHeight: 1.5, marginBottom: 18 }}>
                   {loeschFehler}
                 </div>
@@ -3212,7 +3212,9 @@ export default function CraftFlow() {
                 <button
                   onClick={() => void loeschenBestaetigt()}
                   disabled={loeschLaeuft}
-                  style={{ background: C.err, color: ton(C.err, '22'), border: 'none', borderRadius: 7,
+                  // Schrift in der Grundfarbe (dunkel auf Dunkel-Design, weiß auf Hell-Design) — vorher
+                  // ein Rotton auf Rot, der Knopf war leer (Fabian, 16.09.).
+                  style={{ background: C.err, color: C.black, border: 'none', borderRadius: 7,
                     padding: '10px 20px', fontSize: 13, fontWeight: 800,
                     cursor: loeschLaeuft ? 'default' : 'pointer', opacity: loeschLaeuft ? 0.6 : 1,
                     fontFamily: 'Helvetica Neue,sans-serif' }}
