@@ -18,6 +18,7 @@ import {
 } from '@/lib/types'
 import { buildPDF, buildFooterTemplate, SCHRIFTEN, type FirmaOpts, type SchriftId } from '@/lib/pdf'
 import { positionenAusKi } from '@/lib/kiantwort'
+import { baueKontext, vereinigePositionen, brauchtBlockweg, blockFortschrittText } from '@/lib/bloecke'
 import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
 import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 import { klemmePreisfaktor, angezeigterPreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
@@ -52,6 +53,11 @@ type UploadedFile = {
   type: 'image' | 'pdf'
   previewUrl?: string
   b64?: string
+  /** Pfad im Bucket `projektdateien`, sobald die Datei serverseitig liegt (Teil C). */
+  pfad?: string
+  /** Sichtbarer Stand je Datei — ohne ihn wäre ein Fehlschlag stumm. */
+  stand?: 'laeuft' | 'fertig' | 'fehler'
+  grund?: string
 }
 
 /* ── PDF-Seiten → JPEG (client-seitig, browser canvas) ── */
@@ -643,6 +649,14 @@ export default function CraftFlow() {
   const [uploadingCount, setUploadingCount] = useState(0)
   const [startStatus, setStartStatus] = useState<'idle' | 'loading' | 'error' | 'fragen'>('idle')
   const [startMsg, setStartMsg] = useState('')
+  // Zielplan einer 402/403-Ablehnung (Blockweg) — trägt den "Plan wechseln"-Link.
+  const [startMinPlan, setStartMinPlan] = useState<string | null>(null)
+  // Große Projekte in Blöcken (Spec 2026-09-16, Teil C).
+  const [bloecke, setBloecke] = useState<Array<{ nr: number; vorschau: string; zeichen: number; bilder: number }>>([])
+  const [nichtVerarbeitet, setNichtVerarbeitet] = useState<Array<{ name: string; grund: string }>>([])
+  const [blockAktuell, setBlockAktuell] = useState(0)
+  const [blockLaeuft, setBlockLaeuft] = useState(false)
+  const abbrechenRef = useRef(false)
   const [fragenInput, setFragenInput] = useState('')
   const [fragenMicStatus, setFragenMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
   const fragenMediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -821,22 +835,63 @@ export default function CraftFlow() {
     })
   }, [])
 
+  /**
+   * Eine Datei in den Bucket `projektdateien` legen. Eine Anfrage je Datei — damit
+   * fällt die 4,5-MB-Wand von Vercel, und jeder Fehlschlag ist an der Kachel sichtbar
+   * statt als stumme 413 für den ganzen Stapel.
+   *
+   * Fotos werden weiter IM BROWSER verkleinert (compressImage) — das spart Upload,
+   * Speicher und Token, und die KI braucht keine 12-Megapixel-Vorlage.
+   */
+  const ladeDateiHoch = useCallback(async (datei: File, id: number) => {
+    setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, stand: 'laeuft' } : f))
+    const form = new FormData()
+    form.append('file', datei)
+    const projektId = currentProjectIdRef.current
+    if (projektId) form.append('projekt_id', projektId)
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: form })
+      const j = await res.json().catch(() => ({})) as
+        { pfad?: string; projekt_id?: string; error?: string }
+      if (!res.ok) {
+        setUploadedFiles(prev => prev.map(f => f.id === id
+          ? { ...f, stand: 'fehler', grund: j.error ?? `Fehlgeschlagen (${res.status})` } : f))
+        return
+      }
+      // Beim ersten Upload legt der Server einen Projekt-Entwurf an — ab jetzt
+      // gehören alle weiteren Dateien zu diesem Projekt.
+      if (j.projekt_id && !currentProjectIdRef.current) {
+        currentProjectIdRef.current = j.projekt_id
+        setCurrentProjectId(j.projekt_id)
+      }
+      setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, stand: 'fertig', pfad: j.pfad } : f))
+    } catch (e) {
+      setUploadedFiles(prev => prev.map(f => f.id === id
+        ? { ...f, stand: 'fehler', grund: e instanceof Error ? e.message : 'Netzfehler' } : f))
+    }
+  }, [])
+
   const loadBild = useCallback(async (file: File) => {
     const id = Date.now() + Math.round(Math.random() * 1000)
     const previewUrl = URL.createObjectURL(file)
-    setUploadedFiles(prev => [...prev, { id, name: file.name, type: 'image', previewUrl }])
+    setUploadedFiles(prev => [...prev, { id, name: file.name, type: 'image', previewUrl, stand: 'laeuft' }])
     try {
       const b64 = await compressImage(file)
       setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, b64 } : f))
+      // Das verkleinerte Bild wandert in den Bucket — das Original braucht niemand.
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+      const klein = new File([bytes], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+      await ladeDateiHoch(klein, id)
     } catch {
       const reader = new FileReader()
       reader.onload = ev => {
         const b64 = (ev.target?.result as string).split(',')[1]
         setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, b64 } : f))
+        void ladeDateiHoch(file, id)
       }
       reader.readAsDataURL(file)
     }
-  }, [compressImage])
+  }, [compressImage, ladeDateiHoch])
 
   const handlePdfUpload = useCallback(async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -848,6 +903,10 @@ export default function CraftFlow() {
     setUploadedFiles(prev => [...prev, { id: pdfId, name: file.name, type: 'pdf' }])
     setUploadingCount(prev => prev + 1)
     setStartStatus('idle')
+
+    // Das PDF selbst wandert in den Bucket: Der Server zieht daraus später den
+    // VOLLSTÄNDIGEN Text (unpdf), nicht nur die ersten 10.000 Zeichen.
+    void ladeDateiHoch(file, pdfId)
 
     // Text-Extraktion (Server) und Seiten-Rendering (Browser) parallel
     const [textRes, pagesRes] = await Promise.allSettled([
@@ -887,7 +946,7 @@ export default function CraftFlow() {
     }
 
     setUploadingCount(prev => prev - 1)
-  }, [])
+  }, [ladeDateiHoch])
 
   // ── KI Analyse ─────────────────────────────────────
   const callAI = useCallback(async (text: string, imageB64s: string[]) => {
@@ -1140,6 +1199,7 @@ export default function CraftFlow() {
     if (gaebPrompt && gaebProjektName) setKunde(prev => ({ ...prev, projekt: prev.projekt || gaebProjektName }))
     setStartStatus('loading')
     setStartMsg('')
+    setStartMinPlan(null)
     setProgressIdx(0)
     if (progressTimerRef.current) clearInterval(progressTimerRef.current)
     progressTimerRef.current = setInterval(() => setProgressIdx(i => i + 1), 1500)
@@ -1265,6 +1325,111 @@ export default function CraftFlow() {
       if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
     }
   }, [startText, uploadedFiles, callAI, gaebPrompt, gaebProjektName, refreshUsage, planDeckelFn, effectivePlan])
+
+  /**
+   * Der Weg für große Projekte: vorbereiten, dann Block für Block.
+   *
+   * NACHEINANDER, nicht parallel: Jeder Block kostet einen KI-Aufruf und ein Angebot
+   * aus dem Kontingent. Parallel gestartet, liefen bei einem Abbruch drei weitere
+   * Aufrufe unbemerkt durch — bezahlt und weggeworfen.
+   */
+  const starteBlockAnalyse = useCallback(async () => {
+    const projektId = currentProjectIdRef.current
+    if (!projektId) { setStartMsg('Bitte zuerst eine Datei hochladen.'); return }
+    abbrechenRef.current = false
+    setStartStatus('loading'); setStartMsg(''); setStartMinPlan(null); setBlockLaeuft(true)
+    setBloecke([]); setNichtVerarbeitet([]); setBlockAktuell(0)
+
+    try {
+      const vor = await fetch('/api/analyze/vorbereiten', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projekt_id: projektId, text: startText }),
+      })
+      const jv = await vor.json().catch(() => ({})) as {
+        bloecke?: Array<{ nr: number; vorschau: string; zeichen: number; bilder: number }>
+        nichtVerarbeitet?: Array<{ name: string; grund: string }>
+        error?: string; minPlan?: string | null
+      }
+      if (!vor.ok) {
+        setStartStatus('error')
+        setStartMsg(jv.error ?? `Vorbereiten fehlgeschlagen (${vor.status})`)
+        setStartMinPlan(jv.minPlan ?? null)
+        setBlockLaeuft(false)
+        return
+      }
+      const liste = jv.bloecke ?? []
+      setBloecke(liste)
+      setNichtVerarbeitet(jv.nichtVerarbeitet ?? [])
+
+      let gesammelt: Angebotsposition[] = []
+      let kundeAusBlock1 = { name: '', zusatz: '', strasse: '', ort: '', projekt: '' }
+      let hatFehler = false
+
+      for (const b of liste) {
+        if (abbrechenRef.current) break
+        setBlockAktuell(b.nr)
+        const res = await fetch('/api/analyze/block', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projekt_id: projektId,
+            blockNr: b.nr,
+            // Block 1 trägt Kopf und Gemeinpositionen; Folgeblöcke bekommen den Stand
+            // und das Verbot, sie erneut anzulegen (BLOCK_REGEL, serverseitig fest).
+            kontext: b.nr === 1 ? '' : baueKontext({
+              kunde: [kundeAusBlock1.name, kundeAusBlock1.ort].filter(Boolean).join(', '),
+              kopf: kundeAusBlock1.projekt,
+              titel: gesammelt.map(p => p.titel),
+            }),
+            userKostenstellen: userKs.filter(k => k.aktiv).map(k => ({
+              code: k.code, bezeichnung: k.bezeichnung, stundensatz: k.stundensatz,
+            })),
+            userMaterialgruppen: userMatGruppen.filter(m => m.aktiv).map(m => ({
+              name: m.name, aufschlag_prozent: m.aufschlag_prozent,
+            })),
+            deaktivierteKostenstellen: userKs.filter(k => !k.aktiv).map(k => k.code),
+          }),
+        })
+        const j = await res.json().catch(() => ({})) as
+          { success?: boolean; error?: string; minPlan?: string | null; data?: Record<string, unknown> }
+        if (!res.ok || !j.success) {
+          // Kein throw: Was bis hierher entstanden ist, bleibt stehen. Der Nutzer
+          // sieht, an welchem Block es gehakt hat, und kann neu ansetzen.
+          hatFehler = true
+          setStartStatus('error')
+          setStartMsg(`Block ${b.nr}: ${j.error ?? `Fehlgeschlagen (${res.status})`}`)
+          setStartMinPlan(j.minPlan ?? null)
+          break
+        }
+        const daten = j.data ?? {}
+        if (b.nr === 1 && daten.kunde) {
+          const kd = daten.kunde as Record<string, string>
+          kundeAusBlock1 = {
+            name: kd.name ?? '', zusatz: kd.zusatz ?? '', strasse: kd.strasse ?? '',
+            ort: kd.ort ?? '', projekt: kd.projekt ?? '',
+          }
+          setKunde(kundeAusBlock1)
+        }
+        const neue = positionenAusKi(
+          (daten.positionen as unknown) ?? [], Date.now(), DEFAULT_STUNDENSAETZE['Produktion'],
+        ) as unknown as Angebotsposition[]
+        gesammelt = vereinigePositionen(gesammelt, neue)
+        setPos(gesammelt)
+        refreshUsage().catch(() => {})
+      }
+
+      setBlockLaeuft(false)
+      setBlockAktuell(0)
+      if (gesammelt.length > 0) {
+        setScreen('app')
+        setTab('kalkulation')
+        if (!hatFehler) setStartStatus('idle')
+      }
+    } catch (e) {
+      setStartStatus('error')
+      setStartMsg(`Fehler: ${e instanceof Error ? e.message : 'Unbekannt'}`)
+      setBlockLaeuft(false)
+    }
+  }, [startText, userKs, userMatGruppen, refreshUsage])
 
   async function startFragenMic() {
     if (fragenMicStatus !== 'idle') { fragenMediaRecorderRef.current?.stop(); return }
@@ -3257,6 +3422,48 @@ export default function CraftFlow() {
                 ))}
               </div>
             )}
+
+            {uploadedFiles.some(f => f.stand === 'fehler') && (
+              <div style={{ color: C.err, fontSize: 12, marginTop: 8 }}>
+                {uploadedFiles.filter(f => f.stand === 'fehler').map(f => (
+                  <div key={f.id}>{f.name}: {f.grund}</div>
+                ))}
+              </div>
+            )}
+
+            {bloecke.length > 0 && (
+              <div style={{ background: C.gray1, border: `1px solid ${akzentTon('44')}`, borderRadius: 8,
+                padding: '12px 14px', marginTop: 10, fontSize: 12.5, color: C.white, lineHeight: 1.7 }}>
+                {bloecke.length} {bloecke.length === 1 ? 'Block' : 'Blöcke'}
+                {nichtVerarbeitet.length > 0 && (
+                  <>, {nichtVerarbeitet.length} {nichtVerarbeitet.length === 1 ? 'Datei' : 'Dateien'} nicht lesbar: {nichtVerarbeitet.map(n => `${n.name} (${n.grund})`).join(', ')}</>
+                )}
+                {blockLaeuft && blockAktuell > 0 && (
+                  <div style={{ color: C.copper, marginTop: 6 }}>
+                    {blockFortschrittText(blockAktuell, bloecke.length, pos.length)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {brauchtBlockweg(uploadedFiles) && !blockLaeuft && (
+              <button onClick={() => void starteBlockAnalyse()} style={{
+                width: '100%', marginTop: 10, background: 'transparent', color: C.white,
+                border: `1px solid ${C.copper}`, borderRadius: 4, padding: '11px 0',
+                fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                Großes Projekt in Blöcken kalkulieren
+              </button>
+            )}
+
+            {blockLaeuft && (
+              <button onClick={() => { abbrechenRef.current = true }} style={{
+                width: '100%', marginTop: 10, background: 'transparent', color: C.textMid,
+                border: `1px solid ${C.border}`, borderRadius: 4, padding: '11px 0',
+                fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                Abbrechen — das Ergebnis bis hierher bleibt
+              </button>
+            )}
+
             {gaebDetected && (
               <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${akzentTon('55')}`, background: `${akzentTon('0A')}`, padding: '12px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -3329,6 +3536,11 @@ export default function CraftFlow() {
           {startStatus === 'error' && startMsg && (
             <div style={{ marginTop: 14, background: ton(C.err, '22'), border: '1px solid #4a2a2a', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: C.err }}>
               {startMsg}
+              {startMinPlan && (
+                <div style={{ marginTop: 8 }}>
+                  <a href="/settings#plan" style={{ color: C.copper, textDecoration: 'underline' }}>Plan wechseln</a>
+                </div>
+              )}
             </div>
           )}
 

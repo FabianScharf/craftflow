@@ -155,3 +155,35 @@ export function baueKontext(k: { kunde?: string; kopf?: string; titel: string[] 
   if (zeilen.length === 0) return ''
   return `## STAND AUS DEN VORHERIGEN BLÖCKEN\n${zeilen.join('\n')}`
 }
+
+/**
+ * Positionen aus einem weiteren Block anhängen. Die bestehenden bleiben Zeichen für
+ * Zeichen, wie sie sind; die neuen bekommen fortlaufende, garantiert freie ids.
+ *
+ * WARUM NEUE IDS: positionenAusKi vergibt ids aus Date.now(). Zwei Blöcke, die
+ * innerhalb derselben Millisekunde zurückkommen, hätten identische ids — und die
+ * Oberfläche paart Positionen, Material und Zeiten über genau diese id.
+ */
+export function vereinigePositionen<T extends { id: number }>(bisher: T[], neue: T[]): T[] {
+  const alt = Array.isArray(bisher) ? bisher : []
+  const zusatz = Array.isArray(neue) ? neue : []
+  if (zusatz.length === 0) return alt
+  let naechste = alt.reduce((max, p) => Math.max(max, Number(p?.id) || 0), 0) + 1
+  return [...alt, ...zusatz.map(p => ({ ...p, id: naechste++ }))]
+}
+
+/**
+ * Ob ein Projekt über den Blockweg läuft (Vorbereiten + Block für Block) oder über den
+ * bisherigen Direktweg (`/api/analyze`). Entscheidend ist allein, ob mindestens eine
+ * Datei fertig hochgeladen ist — reiner Text bleibt immer der Direktweg, das ist für
+ * kleine Projekte kein spürbarer Unterschied zu heute.
+ */
+export function brauchtBlockweg(dateien: Array<{ stand?: string }>): boolean {
+  return (Array.isArray(dateien) ? dateien : []).some(d => d?.stand === 'fertig')
+}
+
+/** Fortschrittstext während der Blockanalyse: "Block 3 von 7 — bisher 12 Positionen". */
+export function blockFortschrittText(aktuell: number, gesamt: number, positionenBisher: number): string {
+  const einheit = positionenBisher === 1 ? 'Position' : 'Positionen'
+  return `Block ${aktuell} von ${gesamt} — bisher ${positionenBisher} ${einheit}`
+}

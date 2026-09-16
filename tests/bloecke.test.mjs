@@ -4,6 +4,7 @@ import {
   MAX_ZEICHEN_JE_BLOCK, MAX_BILDER_JE_BLOCK,
   schnittRang, schneideText, teileInBloecke, blockInfos,
   GEMEINPOSITIONEN, BLOCK_REGEL, baueKontext,
+  vereinigePositionen, brauchtBlockweg, blockFortschrittText,
 } from '../src/lib/bloecke.ts'
 import { bloeckeAblehnung } from '../src/lib/plantexte.ts'
 
@@ -127,4 +128,28 @@ test('Der Kontext trägt Kunde, Kopfdaten und die bisherigen Titel', () => {
   const viele = baueKontext({ titel: Array.from({ length: 200 }, (_, i) => `Position ${i}`) })
   assert.ok(viele.length < 4000, `Kontext zu lang: ${viele.length}`)
   assert.ok(viele.includes('Position 199'), 'die zuletzt erzeugten Titel müssen drin sein')
+})
+
+test('Positionen werden angehängt, die Nummerierung läuft fort, keine id doppelt', () => {
+  const bisher = [{ id: 1000, titel: 'A' }, { id: 1001, titel: 'B' }]
+  const neue = [{ id: 1000, titel: 'C' }, { id: 5, titel: 'D' }]   // kollidierende ids
+  const zusammen = vereinigePositionen(bisher, neue)
+  assert.deepEqual(zusammen.map(p => p.titel), ['A', 'B', 'C', 'D'], 'Reihenfolge bleibt')
+  assert.equal(new Set(zusammen.map(p => p.id)).size, 4, 'doppelte ids')
+  assert.deepEqual(zusammen.slice(0, 2), bisher, 'bestehende Positionen bleiben unangetastet')
+  assert.deepEqual(vereinigePositionen([], neue).map(p => p.titel), ['C', 'D'])
+  assert.deepEqual(vereinigePositionen(bisher, []), bisher)
+})
+
+test('Blockweg nur mit fertig hochgeladenen Dateien, sonst bleibt es beim Direktweg', () => {
+  assert.equal(brauchtBlockweg([]), false, 'ohne Dateien: Direktweg wie heute')
+  assert.equal(brauchtBlockweg([{ stand: 'laeuft' }]), false, 'noch keine Datei fertig')
+  assert.equal(brauchtBlockweg([{ stand: 'fehler' }]), false)
+  assert.equal(brauchtBlockweg([{ stand: 'laeuft' }, { stand: 'fertig' }]), true)
+})
+
+test('Der Fortschrittstext nennt den Block und die bisherigen Positionen', () => {
+  assert.equal(blockFortschrittText(3, 7, 12), 'Block 3 von 7 — bisher 12 Positionen')
+  assert.equal(blockFortschrittText(1, 1, 1), 'Block 1 von 1 — bisher 1 Position')
+  assert.equal(blockFortschrittText(1, 4, 0), 'Block 1 von 4 — bisher 0 Positionen')
 })
