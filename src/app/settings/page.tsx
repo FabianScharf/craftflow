@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { akzentTon, normalisiereHex, leitePaletteAb, wendePaletteAn, ton } from '@/lib/theme'
 import LogoFarbwaehler from '@/components/settings/LogoFarbwaehler'
 import { createClient } from '@/utils/supabase/client'
-import { normalizeKsId } from '@/lib/types'
+import { normalizeKsId, C } from '@/lib/types'
 import { PlanGate } from '@/components/PlanGate'
 import { AppHeader } from '@/components/AppHeader'
 
@@ -21,19 +21,8 @@ import { type Plan, usePlan } from '@/hooks/usePlan'
 import { PLAN_REIHE, PLAENE, PREIS_IDS, PLAN_LABELS, deckel as planDeckelFuer, merkmaleFuerAnzeige, mindestPlan } from '@/lib/plaene'
 import { istAdmin } from '@/lib/admin'
 
-const C = {
-  black:   'var(--c-primary, #0D0D0D)',
-  dark:    'var(--c-darkbg, #141414)',
-  gray1:   'var(--c-surface1, #1A1A1A)',
-  gray2:   'var(--c-surface2, #222222)',
-  border:  'var(--c-border, #2E2E2E)',
-  copper:  'var(--c-accent, #C8885A)',
-  white:   'var(--c-text, #F5F2EE)',
-  textMid: 'var(--c-text-mid, #8A8A8A)',
-  ok:      'var(--c-ok, #5ABE6A)',
-  err:     'var(--c-err, #E05A5A)',
-  warn:    'var(--c-warn, #F5C518)',
-}
+// Farben kommen aus der einen Palette in @/lib/types — drei eigene Kopien mit
+// abweichenden Rueckfallwerten liefen frueher auseinander (Farb-Audit 2026-09-16).
 
 const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
   width: '100%', boxSizing: 'border-box',
@@ -786,7 +775,7 @@ export default function SettingsPage() {
                         Lembeck): Mit der Beschriftung „Speichern / Abbrechen" hielt der Nutzer diese
                         Fläche für den Speichern-Knopf und fand den echten unten nicht. */}
                     <div style={{ background: profil.farbe_primaer || C.black, padding: '10px 18px 14px', display: 'flex', gap: 8 }}>
-                      <div style={{ background: profil.farbe_akzent || C.copper, borderRadius: 4, padding: '7px 14px', fontSize: 12, fontWeight: 700, color: profil.farbe_primaer || C.black }}>
+                      <div style={{ background: profil.farbe_akzent || C.copper, borderRadius: 4, padding: '7px 14px', fontSize: 12, fontWeight: 700, color: leitePaletteAb(profil.farbe_primaer, profil.farbe_akzent).onAccent }}>
                         Beispiel-Knopf
                       </div>
                       <div style={{ border: `1px solid ${profil.farbe_akzent || C.copper}`, borderRadius: 4, padding: '7px 14px', fontSize: 12, color: profil.farbe_akzent || C.copper }}>
@@ -1045,7 +1034,7 @@ export default function SettingsPage() {
                         <button
                           onClick={() => bpFileRef.current?.click()}
                           disabled={bpUploading}
-                          style={{ padding: '10px 20px', background: bpUploading ? C.gray2 : C.copper, color: bpUploading ? C.textMid : C.black, border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: bpUploading ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', flexShrink: 0 }}
+                          style={{ padding: '10px 20px', background: bpUploading ? C.gray2 : C.copper, color: bpUploading ? C.textMid : C.onAccent, border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: bpUploading ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', flexShrink: 0 }}
                         >
                           {bpUploading ? 'Wird hochgeladen…' : profil.pdf_briefpapier_url ? 'PDF ersetzen' : 'PDF hochladen'}
                         </button>
@@ -1318,7 +1307,7 @@ export default function SettingsPage() {
                     <Field label="Gruppe" value={newKs.gruppe} onChange={v => setNewKs(p => ({ ...p, gruppe: v }))} />
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={addKs} style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Hinzufügen</button>
+                    <button onClick={addKs} style={{ background: C.copper, color: C.onAccent, border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Hinzufügen</button>
                     <button onClick={() => setShowNewKs(false)} style={{ background: C.gray2, border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 5, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Abbrechen</button>
                   </div>
                 </div>
@@ -1359,7 +1348,7 @@ export default function SettingsPage() {
                     <Field label="Aufschlag %" value={String(newMg.aufschlag_prozent)} onChange={v => setNewMg(p => ({ ...p, aufschlag_prozent: parseFloat(v) || 0 }))} type="number" />
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={addMg} style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Hinzufügen</button>
+                    <button onClick={addMg} style={{ background: C.copper, color: C.onAccent, border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Hinzufügen</button>
                     <button onClick={() => setShowNewMg(false)} style={{ background: C.gray2, border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 5, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>Abbrechen</button>
                   </div>
                 </div>
@@ -1662,21 +1651,21 @@ export default function SettingsPage() {
                       {(zeigeAktiv || isTrialEnterprise) && (
                         <div style={{
                           position: 'absolute', top: -11, left: 20,
-                          background: C.copper, color: C.black, fontSize: 9, fontWeight: 800,
+                          background: C.copper, color: C.onAccent, fontSize: 9, fontWeight: 800,
                           letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap',
                         }}>{isTrialEnterprise ? 'TESTPHASE' : 'AKTIV'}</div>
                       )}
                       {isBeliebt && (
                         <div style={{
                           position: 'absolute', top: -11, right: 20,
-                          background: C.copper, color: C.black, fontSize: 9, fontWeight: 800,
+                          background: C.copper, color: C.onAccent, fontSize: 9, fontWeight: 800,
                           letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap',
                         }}>BELIEBT</div>
                       )}
                       {isTrialEnterprise && (
                         <div style={{
                           position: 'absolute', top: 14, right: 14,
-                          background: C.copper, color: C.black, fontSize: 10, fontWeight: 800,
+                          background: C.copper, color: C.onAccent, fontSize: 10, fontWeight: 800,
                           letterSpacing: 0.5, padding: '4px 10px', borderRadius: 20,
                           whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
                         }}>{trialDaysLeft === 0 ? '🎁 Letzter Tag' : `🎁 ${trialDaysLeft} Tage`}</div>
@@ -1723,7 +1712,7 @@ export default function SettingsPage() {
                         disabled={isCurrent || !!checkoutLoading}
                         style={{
                           background: isCurrent ? 'transparent' : C.copper,
-                          color: isCurrent ? C.ok : C.black,
+                          color: isCurrent ? C.ok : C.onAccent,
                           border: `1px solid ${isCurrent ? C.ok : C.copper}`,
                           borderRadius: 6, padding: '10px 0', fontSize: 13, fontWeight: 700,
                           cursor: isCurrent || checkoutLoading ? 'not-allowed' : 'pointer',
@@ -1768,7 +1757,7 @@ export default function SettingsPage() {
                       onClick={redeemGutschein}
                       disabled={gutscheinLoading || !gutscheinCode.trim()}
                       style={{
-                        background: C.copper, color: C.black, border: 'none',
+                        background: C.copper, color: C.onAccent, border: 'none',
                         borderRadius: 4, padding: '9px 16px', fontSize: 13,
                         fontWeight: 700, cursor: gutscheinLoading ? 'not-allowed' : 'pointer',
                         fontFamily: 'Helvetica Neue, sans-serif', whiteSpace: 'nowrap' as const,
@@ -1781,12 +1770,12 @@ export default function SettingsPage() {
                       marginTop: 8, padding: '8px 10px', borderRadius: 4, fontSize: 12,
                       background: gutscheinMsg.type === 'ok' ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)',
                       color: gutscheinMsg.type === 'ok' ? C.ok : C.err,
-                      border: `1px solid ${gutscheinMsg.type === 'ok' ? '#5ABE6A44' : '#E05A5A44'}`,
+                      border: `1px solid ${gutscheinMsg.type === 'ok' ? ton(C.ok, '44') : ton(C.err, '44')}`,
                     }}>{gutscheinMsg.text}</div>
                   )}
                 </div>
               ) : (
-                <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(90,190,106,.08)', borderRadius: 8, border: '1px solid #5ABE6A44', fontSize: 12, color: C.ok }}>
+                <div style={{ marginTop: 20, padding: '12px 16px', background: 'rgba(90,190,106,.08)', borderRadius: 8, border: `1px solid ${ton(C.ok, '44')}`, fontSize: 12, color: C.ok }}>
                   ✓ Gutschein <strong>{profil.gutschein_code}</strong> aktiv
                 </div>
               )}
@@ -1821,7 +1810,7 @@ export default function SettingsPage() {
                           padding: '8px 16px', borderRadius: 6, fontSize: 12, fontWeight: 700,
                           cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif',
                           background: profil.plan === p ? C.copper : C.gray2,
-                          color: profil.plan === p ? C.black : C.textMid,
+                          color: profil.plan === p ? C.onAccent : C.textMid,
                           border: `1px solid ${profil.plan === p ? C.copper : C.border}`,
                         }}
                       >
@@ -1848,7 +1837,7 @@ export default function SettingsPage() {
                 KI-Optimierung, Kalkulations-Check, Angebot — mit echten Beispielen.
               </p>
               <a href="https://www.getcraftflow.de/willkommen" target="_blank" rel="noreferrer"
-                style={{ display: 'inline-block', marginBottom: 28, background: C.copper, color: C.black, borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 800, textDecoration: 'none', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                style={{ display: 'inline-block', marginBottom: 28, background: C.copper, color: C.onAccent, borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 800, textDecoration: 'none', fontFamily: 'Helvetica Neue,sans-serif' }}>
                 Starthilfe öffnen →
               </a>
               <p style={{ fontSize: 13, color: C.textMid, marginBottom: 12, lineHeight: 1.6 }}>
@@ -1859,7 +1848,7 @@ export default function SettingsPage() {
                   await fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ onboarding_abgeschlossen: false }) })
                   window.location.href = '/'
                 }}
-                style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                style={{ background: C.copper, color: C.onAccent, border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
               >
                 Programmvorstellung wiederholen →
               </button>
@@ -1873,7 +1862,7 @@ export default function SettingsPage() {
               {(() => {
                 const knopf = (aktiv: boolean, voll = false) => ({
                   background: voll ? (aktiv ? C.copper : C.gray2) : 'transparent',
-                  color: voll ? (aktiv ? C.black : C.textMid) : C.copper,
+                  color: voll ? (aktiv ? C.onAccent : C.textMid) : C.copper,
                   border: voll ? 'none' : `1px solid ${C.copper}`,
                   borderRadius: 4, padding: '7px 12px', fontSize: 12, fontWeight: 700,
                   cursor: aktiv ? 'pointer' : 'not-allowed', fontFamily: 'Helvetica Neue, sans-serif', opacity: aktiv ? 1 : 0.6,
@@ -1883,7 +1872,7 @@ export default function SettingsPage() {
                   return (
                     <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 4, fontSize: 12, lineHeight: 1.6,
                       background: l.ok ? 'rgba(90,190,106,.1)' : 'rgba(224,90,90,.1)', color: l.ok ? C.ok : C.err,
-                      border: `1px solid ${l.ok ? '#5ABE6A44' : '#E05A5A44'}` }}>
+                      border: `1px solid ${l.ok ? ton(C.ok, '44') : ton(C.err, '44')}` }}>
                       <div>{l.meldung}</div>
                       {l.absender && <div style={{ color: C.textMid, marginTop: 4 }}>Absender: {l.absender} · Betreff: {l.betreff}</div>}
                       {l.empfaenger && l.empfaenger.length > 0 && <div style={{ color: C.textMid, marginTop: 6, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre' }}>{l.empfaenger.join('\n')}</div>}
@@ -1960,6 +1949,8 @@ export default function SettingsPage() {
                     {/* Vorschau-Fenster */}
                     {mailVorschau && (
                       <div onClick={() => setMailVorschau(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                        {/* Absichtlich fest weiss: darin steckt die HTML-Mail, die beim
+                            Empfaenger ebenfalls auf Weiss laeuft. */}
                         <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 680, height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: C.black, color: C.white, fontSize: 13, fontWeight: 700 }}>
                             <span>Vorschau: {mailVorschau.titel}</span>
@@ -1976,10 +1967,10 @@ export default function SettingsPage() {
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – Gutscheincodes</h2>
               <p style={{ fontSize: 12, color: C.textMid, marginBottom: 20 }}>Codes erstellen, bearbeiten und deaktivieren. Bestehende Zugänge bleiben bei Code-Löschung erhalten.</p>
 
-              {adminMsg && <div style={{ padding: '8px 12px', borderRadius: 4, fontSize: 12, marginBottom: 12, background: 'rgba(90,190,106,.1)', color: C.ok, border: '1px solid #5ABE6A44' }}>{adminMsg}</div>}
+              {adminMsg && <div style={{ padding: '8px 12px', borderRadius: 4, fontSize: 12, marginBottom: 12, background: 'rgba(90,190,106,.1)', color: C.ok, border: `1px solid ${ton(C.ok, '44')}` }}>{adminMsg}</div>}
 
               {/* Neue Code anlegen */}
-              <button onClick={() => setShowNewCode(v => !v)} style={{ marginBottom: 16, background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+              <button onClick={() => setShowNewCode(v => !v)} style={{ marginBottom: 16, background: C.copper, color: C.onAccent, border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
                 {showNewCode ? 'Abbrechen' : '+ Neuer Code'}
               </button>
 
@@ -2011,7 +2002,7 @@ export default function SettingsPage() {
                       <input value={newCode.beschreibung} onChange={e => setNewCode(p => ({ ...p, beschreibung: e.target.value }))} placeholder="z.B. Beta-Tester Welle 2" style={inp()} />
                     </div>
                   </div>
-                  <button onClick={createCode} style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                  <button onClick={createCode} style={{ background: C.copper, color: C.onAccent, border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
                     Code erstellen
                   </button>
                 </div>
@@ -2038,7 +2029,7 @@ export default function SettingsPage() {
                             {editingCode === c.code ? 'Schließen' : 'Bearbeiten'}
                           </button>
                           <button onClick={() => deleteCode(c.code)}
-                            style={{ background: 'rgba(224,90,90,.1)', color: C.err, border: `1px solid ${C.err}44`, borderRadius: 4, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                            style={{ background: ton(C.err, '1A'), color: C.err, border: `1px solid ${ton(C.err, '44')}`, borderRadius: 4, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
                             Löschen
                           </button>
                         </div>
@@ -2068,7 +2059,7 @@ export default function SettingsPage() {
                           </div>
                           <div style={{ gridColumn: '1 / -1' }}>
                             <button onClick={() => saveEditCode(c.code)}
-                              style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
+                              style={{ background: C.copper, color: C.onAccent, border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif' }}>
                               Speichern
                             </button>
                           </div>
@@ -2119,7 +2110,7 @@ function SaveRow({ saving, msg, onSave }: { saving: boolean; msg: string; onSave
         disabled={saving}
         style={{
           background: saving ? akzentTon('77') : C.copper,
-          color: C.black, border: 'none', borderRadius: 6,
+          color: C.onAccent, border: 'none', borderRadius: 6,
           padding: '10px 22px', fontSize: 13, fontWeight: 700,
           cursor: saving ? 'not-allowed' : 'pointer',
           fontFamily: 'Helvetica Neue,sans-serif',

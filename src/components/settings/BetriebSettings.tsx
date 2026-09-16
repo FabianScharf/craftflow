@@ -295,7 +295,7 @@ export default function BetriebSettings() {
       </p>
 
       {fehler && (
-        <div style={{ background: ton(C.err, '22'), border: '1px solid #6A2A2A', borderRadius: 8,
+        <div style={{ background: ton(C.err, '22'), border: `1px solid ${ton(C.err, '55')}`, borderRadius: 8,
           padding: '10px 14px', color: C.err, fontSize: 13, marginBottom: 20 }}>{fehler}</div>
       )}
 
@@ -357,7 +357,7 @@ export default function BetriebSettings() {
       </div>
 
       <button onClick={() => void speichern(false)} style={{
-        background: C.copper, border: 'none', borderRadius: 8, color: C.black,
+        background: C.copper, border: 'none', borderRadius: 8, color: C.onAccent,
         padding: '12px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
         Speichern und neu berechnen
       </button>
@@ -396,7 +396,7 @@ export default function BetriebSettings() {
         <button onClick={() => void speichern(true)} disabled={!faktorenGeaendert || faktorenSpeichern} style={{
           background: faktorenGeaendert ? C.copper : 'transparent',
           border: faktorenGeaendert ? 'none' : `1px solid ${C.border}`, borderRadius: 8,
-          color: faktorenGeaendert ? C.black : C.textMid, fontWeight: faktorenGeaendert ? 700 : 400,
+          color: faktorenGeaendert ? C.onAccent : C.textMid, fontWeight: faktorenGeaendert ? 700 : 400,
           padding: '10px 18px', fontSize: 13, cursor: faktorenGeaendert ? 'pointer' : 'default',
           opacity: faktorenSpeichern ? 0.6 : 1 }}>
           {faktorenSpeichern ? 'Speichert …' : 'Faktoren von Hand übernehmen'}
@@ -438,7 +438,7 @@ export default function BetriebSettings() {
         <button onClick={() => void speicherePreisfaktor()} disabled={!preisfaktorGeaendert || preisfaktorSpeichern} style={{
           background: preisfaktorGeaendert ? C.copper : 'transparent',
           border: preisfaktorGeaendert ? 'none' : `1px solid ${C.border}`, borderRadius: 8,
-          color: preisfaktorGeaendert ? C.black : C.textMid, fontWeight: preisfaktorGeaendert ? 700 : 400,
+          color: preisfaktorGeaendert ? C.onAccent : C.textMid, fontWeight: preisfaktorGeaendert ? 700 : 400,
           padding: '10px 18px', fontSize: 13, cursor: preisfaktorGeaendert ? 'pointer' : 'default',
           opacity: preisfaktorSpeichern ? 0.6 : 1 }}>
           {preisfaktorSpeichern ? 'Speichert …' : 'Preisfaktor übernehmen'}
@@ -485,7 +485,7 @@ export default function BetriebSettings() {
 
         {schleife && schleife.begruendung.length > 0 && (
           <button disabled={schleifeLaeuft} onClick={() => void schleifeUebernehmen()} style={{
-            background: C.copper, border: 'none', borderRadius: 8, color: C.black,
+            background: C.copper, border: 'none', borderRadius: 8, color: C.onAccent,
             padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
             Übernehmen
           </button>

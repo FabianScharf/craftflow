@@ -1,14 +1,12 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { akzentTon } from '@/lib/theme'
+import { C } from '@/lib/types'
 import { usePlan } from '@/hooks/usePlan'
 import { erlaubt as planErlaubt, type Plan } from '@/lib/plaene'
 
-const C = {
-  black: 'var(--c-primary, #0D0D0D)', dark: 'var(--c-darkbg, #141414)', gray1: 'var(--c-surface1, #1A1A1A)', gray2: 'var(--c-surface2, #222222)',
-  border: 'var(--c-border, #2E2E2E)', copper: 'var(--c-accent, #C8885A)', white: 'var(--c-text, #F5F2EE)',
-  textMid: 'var(--c-text-mid, #8A8A8A)', ok: 'var(--c-ok, #5ABE6A)', err: 'var(--c-err, #E05A5A)', warn: 'var(--c-warn, #F5C518)',
-}
+// Farben kommen aus der einen Palette in @/lib/types — drei eigene Kopien mit
+// abweichenden Rueckfallwerten liefen frueher auseinander (Farb-Audit 2026-09-16).
 
 const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
   width: '100%', boxSizing: 'border-box', padding: '9px 11px',
@@ -240,7 +238,7 @@ export function EmailSettings() {
           disabled={saving || !isStarter}
           style={{
             background: saving || !isStarter ? akzentTon('77') : C.copper,
-            color: C.black, border: 'none', borderRadius: 6,
+            color: C.onAccent, border: 'none', borderRadius: 6,
             padding: '10px 22px', fontSize: 13, fontWeight: 700,
             cursor: saving || !isStarter ? 'not-allowed' : 'pointer',
             fontFamily: 'Helvetica Neue,sans-serif',

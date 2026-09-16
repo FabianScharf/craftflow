@@ -236,6 +236,10 @@ export const C = {
   black: 'var(--c-primary, #0D0D0D)',
   darkbg: 'var(--c-darkbg, #141414)',
   copper: 'var(--c-accent, #C8885A)',
+  // Schrift AUF der Akzentfarbe (Knopfbeschriftung) — kontrastgeprueft in theme.ts.
+  // Niemals C.black auf C.copper: C.black ist die Primaerfarbe des Nutzers und
+  // nicht garantiert dunkel (Farb-Audit 2026-09-16).
+  onAccent: 'var(--c-on-accent, #0D0D0D)',
   white: 'var(--c-text, #F5F2EE)',
   gray1: 'var(--c-surface1, #1E1E1E)',
   gray2: 'var(--c-surface2, #2A2A2A)',

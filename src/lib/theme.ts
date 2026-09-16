@@ -18,6 +18,7 @@ export type Palette = {
   surface2: string  // Eingabefelder, zweite Ebene
   border: string    // Rahmen, Trennlinien
   darkbg: string    // Kopfzeile, Leisten
+  onAccent: string  // Schrift AUF der Akzentfarbe (Knopfbeschriftung)
   ok: string        // Erfolg, "gespeichert", gewonnen
   err: string       // Fehler, verloren, Warnkasten
   warn: string      // Hinweis, Testversion, offen
@@ -33,6 +34,7 @@ export const PALETTE_DUNKEL: Palette = {
   surface2: '#2A2A2A',
   border: '#2E2E2E',
   darkbg: '#141414',
+  onAccent: '#0D0D0D',
   ok: '#5ABE6A',
   err: '#E05A5A',
   warn: '#F5C518',
@@ -97,6 +99,24 @@ function lesbar(kandidaten: string[], grund: string): string {
 }
 
 /**
+ * Schrift auf der Akzentfarbe: Schwarz oder Weiss — was besser lesbar ist.
+ *
+ * GEFUNDEN 2026-09-16 (Farb-Audit): Knopfbeschriftungen standen ueberall als
+ * `color: C.black` auf `background: C.copper`. C.black ist aber die PRIMAERfarbe
+ * des Nutzers und nicht garantiert dunkel — bei hellem Primaer plus hellem Akzent
+ * war die Knopfschrift praktisch unsichtbar. Der Akzent wurde nie gegen irgendetwas
+ * kontrastgeprueft. Seither: C.onAccent.
+ */
+function schriftAufAkzent(accent: string): string {
+  return kontrast('#FFFFFF', accent) >= kontrast('#0D0D0D', accent) ? '#FFFFFF' : '#0D0D0D'
+}
+
+/** Die dunkelste der drei Flaechen — darauf muss eine dunkle Statusfarbe noch lesen. */
+function dunkelsterGrund(farben: string[]): string {
+  return farben.reduce((a, b) => (leuchtdichte(a) <= leuchtdichte(b) ? a : b))
+}
+
+/**
  * Aus Primaer- und Akzentfarbe die komplette Palette bauen.
  * Dunkle Primaerfarbe → heutige Palette, nur mit der eigenen Hintergrundfarbe.
  * Helle Primaerfarbe → dunkle Schrift, Flaechen einen Hauch dunkler als der Grund.
@@ -127,6 +147,7 @@ export function leitePaletteAb(primaer: string | null | undefined, akzent: strin
       border:   nahSchwarz ? hell(33 / 242) : hell(0.18),     // → #2E2E2E
       darkbg:   nahSchwarz ? hell(7 / 242)  : dunkel(0.10),   // → #141414
       textMid:  nahSchwarz ? hell(125 / 242) : hell(0.68),    // → #8A8A8A
+      onAccent: schriftAufAkzent(accent),
       ok: lesbar(['#5ABE6A', '#8EDB9A', '#C4F0CB'], primary),
       err: lesbar(['#E05A5A', '#FF8A80', '#FFB4AD'], primary),
       warn: lesbar(['#F5C518', '#FFDD66', '#FFEEAA'], primary),
@@ -140,19 +161,28 @@ export function leitePaletteAb(primaer: string | null | undefined, akzent: strin
   const richtung = leuchtdichte(primary) >= 0.5 ? '#000000' : '#FFFFFF'
   const text = mische(primary, '#000000', 0.95)
   const textMid = mische(primary, '#000000', 0.62)
+  const surface1 = mische(primary, richtung, 0.04)
+  const surface2 = mische(primary, richtung, 0.08)
+  // GEFUNDEN 2026-09-16 (Farb-Audit): Der helle Zweig setzte ok/err/warn FEST, ohne
+  // `lesbar()`-Pruefung — anders als der dunkle Zweig. Bei einer nur knapp hellen
+  // Primaerfarbe sank der Kontrast von z. B. #7A5F00 auf ~1,4:1. Jetzt wird wie im
+  // dunklen Zweig geprueft, und zwar gegen die DUNKELSTE der drei Flaechen, auf denen
+  // eine Statusfarbe stehen kann (Grund, Kaesten, Eingabefelder).
+  const grund = dunkelsterGrund([primary, surface1, surface2])
   return {
     primary,
     accent,
     text,
     textMid,
-    surface1: mische(primary, richtung, 0.04),
-    surface2: mische(primary, richtung, 0.08),
+    surface1,
+    surface2,
     border: mische(primary, richtung, 0.16),
     darkbg: mische(primary, richtung, 0.03),
+    onAccent: schriftAufAkzent(accent),
     // Statusfarben fuer hellen Grund: dunkler, damit sie als Schrift lesbar bleiben.
-    ok: '#2E7D32',
-    err: '#B3261E',
-    warn: '#7A5F00',
+    ok: lesbar(['#2E7D32', '#1B5E20', '#0B3D0F'], grund),
+    err: lesbar(['#B3261E', '#8C1D18', '#5A0F0C'], grund),
+    warn: lesbar(['#7A5F00', '#5A4600', '#3A2D00'], grund),
   }
 }
 
@@ -166,6 +196,7 @@ export const THEME_VARS: Record<keyof Palette, string> = {
   surface2: '--c-surface2',
   border: '--c-border',
   darkbg: '--c-darkbg',
+  onAccent: '--c-on-accent',
   ok: '--c-ok',
   err: '--c-err',
   warn: '--c-warn',

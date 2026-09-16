@@ -241,7 +241,7 @@ export default function MaterialpreiseSettings() {
           <button
             onClick={() => void anlegen()}
             disabled={!neuBezeichnung.trim() || !neuEk.trim()}
-            style={{ background: neuBezeichnung.trim() && neuEk.trim() ? C.copper : C.gray2, color: neuBezeichnung.trim() && neuEk.trim() ? C.black : C.textMid, border: 'none', borderRadius: 3, padding: '9px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+            style={{ background: neuBezeichnung.trim() && neuEk.trim() ? C.copper : C.gray2, color: neuBezeichnung.trim() && neuEk.trim() ? C.onAccent : C.textMid, border: 'none', borderRadius: 3, padding: '9px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
           >
             Anlegen
           </button>

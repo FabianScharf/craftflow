@@ -133,7 +133,7 @@ export default function TextbausteineSettings() {
       </p>
 
       {fehler && (
-        <div style={{ background: ton(C.err, '22'), border: '1px solid #6A2A2A', borderRadius: 8,
+        <div style={{ background: ton(C.err, '22'), border: `1px solid ${ton(C.err, '55')}`, borderRadius: 8,
           padding: '10px 14px', color: C.err, fontSize: 13, marginBottom: 18 }}>{fehler}</div>
       )}
 
@@ -199,7 +199,7 @@ export default function TextbausteineSettings() {
             fontFamily: 'Helvetica Neue,sans-serif', outline: 'none' }}
         />
         <button onClick={() => void anlegen(neuTitel)}
-          style={{ background: C.copper, color: C.black, border: 'none', borderRadius: 6,
+          style={{ background: C.copper, color: C.onAccent, border: 'none', borderRadius: 6,
             padding: '10px 20px', fontSize: 13, fontWeight: 800, cursor: 'pointer',
             fontFamily: 'Helvetica Neue,sans-serif' }}>Anlegen</button>
       </div>

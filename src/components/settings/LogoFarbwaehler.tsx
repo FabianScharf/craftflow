@@ -88,7 +88,7 @@ export default function LogoFarbwaehler({ logoUrl, onWahl, onClose }: {
   }
 
   const knopf = (aktiv: boolean) => ({
-    background: aktiv ? C.copper : 'transparent', color: aktiv ? C.black : C.textMid,
+    background: aktiv ? C.copper : 'transparent', color: aktiv ? C.onAccent : C.textMid,
     border: `1px solid ${aktiv ? C.copper : C.border}`, borderRadius: 6, padding: '9px 16px',
     fontSize: 12, fontWeight: 700 as const, cursor: aktiv ? 'pointer' : 'not-allowed',
     fontFamily: 'Helvetica Neue,sans-serif',

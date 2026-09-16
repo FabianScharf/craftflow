@@ -37,7 +37,7 @@ export function PlanGate({ minPlan, funktion, children, fallback }: {
       <a
         href="/settings#plan"
         style={{
-          display: 'inline-block', background: C.copper, color: C.black, border: 'none', borderRadius: 6,
+          display: 'inline-block', background: C.copper, color: C.onAccent, border: 'none', borderRadius: 6,
           padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           fontFamily: 'Helvetica Neue, sans-serif', textDecoration: 'none',
         }}

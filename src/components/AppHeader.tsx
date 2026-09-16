@@ -1,6 +1,7 @@
 'use client'
 
 import { akzentTon } from '@/lib/theme'
+import { C } from '@/lib/types'
 import { usePlan } from '@/hooks/usePlan'
 
 // Die obere Leiste — dieselbe auf jeder Seite.
@@ -18,13 +19,8 @@ import { usePlan } from '@/hooks/usePlan'
 // Rueckfrage bei ungespeicherten Aenderungen (mitPruefung). Nur das LogoMark ist
 // gemeinsam — es soll genau ein Zeichen geben, kein zweites daneben.
 
-const FARBE = {
-  darkbg: 'var(--c-darkbg, #141414)',
-  black: 'var(--c-primary, #0D0D0D)',
-  border: 'var(--c-border, #2E2E2E)',
-  textMid: 'var(--c-text-mid, #8A8A8A)',
-  accent: 'var(--c-accent, #C8885A)',
-}
+// Farben kommen aus der einen Palette in @/lib/types — eine eigene Kopie hier lief
+// frueher auseinander (Farb-Audit 2026-09-16).
 
 export const LogoMark = ({ size = 36, userLogoUrl }: { size?: number; userLogoUrl?: string | null }) =>
   userLogoUrl
@@ -33,7 +29,7 @@ export const LogoMark = ({ size = 36, userLogoUrl }: { size?: number; userLogoUr
     : (
       <svg width={size} height={size} viewBox="0 0 36 36" fill="none" style={{ flexShrink: 0 }}>
         <rect width="36" height="36" rx="7" fill="var(--c-accent, #C8885A)" />
-        <text x="18" y="25" textAnchor="middle" fill="#0D0D0D"
+        <text x="18" y="25" textAnchor="middle" fill="var(--c-on-accent, #0D0D0D)"
           fontFamily="Helvetica Neue, Helvetica, Arial, sans-serif"
           fontSize="15" fontWeight="800" letterSpacing="0.5">CF</text>
       </svg>
@@ -70,9 +66,9 @@ export function AppHeader({
   const { isInTrial, trialDaysLeft } = usePlan()
 
   const knopf = (an: boolean): React.CSSProperties => ({
-    background: an ? FARBE.accent : 'transparent',
-    color: an ? FARBE.black : FARBE.textMid,
-    border: an ? 'none' : `1px solid ${FARBE.border}`,
+    background: an ? C.copper : 'transparent',
+    color: an ? C.onAccent : C.textMid,
+    border: an ? 'none' : `1px solid ${C.border}`,
     borderRadius: 6,
     padding: isMobile ? (an ? '8px 10px' : '7px 9px') : (an ? '9px 12px' : '9px 11px'),
     cursor: 'pointer', fontSize: 16, lineHeight: 1,
@@ -89,7 +85,7 @@ export function AppHeader({
           gap: 10, cursor: 'pointer' }}
       >
         <span style={{ fontSize: 14 }}>🎁</span>
-        <span style={{ fontSize: 12, color: FARBE.accent, fontFamily: 'Helvetica Neue,sans-serif' }}>
+        <span style={{ fontSize: 12, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif' }}>
           {/* Am letzten Tag stand hier "0 Tage Testversion verbleiben" — die
               Kalendertagsrechnung ist dann bei 0, der Zugang läuft aber noch
               (isInTrial rechnet in Millisekunden). Audit 2026-09-17, Minor. */}
@@ -97,28 +93,28 @@ export function AppHeader({
             ? <><strong>Heute</strong> läuft die Testphase ab — alle Funktionen noch freigeschaltet</>
             : <><strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet</>}
         </span>
-        <span style={{ fontSize: 11, color: FARBE.textMid, marginLeft: 4 }}>Plan wählen →</span>
+        <span style={{ fontSize: 11, color: C.textMid, marginLeft: 4 }}>Plan wählen →</span>
       </div>
     )}
     <div style={{
-      background: FARBE.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center',
-      justifyContent: 'space-between', borderBottom: `2px solid ${FARBE.accent}`, gap: 8,
+      background: C.darkbg, padding: '12px 14px', display: 'flex', alignItems: 'center',
+      justifyContent: 'space-between', borderBottom: `2px solid ${C.copper}`, gap: 8,
       position: 'sticky', top: 0, zIndex: 20,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
         <LogoMark size={34} userLogoUrl={logoUrl} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: FARBE.accent, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>
+          <div style={{ color: C.copper, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>
             {titel}
           </div>
           {firmenName && !isMobile && (
-            <div style={{ color: FARBE.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>
+            <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>
               {firmenName.toUpperCase()}
             </div>
           )}
         </div>
         {zusatz && (
-          <div style={{ color: '#F5F2EE', fontSize: 11, fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 6 }}>
+          <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 6 }}>
             {zusatz}
           </div>
         )}

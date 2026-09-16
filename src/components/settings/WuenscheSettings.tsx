@@ -162,7 +162,7 @@ export default function WuenscheSettings() {
           <button onClick={() => void vorschlagen()} disabled={!titel.trim() || sendet} style={{
             background: titel.trim() ? C.copper : 'transparent',
             border: titel.trim() ? 'none' : `1px solid ${C.border}`, borderRadius: 8,
-            color: titel.trim() ? C.black : C.textMid, fontWeight: titel.trim() ? 700 : 400,
+            color: titel.trim() ? C.onAccent : C.textMid, fontWeight: titel.trim() ? 700 : 400,
             padding: '10px 18px', fontSize: 13, cursor: titel.trim() ? 'pointer' : 'default',
             opacity: sendet ? 0.6 : 1 }}>
             {sendet ? 'Sendet …' : 'Wunsch vorschlagen'}

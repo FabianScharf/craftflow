@@ -31,9 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeLoader />
         {children}
         <footer style={{ padding: '14px 24px', borderTop: '1px solid var(--c-border, #1E1E1E)', display: 'flex', justifyContent: 'center', gap: 24 }}>
-          <a href="/impressum"   style={{ fontSize: 11, color: 'var(--c-text-mid, #4A4A4A)', textDecoration: 'none' }}>Impressum</a>
-          <a href="/datenschutz" style={{ fontSize: 11, color: 'var(--c-text-mid, #4A4A4A)', textDecoration: 'none' }}>Datenschutz</a>
-          <a href="/agb"         style={{ fontSize: 11, color: 'var(--c-text-mid, #4A4A4A)', textDecoration: 'none' }}>AGB</a>
+          <a href="/impressum"   style={{ fontSize: 11, color: 'var(--c-text-mid, #8A8A8A)', textDecoration: 'none' }}>Impressum</a>
+          <a href="/datenschutz" style={{ fontSize: 11, color: 'var(--c-text-mid, #8A8A8A)', textDecoration: 'none' }}>Datenschutz</a>
+          <a href="/agb"         style={{ fontSize: 11, color: 'var(--c-text-mid, #8A8A8A)', textDecoration: 'none' }}>AGB</a>
         </footer>
       </body>
     </html>

@@ -309,7 +309,7 @@ export default function BauweiseSettings() {
             <button
               onClick={() => void anlegen()}
               disabled={!neuDann.trim()}
-              style={{ flex: 1, background: neuDann.trim() ? C.copper : C.gray2, color: neuDann.trim() ? C.black : C.textMid, border: 'none', borderRadius: 3, padding: '9px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, cursor: neuDann.trim() ? 'pointer' : 'not-allowed' }}
+              style={{ flex: 1, background: neuDann.trim() ? C.copper : C.gray2, color: neuDann.trim() ? C.onAccent : C.textMid, border: 'none', borderRadius: 3, padding: '9px 0', fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 800, cursor: neuDann.trim() ? 'pointer' : 'not-allowed' }}
             >Regel speichern</button>
           </div>
         </div>

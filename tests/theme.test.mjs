@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   normalisiereHex, istHell, kontrast, leitePaletteAb, akzentTon, ton, PALETTE_DUNKEL,
+  wendePaletteAn, THEME_VARS,
 } from '../src/lib/theme.ts'
 
 // Kundenrueckmeldung vom 2026-09-15 (Tischlerei ueber Instagram): "wenn man einen
@@ -101,4 +102,39 @@ test('Dunkle Primaerfarbe, die nicht Schwarz ist: Kaesten, Rahmen und Nebentext 
   }
   assert.ok(kontrast(p.text, p.surface1) >= 4.5, 'Haupttext auf Kaesten lesbar')
   assert.ok(kontrast(p.textMid, p.primary) >= 3, 'Nebentext auf dem Grund erkennbar')
+})
+
+test('Schrift auf dem Akzent: immer kontrastgeprueft, egal welcher Akzent gewaehlt wird', () => {
+  // Farb-Audit 2026-09-16: Knopfbeschriftungen standen als C.black (= Primaerfarbe!)
+  // auf C.copper. Bei hellem Primaer + hellem Akzent war die Schrift unsichtbar.
+  for (const akzent of ['#C8885A', '#F6EEEF', '#820D1B', '#1E5AC8']) {
+    for (const primaer of ['#0D0D0D', '#FFFFFF', '#955050', '#E9CDCD']) {
+      const p = leitePaletteAb(primaer, akzent)
+      assert.ok(
+        kontrast(p.onAccent, p.accent) >= 4.5,
+        `${akzent}: ${p.onAccent} auf ${p.accent} = ${kontrast(p.onAccent, p.accent)}`,
+      )
+    }
+  }
+})
+
+test('Statusfarben bleiben auch auf knapp hellen Primaerfarben lesbar', () => {
+  // Farb-Audit 2026-09-16: Der helle Zweig setzte ok/err/warn fest, ohne Pruefung.
+  for (const primaer of ['#FFFFFF', '#E9CDCD', '#FFF6E0', '#DDE7F0']) {
+    const p = leitePaletteAb(primaer, '#C8885A')
+    for (const f of ['ok', 'err', 'warn']) {
+      assert.ok(
+        kontrast(p[f], p.primary) >= 4.5,
+        `${primaer} ${f} ${p[f]}: ${kontrast(p[f], p.primary)}`,
+      )
+    }
+  }
+})
+
+test('Die Palette schreibt --c-on-accent mit', () => {
+  const gesetzt = {}
+  const ziel = { style: { setProperty: (n, v) => { gesetzt[n] = v } } }
+  wendePaletteAn(ziel, leitePaletteAb('#FFFFFF', '#F6EEEF'))
+  assert.equal(gesetzt['--c-on-accent'], '#0D0D0D')
+  assert.equal(THEME_VARS.onAccent, '--c-on-accent')
 })
