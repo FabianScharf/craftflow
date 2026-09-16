@@ -660,6 +660,10 @@ export default function CraftFlow() {
   // Positionen geliefert — die bleiben stehen, der Nutzer entscheidet selbst weiter.
   const [blockFehlerPartiell, setBlockFehlerPartiell] = useState(false)
   const abbrechenRef = useRef(false)
+  // Bricht den GERADE LAUFENDEN Block-fetch sofort ab. abbrechenRef allein wurde nur
+  // vor dem NÄCHSTEN Block geprüft — zwischen zwei Blöcken liegt keine Pause, also
+  // lief der laufende Block trotz Klick immer noch bis zu 3 Minuten weiter (16.09.).
+  const abbruchControllerRef = useRef<AbortController | null>(null)
   const [fragenInput, setFragenInput] = useState('')
   const [fragenMicStatus, setFragenMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
   const fragenMediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -1357,6 +1361,7 @@ export default function CraftFlow() {
     const projektId = currentProjectIdRef.current
     if (!projektId) { setStartMsg('Bitte zuerst eine Datei hochladen.'); return }
     abbrechenRef.current = false
+    abbruchControllerRef.current = new AbortController()
     setStartStatus('loading'); setStartMsg(''); setStartMinPlan(null); setBlockLaeuft(true)
     setBloecke([]); setNichtVerarbeitet([]); setBlockAktuell(0); setBlockFehlerPartiell(false)
 
@@ -1396,6 +1401,7 @@ export default function CraftFlow() {
         setBlockAktuell(b.nr)
         const res = await fetch('/api/analyze/block', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
+          signal: abbruchControllerRef.current?.signal,
           body: JSON.stringify({
             projekt_id: projektId,
             blockNr: b.nr,
@@ -1461,6 +1467,23 @@ export default function CraftFlow() {
         setStartStatus('idle')
       }
     } catch (e) {
+      // Abbruch per Knopf ist KEIN Fehler: der Nutzer hat den laufenden Block bewusst
+      // gekappt (abbruchControllerRef.abort()), die Antwort des abgebrochenen fetch wird
+      // nie verarbeitet. Behandlung wie der Erfolgspfad — nur mit dem, was bis hierher
+      // feststeht (16.09.: vorher lief der Block trotz Klick bis zu 3 Minuten weiter).
+      if (abbrechenRef.current || (e instanceof DOMException && e.name === 'AbortError')) {
+        setBlockLaeuft(false)
+        setBlockAktuell(0)
+        if (gesammelt.length > 0) {
+          setScreen('app')
+          setTab('kalkulation')
+          setStartStatus('idle')
+        } else {
+          setStartStatus('idle')
+          setStartMsg('Abgebrochen.')
+        }
+        return
+      }
       // Netzfehler mitten im Blocklauf (fetch schlägt fehl oder wirft): Was bis hierher
       // entstanden ist, bleibt stehen — genauso wie im !res.ok-Zweig oben, sonst sieht der
       // Nutzer trotz vorhandener Positionen nur eine allgemeine Fehlermeldung ohne den
@@ -3503,11 +3526,14 @@ export default function CraftFlow() {
             )}
 
             {blockLaeuft && (
-              <button onClick={() => { abbrechenRef.current = true }} style={{
+              <button onClick={() => {
+                abbrechenRef.current = true
+                abbruchControllerRef.current?.abort()
+              }} style={{
                 width: '100%', marginTop: 10, background: 'transparent', color: C.textMid,
                 border: `1px solid ${C.border}`, borderRadius: 4, padding: '11px 0',
                 fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
-                Abbrechen — das Ergebnis bis hierher bleibt
+                Abbrechen — die Positionen bis hierher bleiben (der laufende Block wird noch berechnet und zählt)
               </button>
             )}
 
