@@ -1201,6 +1201,90 @@ export default function CraftFlow() {
     'Erstelle Angebot…',
   ]
 
+  /**
+   * Übernimmt ein KI-Ergebnis (Direktweg ODER Blockweg) ins Projekt: legt es an
+   * oder aktualisiert den Entwurf, setzt den Vergleichsstand für die
+   * Ungespeichert-Erkennung und hinterlegt die Version „Erstfassung der KI" für
+   * die Lernschleife.
+   *
+   * C-1: Vorher machte das nur der Direktweg — der Blockweg lief außen herum,
+   * schaltete damit lautlos Speicherleiste, Verlassen-Nachfrage und
+   * beforeunload-Warnung ab und verlor ein fertiges Ergebnis beim nächsten
+   * Neuladen (Live-Test 6: 30 Positionen, 4 Angebote verbraucht, 0 gespeichert).
+   * Feuere und vergiss wie im ursprünglichen Direktweg: ein Fehler hier darf das
+   * Angebot nie aufhalten.
+   */
+  const uebernehmeKiErgebnis = useCallback((args: {
+    kunde: Kunde
+    positionen: Angebotsposition[]
+    anschreiben?: string
+  }) => {
+    const { kunde: parsedKunde, positionen: parsedPos } = args
+    const parsedAnschr = args.anschreiben || anschr
+    if (args.anschreiben) setAnschr(parsedAnschr)
+
+    // Der vom Upload angelegte Entwurf (Titel „Entwurf") hat currentProjectIdRef
+    // bereits gesetzt — hier greift dann PUT statt eines zweiten, doppelten POST.
+    const projectId = currentProjectIdRef.current
+    const title = [parsedKunde.name.trim(), parsedKunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
+    const payload = { kunde: parsedKunde, pos: parsedPos, docNr, docTyp, anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today() }
+    // Der frisch analysierte Stand gilt als gesichert — sonst meldet die App
+    // sofort "ungespeicherte Aenderungen", obwohl der Nutzer nichts getan hat.
+    setGespeicherterStand(JSON.stringify({
+      kunde: parsedKunde, pos: parsedPos, docNr, docTyp,
+      anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today(),
+    }))
+    fetch(
+      projectId ? `/api/projects/${projectId}` : '/api/projects',
+      {
+        method: projectId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, data: payload }),
+      }
+    ).then(async r => {
+      if (!r.ok) return
+      const row = await r.json()
+      const isNew = !projectId
+      if (isNew) {
+        setCurrentProjectId(row.id)
+        currentProjectIdRef.current = row.id
+      }
+
+      // Die Erstfassung der KI als Version festhalten — das ist der Bezugspunkt
+      // der Lernschleife.
+      //
+      // GEFUNDEN AM 2026-09-07: Eine Version entstand bisher NUR, wenn der
+      // Nutzer den Optimieren-Chat benutzt hat. Wer die Zeiten von Hand in der
+      // Tabelle korrigiert — der naheliegendste Weg — lieferte der Lernschleife
+      // gar nichts: Sie vergleicht Version 1 mit dem Endstand, und ohne
+      // Version 1 ueberspringt sie das Projekt stillschweigend. Damit lernte
+      // CraftFlow ausgerechnet aus den haeufigsten Korrekturen nicht.
+      //
+      // Feuere und vergiss: Ein Fehler hier darf das Angebot nie aufhalten.
+      fetch('/api/offer-versions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          offerId: row.id,
+          description: 'Erstfassung der KI',
+          data: { positionen: parsedPos, kunde: parsedKunde },
+        }),
+      }).catch(() => {})
+      setProjects(prev => {
+        const exists = prev.find(p => p.id === row.id)
+        return exists ? prev.map(p => p.id === row.id ? row : p) : [row, ...prev]
+      })
+      if (isNew) {
+        const next = nummernNaechste + 1
+        setNummernNaechste(next)
+        fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ angebotsnummer_naechste: next }) }).catch(() => {})
+        const gesamtNetto = nettoSumme(parsedPos)
+        const ersteMaterial = parsedPos.flatMap((p: Angebotsposition) => p.material)[0]?.bezeichnung ?? ''
+        fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'outcome_init', projectId: row.id, data: { moebel_typ: parsedPos[0]?.titel ?? '', material: ersteMaterial, ist_massivholz: /massiv|eiche|buche|nuss|fichte|kiefer/i.test(ersteMaterial), preis_kalkuliert: gesamtNetto, plz: parsedKunde.ort.trim().split(/\s+/)[0] ?? '' } }) }).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [anschr, docNr, docTyp, widerruf, angebotsdatum, nummernNaechste])
+
   const startAnalyse = useCallback(async (overrideText?: string) => {
     const basePart = overrideText ?? startText
     // GAEB-Prompt + optionaler Zusatztext kombinieren
@@ -1282,65 +1366,10 @@ export default function CraftFlow() {
         setGaebProjektName('')
         setGaebPositionenCount(0)
 
-        // Automatisch speichern (feuere-und-vergiss, kein UI-Feedback nötig)
-        const projectId = currentProjectIdRef.current
-        const title = [parsedKunde.name.trim(), parsedKunde.projekt.trim()].filter(Boolean).join(' – ') || 'Ohne Titel'
-        const payload = { kunde: parsedKunde, pos: parsedPos, docNr, docTyp, anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today() }
-        // Der frisch analysierte Stand gilt als gesichert — sonst meldet die App
-        // sofort "ungespeicherte Aenderungen", obwohl der Nutzer nichts getan hat.
-        setGespeicherterStand(JSON.stringify({
-          kunde: parsedKunde, pos: parsedPos, docNr, docTyp,
-          anschr: parsedAnschr, widerruf, angebotsdatum: angebotsdatum || today(),
-        }))
-        fetch(
-          projectId ? `/api/projects/${projectId}` : '/api/projects',
-          {
-            method: projectId ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, data: payload }),
-          }
-        ).then(async r => {
-          if (!r.ok) return
-          const row = await r.json()
-          const isNew = !projectId
-          if (isNew) {
-            setCurrentProjectId(row.id)
-            currentProjectIdRef.current = row.id
-          }
-
-          // Die Erstfassung der KI als Version festhalten — das ist der Bezugspunkt
-          // der Lernschleife.
-          //
-          // GEFUNDEN AM 2026-09-07: Eine Version entstand bisher NUR, wenn der
-          // Nutzer den Optimieren-Chat benutzt hat. Wer die Zeiten von Hand in der
-          // Tabelle korrigiert — der naheliegendste Weg — lieferte der Lernschleife
-          // gar nichts: Sie vergleicht Version 1 mit dem Endstand, und ohne
-          // Version 1 ueberspringt sie das Projekt stillschweigend. Damit lernte
-          // CraftFlow ausgerechnet aus den haeufigsten Korrekturen nicht.
-          //
-          // Feuere und vergiss: Ein Fehler hier darf das Angebot nie aufhalten.
-          fetch('/api/offer-versions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              offerId: row.id,
-              description: 'Erstfassung der KI',
-              data: { positionen: parsedPos, kunde: parsedKunde },
-            }),
-          }).catch(() => {})
-          setProjects(prev => {
-            const exists = prev.find(p => p.id === row.id)
-            return exists ? prev.map(p => p.id === row.id ? row : p) : [row, ...prev]
-          })
-          if (isNew) {
-            const next = nummernNaechste + 1
-            setNummernNaechste(next)
-            fetch('/api/settings/betriebsprofil', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ angebotsnummer_naechste: next }) }).catch(() => {})
-            const gesamtNetto = nettoSumme(parsedPos)
-            const ersteMaterial = parsedPos.flatMap((p: Angebotsposition) => p.material)[0]?.bezeichnung ?? ''
-            fetch('/api/tracking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'outcome_init', projectId: row.id, data: { moebel_typ: parsedPos[0]?.titel ?? '', material: ersteMaterial, ist_massivholz: /massiv|eiche|buche|nuss|fichte|kiefer/i.test(ersteMaterial), preis_kalkuliert: gesamtNetto, plz: parsedKunde.ort.trim().split(/\s+/)[0] ?? '' } }) }).catch(() => {})
-          }
-        }).catch(() => {})
+        // Automatisch speichern (feuere-und-vergiss, kein UI-Feedback nötig).
+        // C-1: dieselbe Übernahme wie im Blockweg, ausgelagert in eine gemeinsame
+        // Funktion — siehe uebernehmeKiErgebnis oben.
+        uebernehmeKiErgebnis({ kunde: parsedKunde, positionen: parsedPos, anschreiben: data.anschreiben })
       }
     } catch (e: unknown) {
       setStartStatus('error')
@@ -1348,7 +1377,7 @@ export default function CraftFlow() {
     } finally {
       if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null }
     }
-  }, [startText, uploadedFiles, callAI, gaebPrompt, gaebProjektName, refreshUsage, planDeckelFn, effectivePlan])
+  }, [startText, uploadedFiles, callAI, gaebPrompt, gaebProjektName, refreshUsage, planDeckelFn, effectivePlan, uebernehmeKiErgebnis])
 
   /**
    * Der Weg für große Projekte: vorbereiten, dann Block für Block.
@@ -1367,9 +1396,24 @@ export default function CraftFlow() {
 
     // Außerhalb von try/catch deklariert, damit der catch-Zweig (Netzfehler mitten im
     // Blocklauf) weiß, wie viele Positionen schon feststehen und an welchem Block es
-    // hakte — sonst verschwindet dieses Wissen mit dem try-Block.
+    // hakte — sonst verschwindet dieses Wissen mit dem try-Block. kundeAusBlock1 und
+    // anschreibenAusBlock1 aus demselben Grund hier draußen (C-1: müssen auch dann in
+    // uebernehmeKiErgebnis landen, wenn ein späterer Block abbricht oder scheitert).
     let gesammelt: Angebotsposition[] = []
     let blockNrAktuell = 0
+    let kundeAusBlock1: Kunde = { name: '', zusatz: '', strasse: '', ort: '', projekt: '' }
+    let anschreibenAusBlock1 = ''
+
+    // C-1: dasselbe Übernehmen wie im Direktweg — Projekt speichern (PUT auf den vom
+    // Upload angelegten Entwurf), Vergleichsstand setzen, Version „Erstfassung der KI"
+    // anlegen. Wird unten aus jedem Pfad mit mindestens einer Position aufgerufen
+    // (Erfolg, Abbruch mit Teilergebnis, Fehler mit Teilergebnis) — sonst bleibt der
+    // Blockweg außerhalb jeder Verlust-Absicherung (Speicherleiste, Verlassen-Nachfrage,
+    // beforeunload).
+    const speichereTeilergebnis = () => {
+      if (gesammelt.length === 0) return
+      uebernehmeKiErgebnis({ kunde: kundeAusBlock1, positionen: gesammelt, anschreiben: anschreibenAusBlock1 })
+    }
 
     try {
       const vor = await fetch('/api/analyze/vorbereiten', {
@@ -1392,7 +1436,6 @@ export default function CraftFlow() {
       setBloecke(liste)
       setNichtVerarbeitet(jv.nichtVerarbeitet ?? [])
 
-      let kundeAusBlock1 = { name: '', zusatz: '', strasse: '', ort: '', projekt: '' }
       let hatFehler = false
 
       for (const b of liste) {
@@ -1444,6 +1487,11 @@ export default function CraftFlow() {
           }
           setKunde(kundeAusBlock1)
         }
+        // C-1 / S-3: das Anschreiben aus Block 1 wurde bisher komplett verworfen.
+        if (b.nr === 1 && typeof daten.anschreiben === 'string' && daten.anschreiben.trim()) {
+          anschreibenAusBlock1 = daten.anschreiben
+          setAnschr(anschreibenAusBlock1)
+        }
         const neue = positionenAusKi(
           (daten.positionen as unknown) ?? [], Date.now(), DEFAULT_STUNDENSAETZE['Produktion'],
         ) as unknown as Angebotsposition[]
@@ -1459,9 +1507,11 @@ export default function CraftFlow() {
         // weil der Startbildschirm im selben Zug verlassen wird. Die Positionen aus den
         // erfolgreichen Blöcken stehen bereits in `pos` — der Nutzer entscheidet über
         // den Button "Mit N Positionen weiter" (unten auf dem Startbildschirm), ob er
-        // damit weiterarbeitet.
-        if (gesammelt.length > 0) setBlockFehlerPartiell(true)
+        // damit weiterarbeitet. Gespeichert wird trotzdem sofort (C-1) — der Knopf
+        // "weiter" darf keine Voraussetzung fürs Sichern sein.
+        if (gesammelt.length > 0) { setBlockFehlerPartiell(true); speichereTeilergebnis() }
       } else if (gesammelt.length > 0) {
+        speichereTeilergebnis()
         setScreen('app')
         setTab('kalkulation')
         setStartStatus('idle')
@@ -1475,6 +1525,7 @@ export default function CraftFlow() {
         setBlockLaeuft(false)
         setBlockAktuell(0)
         if (gesammelt.length > 0) {
+          speichereTeilergebnis()
           setScreen('app')
           setTab('kalkulation')
           setStartStatus('idle')
@@ -1497,9 +1548,9 @@ export default function CraftFlow() {
       setStartMsg(`${vorspann}${fehlerText}${teilHinweis}`)
       setBlockLaeuft(false)
       setBlockAktuell(0)
-      if (gesammelt.length > 0) setBlockFehlerPartiell(true)
+      if (gesammelt.length > 0) { setBlockFehlerPartiell(true); speichereTeilergebnis() }
     }
-  }, [startText, userKs, userMatGruppen, refreshUsage])
+  }, [startText, userKs, userMatGruppen, refreshUsage, uebernehmeKiErgebnis])
 
   async function startFragenMic() {
     if (fragenMicStatus !== 'idle') { fragenMediaRecorderRef.current?.stop(); return }
