@@ -45,7 +45,7 @@ export function pruefeTexte(titel: unknown, beschreibung: unknown): TextPruefung
   return { ok: true, titel: t, beschreibung: b }
 }
 
-export type Stimme = { wunsch_id: string; user_id: string; created_at: string }
+export type Stimme = { id?: string; wunsch_id: string; user_id: string; created_at: string }
 
 /** Wie viele Stimmen dieser Nutzer nach seinem Plan hat. Gesperrt = 0. */
 export function stimmenbudget(profil: ProfilFuerPlan | null | undefined, jetzt: Date = new Date()): number {
@@ -56,6 +56,15 @@ export function stimmenbudget(profil: ProfilFuerPlan | null | undefined, jetzt: 
  * Welche Stimmen zählen. Je Nutzer bleiben die ÄLTESTEN N aktiv (wendeDeckelAn),
  * alle weiteren zählen nicht — dieselbe Regel wie bei Bauweise-Regeln und
  * Materialpreisen. Nichts wird gelöscht; ein Upgrade wirkt sofort beim nächsten Lesen.
+ *
+ * KORREKTUR (16.09. abends, Stimmenkonto): Die Reihenfolge wurde vorher über den
+ * Schlüssel `user_id|wunsch_id` wiederhergestellt — das reichte, solange je Nutzer und
+ * Wunsch höchstens eine Zeile existierte. Seit Stimmen stapelbar sind, teilen sich
+ * mehrere Zeilen genau diesen Schlüssel, und der alte Code hätte sie nicht mehr
+ * unterscheiden können (Budget 3, 5 gestapelte Stimmen → alle 5 kämen durch statt 3).
+ * `wendeDeckelAn` erhält und liefert Zeilen in derselben Reihenfolge zurück (`.map`) —
+ * das genügt, um jede ORIGINAL-Zeile über ihren Platz in der Liste eindeutig
+ * zurückzuspiegeln, ganz ohne Schlüssel.
  */
 export function aktiveStimmen(
   stimmen: Stimme[],
@@ -68,22 +77,26 @@ export function aktiveStimmen(
     liste.push(s)
     jeNutzer.set(s.user_id, liste)
   }
-  const aktiv: Stimme[] = []
+  const aktivRefs = new Set<Stimme>()
   for (const [userId, liste] of jeNutzer) {
     const budget = stimmenbudget(profile[userId], jetzt)
-    for (const s of wendeDeckelAn(liste, budget)) if (s.aktivDurchPlan) aktiv.push(s)
+    const bewertet = wendeDeckelAn(liste, budget)
+    for (let i = 0; i < liste.length; i++) if (bewertet[i].aktivDurchPlan) aktivRefs.add(liste[i])
   }
-  // Reihenfolge der Eingabe wiederherstellen, damit der Aufrufer sich darauf verlassen kann.
-  const erlaubt = new Set(aktiv.map(s => `${s.user_id}|${s.wunsch_id}`))
-  return (stimmen ?? []).filter(s => erlaubt.has(`${s.user_id}|${s.wunsch_id}`))
+  return (stimmen ?? []).filter(s => aktivRefs.has(s))
 }
 
 /**
- * Stimmen auf ausgeblendete oder zusammengelegte Wünsche zählen nicht gegen das Budget.
- * GEFUNDEN 16.09. (Fabians Screenshot): „2 von 30 Stimmen vergeben", sichtbar war eine —
- * die zweite hing an einem ausgeblendeten Testwunsch, den niemand mehr sieht und dessen
- * Stimme niemand zurückziehen kann. Gelöscht wird nichts: Blendet der Admin den Wunsch
- * wieder ein, zählt die Stimme wieder.
+ * Stimmen auf ausgeblendete, fertige oder zusammengelegte Wünsche zählen nicht gegen
+ * das Budget. GEFUNDEN 16.09. (Fabians Screenshot): „2 von 30 Stimmen vergeben",
+ * sichtbar war eine — die zweite hing an einem ausgeblendeten Testwunsch, den niemand
+ * mehr sieht und dessen Stimme niemand zurückziehen kann. Gelöscht wird nichts:
+ * Blendet der Admin den Wunsch wieder ein, zählt die Stimme wieder.
+ *
+ * NEU (16.09. abends, Stimmenkonto): Fertig zählt jetzt genauso wenig wie ausgeblendet
+ * oder zusammengelegt — wer für einen fertigen Wunsch gestimmt hat, bekommt die Stimme
+ * automatisch zurück und kann sie anderswo einsetzen. Die Routen liefern dafür auch die
+ * ids von Wünschen mit `status = 'fertig'` in `versteckteIds` hinein.
  */
 export function ohneVersteckte(stimmen: Stimme[], versteckteIds: Iterable<string>): Stimme[] {
   const versteckt = new Set(versteckteIds)
@@ -103,29 +116,36 @@ export function stimmenJeWunsch(
 }
 
 /**
- * Planung fürs Zusammenlegen zweier Wünsche: Stimmen des Quell-Wunsches wandern
- * zum Ziel — aber „eine Stimme je Wunsch je Nutzer" darf dabei nicht verletzt
- * werden. Wer für beide schon gestimmt hat, verliert die Quell-Stimme (Duplikat),
- * niemand bekommt dadurch eine zweite Stimme am Ziel. Reine Funktion — die
- * Admin-Route führt die zurückgegebenen Zeilen dann in der DB aus (Quelle löschen,
- * `uebertragen` am Ziel einfügen).
+ * Planung fürs Zusammenlegen zweier Wünsche: ALLE Stimmen des Quell-Wunsches wandern
+ * zum Ziel. NEU (16.09. abends, Stimmenkonto): keine Dubletten-Regel mehr — Stapeln
+ * ist erlaubt, ein Nutzer darf am Ziel schon Stimmen liegen haben, es kommen einfach
+ * weitere dazu. `loeschen` sind die Quellzeilen (an ihrem alten Platz), `uebertragen`
+ * dieselben Zeilen mit `wunsch_id = zielId`. Reine Funktion, für den Test erhalten —
+ * die Admin-Route selbst verschiebt die Zeilen inzwischen direkt per SQL-Update
+ * (`set wunsch_id = ziel where wunsch_id = quelle`), damit ids/created_at erhalten
+ * bleiben, statt löschen+einfügen über diese Funktion zu fahren.
  */
 export function planeZusammenlegenStimmen(
   quelleId: string,
   zielId: string,
   stimmenQuelle: Stimme[],
-  stimmenZiel: Stimme[],
-): { uebertragen: Stimme[]; verworfen: Stimme[] } {
-  const zielUser = new Set((stimmenZiel ?? []).filter(s => s.wunsch_id === zielId).map(s => s.user_id))
-  const uebertragen: Stimme[] = []
-  const verworfen: Stimme[] = []
-  for (const s of (stimmenQuelle ?? []).filter(s => s.wunsch_id === quelleId)) {
-    if (zielUser.has(s.user_id)) {
-      verworfen.push(s)
-    } else {
-      uebertragen.push({ ...s, wunsch_id: zielId })
-      zielUser.add(s.user_id) // gegen doppelte Stimmen desselben Nutzers innerhalb der Quelle selbst
-    }
+): { loeschen: Stimme[]; uebertragen: Stimme[] } {
+  const loeschen = (stimmenQuelle ?? []).filter(s => s.wunsch_id === quelleId)
+  const uebertragen = loeschen.map(s => ({ ...s, wunsch_id: zielId }))
+  return { loeschen, uebertragen }
+}
+
+/**
+ * Wie viele Stimmen dieser Nutzer auf jeden Wunsch gelegt hat — AKTIVE und RUHENDE
+ * zusammen. Anders als `stimmenJeWunsch` wird hier nicht nach Plan-Budget gedeckelt:
+ * Die Anzeige "deine 3" soll zeigen, was der Nutzer tatsächlich hingelegt hat, auch
+ * wenn ein Teil davon gerade ruht (Wechsel nach unten).
+ */
+export function eigeneStimmenJeWunsch(stimmen: Stimme[], userId: string): Record<string, number> {
+  const zaehler: Record<string, number> = {}
+  for (const s of stimmen ?? []) {
+    if (s.user_id !== userId) continue
+    zaehler[s.wunsch_id] = (zaehler[s.wunsch_id] ?? 0) + 1
   }
-  return { uebertragen, verworfen }
+  return zaehler
 }

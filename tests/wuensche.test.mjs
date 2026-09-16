@@ -5,7 +5,7 @@ import { stimmenAblehnung } from '../src/lib/plantexte.ts'
 import {
   WUNSCH_STATUS, STATUS_LABEL, OEFFENTLICHE_STATUS, TITEL_MAX, BESCHREIBUNG_MAX,
   VORSCHLAEGE_JE_TAG, istWunschStatus, pruefeTexte, stimmenbudget,
-  aktiveStimmen, stimmenJeWunsch, planeZusammenlegenStimmen,
+  aktiveStimmen, stimmenJeWunsch, planeZusammenlegenStimmen, eigeneStimmenJeWunsch,
 } from '../src/lib/wuensche.ts'
 
 // Ein Konto, das noch in der Testphase ist, gilt als Enterprise (30 Stimmen).
@@ -56,6 +56,34 @@ test('Wechsel nach unten: die ältesten N Stimmen bleiben aktiv, der Rest zählt
   assert.deepEqual(stimmenJeWunsch(stimmen, profile, jetzt), { w1: 2, w2: 0, w3: 0 })
 })
 
+test('Stapeln: ein Nutzer mit Budget 3 und 5 Stimmen auf denselben Wunsch — der Wunsch zählt 3', () => {
+  const stimmen = [
+    { wunsch_id: 'w1', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' },
+    { wunsch_id: 'w1', user_id: 'u1', created_at: '2026-09-02T00:00:00Z' },
+    { wunsch_id: 'w1', user_id: 'u1', created_at: '2026-09-03T00:00:00Z' },
+    { wunsch_id: 'w1', user_id: 'u1', created_at: '2026-09-04T00:00:00Z' },
+    { wunsch_id: 'w1', user_id: 'u1', created_at: '2026-09-05T00:00:00Z' },
+  ]
+  const profile = { u1: mitPlan('starter') } // Budget 3
+  assert.equal(aktiveStimmen(stimmen, profile, jetzt).length, 3)
+  assert.deepEqual(stimmenJeWunsch(stimmen, profile, jetzt), { w1: 3 })
+})
+
+test('eigeneStimmenJeWunsch zählt aktive UND ruhende Stimmen des Nutzers je Wunsch', () => {
+  const stimmen = [
+    { wunsch_id: 'w1', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' },
+    { wunsch_id: 'w1', user_id: 'u1', created_at: '2026-09-02T00:00:00Z' },
+    { wunsch_id: 'w2', user_id: 'u1', created_at: '2026-09-03T00:00:00Z' },
+    { wunsch_id: 'w1', user_id: 'u2', created_at: '2026-09-04T00:00:00Z' },
+  ]
+  // u1 hat Budget 1 (solo) — trotzdem zählt eigeneStimmenJeWunsch alle drei seiner
+  // Zeilen, nicht nur die eine aktive.
+  assert.deepEqual(eigeneStimmenJeWunsch(stimmen, 'u1'), { w1: 2, w2: 1 })
+  assert.deepEqual(eigeneStimmenJeWunsch(stimmen, 'u2'), { w1: 1 })
+  assert.deepEqual(eigeneStimmenJeWunsch(stimmen, 'u9'), {})
+  assert.deepEqual(eigeneStimmenJeWunsch(null, 'u1'), {})
+})
+
 test('Ohne Profil (gesperrt) zählt keine Stimme, und niemand fällt aus der Liste', () => {
   const stimmen = [{ wunsch_id: 'w1', user_id: 'u9', created_at: '2026-09-01T00:00:00Z' }]
   assert.deepEqual(aktiveStimmen(stimmen, {}, jetzt), [])
@@ -77,24 +105,23 @@ test('Die Middleware öffnet nur die öffentliche Wunsch-Route, nicht die ganze 
   assert.ok(!oeffentlich('/api/wuensche/abc/stimme'))
 })
 
-test('Zusammenlegen: Stimmen wandern zum Ziel, Duplikate werden verworfen', () => {
+test('Zusammenlegen: ALLE Stimmen der Quelle wandern zum Ziel, auch bei Stapelung (keine Dubletten-Regel mehr)', () => {
   const quelle = [
-    { wunsch_id: 'q', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' }, // wandert
-    { wunsch_id: 'q', user_id: 'u2', created_at: '2026-09-02T00:00:00Z' }, // Duplikat: hat schon am Ziel
+    { wunsch_id: 'q', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' },
+    { wunsch_id: 'q', user_id: 'u2', created_at: '2026-09-02T00:00:00Z' }, // u2 hat am Ziel schon eine — egal, Stapeln erlaubt
   ]
-  const ziel = [
-    { wunsch_id: 'z', user_id: 'u2', created_at: '2026-08-01T00:00:00Z' },
-  ]
-  const { uebertragen, verworfen } = planeZusammenlegenStimmen('q', 'z', quelle, ziel)
-  assert.deepEqual(uebertragen, [{ wunsch_id: 'z', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' }])
-  assert.deepEqual(verworfen, [{ wunsch_id: 'q', user_id: 'u2', created_at: '2026-09-02T00:00:00Z' }])
+  const { loeschen, uebertragen } = planeZusammenlegenStimmen('q', 'z', quelle)
+  assert.deepEqual(loeschen, quelle)
+  assert.deepEqual(uebertragen, [
+    { wunsch_id: 'z', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' },
+    { wunsch_id: 'z', user_id: 'u2', created_at: '2026-09-02T00:00:00Z' },
+  ])
 })
 
-test('Zusammenlegen: ein leeres Ziel übernimmt einfach alle Quell-Stimmen', () => {
-  const quelle = [{ wunsch_id: 'q', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' }]
-  const { uebertragen, verworfen } = planeZusammenlegenStimmen('q', 'z', quelle, [])
-  assert.deepEqual(uebertragen, [{ wunsch_id: 'z', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' }])
-  assert.deepEqual(verworfen, [])
+test('Zusammenlegen: eine leere Quelle überträgt nichts', () => {
+  const { loeschen, uebertragen } = planeZusammenlegenStimmen('q', 'z', [])
+  assert.deepEqual(loeschen, [])
+  assert.deepEqual(uebertragen, [])
 })
 
 test('Volles Budget wird mit Zahl, Ausweg und nächstem Plan abgelehnt', () => {
