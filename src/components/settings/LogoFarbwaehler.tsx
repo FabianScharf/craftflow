@@ -98,11 +98,12 @@ export default function LogoFarbwaehler({ logoUrl, onWahl, onClose }: {
     <div
       onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,.82)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '18px 16px', overflow: 'auto' }}
+        // Oben Platz lassen: Der Testphasen-Balken der App liegt sonst über der Kopfzeile.
+        display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 16px 24px', overflow: 'auto' }}
     >
       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: '100%' }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <div style={{ color: C.copper, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
+          <div style={{ color: C.white, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
             Farbe aus dem Logo — Punkt antippen
           </div>
           <button onClick={onClose} style={{ background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`,

@@ -413,7 +413,9 @@ export default function SettingsPage() {
 
     const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path)
     const logo_url = urlData.publicUrl
-    setLogoPreview(logo_url)
+    // Vorschau mit Cache-Brecher: gleicher Pfad (Upsert), sonst zeigt der Browser das
+    // alte Logo bis zum Neuladen. Gespeichert wird die saubere URL.
+    setLogoPreview(`${logo_url}?v=${Date.now()}`)
     setP('logo_url', logo_url)
     await fetch('/api/settings/betriebsprofil', {
       method: 'PATCH',
