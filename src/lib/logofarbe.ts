@@ -16,7 +16,8 @@ export const MINDEST_ANTEIL = 0.005 // unter 0,5 % aller sichtbaren Punkte ist e
 
 type Kandidat = { n: number; r: number; g: number; b: number }
 
-const zuHex = (r: number, g: number, b: number): string =>
+/** Drei Kanäle (0..255) als "#RRGGBB" — auch für die Pipette im Farbwähler. */
+export const hexVon = (r: number, g: number, b: number): string =>
   '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0').toUpperCase()).join('')
 
 /** Sättigung 0..1 (HSV): Grau hat 0, reines Rot 1. */
@@ -52,5 +53,5 @@ export function dominanteFarbe(pixel: ArrayLike<number> | null | undefined): str
   let bester: Kandidat | null = null
   for (const e of eimer.values()) if (!bester || e.n > bester.n) bester = e
   if (!bester || bester.n / sichtbar < MINDEST_ANTEIL) return null
-  return zuHex(bester.r / bester.n, bester.g / bester.n, bester.b / bester.n)
+  return hexVon(bester.r / bester.n, bester.g / bester.n, bester.b / bester.n)
 }

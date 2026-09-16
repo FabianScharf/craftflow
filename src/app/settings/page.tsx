@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { akzentTon, normalisiereHex, leitePaletteAb, wendePaletteAn, ton } from '@/lib/theme'
-import { dominanteFarbe } from '@/lib/logofarbe'
+import LogoFarbwaehler from '@/components/settings/LogoFarbwaehler'
 import { createClient } from '@/utils/supabase/client'
 import { normalizeKsId } from '@/lib/types'
 import { PlanGate } from '@/components/PlanGate'
@@ -391,41 +391,12 @@ export default function SettingsPage() {
     }
   }
 
-  // Farbton aus dem hochgeladenen Logo lesen (Rückmeldung Tischlerei Lembeck, 16.09.:
-  // eingetippt war #75001D, das Logo hat #813732 — den Code kennt kaum ein Betrieb).
-  // Läuft komplett im Browser: Bild laden, auf höchstens 400 px verkleinern, Bildpunkte
-  // lesen, kräftigste Farbe bestimmen. Gespeichert wird wie jede Änderung erst unten.
+  // Farbe per Pipette aus dem hochgeladenen Logo wählen (Rückmeldung Tischlerei
+  // Lembeck, 16.09.: eingetippt war #75001D, das Logo hat #813732). Fabian: Ein Logo
+  // hat oft mehrere Farben, automatisch „die kräftigste" reicht nicht — der Nutzer
+  // muss den Punkt selbst antippen. Gespeichert wird wie jede Änderung erst unten.
+  const [logoWaehlerOffen, setLogoWaehlerOffen] = useState(false)
   const [logoFarbeMsg, setLogoFarbeMsg] = useState('')
-  const [logoFarbeLaeuft, setLogoFarbeLaeuft] = useState(false)
-  async function farbeAusLogo() {
-    if (!logoPreview) return
-    setLogoFarbeLaeuft(true); setLogoFarbeMsg('')
-    try {
-      // Cache-Brecher in der URL: Das Logo liegt immer unter demselben Pfad (Upsert). Ohne
-      // ihn liefert der Storage-CDN nach „Logo ersetzen" noch das ALTE Bild — im Live-Test
-      // (16.09.) kam so die Farbe des vorherigen Logos zurück. `cache: 'no-store'` allein
-      // reicht nicht, das überstimmt nur den Browser-Cache, nicht den CDN.
-      const trenner = logoPreview.includes('?') ? '&' : '?'
-      const res = await fetch(`${logoPreview}${trenner}v=${Date.now()}`, { cache: 'no-store' })
-      if (!res.ok) throw new Error(`Logo nicht ladbar (${res.status})`)
-      const bitmap = await createImageBitmap(await res.blob())
-      const faktor = Math.min(1, 400 / Math.max(bitmap.width, bitmap.height))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(bitmap.width * faktor))
-      canvas.height = Math.max(1, Math.round(bitmap.height * faktor))
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Kein Zeichenbereich')
-      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-      const hex = dominanteFarbe(ctx.getImageData(0, 0, canvas.width, canvas.height).data)
-      if (!hex) { setLogoFarbeMsg('Im Logo ist keine kräftige Farbe zu finden — es besteht aus Schwarz, Weiß oder Grau.'); return }
-      setP('farbe_akzent', hex)
-      setLogoFarbeMsg(`Farbton ${hex} aus dem Logo übernommen. Unten auf „Speichern“ drücken, damit er gilt.`)
-    } catch (e) {
-      setLogoFarbeMsg('Fehler: Das Logo konnte nicht gelesen werden' + (e instanceof Error && e.message ? ` (${e.message}).` : '.'))
-    } finally {
-      setLogoFarbeLaeuft(false)
-    }
-  }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -760,14 +731,24 @@ export default function SettingsPage() {
                 {logoPreview && (
                   <div style={{ marginTop: -8 }}>
                     <button
-                      onClick={() => void farbeAusLogo()}
-                      disabled={logoFarbeLaeuft}
+                      onClick={() => { setLogoFarbeMsg(''); setLogoWaehlerOffen(true) }}
                       style={{ background: 'transparent', color: C.copper, border: `1px solid ${C.copper}`,
                         borderRadius: 5, padding: '8px 14px', fontSize: 12, fontWeight: 600,
-                        cursor: logoFarbeLaeuft ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                        cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
                     >
-                      {logoFarbeLaeuft ? 'Lese Logo …' : 'Farbton aus dem Logo übernehmen'}
+                      Farbe aus dem Logo wählen
                     </button>
+                    {logoWaehlerOffen && (
+                      <LogoFarbwaehler
+                        logoUrl={logoPreview}
+                        onWahl={(hex, ziel) => {
+                          setP(ziel === 'akzent' ? 'farbe_akzent' : 'farbe_primaer', hex)
+                          setLogoFarbeMsg(`${hex} als ${ziel === 'akzent' ? 'Akzentfarbe' : 'Primärfarbe'} übernommen. Unten auf „Speichern“ drücken, damit es gilt.`)
+                          setLogoWaehlerOffen(false)
+                        }}
+                        onClose={() => setLogoWaehlerOffen(false)}
+                      />
+                    )}
                     {logoFarbeMsg && (
                       <div style={{ fontSize: 11, color: logoFarbeMsg.startsWith('Fehler') ? C.err : C.textMid, marginTop: 6, lineHeight: 1.6 }}>
                         {logoFarbeMsg}
