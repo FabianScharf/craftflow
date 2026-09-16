@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  REFERENZ, BAENDER, referenzPreis, berechneFaktoren, deckele, kostenstellenSollZustand,
+  REFERENZ, BAENDER, referenzPreis, berechneFaktoren, deckele, deckeleHand, HAND_MIN, HAND_MAX, kostenstellenSollZustand,
 } from '../src/lib/kalibrierung.ts'
 
 const SAETZE = {
@@ -85,6 +85,16 @@ test('Die Deckelung haelt in beide Richtungen', () => {
   assert.equal(deckele(0.1), 0.6)
   assert.equal(deckele(9), 1.4)
   assert.equal(deckele(0.83), 0.83)
+})
+
+test('Von Hand gesetzte Faktoren duerfen 0,50 bis 3,00 sein (Fabian, 16.09.)', () => {
+  assert.equal(HAND_MIN, 0.5)
+  assert.equal(HAND_MAX, 3)
+  assert.equal(deckeleHand(0.4), 0.5)
+  assert.equal(deckeleHand(3.7), 3)
+  assert.equal(deckeleHand(2.5), 2.5)
+  // Die Ableitung bleibt eng — die Baender sind darauf zurueckgerechnet.
+  assert.equal(deckele(2.5), 1.4)
 })
 
 test('Auch ein extremes Band sprengt die Deckelung nicht', () => {

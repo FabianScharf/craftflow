@@ -631,12 +631,26 @@ Er lackiert nicht selbst. Lackierte Oberflaechen kauft er zu.
 - Oelen, Wachsen und Schleifen macht er weiterhin selbst. Dafuer bleibt "Oberfläche" mit ihrer Zeit.`
 }
 
+// Grenzen der ABLEITUNG aus den Kalibrierungsantworten. Sie bleiben, wie sie sind:
+// Die fuenf Antwortbaender sind genau auf 0,60-1,40 zurueckgerechnet (ZIEL_FAKTOREN).
 const MIN_FAKTOR = 0.6
 const MAX_FAKTOR = 1.4
+
+// Grenzen der HANDEINGABE in "Mein Betrieb". Fabian am 2026-09-16: Die enge Grenze
+// war dort nur ein Tippfehler-Schutz und hat Betriebe ausgesperrt, die wirklich
+// deutlich langsamer oder schneller arbeiten.
+export const HAND_MIN = 0.5
+export const HAND_MAX = 3
 
 export function deckele(faktor: number): number {
   if (!Number.isFinite(faktor)) return 1
   return Math.min(MAX_FAKTOR, Math.max(MIN_FAKTOR, Math.round(faktor * 100) / 100))
+}
+
+/** Wie deckele, aber fuer von Hand gesetzte Faktoren: 0,50 bis 3,00. */
+export function deckeleHand(faktor: number): number {
+  if (!Number.isFinite(faktor)) return 1
+  return Math.min(HAND_MAX, Math.max(HAND_MIN, Math.round(faktor * 100) / 100))
 }
 
 function wert(posten: readonly Zeitposten[], saetze: Saetze, faktor = 1): number {

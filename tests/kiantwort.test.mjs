@@ -9,6 +9,7 @@ const VOLL = {
   gruppe: 'Umkleide Turnhalle',
   alternativ: true,
   warnung: 'Werkstattzeit weit außerhalb des Richtwerts',
+  preisfaktor: 1.25,
   material: [{ bezeichnung: 'Spanplatte 19 mm', menge: 4.2, einheit: 'm²', ekPreis: 16, aufschlag: 0.25 }],
   arbeitszeit: [{ kostenstelle: 'Zuschnitt', minuten: 43, vkStunde: 72 }],
 }

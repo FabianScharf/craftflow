@@ -203,6 +203,17 @@ export interface Angebotsposition {
    * Referenzangebot.
    */
   alternativ?: boolean
+  /**
+   * Preishebel des Betriebs, auf die Position GESTEMPELT, als sie entstand
+   * (0,50-3,00, Standard 1,00 = Feld bleibt leer). Multipliziert den Endpreis
+   * dieser Position — Material und Lohn zusammen — und laesst Stunden,
+   * Stundensaetze und Aufschlaege unberuehrt (siehe calcAngebotspos unten).
+   *
+   * Gestempelt statt nachgeschlagen, weil ein verschicktes Angebot sich nicht
+   * rueckwirkend veraendern darf, wenn der Betrieb spaeter teurer verkauft.
+   * Regeln und Grenzen: src/lib/preisfaktor.ts.
+   */
+  preisfaktor?: number
 }
 
 // ── Firmendaten ──────────────────────────────────────
@@ -429,8 +440,19 @@ export function nettoSumme(pos: readonly Angebotsposition[]): number {
   return (pos ?? []).reduce((s, p) => s + (p?.alternativ ? 0 : calcAngebotspos(p)), 0)
 }
 
+/**
+ * Preis EINER Position. Der Preisfaktor des Betriebs (Spec 2026-09-16, Teil P)
+ * multipliziert Material und Lohn ZUSAMMEN — die einzige Stelle, an der er wirkt.
+ * Weil nettoSumme, das PDF und der Export alle hier hereinlaufen, koennen sie nicht
+ * auseinanderdriften.
+ *
+ * Ein kaputter Wert (NaN, 0, negativ, Text) gilt als 1,00: Ohne diesen Schutz wuerde
+ * ein einziges NaN die gesamte Angebotssumme zu NaN machen — ohne Meldung.
+ */
 export function calcAngebotspos(p: Angebotsposition): number {
-  return materialkostenPos(p) + arbeitszeitPreisPos(p)
+  const f = p?.preisfaktor
+  const faktor = typeof f === 'number' && Number.isFinite(f) && f > 0 ? f : 1
+  return (materialkostenPos(p) + arbeitszeitPreisPos(p)) * faktor
 }
 
 // Single source of truth for project-wide summary fields — always derived by

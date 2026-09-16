@@ -22,7 +22,7 @@ export type KiMaterial = {
 export type KiArbeit = { kostenstelle?: string; minuten?: number; vkStunde?: number }
 export type KiPosition = {
   titel?: string; beschreibung?: string; stueckzahl?: number
-  gruppe?: string; alternativ?: boolean; warnung?: string
+  gruppe?: string; alternativ?: boolean; warnung?: string; preisfaktor?: number
   material?: KiMaterial[]; arbeitszeit?: KiArbeit[]
 }
 
@@ -34,6 +34,7 @@ export type UiPosition = {
   gruppe?: string
   alternativ?: boolean
   warnung?: string
+  preisfaktor?: number
   material: Array<{ id: number; bezeichnung: string; menge: number; einheit: string; ekPreis: number; aufschlag: number }>
   arbeitszeit: Array<{ id: number; kostenstelle: string; minuten: number; vkStunde: number }>
 }
@@ -41,7 +42,7 @@ export type UiPosition = {
 /** Alle Felder, die eine Position aus der KI-Antwort mitbringen kann. */
 export const KI_POSITIONSFELDER = [
   'titel', 'beschreibung', 'stueckzahl', 'gruppe', 'alternativ', 'warnung',
-  'material', 'arbeitszeit',
+  'preisfaktor', 'material', 'arbeitszeit',
 ] as const
 
 export function positionenAusKi(
@@ -75,6 +76,12 @@ export function positionenAusKi(
       ...(gruppe ? { gruppe } : {}),
       ...(p.alternativ === true ? { alternativ: true } : {}),
       ...(p.warnung ? { warnung: String(p.warnung) } : {}),
+      // Der Preisfaktor kommt NICHT von der KI — der Server stempelt ihn nach
+      // validateAndFix auf die Positionen (src/lib/preisfaktor.ts). Hier wird er
+      // nur durchgereicht. Ohne diese Zeile waere er in der Oberflaeche weg,
+      // ohne Fehler und ohne Meldung (so verschwand 2026-09-08 die stueckzahl).
+      ...(typeof p.preisfaktor === 'number' && Number.isFinite(p.preisfaktor) && p.preisfaktor > 0
+        ? { preisfaktor: p.preisfaktor } : {}),
       material: (Array.isArray(p.material) ? p.material : []).map(m => ({
         id: id(),
         bezeichnung: m?.bezeichnung || '',
