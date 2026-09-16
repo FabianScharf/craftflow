@@ -18,7 +18,7 @@ import BriefpapierVorschau from '@/components/settings/BriefpapierVorschau'
 import TextbausteineSettings from '@/components/settings/TextbausteineSettings'
 import { SCHRIFTEN, SCHRIFT_GRUPPEN } from '@/lib/pdftext'
 import { type Plan, usePlan } from '@/hooks/usePlan'
-import { PLAN_REIHE, PLAENE, PREIS_IDS, PLAN_LABELS, deckel as planDeckelFuer, merkmaleFuerAnzeige } from '@/lib/plaene'
+import { PLAN_REIHE, PLAENE, PREIS_IDS, PLAN_LABELS, deckel as planDeckelFuer, merkmaleFuerAnzeige, mindestPlan } from '@/lib/plaene'
 import { istAdmin } from '@/lib/admin'
 
 const C = {
@@ -140,7 +140,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const { isInTrial, trialDaysLeft, canUse, isBlocked } = usePlan()
+  const { isInTrial, trialDaysLeft, canUse, isBlocked, effectivePlan } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'wuensche' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
@@ -427,7 +427,12 @@ export default function SettingsPage() {
   }
 
   async function selectPlan(priceId: string, planId: string) {
-    if (planId === userPlan) return
+    // Der WIRKSAME Plan sperrt den Knopf, nicht der rohe Profilwert (Audit
+    // 2026-09-17, I8): Wer gekündigt hat, steht in der DB weiter auf 'pro' und
+    // konnte Pro deshalb nicht neu buchen — ausgerechnet auf der Paywall-Seite.
+    // In der Testphase ist alles buchbar (effectivePlan ist dort 'enterprise',
+    // gekauft wurde aber noch nichts).
+    if (!isInTrial && planId === effectivePlan) return
     setCheckoutLoading(priceId)
     try {
       const res = await fetch('/api/stripe/checkout', {
@@ -533,14 +538,12 @@ export default function SettingsPage() {
     window.location.href = '/login'
   }
 
-  const userPlan = (profil.plan as Plan | undefined) ?? 'solo'
-
   const navItems: { id: typeof section; label: string; icon: string; minPlan?: Plan }[] = [
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
     { id: 'buchhaltung',      label: 'Buchhaltung',     icon: '🧾' },
     { id: 'dokumente',        label: 'Dokumente',       icon: '📝' },
     { id: 'textbausteine',    label: 'Textbausteine',   icon: '🧩' },
-    { id: 'auswertung',       label: 'Auswertung',      icon: '📊', minPlan: 'pro' as Plan },
+    { id: 'auswertung',       label: 'Auswertung',      icon: '📊', minPlan: mindestPlan('auswertung') },
     { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
     { id: 'briefpapier',      label: 'Briefpapier',     icon: '📄' },
     { id: 'betrieb',          label: 'Mein Betrieb',    icon: '🏗' },
@@ -548,8 +551,11 @@ export default function SettingsPage() {
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
     { id: 'bauweise',         label: 'Meine Bauweise',  icon: '🧠' },
     { id: 'materialpreise',   label: 'Materialpreise',  icon: '🏷' },
-    { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: 'starter' as Plan },
-    { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'pro'     as Plan },
+    { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: mindestPlan('lieferanten') },
+    // 'starter' laut Matrix: E-Mail-Versand ab Starter, der EIGENE SMTP-Zugang erst
+    // ab Pro (Controller, 17.09.). Es gibt keine Funktion 'email' in plaene.ts, an der
+    // sich das ableiten liesse — deshalb hier als einziger Eintrag fest, mit Begruendung.
+    { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'starter' as Plan },
     { id: 'wuensche',         label: 'Wünsche',         icon: '💬' },
     { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
     { id: 'hilfe',            label: 'Hilfe',           icon: '💡' },
@@ -1600,7 +1606,9 @@ export default function SettingsPage() {
                   <span style={{ fontSize: 22 }}>🎁</span>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.copper }}>
-                      {trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'} Testversion verbleiben
+                      {trialDaysLeft === 0
+                        ? 'Heute läuft die Testphase ab'
+                        : `${trialDaysLeft} ${trialDaysLeft === 1 ? 'Tag' : 'Tage'} Testversion verbleiben`}
                     </div>
                     <div style={{ fontSize: 12, color: C.textMid, marginTop: 2 }}>
                       Du hast aktuell Zugriff auf alle Enterprise-Funktionen. Wähle jetzt einen Plan, um nach dem Test weiterzumachen.
@@ -1624,8 +1632,15 @@ export default function SettingsPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
                 {PLANS.map(plan => {
-                  const isCurrent = isInTrial ? plan.id === 'enterprise' : plan.id === userPlan
+                  // Der WIRKSAME Plan entscheidet, nicht der rohe Profilwert (Audit
+                  // 2026-09-17, I8): Ein Nutzer mit abo_status='beendet' und plan='pro'
+                  // ist gesperrt, sah aber ausgerechnet auf der Paywall-Seite bei Pro
+                  // das Abzeichen "AKTIV".
+                  const isCurrent = plan.id === effectivePlan
                   const isTrialEnterprise = isInTrial && plan.id === 'enterprise'
+                  // In der Testphase ist Enterprise geliehen, nicht gekauft — das
+                  // Abzeichen sagt das auch so (Controller, 17.09.).
+                  const zeigeAktiv = isCurrent && !isTrialEnterprise
                   const isLoading = checkoutLoading === plan.priceId
                   const isBeliebt = plan.id === 'pro'
                   // Fair Use statt "unbegrenzt": Enterprise hat weiterhin einen Deckel
@@ -1644,12 +1659,12 @@ export default function SettingsPage() {
                         opacity: isCurrent ? 1 : 0.45,
                       }}
                     >
-                      {isCurrent && (
+                      {(zeigeAktiv || isTrialEnterprise) && (
                         <div style={{
                           position: 'absolute', top: -11, left: 20,
                           background: C.copper, color: C.black, fontSize: 9, fontWeight: 800,
                           letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap',
-                        }}>AKTIV</div>
+                        }}>{isTrialEnterprise ? 'TESTPHASE' : 'AKTIV'}</div>
                       )}
                       {isBeliebt && (
                         <div style={{
@@ -1664,7 +1679,7 @@ export default function SettingsPage() {
                           background: C.copper, color: C.black, fontSize: 10, fontWeight: 800,
                           letterSpacing: 0.5, padding: '4px 10px', borderRadius: 20,
                           whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                        }}>🎁 {trialDaysLeft} Tage</div>
+                        }}>{trialDaysLeft === 0 ? '🎁 Letzter Tag' : `🎁 ${trialDaysLeft} Tage`}</div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1 }}>

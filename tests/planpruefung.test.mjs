@@ -4,7 +4,7 @@ import { ablehnung, deckelAblehnung } from '../src/lib/plantexte.ts'
 
 test('Ablehnung nennt Funktion und den Plan, der sie hebt', () => {
   assert.deepEqual(ablehnung('lernschleife'), { error: 'Die Lernschleife ist ab dem Pro-Plan verfügbar.', minPlan: 'pro' })
-  assert.deepEqual(ablehnung('gaeb'), { error: 'Der GAEB-Import ist ab dem Enterprise-Plan verfügbar.', minPlan: 'enterprise' })
+  assert.deepEqual(ablehnung('gaeb'), { error: 'Der GAEB-Import und -Export ist ab dem Enterprise-Plan verfügbar.', minPlan: 'enterprise' })
 })
 test('Deckel-Ablehnung nennt Zahl, Plan und nächsten Plan', () => {
   assert.deepEqual(deckelAblehnung('bauweiseRegeln', 'starter', 5),

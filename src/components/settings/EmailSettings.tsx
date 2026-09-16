@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { akzentTon } from '@/lib/theme'
 import { usePlan } from '@/hooks/usePlan'
-import type { Plan } from '@/lib/plaene'
+import { erlaubt as planErlaubt, type Plan } from '@/lib/plaene'
 
 const C = {
   black: 'var(--c-primary, #0D0D0D)', dark: 'var(--c-darkbg, #141414)', gray1: 'var(--c-surface1, #1A1A1A)', gray2: 'var(--c-surface2, #222222)',
@@ -101,8 +101,11 @@ export function EmailSettings() {
     if (d.success) setCfg(p => ({ ...p, smtp_verified: true, smtp_last_test_at: new Date().toISOString() }))
   }
 
-  const isStarter = plan !== 'solo'
-  const isPro = plan === 'pro' || plan === 'enterprise'
+  // Aus der Matrix, nicht aus harten Plan-Namen (Audit 2026-09-17, Minor):
+  // 'gestaltung' ist die Funktion ab Starter, 'smtp' die ab Pro. Wandert eine
+  // Funktion einmal in einen anderen Plan, wandert dieser Bereich mit.
+  const isStarter = planErlaubt(plan, 'gestaltung')
+  const isPro = planErlaubt(plan, 'smtp')
 
   const bannerText = {
     solo: 'E-Mail-Versand ist ab dem Starter-Plan verfügbar.',

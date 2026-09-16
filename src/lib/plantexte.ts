@@ -24,7 +24,10 @@ const FUNKTION_NAME: Record<Funktion, string> = {
   bauweise: 'Die Bauweise-Lernfunktion', materialpreise: 'Die Materialpreise', gestaltung: 'Die Gestaltung des Angebots',
   lieferanten: 'Die Lieferantenverwaltung', bloecke: 'Die Analyse großer Projekte in Blöcken',
   lernschleife: 'Die Lernschleife', auswertung: 'Die Auswertung', smtp: 'Der Versand über die eigene E-Mail',
-  ausschreibung: 'Der Ausschreibungs-Modus', internetsuche: 'Die Händlersuche im Internet', gaeb: 'Der GAEB-Import',
+  ausschreibung: 'Der Ausschreibungs-Modus', internetsuche: 'Die Händlersuche im Internet',
+  // Die Funktion 'gaeb' deckt BEIDE Richtungen ab — der Export prueft sie seit dem
+  // 2026-09-17 ebenfalls. Der alte Text nannte nur den Import (Audit, Minor).
+  gaeb: 'Der GAEB-Import und -Export',
 }
 const DECKEL_NAME: Record<DeckelArt, [string, string]> = {
   angebote: ['Angebot pro Monat', 'Angebote pro Monat'],

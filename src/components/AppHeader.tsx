@@ -90,7 +90,12 @@ export function AppHeader({
       >
         <span style={{ fontSize: 14 }}>🎁</span>
         <span style={{ fontSize: 12, color: FARBE.accent, fontFamily: 'Helvetica Neue,sans-serif' }}>
-          <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet
+          {/* Am letzten Tag stand hier "0 Tage Testversion verbleiben" — die
+              Kalendertagsrechnung ist dann bei 0, der Zugang läuft aber noch
+              (isInTrial rechnet in Millisekunden). Audit 2026-09-17, Minor. */}
+          {trialDaysLeft === 0
+            ? <><strong>Heute</strong> läuft die Testphase ab — alle Funktionen noch freigeschaltet</>
+            : <><strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'Tag' : 'Tage'}</strong> Testversion verbleiben — alle Funktionen freigeschaltet</>}
         </span>
         <span style={{ fontSize: 11, color: FARBE.textMid, marginLeft: 4 }}>Plan wählen →</span>
       </div>

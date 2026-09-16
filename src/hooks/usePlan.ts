@@ -57,24 +57,49 @@ export function usePlan() {
     if (res.ok) setUsage(await res.json())
   }, [])
 
+  // WARUM DER FEHLERZWEIG SO AUSSIEHT (Audit 2026-09-17, I7):
+  // Supabase wirft nicht. Das `error`-Feld wurde bisher gar nicht gelesen — bei einem
+  // Aussetzer der Datenbank blieben die Startwerte stehen (plan 'solo', kein
+  // trial_starts_at, kein Abo), und genau daraus rechnet effektiverPlan() 'gesperrt'.
+  // Ein zahlender Kunde sah dann die Paywall, weil die DB eine Sekunde gehustet hat.
+  //
+  // Die Regel lautet deshalb: Ein Ladefehler beendet `loading` NICHT. Solange
+  // `loading` steht, ist `isBlocked` per Definition falsch (Zeile unten) — die App
+  // sperrt niemanden wegen eines Datenbankfehlers aus. Ein Versuch wird nach 1,5 s
+  // wiederholt; hilft auch der nicht, bleibt die Oberfläche im Ladezustand, statt
+  // eine falsche Sperre zu behaupten. Der Server entscheidet ohnehin eigenständig
+  // (planpruefung.ts) — der Browser ist nie die Instanz.
+  //
+  // PGRST116 ("kein Datensatz") ist KEIN Ausfall, sondern ein Konto ohne
+  // Betriebsprofil. Das läuft wie bisher mit den Startwerten weiter.
   useEffect(() => {
-    ;(async () => {
+    let abgebrochen = false
+    const laden = async (versuch: number) => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
+      if (abgebrochen) return
       if (!user) { setLoading(false); return }
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('betriebsprofil')
         .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
         .eq('user_id', user.id)
         .single()
+      if (abgebrochen) return
+      if (error && error.code !== 'PGRST116') {
+        console.error('[usePlan] Betriebsprofil laden:', error.message)
+        if (versuch === 0) { setTimeout(() => { void laden(1) }, 1500) }
+        return   // loading bleibt absichtlich true — keine Sperre aus einem DB-Fehler
+      }
       if (data?.plan) setPlan(data.plan as Plan)
       setTrialStartsAt(data?.trial_starts_at ?? null)
       setAboStatus(data?.abo_status ?? null)
       setPlanGueltigBis(data?.plan_gueltig_bis ?? null)
       setTrialDaysLeft(calcTrialDaysLeft(data?.trial_starts_at ?? null))
       setLoading(false)
-    })()
+    }
+    void laden(0)
     loadUsage()
+    return () => { abgebrochen = true }
   }, [loadUsage])
 
   // Ob der Trial noch laeuft, entscheidet weiterhin die exakte Zeitgrenze —

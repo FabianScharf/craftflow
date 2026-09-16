@@ -3520,7 +3520,7 @@ export default function CraftFlow() {
               onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(f => handlePdfUpload(f)) }}
               style={{ display: 'none' }} />
             <input ref={startGaebRef} type="file" accept={GAEB_EXTENSIONS.join(',')}
-              onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; files.forEach(f => { if (!planErlaubtFn('gaeb')) { window.location.href = '/settings#plan'; return }; handleGaebFile(f) }) }}
+              onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (planLaedt) return; files.forEach(f => { if (!planErlaubtFn('gaeb')) { window.location.href = '/settings#plan'; return }; handleGaebFile(f) }) }}
               style={{ display: 'none' }} />
             {/* Upload-Fläche – plan-basiert */}
             <div
@@ -4045,7 +4045,7 @@ export default function CraftFlow() {
                           <span style={{ fontSize: 12, color: C.white, flex: 1 }}>{c.supplierName}</span>
                           {c.phone && <span style={{ fontSize: 11, color: C.textMid }}>{c.phone}</span>}
                           {isSelected && (
-                            planCanUse('pro') ? (
+                            planErlaubtFn('smtp') ? (
                               isSent ? <span style={{ fontSize: 11, color: C.ok }}>✓ Gesendet</span> : (
                                 <button onClick={() => sendInquiryEmail(c.email, c.subject, c.body)} disabled={isSending}
                                   style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '2px 8px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, flexShrink: 0 }}>
@@ -4431,7 +4431,7 @@ export default function CraftFlow() {
                                           <span style={{ fontSize: 12, color: C.white, flex: 1 }}>{c.supplierName}</span>
                                           {c.phone && <span style={{ fontSize: 11, color: C.textMid }}>{c.phone}</span>}
                                           {isSelected && (
-                                            planCanUse('pro') ? (
+                                            planErlaubtFn('smtp') ? (
                                               isSent ? <span style={{ fontSize: 11, color: C.ok }}>✓ Gesendet</span> : (
                                                 <button onClick={() => sendInquiryEmail(c.email, c.subject, c.body)} disabled={isSending}
                                                   style={{ fontSize: 11, color: C.black, background: C.copper, border: 'none', borderRadius: 3, padding: '2px 8px', cursor: isSending ? 'wait' : 'pointer', fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700, flexShrink: 0 }}>
