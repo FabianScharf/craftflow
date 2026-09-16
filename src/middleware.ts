@@ -2,7 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/register', '/impressum', '/datenschutz', '/agb', '/avv', '/auth/forgot-password', '/auth/reset-password', '/auth/callback', '/api/notify-signup']
+// '/api/stripe/webhook' MUSS öffentlich sein: Stripe schickt den Aufruf ohne
+// Session-Cookie, die Middleware leitete ihn deshalb bisher auf /login um
+// (307) — Stripe konnte den Webhook seit dem 16.09. nie zustellen. Die Route
+// prüft ihre eigene Auth selbst über die Stripe-Signatur (constructEvent).
+const PUBLIC_PATHS = ['/login', '/register', '/impressum', '/datenschutz', '/agb', '/avv', '/auth/forgot-password', '/auth/reset-password', '/auth/callback', '/api/notify-signup', '/api/stripe/webhook']
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
