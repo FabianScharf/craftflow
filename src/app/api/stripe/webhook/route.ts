@@ -52,8 +52,14 @@ export async function POST(req: NextRequest) {
       // 'past_due' zählt bewusst noch als aktiv (Aufgabe 0, Controller): eine
       // ausstehende Zahlung soll den Zugang nicht sofort sperren, Stripe versucht
       // in dieser Phase noch selbst abzubuchen.
+      //
+      // Jeder andere Status (canceled, unpaid, paused, incomplete_expired, …)
+      // MUSS abo_status explizit auf 'beendet' setzen (Fix-Runde, 16.09.): Ohne
+      // das blieb ein vorher aktives Abo nach Kündigung/Zahlungsausfall auf
+      // 'aktiv' stehen — effektiverPlan() hätte den Nutzer nie gesperrt. Der Plan
+      // selbst bleibt stehen (Fabians Regel).
       const update: Record<string, unknown> = { plan }
-      if (['active', 'trialing', 'past_due'].includes(sub.status)) update.abo_status = 'aktiv'
+      update.abo_status = ['active', 'trialing', 'past_due'].includes(sub.status) ? 'aktiv' : 'beendet'
       await db.from('betriebsprofil').update(update).eq('user_id', userId)
     }
   }
