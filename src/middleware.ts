@@ -6,7 +6,14 @@ import type { NextRequest } from 'next/server'
 // Session-Cookie, die Middleware leitete ihn deshalb bisher auf /login um
 // (307) — Stripe konnte den Webhook seit dem 16.09. nie zustellen. Die Route
 // prüft ihre eigene Auth selbst über die Stripe-Signatur (constructEvent).
-const PUBLIC_PATHS = ['/login', '/register', '/impressum', '/datenschutz', '/agb', '/avv', '/auth/forgot-password', '/auth/reset-password', '/auth/callback', '/api/notify-signup', '/api/stripe/webhook']
+//
+// '/api/wuensche/oeffentlich' speist die Roadmap auf www.getcraftflow.de. Sie ruft
+// die Route ohne Sitzung auf; ohne diesen Eintrag käme eine 307 auf /login zurück
+// (derselbe Fehler wie beim Stripe-Webhook am 16.09.). Die Route gibt ausschließlich
+// Titel, Beschreibung, Status, Stimmenzahl und Änderungszeitpunkt heraus — keine
+// Nutzerdaten. Bewusst der volle Pfad, nicht '/api/wuensche' — sonst öffnete
+// `startsWith` versehentlich auch /api/wuensche/[id]/stimme mit.
+const PUBLIC_PATHS = ['/login', '/register', '/impressum', '/datenschutz', '/agb', '/avv', '/auth/forgot-password', '/auth/reset-password', '/auth/callback', '/api/notify-signup', '/api/stripe/webhook', '/api/wuensche/oeffentlich']
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })

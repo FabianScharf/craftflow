@@ -89,3 +89,31 @@ export function stimmenJeWunsch(
   for (const s of aktiveStimmen(stimmen, profile, jetzt)) zaehler[s.wunsch_id] += 1
   return zaehler
 }
+
+/**
+ * Planung fürs Zusammenlegen zweier Wünsche: Stimmen des Quell-Wunsches wandern
+ * zum Ziel — aber „eine Stimme je Wunsch je Nutzer" darf dabei nicht verletzt
+ * werden. Wer für beide schon gestimmt hat, verliert die Quell-Stimme (Duplikat),
+ * niemand bekommt dadurch eine zweite Stimme am Ziel. Reine Funktion — die
+ * Admin-Route führt die zurückgegebenen Zeilen dann in der DB aus (Quelle löschen,
+ * `uebertragen` am Ziel einfügen).
+ */
+export function planeZusammenlegenStimmen(
+  quelleId: string,
+  zielId: string,
+  stimmenQuelle: Stimme[],
+  stimmenZiel: Stimme[],
+): { uebertragen: Stimme[]; verworfen: Stimme[] } {
+  const zielUser = new Set((stimmenZiel ?? []).filter(s => s.wunsch_id === zielId).map(s => s.user_id))
+  const uebertragen: Stimme[] = []
+  const verworfen: Stimme[] = []
+  for (const s of (stimmenQuelle ?? []).filter(s => s.wunsch_id === quelleId)) {
+    if (zielUser.has(s.user_id)) {
+      verworfen.push(s)
+    } else {
+      uebertragen.push({ ...s, wunsch_id: zielId })
+      zielUser.add(s.user_id) // gegen doppelte Stimmen desselben Nutzers innerhalb der Quelle selbst
+    }
+  }
+  return { uebertragen, verworfen }
+}

@@ -5,7 +5,7 @@ import { stimmenAblehnung } from '../src/lib/plantexte.ts'
 import {
   WUNSCH_STATUS, STATUS_LABEL, OEFFENTLICHE_STATUS, TITEL_MAX, BESCHREIBUNG_MAX,
   VORSCHLAEGE_JE_TAG, istWunschStatus, pruefeTexte, stimmenbudget,
-  aktiveStimmen, stimmenJeWunsch,
+  aktiveStimmen, stimmenJeWunsch, planeZusammenlegenStimmen,
 } from '../src/lib/wuensche.ts'
 
 // Ein Konto, das noch in der Testphase ist, gilt als Enterprise (30 Stimmen).
@@ -60,6 +60,41 @@ test('Ohne Profil (gesperrt) zählt keine Stimme, und niemand fällt aus der Lis
   const stimmen = [{ wunsch_id: 'w1', user_id: 'u9', created_at: '2026-09-01T00:00:00Z' }]
   assert.deepEqual(aktiveStimmen(stimmen, {}, jetzt), [])
   assert.deepEqual(stimmenJeWunsch(stimmen, {}, jetzt), { w1: 0 })
+})
+
+test('Öffentlich sind nur Geplant, In Arbeit und Fertig — Offenes bleibt in der App', () => {
+  assert.ok(!OEFFENTLICHE_STATUS.includes('offen'))
+  assert.ok(!OEFFENTLICHE_STATUS.includes('ausgeblendet'))
+})
+
+test('Die Middleware öffnet nur die öffentliche Wunsch-Route, nicht die ganze Familie', () => {
+  // `startsWith` ist grosszuegig: Ein Eintrag '/api/wuensche' wuerde versehentlich
+  // auch /api/wuensche/[id]/stimme oeffnen. Deshalb steht nur der volle Pfad drin.
+  const PUBLIC = ['/api/wuensche/oeffentlich']
+  const oeffentlich = (p) => PUBLIC.some(x => p.startsWith(x))
+  assert.ok(oeffentlich('/api/wuensche/oeffentlich'))
+  assert.ok(!oeffentlich('/api/wuensche'))
+  assert.ok(!oeffentlich('/api/wuensche/abc/stimme'))
+})
+
+test('Zusammenlegen: Stimmen wandern zum Ziel, Duplikate werden verworfen', () => {
+  const quelle = [
+    { wunsch_id: 'q', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' }, // wandert
+    { wunsch_id: 'q', user_id: 'u2', created_at: '2026-09-02T00:00:00Z' }, // Duplikat: hat schon am Ziel
+  ]
+  const ziel = [
+    { wunsch_id: 'z', user_id: 'u2', created_at: '2026-08-01T00:00:00Z' },
+  ]
+  const { uebertragen, verworfen } = planeZusammenlegenStimmen('q', 'z', quelle, ziel)
+  assert.deepEqual(uebertragen, [{ wunsch_id: 'z', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' }])
+  assert.deepEqual(verworfen, [{ wunsch_id: 'q', user_id: 'u2', created_at: '2026-09-02T00:00:00Z' }])
+})
+
+test('Zusammenlegen: ein leeres Ziel übernimmt einfach alle Quell-Stimmen', () => {
+  const quelle = [{ wunsch_id: 'q', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' }]
+  const { uebertragen, verworfen } = planeZusammenlegenStimmen('q', 'z', quelle, [])
+  assert.deepEqual(uebertragen, [{ wunsch_id: 'z', user_id: 'u1', created_at: '2026-09-01T00:00:00Z' }])
+  assert.deepEqual(verworfen, [])
 })
 
 test('Volles Budget wird mit Zahl, Ausweg und nächstem Plan abgelehnt', () => {
