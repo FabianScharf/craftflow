@@ -122,7 +122,10 @@ export async function GET(req: NextRequest) {
     id: w.id, titel: w.titel, beschreibung: w.beschreibung, status: w.status,
     created_at: w.created_at,
     zusammengelegt_in: (w as { zusammengelegt_in?: string | null }).zusammengelegt_in ?? null,
-    stimmen: zaehlerGedeckelt[w.id] ?? zaehlerRoh[w.id] ?? 0,
+    // Rohzahl nur für FERTIGE Wünsche zeigen (ihre Stimmen zählen nicht mehr gegen das
+    // Budget, sollen aber sichtbar bleiben). Ausgeblendetes/Zusammengelegtes in der
+    // Admin-Ansicht zeigt 0 — dort wäre eine alte Zahl irreführend.
+    stimmen: zaehlerGedeckelt[w.id] ?? (w.status === 'fertig' ? zaehlerRoh[w.id] ?? 0 : 0),
     eigeneStimmen: eigeneJeWunsch[w.id] ?? 0,
     vonDir: w.user_id === user.id,
   })).sort((a, b) => b.stimmen - a.stimmen || b.created_at.localeCompare(a.created_at))
