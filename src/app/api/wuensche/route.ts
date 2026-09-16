@@ -12,43 +12,55 @@ import { getSupabaseClient } from '@/lib/supabase'
 import { pruefeZugang } from '@/lib/planpruefung'
 import type { ProfilFuerPlan } from '@/lib/plaene'
 import {
-  pruefeTexte, stimmenbudget, stimmenJeWunsch, ohneVersteckte, VORSCHLAEGE_JE_TAG, type Stimme,
+  pruefeTexte, stimmenbudget, stimmenJeWunsch, aktiveStimmen, ohneVersteckte,
+  eigeneStimmenJeWunsch, VORSCHLAEGE_JE_TAG, type Stimme,
 } from '@/lib/wuensche'
 
 const ADMIN_EMAIL = 'l.m.p.1@gmx.de'
 
-/** Alle Stimmen + die Plan-Felder ihrer Urheber — die Grundlage jeder Zählung. */
+/**
+ * Alle Stimmen (roh) + dieselben ohne die, die kein Budget mehr belegen, + die
+ * Plan-Felder ihrer Urheber — die Grundlage jeder Zählung.
+ *
+ * ZWEI ZÄHLUNGEN, EIN GRUND (Stimmenkonto, 16.09. abends): `stimmenAlle` bleibt
+ * ungefiltert, weil ein fertiger Wunsch seine Stimmen weiter ANZEIGT (Chip „fertig“,
+ * Zahl bleibt) — nur `stimmenZaehlbar` (ohne ausgeblendet/fertig/zusammengelegt)
+ * geht in die Budget-Rechnung (aktiveStimmen), sonst würden fertige Wünsche anderen
+ * offenen Wünschen desselben Nutzers Budget-Plätze wegnehmen, obwohl ihre Stimmen
+ * längst zurückgegeben sein sollen.
+ */
 async function ladeStimmenUndProfile(): Promise<{
-  stimmen: Stimme[]; profile: Record<string, ProfilFuerPlan> ; fehler: string | null
+  stimmenAlle: Stimme[]; stimmenZaehlbar: Stimme[]; profile: Record<string, ProfilFuerPlan>; fehler: string | null
 }> {
   const service = getSupabaseClient()
   const { data: stimmenRoh, error: stimmenErr } = await service
     .from('wunsch_stimmen')
-    .select('wunsch_id, user_id, created_at')
+    .select('id, wunsch_id, user_id, created_at')
   if (stimmenErr) {
     console.error('[wuensche] Stimmen laden:', stimmenErr.message)
-    return { stimmen: [], profile: {}, fehler: stimmenErr.message }
+    return { stimmenAlle: [], stimmenZaehlbar: [], profile: {}, fehler: stimmenErr.message }
   }
-  // Stimmen auf Ausgeblendetes/Zusammengelegtes zählen nicht (siehe ohneVersteckte).
+  const stimmenAlle = (stimmenRoh ?? []) as Stimme[]
+  // Ausgeblendet, fertig ODER zusammengelegt belegen kein Budget mehr (ohneVersteckte).
   const { data: versteckteRoh, error: vErr } = await service
     .from('wuensche')
     .select('id')
-    .or('status.eq.ausgeblendet,zusammengelegt_in.not.is.null')
+    .or('status.in.(ausgeblendet,fertig),zusammengelegt_in.not.is.null')
   if (vErr) console.error('[wuensche] versteckte Wünsche laden:', vErr.message)
-  const stimmen = ohneVersteckte((stimmenRoh ?? []) as Stimme[], (versteckteRoh ?? []).map(w => String(w.id)))
-  const ids = [...new Set(stimmen.map(s => s.user_id))]
-  if (ids.length === 0) return { stimmen, profile: {}, fehler: null }
+  const stimmenZaehlbar = ohneVersteckte(stimmenAlle, (versteckteRoh ?? []).map(w => String(w.id)))
+  const ids = [...new Set(stimmenAlle.map(s => s.user_id))]
+  if (ids.length === 0) return { stimmenAlle, stimmenZaehlbar, profile: {}, fehler: null }
   const { data: profileRoh, error: profilErr } = await service
     .from('betriebsprofil')
     .select('user_id, plan, trial_starts_at, abo_status, plan_gueltig_bis')
     .in('user_id', ids)
   if (profilErr) {
     console.error('[wuensche] Profile laden:', profilErr.message)
-    return { stimmen, profile: {}, fehler: profilErr.message }
+    return { stimmenAlle, stimmenZaehlbar, profile: {}, fehler: profilErr.message }
   }
   const profile: Record<string, ProfilFuerPlan> = {}
   for (const p of profileRoh ?? []) profile[String(p.user_id)] = p as ProfilFuerPlan
-  return { stimmen, profile, fehler: null }
+  return { stimmenAlle, stimmenZaehlbar, profile, fehler: null }
 }
 
 export async function GET(req: NextRequest) {
@@ -78,11 +90,16 @@ export async function GET(req: NextRequest) {
         .order('created_at', { ascending: false })
   if (wErr) return NextResponse.json({ error: wErr.message }, { status: 500 })
 
-  const { stimmen, profile, fehler } = await ladeStimmenUndProfile()
+  const { stimmenAlle, stimmenZaehlbar, profile, fehler } = await ladeStimmenUndProfile()
   if (fehler) return NextResponse.json({ error: fehler }, { status: 500 })
 
-  const zaehler = stimmenJeWunsch(stimmen, profile, new Date())
-  const eigene = new Set(stimmen.filter(s => s.user_id === user.id).map(s => s.wunsch_id))
+  // Anzeige: gedeckelte Zählung für alles Zählbare, roh (ungedeckelt) als Rückfall für
+  // fertige Wünsche — deren Stimmen zählen in der Anzeige weiter, obwohl sie kein
+  // Budget mehr belegen (stehen deshalb gar nicht mehr in stimmenZaehlbar).
+  const zaehlerGedeckelt = stimmenJeWunsch(stimmenZaehlbar, profile, new Date())
+  const zaehlerRoh: Record<string, number> = {}
+  for (const s of stimmenAlle) zaehlerRoh[s.wunsch_id] = (zaehlerRoh[s.wunsch_id] ?? 0) + 1
+  const eigeneJeWunsch = eigeneStimmenJeWunsch(stimmenAlle, user.id)
 
   const { data: eigenesProfil, error: pErr } = await supabase
     .from('betriebsprofil')
@@ -92,18 +109,27 @@ export async function GET(req: NextRequest) {
   if (pErr) console.error('[wuensche] eigenes Profil:', pErr.message)
   const gesamt = stimmenbudget(eigenesProfil as ProfilFuerPlan | null)
 
+  const eigeneZaehlbar = stimmenZaehlbar.filter(s => s.user_id === user.id)
+  const benutzt = Math.min(
+    aktiveStimmen(eigeneZaehlbar, { [user.id]: eigenesProfil as ProfilFuerPlan | null }).length,
+    gesamt,
+  )
+  // Ruhend: eigene zählbare Stimmen, die über dem Budget liegen — nur > 0 nach einem
+  // Wechsel nach unten (wendeDeckelAn lässt sie stehen, statt sie zu löschen).
+  const ruhend = Math.max(0, eigeneZaehlbar.length - benutzt)
+
   const liste = (wuensche ?? []).map(w => ({
     id: w.id, titel: w.titel, beschreibung: w.beschreibung, status: w.status,
     created_at: w.created_at,
     zusammengelegt_in: (w as { zusammengelegt_in?: string | null }).zusammengelegt_in ?? null,
-    stimmen: zaehler[w.id] ?? 0,
-    eigeneStimme: eigene.has(w.id),
+    stimmen: zaehlerGedeckelt[w.id] ?? zaehlerRoh[w.id] ?? 0,
+    eigeneStimmen: eigeneJeWunsch[w.id] ?? 0,
     vonDir: w.user_id === user.id,
   })).sort((a, b) => b.stimmen - a.stimmen || b.created_at.localeCompare(a.created_at))
 
   return NextResponse.json({
     wuensche: liste,
-    budget: { gesamt, benutzt: Math.min(eigene.size, gesamt) },
+    budget: { gesamt, benutzt, ruhend },
     istAdmin,
   })
 }
@@ -142,7 +168,7 @@ export async function POST(req: NextRequest) {
   if (error || !row) return NextResponse.json({ error: error?.message ?? 'Anlegen fehlgeschlagen' }, { status: 500 })
 
   return NextResponse.json(
-    { wunsch: { ...row, stimmen: 0, eigeneStimme: false, vonDir: true } },
+    { wunsch: { ...row, stimmen: 0, eigeneStimmen: 0, vonDir: true } },
     { status: 201 },
   )
 }

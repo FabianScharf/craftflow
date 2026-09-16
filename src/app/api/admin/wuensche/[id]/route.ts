@@ -3,19 +3,19 @@
 // E-Mail prüft, und ein Service-Role-Client für den Schreibzugriff (die
 // RLS-Policies erlauben authenticated bewusst kein update).
 //
-// ZUSAMMENLEGEN: Die Stimmen des Quell-Wunsches wandern zum Ziel, ohne die Regel
-// „eine Stimme je Wunsch je Nutzer" zu verletzen — planeZusammenlegenStimmen()
-// (reine Funktion, getestet) entscheidet, verworfene Duplikate werden einfach
-// nicht übernommen. Die Quelle selbst verliert dabei alle ihre Stimmen (sie wird
-// ausgeblendet) und bekommt `zusammengelegt_in` gesetzt.
-// Reihenfolge NIE destruktiv: erst am Ziel einfügen, dann erst die Quelle löschen
-// (siehe Kommentare unten) — schlägt ein Schritt fehl, sind Stimmen höchstens
-// vorübergehend doppelt gezählt, nie unwiderruflich weg.
+// ZUSAMMENLEGEN (Stimmenkonto, 16.09. abends): Die Stimmen des Quell-Wunsches wandern
+// per einfachem SQL-Update (`set wunsch_id = ziel where wunsch_id = quelle`) zum Ziel —
+// eine einzelne Update-Anweisung, damit ids/created_at erhalten bleiben, statt wie
+// früher löschen+einfügen. Eine Dubletten-Regel braucht es nicht mehr: Seit Stimmen
+// stapelbar sind (eigene id statt Primärschlüssel (wunsch_id, user_id)), kann ein
+// Nutzer am Ziel schon Stimmen liegen haben — es kommen einfach weitere dazu. Die reine
+// Funktion `planeZusammenlegenStimmen` bildet dieselbe Regel ab und bleibt für den Test
+// erhalten, wird von dieser Route aber nicht mehr aufgerufen.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getSupabaseClient } from '@/lib/supabase'
-import { istWunschStatus, planeZusammenlegenStimmen, type Stimme } from '@/lib/wuensche'
+import { istWunschStatus } from '@/lib/wuensche'
 
 const ADMIN_EMAIL = 'l.m.p.1@gmx.de'
 
@@ -57,41 +57,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     patch.zusammengelegt_in = ziel
 
     if (ziel !== null) {
-      const { data: stimmenRoh, error: sErr } = await service
+      // Eine einzige Update-Anweisung verschiebt alle Quell-Stimmen zum Ziel — ids und
+      // created_at bleiben erhalten, ein PK-Konflikt ist ausgeschlossen (Stimmen sind
+      // stapelbar, die id ist der Primärschlüssel, nicht mehr (wunsch_id, user_id)).
+      const { error: moveErr } = await service
         .from('wunsch_stimmen')
-        .select('wunsch_id, user_id, created_at')
-        .in('wunsch_id', [id, ziel])
-      if (sErr) {
-        console.error('[admin/wuensche] Stimmen laden:', sErr.message)
-        return NextResponse.json({ error: 'Stimmen konnten nicht geladen werden.' }, { status: 500 })
-      }
-      const stimmen = (stimmenRoh ?? []) as Stimme[]
-      const stimmenQuelle = stimmen.filter(s => s.wunsch_id === id)
-      const stimmenZiel = stimmen.filter(s => s.wunsch_id === ziel)
-      const { uebertragen } = planeZusammenlegenStimmen(id, ziel, stimmenQuelle, stimmenZiel)
-
-      // Reihenfolge bewusst NICHT destruktiv: erst einfügen, dann erst löschen.
-      // Schlägt das Einfügen fehl, bleiben die Quell-Stimmen unangetastet und der
-      // Wunsch ist noch nicht als zusammengelegt markiert — nichts geht verloren,
-      // ein erneuter Versuch holt es nach. `upsert` mit ignoreDuplicates fängt den
-      // Primärschlüssel ab, falls derselbe Nutzer zwischen Lesen und Schreiben
-      // (siehe unten) selbst schon für das Ziel gestimmt hat.
-      if (uebertragen.length > 0) {
-        const { error: insErr } = await service
-          .from('wunsch_stimmen')
-          .upsert(uebertragen, { onConflict: 'wunsch_id,user_id', ignoreDuplicates: true })
-        if (insErr) {
-          console.error('[admin/wuensche] Stimmen übertragen:', insErr.message)
-          return NextResponse.json({ error: 'Stimmen konnten nicht übertragen werden.' }, { status: 500 })
-        }
-      }
-      // Bewusst in Kauf genommen: Stimmt jemand GENAU zwischen dem Lesen oben und
-      // dem Löschen hier für die Quelle ab, geht diese eine Stimme unter (die Zeile
-      // existierte beim Lesen noch nicht, wird aber gleich mitgelöscht). Admin-Aktion
-      // mit sehr geringem Verkehr — kein Grund für eine Transaktion oder einen Lock.
-      const { error: delErr } = await service.from('wunsch_stimmen').delete().eq('wunsch_id', id)
-      if (delErr) {
-        console.error('[admin/wuensche] Stimmen löschen:', delErr.message)
+        .update({ wunsch_id: ziel })
+        .eq('wunsch_id', id)
+      if (moveErr) {
+        console.error('[admin/wuensche] Stimmen verschieben:', moveErr.message)
         return NextResponse.json({ error: 'Stimmen konnten nicht übertragen werden.' }, { status: 500 })
       }
       // Ausblenden, sofern der Aufruf nicht ausdrücklich einen anderen Status setzt.
