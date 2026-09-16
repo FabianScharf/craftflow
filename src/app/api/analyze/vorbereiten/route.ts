@@ -14,7 +14,7 @@ import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang, ladeEffektivenPlan } from '@/lib/planpruefung'
 import { deckel, erlaubt } from '@/lib/plaene'
 import { deckelAblehnung, bloeckeAblehnung } from '@/lib/plantexte'
-import { zaehltGegenDeckel } from '@/lib/upload'
+import { zaehltGegenDeckel, istUuid } from '@/lib/upload'
 import { teileInBloecke, blockInfos, type Block } from '@/lib/bloecke'
 
 export const maxDuration = 300
@@ -34,8 +34,30 @@ export async function POST(req: NextRequest) {
     { projekt_id?: string; text?: string }
   if (!projektId) return NextResponse.json({ error: 'Kein Projekt' }, { status: 400 })
 
+  // Fix-Runde 1 (Review-Important): `projekt_id` kam bisher ungeprüft aus dem Client —
+  // weder als gültige UUID noch als Eigentum des Nutzers geprüft. Gleiches Muster wie
+  // in /api/upload. Fail closed: ein Supabase-Fehler zählt wie „kein passendes Projekt".
+  if (!istUuid(projektId)) {
+    return NextResponse.json({ error: 'Ungültiges Projekt.' }, { status: 400 })
+  }
+  const { data: projektRow, error: projErr } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', projektId)
+    .eq('user_id', user.id)
+    .single()
+  if (projErr || !projektRow) {
+    if (projErr) console.error('[vorbereiten] Projekt-Prüfung:', projErr.message)
+    return NextResponse.json({ error: 'Ungültiges Projekt.' }, { status: 400 })
+  }
+
   const ordner = `${user.id}/${projektId}`
-  const { data: dateien, error: listErr } = await supabase.storage.from(BUCKET).list(ordner, { limit: 200 })
+  // Fix-Runde 1 (Review-Critical): list() sortiert standardmäßig nach Namen, und die
+  // Namen beginnen mit einer zufälligen UUID (bauePfad) — ohne explizite Sortierung nach
+  // created_at käme Text/Bilder in Zufallsreihenfolge, nicht in Upload-Reihenfolge.
+  const { data: dateien, error: listErr } = await supabase.storage
+    .from(BUCKET)
+    .list(ordner, { limit: 200, sortBy: { column: 'created_at', order: 'asc' } })
   if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 })
   // _vorbereitet.json selbst zählt nicht gegen den Deckel (dieselbe Regel wie beim Upload).
   const nutzdateien = (dateien ?? []).filter(d => zaehltGegenDeckel(d.name))
