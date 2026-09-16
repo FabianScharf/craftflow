@@ -108,8 +108,25 @@ export function leitePaletteAb(primaer: string | null | undefined, akzent: strin
   if (!istHell(primary)) {
     // Auf tiefem Schwarz reichen die Standard-Statusfarben. Auf einem dunklen Blau
     // oder Gruen kann Rot zu schwach werden — dann die hellere Stufe nehmen.
+    // Flaechen, Rahmen und Nebentext aus der Primaerfarbe ableiten statt aus festem Grau.
+    // GEFUNDEN 16.09. (Fabian, Primaer #955050): Auf einem dunklen Rot standen pechschwarze
+    // Kaesten, Eingabefelder und eine schwarze Kopfzeile — die Grautoene der Standardpalette
+    // passen nur zu Schwarz. Die Mischanteile sind so gewaehlt, dass Schwarz (#0D0D0D)
+    // exakt die bisherigen Werte ergibt; jede andere dunkle Farbe bekommt ihren eigenen Ton.
+    // Nahe Schwarz gibt es nur eine Richtung: aufhellen. Bei einem dunklen Rot, Gruen
+    // oder Blau werden Kaesten und Felder dagegen etwas DUNKLER als der Grund — so
+    // bleibt die helle Schrift darauf kraeftig (Kontrast >= 4,5), und der Ton bleibt
+    // erhalten. Rahmen und Nebentext werden aufgehellt, damit sie sich abheben.
+    const nahSchwarz = leuchtdichte(primary) < 0.02
+    const hell = (anteil: number) => mische(primary, '#FFFFFF', anteil)
+    const dunkel = (anteil: number) => mische(primary, '#000000', anteil)
     return {
       ...PALETTE_DUNKEL, primary, accent,
+      surface1: nahSchwarz ? hell(17 / 242) : dunkel(0.14),   // #0D0D0D → #1E1E1E
+      surface2: nahSchwarz ? hell(29 / 242) : dunkel(0.24),   // → #2A2A2A
+      border:   nahSchwarz ? hell(33 / 242) : hell(0.18),     // → #2E2E2E
+      darkbg:   nahSchwarz ? hell(7 / 242)  : dunkel(0.10),   // → #141414
+      textMid:  nahSchwarz ? hell(125 / 242) : hell(0.68),    // → #8A8A8A
       ok: lesbar(['#5ABE6A', '#8EDB9A', '#C4F0CB'], primary),
       err: lesbar(['#E05A5A', '#FF8A80', '#FFB4AD'], primary),
       warn: lesbar(['#F5C518', '#FFDD66', '#FFEEAA'], primary),

@@ -90,3 +90,15 @@ test('Statusfarben: auf hellem Grund dunkel genug, auf dunklem Grund hell genug 
 test('ton(): beliebige Farbe mit Transparenz als color-mix', () => {
   assert.equal(ton('var(--c-ok, #5ABE6A)', '22'), 'color-mix(in srgb, var(--c-ok, #5ABE6A) 13%, transparent)')
 })
+
+test('Dunkle Primaerfarbe, die nicht Schwarz ist: Kaesten, Rahmen und Nebentext tragen ihren Ton', () => {
+  // Fabian, 16.09.: Auf #955050 standen pechschwarze Kaesten — die festen Grautoene passten nur zu Schwarz.
+  const p = leitePaletteAb('#955050', '#F6EEEF')
+  const kanal = (hex, i) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16)
+  for (const k of ['surface1', 'surface2', 'border', 'darkbg', 'textMid']) {
+    assert.notEqual(p[k], PALETTE_DUNKEL[k], `${k} darf nicht das Standardgrau sein`)
+    assert.ok(kanal(p[k], 0) > kanal(p[k], 1), `${k} bleibt rot getoent`)
+  }
+  assert.ok(kontrast(p.text, p.surface1) >= 4.5, 'Haupttext auf Kaesten lesbar')
+  assert.ok(kontrast(p.textMid, p.primary) >= 3, 'Nebentext auf dem Grund erkennbar')
+})
