@@ -131,6 +131,25 @@ ungefragt auf `main`.
   (`pruefeKandidaten` in `src/lib/learn.ts`). Gleiche Haltung wie bei den KI-Zahlen.
 - Lernen darf Speichern und PDF-Export **nie** blockieren.
 
+## Preisfaktor & Zeitfaktoren (Stand 2026-09-16)
+- **Zwei verschiedene Hebel, nie verwechseln.** Zeitfaktoren (`kalibrierung.ts`) ändern
+  die Minuten — und damit „Stunden gesamt" und den Export. Der **Preisfaktor**
+  (`src/lib/preisfaktor.ts`) multipliziert nur den Endpreis der Position, Material und
+  Lohn zusammen; Stunden, Stundensätze und Aufschläge bleiben unberührt.
+- **Grenzen:** Zeitfaktoren von Hand 0,50–3,00 (`deckeleHand`), Ableitung aus den
+  Kalibrierungsantworten unverändert 0,6–1,4 (`deckele` — die fünf Antwortbänder sind
+  genau darauf zurückgerechnet). Preisfaktor 0,50–3,00, Standard 1,00.
+- **Gestempelt, nicht nachgeschlagen:** `Angebotsposition.preisfaktor` wird gesetzt, wenn
+  die Position entsteht (analyze nach `validateAndFix`, optimize in `applyUserRates`,
+  manuell in `defaultAngebotspos`). Bestehende Faktoren werden nie überschrieben — ein
+  verschicktes Angebot darf sich nicht rückwirkend verändern.
+- **Eine Rechenstelle:** `calcAngebotspos` in `src/lib/types.ts`. Wer selbst multipliziert,
+  bringt App, PDF und Export auseinander. Ein kaputter Wert gilt als 1,00 (ein NaN würde
+  sonst die ganze Angebotssumme zerstören).
+- Der Preisfaktor geht **nie** in einen KI-Prompt und erscheint **nie** im PDF.
+- Speicherort `betriebsprofil.preisfaktor numeric(4,2) not null default 1.00`
+  (`docs/sql/2026-09-16-preisfaktor.sql`). Tests: `tests/preisfaktor.test.mjs`.
+
 ## Farben / CI (Stand 2026-09-15)
 - Zwei Nutzerfarben (`farbe_primaer`, `farbe_akzent` im Betriebsprofil). Alles andere —
   Schrift, Nebentext, Kästen, Rahmen, Kopfzeile — leitet `leitePaletteAb()` in
