@@ -31,9 +31,17 @@ alter table wunsch_stimmen enable row level security;
 drop policy if exists "Wünsche lesen" on wuensche;
 create policy "Wünsche lesen" on wuensche for select to authenticated
   using (status <> 'ausgeblendet');
+-- C-2 (Controller-Review 2026-09-16): Der Anon-Key liegt im Browser-Bündel und
+-- PostgREST ist öffentlich erreichbar — POST /api/wuensche ist also NICHT die
+-- einzige Tür. Eine Regel, die nur die Urheberschaft prüft, lässt jeden
+-- angemeldeten Nutzer direkt gegen die Supabase-REST-API einen Wunsch mit
+-- status='fertig' anlegen, der binnen 5 Minuten (Cache) auf der öffentlichen
+-- Roadmap-Seite (www.getcraftflow.de/roadmap) mit frei gewähltem Text steht.
+-- status und zusammengelegt_in müssen deshalb auch beim Insert erzwungen werden
+-- — nicht nur beim Lesen gefiltert werden.
 drop policy if exists "eigene Wünsche anlegen" on wuensche;
 create policy "eigene Wünsche anlegen" on wuensche for insert to authenticated
-  with check (auth.uid() = user_id);
+  with check (auth.uid() = user_id and status = 'offen' and zusammengelegt_in is null);
 -- BEWUSST keine update/delete-Policy für authenticated: Status setzen, zusammenlegen
 -- und ausblenden macht ausschließlich die Admin-Route über die Service-Role.
 

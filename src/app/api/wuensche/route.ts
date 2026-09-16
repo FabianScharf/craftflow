@@ -45,20 +45,31 @@ async function ladeStimmenUndProfile(): Promise<{
   return { stimmen, profile, fehler: null }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
   const zu = await pruefeZugang(supabase, user.id)
   if (zu) return zu
 
-  // Ausgeblendetes und Zusammengelegtes erscheint nicht in der Liste.
-  const { data: wuensche, error: wErr } = await supabase
-    .from('wuensche')
-    .select('id, user_id, titel, beschreibung, status, created_at')
-    .neq('status', 'ausgeblendet')
-    .is('zusammengelegt_in', null)
-    .order('created_at', { ascending: false })
+  const istAdmin = user.email === ADMIN_EMAIL
+  // I-1: Ausgeblendete und zusammengelegte Wünsche verschwinden sonst unwiderruflich
+  // auch aus Fabians eigener Liste (RLS blendet 'ausgeblendet' grundsätzlich aus, auch
+  // vor ihm) — nur für den Admin und nur mit ?alle=1, über den Service-Role-Client.
+  // Alle anderen (auch ein Admin ohne den Parameter) bekommen die normale Liste.
+  const alle = istAdmin && new URL(req.url).searchParams.get('alle') === '1'
+
+  const { data: wuensche, error: wErr } = alle
+    ? await getSupabaseClient()
+        .from('wuensche')
+        .select('id, user_id, titel, beschreibung, status, zusammengelegt_in, created_at')
+        .order('created_at', { ascending: false })
+    : await supabase
+        .from('wuensche')
+        .select('id, user_id, titel, beschreibung, status, created_at')
+        .neq('status', 'ausgeblendet')
+        .is('zusammengelegt_in', null)
+        .order('created_at', { ascending: false })
   if (wErr) return NextResponse.json({ error: wErr.message }, { status: 500 })
 
   const { stimmen, profile, fehler } = await ladeStimmenUndProfile()
@@ -78,6 +89,7 @@ export async function GET() {
   const liste = (wuensche ?? []).map(w => ({
     id: w.id, titel: w.titel, beschreibung: w.beschreibung, status: w.status,
     created_at: w.created_at,
+    zusammengelegt_in: (w as { zusammengelegt_in?: string | null }).zusammengelegt_in ?? null,
     stimmen: zaehler[w.id] ?? 0,
     eigeneStimme: eigene.has(w.id),
     vonDir: w.user_id === user.id,
@@ -86,7 +98,7 @@ export async function GET() {
   return NextResponse.json({
     wuensche: liste,
     budget: { gesamt, benutzt: Math.min(eigene.size, gesamt) },
-    istAdmin: user.email === ADMIN_EMAIL,
+    istAdmin,
   })
 }
 

@@ -11,6 +11,7 @@ import { STATUS_LABEL, WUNSCH_STATUS, TITEL_MAX, BESCHREIBUNG_MAX, type WunschSt
 type Wunsch = {
   id: string; titel: string; beschreibung: string; status: WunschStatus
   created_at: string; stimmen: number; eigeneStimme: boolean; vonDir: boolean
+  zusammengelegt_in?: string | null
 }
 
 const STATUS_FARBE: Record<WunschStatus, string> = {
@@ -27,11 +28,14 @@ export default function WuenscheSettings() {
   const [beschreibung, setBeschreibung] = useState('')
   const [sendet, setSendet] = useState(false)
   const [meldung, setMeldung] = useState<{ ok: boolean; text: string; planLink?: boolean } | null>(null)
+  // I-1: nur für den Admin — zeigt auch Ausgeblendetes und Zusammengelegtes, das
+  // sonst (RLS + Routenfilter) unwiderruflich verschwunden wirkt.
+  const [zeigeAlle, setZeigeAlle] = useState(false)
 
-  useEffect(() => { void laden() }, [])
+  useEffect(() => { void laden(zeigeAlle) }, [zeigeAlle])
 
-  async function laden() {
-    const res = await fetch('/api/wuensche')
+  async function laden(alle = zeigeAlle) {
+    const res = await fetch(alle ? '/api/wuensche?alle=1' : '/api/wuensche')
     const j = await res.json().catch(() => ({})) as {
       wuensche?: Wunsch[]; budget?: { gesamt: number; benutzt: number }; istAdmin?: boolean; error?: string
     }
@@ -155,13 +159,24 @@ export default function WuenscheSettings() {
         </div>
       </div>
 
+      {istAdmin && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
+          fontSize: 12.5, color: C.textMid, cursor: 'pointer' }}>
+          <input type="checkbox" checked={zeigeAlle} onChange={e => setZeigeAlle(e.target.checked)} />
+          Ausgeblendete und zusammengelegte anzeigen
+        </label>
+      )}
+
       {wuensche.length === 0 && (
         <div style={{ color: C.textMid, fontSize: 13 }}>Noch kein Vorschlag. Mach den ersten.</div>
       )}
 
-      {wuensche.map(w => (
+      {wuensche.map(w => {
+        const versteckt = w.status === 'ausgeblendet' || !!w.zusammengelegt_in
+        return (
         <div key={w.id} style={{ display: 'flex', gap: 14, alignItems: 'flex-start',
-          background: C.gray1, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
+          background: C.gray1, borderRadius: 8, padding: '12px 14px', marginBottom: 10,
+          opacity: versteckt ? 0.5 : 1 }}>
           <button onClick={() => void stimmeUmschalten(w)}
             title={w.eigeneStimme ? 'Stimme zurücknehmen' : 'Für diesen Wunsch stimmen'}
             disabled={!w.eigeneStimme && !kannNochStimmen}
@@ -189,6 +204,7 @@ export default function WuenscheSettings() {
             )}
             <div style={{ color: C.textMid, fontSize: 11, marginTop: 6 }}>
               {new Date(w.created_at).toLocaleDateString('de-DE')}
+              {w.zusammengelegt_in && ' · zusammengelegt'}
             </div>
             {istAdmin && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
@@ -209,7 +225,8 @@ export default function WuenscheSettings() {
             )}
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
