@@ -151,6 +151,33 @@ ungefragt auf `main`.
   damit ein heller Nutzer nicht bei jedem Laden die dunkle Seite aufblitzen sieht.
 - Tests: `tests/theme.test.mjs`.
 
+## Pläne / Deckel / Zugang (Stand 2026-09-16)
+- **Eine Quelle:** `src/lib/plaene.ts` — Matrix (Preise netto, Deckel, Funktionen je Plan),
+  beide Stripe-Preis-Sätze (`planFuerPreisId`), `effektiverPlan()`, `wendeDeckelAn()`,
+  `merkmaleFuerAnzeige()`. Nirgends sonst Preise, Limits oder Plan-Namen hart schreiben.
+  Änderungen an der Matrix gehören in `tests/plaene.test.mjs` — bewusst, nicht nebenbei.
+- **Der Browser ist nie die Instanz.** Jede Sperre/jeder Deckel steht serverseitig in der
+  Route über `src/lib/planpruefung.ts`: `pruefeZugang` (402 wenn `'gesperrt'`),
+  `pruefeFunktion` (403 mit `{ error, minPlan }`), `pruefeDeckel`. Texte aus
+  `src/lib/plantexte.ts` (rein, getestet). Nie stumm ablehnen.
+- **Zugang nach der Testphase:** `effektiverPlan` = Testphase → enterprise; `abo_status
+  = 'aktiv'` → gespeicherter Plan; Plan ≠ solo mit gültigem `plan_gueltig_bis` (Gutschein/
+  Admin) → dieser Plan; sonst `'gesperrt'`. Webhook setzt `abo_status`; `redeem_coupon`
+  setzt `plan_gueltig_bis`. SQL: `docs/sql/2026-09-16-abo-status.sql`.
+- **Angebot zählt bei der Analyse** (nicht beim PDF), nur wenn Positionen zurückkommen;
+  Deckel wird VOR dem KI-Aufruf geprüft (`src/lib/angebotszaehler.ts`).
+- **Deckel wirken beim Lesen:** die ältesten N (nach `created_at`) bleiben aktiv, der Rest
+  ist `aktivDurchPlan: false` — nichts wird gelöscht, Upgrade wirkt sofort. Gilt für
+  Bauweise-Regeln, Materialpreise; Optimieren-Runden je Projekt in `optimieren_runden`
+  (`docs/sql/2026-09-16-plan-deckel.sql`); Dateien je Projekt in analyze.
+- **Solo = Standardlayout:** `pdfTextOptionen`/`pdfFirmaOptionen` bekommen den Plan;
+  ohne `gestaltung` fallen Layout/Schrift/Briefpapier/Textbausteine/Akzent zurück, Inhalt bleibt.
+- **Website:** `scripts/plaene-export.mjs` schreibt `~/craftflow-web/lib/plaene.json`;
+  `tests/plaene-website.test.mjs` schlägt an, wenn die Website veraltet ist. Nach jeder
+  Matrix-Änderung exportieren und im Website-Repo committen.
+- Tests ohne React/Supabase: `plaene.ts`, `plantexte.ts` importieren nur untereinander
+  (mit `.ts`-Endung — `allowImportingTsExtensions` ist gesetzt).
+
 ## Settings / Kostenstellen (Regeln & Route)
 - **15 Standard-Kostenstellen:** nicht löschbar, nicht umbenennbar — nur Betrag
   ändern oder aus/an. Standard-Erkennung IMMER über `normalizeKsId(code) ∈
