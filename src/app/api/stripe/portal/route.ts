@@ -18,10 +18,16 @@ export async function POST(req: NextRequest) {
   }
 
   const origin = req.headers.get('origin') ?? 'https://getcraftflow.de'
-  const session = await stripe.billingPortal.sessions.create({
-    customer: data.stripe_customer_id,
-    return_url: `${origin}/settings`,
-  })
-
-  return NextResponse.json({ url: session.url })
+  // Audit 2026-09-17 (Minor 13): Ohne try/catch wurde ein Stripe-Fehler zu einer
+  // nackten Next.js-500 ohne ein Wort Deutsch.
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: data.stripe_customer_id,
+      return_url: `${origin}/settings`,
+    })
+    return NextResponse.json({ url: session.url })
+  } catch (e) {
+    console.error('[stripe] Portal:', e)
+    return NextResponse.json({ error: 'Die Rechnungsverwaltung lässt sich gerade nicht öffnen. Bitte später noch einmal versuchen.' }, { status: 502 })
+  }
 }

@@ -44,11 +44,7 @@ export async function POST(req: NextRequest) {
     if (userId) {
       const priceId = sub.items.data[0]?.price.id ?? ''
       const plan = planFuerPreisId(priceId)
-      if (!plan) {
-        // Unbekannter Preis: NICHT still auf Solo — das war der Fehler vom 15.09.
-        console.error('[stripe] unbekannte Preis-ID im Abo:', priceId, 'user', userId)
-        return NextResponse.json({ received: true, warnung: 'unbekannte Preis-ID' })
-      }
+
       // 'past_due' zählt bewusst noch als aktiv (Aufgabe 0, Controller): eine
       // ausstehende Zahlung soll den Zugang nicht sofort sperren, Stripe versucht
       // in dieser Phase noch selbst abzubuchen.
@@ -58,9 +54,19 @@ export async function POST(req: NextRequest) {
       // das blieb ein vorher aktives Abo nach Kündigung/Zahlungsausfall auf
       // 'aktiv' stehen — effektiverPlan() hätte den Nutzer nie gesperrt. Der Plan
       // selbst bleibt stehen (Fabians Regel).
-      const update: Record<string, unknown> = { plan }
-      update.abo_status = ['active', 'trialing', 'past_due'].includes(sub.status) ? 'aktiv' : 'beendet'
+      const aboStatus = ['active', 'trialing', 'past_due'].includes(sub.status) ? 'aktiv' : 'beendet'
+
+      // Audit 2026-09-17 (Minor): Bei unbekannter Preis-ID kehrte diese Stelle
+      // FRÜHER zurück, bevor abo_status geschrieben war — eine Kündigung auf einem
+      // Altpreis wäre auf 'aktiv' stehen geblieben. Jetzt wird der Status immer
+      // gesetzt; nur der PLAN bleibt unangetastet, wenn der Preis unbekannt ist
+      // (nie still auf Solo — das war der Fehler vom 15.09.). Antwort bleibt 200:
+      // Stripe würde einen Fehler sonst endlos wiederholen.
+      const update: Record<string, unknown> = { abo_status: aboStatus }
+      if (plan) update.plan = plan
+      else console.error('[stripe] unbekannte Preis-ID im Abo:', priceId, 'user', userId, '— Plan unverändert')
       await db.from('betriebsprofil').update(update).eq('user_id', userId)
+      if (!plan) return NextResponse.json({ received: true, warnung: 'unbekannte Preis-ID' })
     }
   }
 

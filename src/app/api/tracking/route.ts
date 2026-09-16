@@ -18,10 +18,16 @@ export async function POST(req: NextRequest) {
 
     // ── outcome_init: Erstes Speichern eines Projekts ──────────────────
     if (type === 'outcome_init' && projectId) {
+      // JEDER Zugriff zusätzlich auf den eigenen Nutzer gefiltert (Audit 2026-09-17,
+      // Important 6). Bisher hing die Mandantentrennung dieser beiden Tabellen allein
+      // an RLS — und für angebot_outcomes/angebot_events liegt keine Migration mit
+      // Policies im Repo, die das belegen würde. Überall sonst (projects,
+      // offer_versions) filtert der Code zusätzlich selbst; hier jetzt auch.
       const { data: existing } = await supabase
         .from('angebot_outcomes')
         .select('id')
         .eq('project_id', projectId)
+        .eq('user_id', user.id)
         .maybeSingle()
 
       if (!existing) {
@@ -63,6 +69,7 @@ export async function POST(req: NextRequest) {
         .from('angebot_outcomes')
         .update({ pdf_exportiert_at: new Date().toISOString() })
         .eq('project_id', projectId)
+        .eq('user_id', user.id)
 
       return NextResponse.json({ ok: true })
     }
@@ -100,6 +107,7 @@ export async function POST(req: NextRequest) {
             .from('angebot_outcomes')
             .update({ preis_kalkuliert: nettoNachher })
             .eq('project_id', projectId)
+            .eq('user_id', user.id)
         }
       }
 
@@ -120,6 +128,7 @@ export async function POST(req: NextRequest) {
           updated_at:       new Date().toISOString(),
         })
         .eq('project_id', projectId)
+        .eq('user_id', user.id)
 
       await supabase.from('angebot_events').insert({
         project_id: projectId,
