@@ -5,6 +5,7 @@ import {
   assistentWissen, EINSTELLUNGSBEREICHE, PFLICHTTHEMEN,
 } from '../src/lib/assistentwissen.ts'
 import { REFERENZEN, BETRIEBSFRAGEN } from '../src/lib/kalibrierung.ts'
+import { PLAN_LABELS, mindestPlan } from '../src/lib/plaene.ts'
 
 const FESTE_FRAGEN = Object.keys(BETRIEBSFRAGEN).length
 
@@ -51,6 +52,20 @@ test('Jedes Pflichtthema kommt im Wissen vor', () => {
   const wissen = assistentWissen().toLowerCase()
   for (const thema of PFLICHTTHEMEN) {
     assert.ok(wissen.includes(thema.toLowerCase()), `Thema "${thema}" fehlt im Wissen`)
+  }
+})
+
+test('Der Assistent nennt für jede plangebundene Funktion den echten Mindestplan aus plaene.ts', () => {
+  // Vorher standen die Plan-Hinweise als Freitext im Wissen ("ab Pro-Plan", "ab
+  // Starter-Plan", "GAEB ab Enterprise-Plan") — unabhängig von plaene.ts. Ändert
+  // sich dort ein Deckel oder eine Funktion wandert in einen anderen Plan, veraltet
+  // der Assistent lautlos. Jetzt müssen die Hinweise aus PLAN_LABELS[mindestPlan(f)]
+  // gebaut sein — dieser Test prüft das für jede betroffene Funktion.
+  const wissen = assistentWissen()
+  for (const f of ['auswertung', 'lieferanten', 'smtp', 'gaeb', 'kalibrierung', 'lernschleife', 'bauweise', 'materialpreise']) {
+    const plan = PLAN_LABELS[mindestPlan(f)]
+    const treffer = wissen.includes(`ab dem ${plan}-Plan`) || wissen.includes(`ab ${plan}-Plan`)
+    assert.ok(treffer, `Funktion "${f}" (ab ${plan}-Plan) fehlt im Wissen des Assistenten`)
   }
 })
 

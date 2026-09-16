@@ -1,6 +1,11 @@
 // Das Wissen des Hilfe-Assistenten.
 //
-// Importiert bewusst NICHTS — damit die Tests ohne Bundler laufen.
+// Importiert bewusst nur aus ./plaene.ts — die einzige Quelle für Pläne und Deckel,
+// selbst ohne weitere Importe. So bleibt die Kette ohne Bundler testbar, und die
+// Plan-Hinweise unten veralten nicht mehr für sich (Aufgabe 7, 16.09.): Vorher stand
+// "ab Pro-Plan" als Freitext im Code, unabhängig von plaene.ts — wanderte eine
+// Funktion in einen anderen Plan, hätte sich niemand daran erinnert, den Text
+// mitzuziehen.
 //
 // WARUM DAS EINE EIGENE DATEI IST (Fabians Frage vom 2026-09-08: "Weiß der Assistent
 // immer über alle Funktionen Bescheid? Auch jede Neuerung?"):
@@ -23,7 +28,11 @@
 //      Funktion im Wissen vorkommt. Wer einen Bereich ergänzt und den Assistenten
 //      vergisst, bekommt einen roten Test statt eines falsch beratenen Nutzers.
 
+import { PLAN_LABELS, mindestPlan } from './plaene.ts'
+
 export type Einstellungsbereich = { id: string; label: string; zweck: string }
+
+const abPlan = (f: Parameters<typeof mindestPlan>[0]) => `ab dem ${PLAN_LABELS[mindestPlan(f)]}-Plan`
 
 /**
  * Die Bereiche der Einstellungen. MUSS zu navItems in src/app/settings/page.tsx
@@ -34,16 +43,16 @@ export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
   { id: 'buchhaltung', label: 'Buchhaltung', zweck: 'USt-IdNr., Steuernummer, IBAN, Umsatzsteuersatz, Kleinunternehmerregelung nach § 19 UStG, Gültigkeitsdauer der Angebote, Angebotsnummern' },
   { id: 'dokumente', label: 'Dokumente', zweck: 'Anrede-Vorlage, Einleitung, Grußformel, Zahlungskondition, Widerrufsbelehrung' },
   { id: 'textbausteine', label: 'Textbausteine', zweck: 'Eigene Absätze fürs Angebot — Ausführungszeitraum, Materialpreisvorbehalt, bauseitige Leistungen. Mit "immer" stehen sie in jedem Angebot' },
-  { id: 'auswertung', label: 'Auswertung', zweck: 'Zahlen zu den eigenen Angeboten (ab Pro-Plan)' },
+  { id: 'auswertung', label: 'Auswertung', zweck: `Zahlen zu den eigenen Angeboten (${abPlan('auswertung')})` },
   { id: 'marketing', label: 'Marketing & CI', zweck: 'Akzentfarbe und Logo für Dokumente' },
   { id: 'briefpapier', label: 'Briefpapier', zweck: 'Aussehen des PDFs: Layout, Schriftart, Spalten der Positionstabelle, eigenes Briefpapier, Seitenränder — mit lebender Vorschau daneben' },
-  { id: 'betrieb', label: 'Mein Betrieb', zweck: 'Betriebskalibrierung: acht bis neun Fragen (je nach Schwerpunkt) zu Maschinen, Schwerpunkt, Montage, Stückzahlen und einem Referenzmöbel. Daraus rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten' },
+  { id: 'betrieb', label: 'Mein Betrieb', zweck: `Betriebskalibrierung (${abPlan('kalibrierung')}): acht bis neun Fragen (je nach Schwerpunkt) zu Maschinen, Schwerpunkt, Montage, Stückzahlen und einem Referenzmöbel. Daraus rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten. Dort auch: Lernschleife aus gewonnenen Angeboten (${abPlan('lernschleife')})` },
   { id: 'kostenstellen', label: 'Kostenstellen', zweck: 'Stundensatz je Kostenstelle, eigene Kostenstellen anlegen, nicht genutzte abschalten' },
   { id: 'warenaufschlaege', label: 'Warenaufschläge', zweck: 'Materialaufschlag je Warengruppe' },
-  { id: 'bauweise', label: 'Meine Bauweise', zweck: 'Gelernte Wenn-Dann-Regeln des Betriebs, z.B. "Rückwände immer aus 8 mm Spanplatte". Die KI merkt sie sich aus dem Optimieren-Chat und hält sich daran' },
-  { id: 'materialpreise', label: 'Materialpreise', zweck: 'Fest hinterlegte Einkaufspreise. Die KI rechnet damit, statt zu schätzen' },
-  { id: 'lieferanten', label: 'Lieferanten', zweck: 'Firmen und Ansprechpartner für Materialanfragen (ab Starter-Plan)' },
-  { id: 'email', label: 'E-Mail & Versand', zweck: 'SMTP für den Versand direkt aus CraftFlow (ab Pro-Plan)' },
+  { id: 'bauweise', label: 'Meine Bauweise', zweck: `Gelernte Wenn-Dann-Regeln des Betriebs, z.B. "Rückwände immer aus 8 mm Spanplatte". Die KI merkt sie sich aus dem Optimieren-Chat und hält sich daran (${abPlan('bauweise')})` },
+  { id: 'materialpreise', label: 'Materialpreise', zweck: `Fest hinterlegte Einkaufspreise. Die KI rechnet damit, statt zu schätzen (${abPlan('materialpreise')})` },
+  { id: 'lieferanten', label: 'Lieferanten', zweck: `Firmen und Ansprechpartner für Materialanfragen (${abPlan('lieferanten')})` },
+  { id: 'email', label: 'E-Mail & Versand', zweck: `SMTP für den Versand direkt aus CraftFlow (${abPlan('smtp')})` },
   { id: 'plan', label: 'Mein Plan', zweck: 'Gebuchter Tarif und Nutzung' },
   { id: 'hilfe', label: 'Hilfe', zweck: 'Link zur ausführlichen Starthilfe (www.getcraftflow.de/willkommen — erklärt Einrichtung, Beschreiben, KI-Optimierung, Kalkulations-Check und PDF mit Beispielen) und die Programmvorstellung zum Wiederholen' },
 ]
@@ -129,7 +138,7 @@ Die obere Leiste ist auf jeder Seite gleich: Zeichen und Titel links, rechts vie
 ### NEUES ANGEBOT
 → Großer Mikrofon-Knopf: das Projekt einfach diktieren
 → Textfeld darunter: dasselbe eintippen
-→ Fotos, PDF oder GAEB-Datei hochladen (GAEB ab Enterprise-Plan)
+→ Fotos, PDF oder GAEB-Datei hochladen (GAEB ${abPlan('gaeb')})
 → "Kalkulation generieren" — die KI erstellt die vollständige Kalkulation
 Tipp: Je mehr Details, desto genauer. Möbelart, Maße, Material, Ausstattung und ob montiert wird — diese fünf braucht CraftFlow immer.
 

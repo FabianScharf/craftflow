@@ -2,7 +2,7 @@
 // damit sie ohne Supabase/NextResponse testbar sind (tests/plantexte.test.mjs).
 // Importiert bewusst nur aus ./plaene.
 
-import { PLAN_LABELS, PLAN_REIHE, PLAN_RANK, mindestPlan, deckel, type Plan, type Funktion, type DeckelArt } from './plaene.ts'
+import { PLAN_LABELS, mindestPlan, deckel, naechsterPlanMitMehr, type Plan, type Funktion, type DeckelArt } from './plaene.ts'
 
 export type Sperrgrund = 'testphase' | 'gutschein'
 
@@ -39,12 +39,6 @@ const DECKEL_NAME: Record<DeckelArt, [string, string]> = {
 export function ablehnung(f: Funktion): { error: string; minPlan: Plan } {
   const minPlan = mindestPlan(f)
   return { error: `${FUNKTION_NAME[f]} ist ab dem ${PLAN_LABELS[minPlan]}-Plan verfügbar.`, minPlan }
-}
-
-/** Nächster Plan in der Reihe, der von `art` mehr erlaubt als `plan` (null = kein solcher Plan). */
-function naechsterPlanMitMehr(art: DeckelArt, plan: Plan): Plan | null {
-  const aktuell = deckel(plan, art)
-  return PLAN_REIHE.find(p => PLAN_RANK[p] > PLAN_RANK[plan] && (deckel(p, art) === null || (aktuell !== null && (deckel(p, art) as number) > aktuell))) ?? null
 }
 
 /** 403-Antwortkörper: Deckel erreicht, nennt die Zahl im aktuellen Plan und ggf. den nächsten Plan mit mehr. */

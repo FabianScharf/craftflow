@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { akzentTon, ton } from '@/lib/theme'
 import { C } from '@/lib/types'
 import { BETRIEBSFRAGEN, referenzFuer, referenzPreis, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
+import { PlanGate } from '@/components/PlanGate'
 
 // Einstellungen -> Mein Betrieb. Zeigt dieselben Fragen wie die Erst-Anmeldung
 // und die vier daraus abgeleiteten Faktoren in Klartext.
@@ -371,42 +372,44 @@ export default function BetriebSettings() {
 
       <div style={{ height: 1, background: C.border, margin: '30px 0' }} />
 
-      <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-        Aus gewonnenen Angeboten lernen
-      </div>
-      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
-        CraftFlow vergleicht, was es vorgeschlagen hat, mit dem, was in deinen
-        gewonnenen Angeboten wirklich stand — und zieht die Faktoren nach. Das ist
-        Marktwahrheit, keine Schätzung. Ab drei gewonnenen Angeboten je Bereich.
-      </p>
-
-      {schleife && (
-        <div style={{ background: C.gray1, borderRadius: 8, padding: 14, marginBottom: 14 }}>
-          <div style={{ color: C.textMid, fontSize: 12, marginBottom: schleife.begruendung.length ? 10 : 0 }}>
-            {schleife.angebote} gewonnene Angebote ausgewertet.
-          </div>
-          {schleife.begruendung.length === 0
-            ? <div style={{ color: C.textMid, fontSize: 12 }}>Noch zu wenig Material — es ändert sich nichts.</div>
-            : schleife.begruendung.map(z => (
-                <div key={z} style={{ color: C.white, fontSize: 12.5, lineHeight: 1.7 }}>{z}</div>
-              ))}
+      <PlanGate funktion="lernschleife">
+        <div style={{ color: C.white, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
+          Aus gewonnenen Angeboten lernen
         </div>
-      )}
+        <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+          CraftFlow vergleicht, was es vorgeschlagen hat, mit dem, was in deinen
+          gewonnenen Angeboten wirklich stand — und zieht die Faktoren nach. Das ist
+          Marktwahrheit, keine Schätzung. Ab drei gewonnenen Angeboten je Bereich.
+        </p>
 
-      <button disabled={schleifeLaeuft} onClick={() => void schleifeNachsehen()} style={{
-        background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8,
-        color: C.white, padding: '10px 18px', fontSize: 13,
-        cursor: schleifeLaeuft ? 'default' : 'pointer', marginRight: 10 }}>
-        {schleifeLaeuft ? 'Rechnet …' : 'Nachsehen, was sich ändern würde'}
-      </button>
+        {schleife && (
+          <div style={{ background: C.gray1, borderRadius: 8, padding: 14, marginBottom: 14 }}>
+            <div style={{ color: C.textMid, fontSize: 12, marginBottom: schleife.begruendung.length ? 10 : 0 }}>
+              {schleife.angebote} gewonnene Angebote ausgewertet.
+            </div>
+            {schleife.begruendung.length === 0
+              ? <div style={{ color: C.textMid, fontSize: 12 }}>Noch zu wenig Material — es ändert sich nichts.</div>
+              : schleife.begruendung.map(z => (
+                  <div key={z} style={{ color: C.white, fontSize: 12.5, lineHeight: 1.7 }}>{z}</div>
+                ))}
+          </div>
+        )}
 
-      {schleife && schleife.begruendung.length > 0 && (
-        <button disabled={schleifeLaeuft} onClick={() => void schleifeUebernehmen()} style={{
-          background: C.copper, border: 'none', borderRadius: 8, color: C.black,
-          padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          Übernehmen
+        <button disabled={schleifeLaeuft} onClick={() => void schleifeNachsehen()} style={{
+          background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8,
+          color: C.white, padding: '10px 18px', fontSize: 13,
+          cursor: schleifeLaeuft ? 'default' : 'pointer', marginRight: 10 }}>
+          {schleifeLaeuft ? 'Rechnet …' : 'Nachsehen, was sich ändern würde'}
         </button>
-      )}
+
+        {schleife && schleife.begruendung.length > 0 && (
+          <button disabled={schleifeLaeuft} onClick={() => void schleifeUebernehmen()} style={{
+            background: C.copper, border: 'none', borderRadius: 8, color: C.black,
+            padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Übernehmen
+          </button>
+        )}
+      </PlanGate>
     </div>
   )
 }

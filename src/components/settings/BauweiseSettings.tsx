@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { akzentTon } from '@/lib/theme'
 import { C } from '@/lib/types'
 import { BEREICHE, WARNUNG_AB_REGELN, MAX_REGELN_IM_PROMPT, istGleicheRegel, normalisiere } from '@/lib/learn'
+import { PLAN_LABELS, naechsterPlanMitMehr, type Plan, type EffektiverPlan } from '@/lib/plaene'
 
 type Regel = {
   id: string
@@ -17,10 +18,15 @@ type Regel = {
   zuletzt_gesendet: string | null
   konflikt_hinweis: boolean
   created_at: string
+  // Vom Server berechnet (Task 4): false, wenn die Regel zwar aktiv gesetzt ist,
+  // aber wegen des Plan-Deckels nicht mehr zählt (wendeDeckelAn in plaene.ts).
+  aktivDurchPlan: boolean
 }
 
 export default function BauweiseSettings() {
   const [regeln, setRegeln] = useState<Regel[]>([])
+  const [deckel, setDeckel] = useState<number | null>(null)
+  const [plan, setPlan] = useState<EffektiverPlan>('solo')
   const [laedt, setLaedt] = useState(true)
   const [neuOffen, setNeuOffen] = useState(false)
   const [neuBereich, setNeuBereich] = useState<string>(BEREICHE[0])
@@ -34,11 +40,17 @@ export default function BauweiseSettings() {
   async function loadRegeln() {
     const res = await fetch('/api/settings/bauweise')
     if (res.ok) {
-      const json = await res.json() as { regeln?: Regel[] }
+      const json = await res.json() as { regeln?: Regel[]; deckel?: number | null; plan?: EffektiverPlan }
       setRegeln(json.regeln ?? [])
+      setDeckel(json.deckel ?? null)
+      if (json.plan) setPlan(json.plan)
     }
     setLaedt(false)
   }
+
+  // Nächster Plan mit mehr Bauweise-Regeln — 'gesperrt' zählt wie 'solo' (kein
+  // gültiger Nicht-Solo-Plan, gleiche Konvention wie planpruefung.ts).
+  const naechsterPlan: Plan | null = naechsterPlanMitMehr('bauweiseRegeln', plan === 'gesperrt' ? 'solo' : plan)
 
   const aktive = regeln.filter(r => r.aktiv)
   // Reihenfolge wie im Prompt (siehe ladeAktiveRegeln): zuletzt gesendet zuerst,
@@ -118,17 +130,21 @@ export default function BauweiseSettings() {
       return
     }
     setNeuFehler('')
-    let ok = false
     try {
       const res = await fetch('/api/settings/bauweise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bereich: neuBereich, wenn: neuWenn, dann: neuDann, herkunft: 'manuell' }),
       })
-      ok = res.ok
-    } catch { ok = false }
-    if (!ok) {
-      // Eingabe stehen lassen, damit der Nutzer sie nicht neu tippen muss.
+      if (!res.ok) {
+        // Der echte Grund gehört ans Formular — bei einem erreichten Deckel nennt
+        // der Server (403, deckelAblehnung) den nächsten Plan, der mehr erlaubt.
+        // Eingabe stehen lassen, damit der Nutzer sie nicht neu tippen muss.
+        const j = await res.json().catch(() => ({})) as { error?: string }
+        setNeuFehler(j.error ?? 'Regel konnte nicht gespeichert werden. Bitte nochmal versuchen.')
+        return
+      }
+    } catch {
       setNeuFehler('Regel konnte nicht gespeichert werden. Bitte nochmal versuchen.')
       return
     }
@@ -150,6 +166,12 @@ export default function BauweiseSettings() {
         Diese Regeln fließen in jede Kalkulation ein und gelten nur für dein Konto. Stundensätze und
         Materialaufschläge gehören weiterhin in die jeweiligen Bereiche — hier geht es um Bauweise,
         Material und Zeitgefühl.
+      </div>
+
+      <div style={{ fontSize: 12, color: C.textMid, marginBottom: 14 }}>
+        {deckel === null
+          ? `${aktive.length} Regeln aktiv`
+          : `${Math.min(aktive.length, deckel)} von ${deckel} Regeln aktiv`}
       </div>
 
       {aktive.length >= WARNUNG_AB_REGELN && (
@@ -175,15 +197,21 @@ export default function BauweiseSettings() {
           <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: C.copper, fontFamily: 'Helvetica Neue,sans-serif', marginBottom: 8 }}>
             {bereich.toUpperCase()}
           </div>
-          {regeln.filter(r => r.bereich === bereich).map(r => (
-            <div key={r.id} style={{ border: `1px solid ${C.border}`, borderRadius: 3, padding: 12, marginBottom: 8, background: C.gray1, opacity: r.aktiv ? 1 : 0.55 }}>
+          {regeln.filter(r => r.bereich === bereich).map(r => {
+            // Nur eine Regel, die der Nutzer aktiv haben will, aber die der Plan-
+            // Deckel zurückstuft, ist "durch Plan gesperrt" — eine von Hand
+            // ausgeschaltete Regel (r.aktiv === false) ist einfach aus, kein Sonderfall.
+            const planGesperrt = r.aktiv && !r.aktivDurchPlan
+            return (
+            <div key={r.id} style={{ border: `1px solid ${C.border}`, borderRadius: 3, padding: 12, marginBottom: 8, background: C.gray1, opacity: !r.aktiv ? 0.55 : planGesperrt ? 0.5 : 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <input
                   type="checkbox"
                   checked={r.aktiv}
+                  disabled={planGesperrt}
                   onChange={() => void aendern(r.id, { aktiv: !r.aktiv })}
-                  style={{ accentColor: C.copper, cursor: 'pointer', flexShrink: 0 }}
-                  title={r.aktiv ? 'Regel ist aktiv' : 'Regel ist aus'}
+                  style={{ accentColor: C.copper, cursor: planGesperrt ? 'not-allowed' : 'pointer', flexShrink: 0 }}
+                  title={planGesperrt ? 'Durch den Plan-Deckel gesperrt' : r.aktiv ? 'Regel ist aktiv' : 'Regel ist aus'}
                 />
                 <span style={{ fontSize: 11, color: C.textMid, flex: 1 }}>
                   {r.herkunft === 'manuell' ? 'von mir eingetippt' : r.quelle_text || 'gelernt'}
@@ -231,8 +259,14 @@ export default function BauweiseSettings() {
                   Wird derzeit NICHT mitgeschickt — Obergrenze von {MAX_REGELN_IM_PROMPT} Regeln erreicht.
                 </div>
               )}
+              {planGesperrt && (
+                <div style={{ fontSize: 10, color: C.warn, marginTop: 6 }}>
+                  Inaktiv durch Plan{naechsterPlan ? ` — ab ${PLAN_LABELS[naechsterPlan]} wieder aktiv` : ''}
+                </div>
+              )}
             </div>
-          ))}
+            )
+          })}
         </div>
       ))}
 

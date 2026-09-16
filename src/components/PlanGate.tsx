@@ -1,21 +1,30 @@
 'use client'
 import { C } from '@/lib/types'
 import { akzentTon } from '@/lib/theme'
-import { Plan, usePlan } from '@/hooks/usePlan'
+import { PLAN_LABELS, type Plan, type Funktion } from '@/lib/plaene'
+import { ablehnung } from '@/lib/plantexte'
+import { usePlan } from '@/hooks/usePlan'
 
-const PLAN_LABELS: Record<Plan, string> = {
-  solo: 'Solo', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise',
-}
-
-export function PlanGate({ minPlan, children, fallback }: {
-  minPlan: Plan
+/**
+ * Sperrt Inhalt, der einen Plan oder eine Funktion voraussetzt. Zwei Wege:
+ * `funktion` — der genaue Grund kommt aus ablehnung() (plantexte.ts), also
+ * derselbe Text wie bei einer 403-Antwort vom Server. `minPlan` bleibt für
+ * Stellen ohne eigene Funktion (Rang-Vergleich, keine Funktions-Textkarte).
+ * Der Knopf führt zu den Plan-Einstellungen statt selbst ein Upgrade
+ * auszulösen — auf der Zielseite steht die volle Plan-Auswahl.
+ */
+export function PlanGate({ minPlan, funktion, children, fallback }: {
+  minPlan?: Plan
+  funktion?: Funktion
   children: React.ReactNode
   fallback?: React.ReactNode
 }) {
-  const { canUse, loading } = usePlan()
+  const { canUse, erlaubt, loading } = usePlan()
   if (loading) return null
-  if (canUse(minPlan)) return <>{children}</>
+  const ok = funktion ? erlaubt(funktion) : canUse(minPlan ?? 'solo')
+  if (ok) return <>{children}</>
   if (fallback) return <>{fallback}</>
+  const text = funktion ? ablehnung(funktion).error : `Diese Funktion ist ab dem ${PLAN_LABELS[minPlan ?? 'solo']}-Plan verfügbar.`
   return (
     <div style={{
       borderRadius: 8,
@@ -24,16 +33,15 @@ export function PlanGate({ minPlan, children, fallback }: {
       padding: '28px 20px',
       textAlign: 'center',
     }}>
-      <p style={{ fontSize: 13, color: C.textMid, margin: '0 0 14px' }}>
-        Diese Funktion ist ab dem{' '}
-        <strong style={{ color: C.copper }}>{PLAN_LABELS[minPlan]}-Plan</strong>{' '}
-        verfügbar.
-      </p>
-      <button style={{
-        background: C.copper, color: C.black, border: 'none', borderRadius: 6,
-        padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        fontFamily: 'Helvetica Neue, sans-serif',
-      }}>Upgrade</button>
+      <p style={{ fontSize: 13, color: C.textMid, margin: '0 0 14px' }}>{text}</p>
+      <a
+        href="/settings#plan"
+        style={{
+          display: 'inline-block', background: C.copper, color: C.black, border: 'none', borderRadius: 6,
+          padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          fontFamily: 'Helvetica Neue, sans-serif', textDecoration: 'none',
+        }}
+      >Plan wechseln</a>
     </div>
   )
 }

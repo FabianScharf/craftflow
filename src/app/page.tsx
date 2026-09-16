@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { akzentTon, ton } from '@/lib/theme'
 import { usePlan, mindestPlan, PLAN_LABELS } from '@/hooks/usePlan'
+import { PLAN_REIHE, PLAENE, PREIS_IDS, merkmaleFuerAnzeige } from '@/lib/plaene'
 import NoSleep from 'nosleep.js'
 import { createClient } from '@/utils/supabase/client'
 import {
@@ -202,9 +203,10 @@ export default function CraftFlow() {
   // ein Neukunde in der Testphase liest "AB STARTER" und glaubt, die beworbene
   // Testphase gelte nicht fuer ihn. Deshalb waehrend des Ladens nichts sperren.
   // PlanGate loest dasselbe Problem mit `if (loading) return null`.
-  const darfNutzen = (p: Parameters<typeof planCanUse>[0]) => planLaedt || planCanUse(p)
-  // Dieselbe Anti-Flacker-Regel, aber funktionsbasiert (Aufgabe 5) — für Dateien-
-  // Upload und GAEB, wo der Deckel je Funktion und nicht nur je Plan-Rang gilt.
+  //
+  // Funktionsbasiert statt Plan-Rang (Aufgabe 5, erweitert Aufgabe 7) — Deckel und
+  // Freischaltung gelten je Funktion (plaene.ts), nicht nur nach Plan-Rang. Ersetzt
+  // das frühere `darfNutzen('starter'|'enterprise')`.
   const funktionErlaubt = (f: Parameters<typeof planErlaubtFn>[0]) => planLaedt || planErlaubtFn(f)
   const [pwLoading, setPwLoading] = useState<string | null>(null)
   const [pwError, setPwError] = useState<string | null>(null)
@@ -2573,12 +2575,13 @@ export default function CraftFlow() {
      PAYWALL: Trial abgelaufen, kein aktiver Plan
   ══════════════════════════════════════════════════ */
   if (isBlocked) {
-    const PAYWALL_PLANS = [
-      { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1Tn1xzRvozvhvO9JJ3og0R3w', highlight: 'Einstieg',    features: ['3 Angebote / Monat', 'KI-Kalkulation', 'PDF-Angebot'] },
-      { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1Tn1y0RvozvhvO9JK7pRRRht', highlight: 'Beliebt',     features: ['15 Angebote / Monat', 'Bilder & PDFs', 'CSV-Export', 'Lieferantenanfrage'] },
-      { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1Tn1y0RvozvhvO9J4QXMCzje', highlight: 'Wachstum',    features: ['50 Angebote / Monat', 'Eigene E-Mail (SMTP)', 'Bis zu 3 Nutzer'] },
-      { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1Tn1y1RvozvhvO9JYlX8lp4z', highlight: 'Vollzugang',  features: ['Unbegrenzt Angebote', 'GAEB-Import', 'Priorisierter Support'] },
-    ]
+    // Eine Quelle für die Preisliste (Controller, Aufgabe 7) — dieselbe wie in
+    // settings/page.tsx. Zwei Preislisten im Code waren ein Fehler, keine Wahl:
+    // vorher konnte die Paywall andere Preise/Deckel zeigen als die Einstellungen.
+    const PAYWALL_PLANS = PLAN_REIHE.map(id => ({
+      id, name: PLAN_LABELS[id], price: PLAENE[id].preisNetto, priceId: PREIS_IDS[id],
+      features: merkmaleFuerAnzeige(id),
+    }))
 
     async function startCheckout(priceId: string) {
       setPwLoading(priceId)
@@ -2629,20 +2632,22 @@ export default function CraftFlow() {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 16, width: '100%', maxWidth: 720 }}>
           {PAYWALL_PLANS.map(plan => {
             const isLoading = pwLoading === plan.priceId
-            const isEnterprise = plan.id === 'enterprise'
+            const isBeliebt = plan.id === 'pro'
             return (
               <div key={plan.id} style={{
-                background: isEnterprise ? akzentTon('22') : C.gray1,
-                border: `2px solid ${isEnterprise ? C.copper : C.border}`,
+                background: isBeliebt ? akzentTon('22') : C.gray1,
+                border: `2px solid ${isBeliebt ? C.copper : C.border}`,
                 borderRadius: 10, padding: '22px 20px',
                 display: 'flex', flexDirection: 'column', gap: 14, position: 'relative',
               }}>
-                <div style={{ position: 'absolute', top: -10, left: 16, background: isEnterprise ? C.copper : C.gray2, color: isEnterprise ? C.black : C.textMid, fontSize: 9, fontWeight: 800, letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20 }}>
-                  {plan.highlight.toUpperCase()}
-                </div>
+                {isBeliebt && (
+                  <div style={{ position: 'absolute', top: -10, left: 16, background: C.copper, color: C.black, fontSize: 9, fontWeight: 800, letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20 }}>
+                    BELIEBT
+                  </div>
+                )}
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{plan.name}</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: isEnterprise ? C.copper : C.white, lineHeight: 1.1, marginTop: 2 }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: isBeliebt ? C.copper : C.white, lineHeight: 1.1, marginTop: 2 }}>
                     {plan.price} €<span style={{ fontSize: 13, fontWeight: 400, color: C.textMid }}> / Monat</span>
                   </div>
                   <div style={{ fontSize: 10, color: C.textMid, marginTop: 2, letterSpacing: 0.3 }}>zzgl. gesetzl. MwSt.</div>
@@ -2658,9 +2663,9 @@ export default function CraftFlow() {
                   onClick={() => startCheckout(plan.priceId)}
                   disabled={!!pwLoading}
                   style={{
-                    background: isEnterprise ? C.copper : C.gray2,
-                    color: isEnterprise ? C.black : C.white,
-                    border: `1px solid ${isEnterprise ? C.copper : C.border}`,
+                    background: isBeliebt ? C.copper : C.gray2,
+                    color: isBeliebt ? C.black : C.white,
+                    border: `1px solid ${isBeliebt ? C.copper : C.border}`,
                     borderRadius: 6, padding: '11px 0', fontSize: 13, fontWeight: 700,
                     cursor: pwLoading ? 'not-allowed' : 'pointer',
                     fontFamily: 'Helvetica Neue, sans-serif', width: '100%',
@@ -3540,33 +3545,35 @@ export default function CraftFlow() {
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
               <button
                 onClick={() => {
-                  if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }
+                  if (planLaedt) return
+                  if (!planErlaubtFn('lieferanten')) { window.location.href = '/settings#plan'; return }
                   startAllInquiry()
                 }}
                 disabled={allInquiryStatus === 'loading'}
                 style={{
                   flex: 1, minWidth: 160,
                   background: allInquiryStatus === 'done' ? ton(C.ok, '22') : 'transparent',
-                  color: !darfNutzen('starter') ? C.textMid : allInquiryStatus === 'done' ? C.ok : allInquiryStatus === 'loading' ? C.textMid : C.copper,
-                  border: `1px solid ${!darfNutzen('starter') ? C.border : allInquiryStatus === 'done' ? ton(C.ok, '66') : allInquiryStatus === 'error' ? ton(C.err, '66') : C.copper}`,
+                  color: !funktionErlaubt('lieferanten') ? C.textMid : allInquiryStatus === 'done' ? C.ok : allInquiryStatus === 'loading' ? C.textMid : C.copper,
+                  border: `1px solid ${!funktionErlaubt('lieferanten') ? C.border : allInquiryStatus === 'done' ? ton(C.ok, '66') : allInquiryStatus === 'error' ? ton(C.err, '66') : C.copper}`,
                   borderRadius: 3, padding: '8px 12px',
                   cursor: allInquiryStatus === 'loading' ? 'wait' : 'pointer',
                   fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
-                  opacity: !darfNutzen('starter') ? 0.6 : 1,
+                  opacity: !funktionErlaubt('lieferanten') ? 0.6 : 1,
                 }}
               >
-                {!darfNutzen('starter') ? '🔒 Materialien anfragen — ab Starter' : allInquiryStatus === 'loading' ? '⟳ Suche Lieferanten…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
+                {!funktionErlaubt('lieferanten') ? `🔒 Materialien anfragen — ab ${PLAN_LABELS[mindestPlan('lieferanten')]}` : allInquiryStatus === 'loading' ? '⟳ Suche Lieferanten…' : allInquiryStatus === 'done' ? '✓ Anfragen bereit' : '✉ Alle Materialien anfragen'}
               </button>
               {/* Export Dropdown */}
               <div style={{ position: 'relative' }}>
                 <button
                   onClick={() => {
-                    if (!planCanUse('starter')) { window.location.href = '/settings#plan'; return }
+                    if (planLaedt) return
+                    if (!planErlaubtFn('export')) { window.location.href = '/settings#plan'; return }
                     setExportMenuOpen(o => !o)
                   }}
-                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: darfNutzen('starter') ? C.textMid : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap', opacity: darfNutzen('starter') ? 1 : 0.6 }}
+                  style={{ background: exportMenuOpen ? C.gray2 : 'transparent', color: funktionErlaubt('export') ? C.textMid : C.textMid, border: `1px solid ${C.border}`, borderRadius: 3, padding: '8px 12px', cursor: 'pointer', fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', whiteSpace: 'nowrap', opacity: funktionErlaubt('export') ? 1 : 0.6 }}
                 >
-                  {darfNutzen('starter') ? `↓ Export ${exportMenuOpen ? '▲' : '▼'}` : '🔒 Export'}
+                  {funktionErlaubt('export') ? `↓ Export ${exportMenuOpen ? '▲' : '▼'}` : '🔒 Export'}
                 </button>
                 {exportMenuOpen && (
                   <>
@@ -3582,14 +3589,14 @@ export default function CraftFlow() {
                         { label: '⬛ CSV – Übersicht', action: () => { exportCSV(); setExportMenuOpen(false) } },
                         { label: '{ } JSON', action: () => { exportJSON(); setExportMenuOpen(false) } },
                         {
-                          label: darfNutzen('enterprise') ? '🏗 GAEB DA84 (.X84)' : '🔒 GAEB DA84 — Enterprise',
-                          action: () => { if (planCanUse('enterprise')) { exportGAEB(); setExportMenuOpen(false) } else { window.location.href = '/settings#plan' } },
+                          label: funktionErlaubt('gaeb') ? '🏗 GAEB DA84 (.X84)' : `🔒 GAEB DA84 — ${PLAN_LABELS[mindestPlan('gaeb')]}`,
+                          action: () => { if (planErlaubtFn('gaeb')) { exportGAEB(); setExportMenuOpen(false) } else { window.location.href = '/settings#plan' } },
                         },
                       ].map(item => (
                         <button
                           key={item.label}
                           onClick={item.action}
-                          style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, color: planCanUse('enterprise') || !item.label.includes('GAEB') ? C.white : C.textMid, fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left', cursor: 'pointer', minHeight: 44 }}
+                          style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, color: planErlaubtFn('gaeb') || !item.label.includes('GAEB') ? C.white : C.textMid, fontSize: 12, fontFamily: 'Helvetica Neue,sans-serif', textAlign: 'left', cursor: 'pointer', minHeight: 44 }}
                           onMouseEnter={e => (e.currentTarget.style.background = C.gray2)}
                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
@@ -3646,7 +3653,7 @@ export default function CraftFlow() {
                 {(allInquiryResult.missingGroups?.length ?? 0) > 0 && (
                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                     Kein Lieferant für: {allInquiryResult.missingGroups.map(g => g.gruppe).join(', ')}
-                    {!darfNutzen('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
+                    {!funktionErlaubt('internetsuche') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>{PLAN_LABELS[mindestPlan('internetsuche')]}: Händlersuche im Internet</a></span>}
                   </div>
                 )}
                 {(allInquiryResult.suggestedSuppliers?.length ?? 0) > 0 && (
@@ -3930,7 +3937,7 @@ export default function CraftFlow() {
                         const selCount = p.material.filter(m => isMatSelected(m.id)).length
                         const ist = inquiryStatus[p.id]
                         const res = inquiryResult[p.id]
-                        const canInquire = planCanUse('starter')
+                        const canInquire = planErlaubtFn('lieferanten')
                         return (
                           <div style={{ marginTop: 10 }}>
                             {ist !== 'loading' && ist !== 'done' && (
@@ -3948,12 +3955,12 @@ export default function CraftFlow() {
                                   fontSize: 11, fontFamily: 'Helvetica Neue,sans-serif', fontWeight: 700,
                                 }}
                               >
-                                {!canInquire ? '🔒 Preise anfragen — ab Starter' : `✉ Ausgewählte Preise anfragen (${selCount}/${p.material.length})`}
+                                {!canInquire ? `🔒 Preise anfragen — ab ${PLAN_LABELS[mindestPlan('lieferanten')]}` : `✉ Ausgewählte Preise anfragen (${selCount}/${p.material.length})`}
                               </button>
                             )}
                             {ist === 'loading' && (
                               <div style={{ fontSize: 12, color: C.textMid, padding: '6px 0' }}>
-                                {darfNutzen('enterprise') ? '⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…' : '⟳ Suche passende Lieferanten…'}
+                                {funktionErlaubt('internetsuche') ? '⟳ Suche Lieferanten — bei fehlenden Einträgen auch im Internet…' : '⟳ Suche passende Lieferanten…'}
                               </div>
                             )}
                             {ist === 'error' && (
@@ -4005,7 +4012,7 @@ export default function CraftFlow() {
                                 {(res.missingGroups?.length ?? 0) > 0 && (
                                   <div style={{ fontSize: 11, color: C.copper, marginTop: 4 }}>
                                     Kein Lieferant für: {res.missingGroups.map(g => g.gruppe).join(', ')}
-                                    {!darfNutzen('enterprise') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>Enterprise: Händlersuche im Internet</a></span>}
+                                    {!funktionErlaubt('internetsuche') && <span style={{ color: C.textMid }}> — 🔒 <a href="/settings#plan" style={{ color: C.textMid }}>{PLAN_LABELS[mindestPlan('internetsuche')]}: Händlersuche im Internet</a></span>}
                                   </div>
                                 )}
                                 {(res.suggestedSuppliers?.length ?? 0) > 0 && (

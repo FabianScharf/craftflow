@@ -16,6 +16,7 @@ import BriefpapierVorschau from '@/components/settings/BriefpapierVorschau'
 import TextbausteineSettings from '@/components/settings/TextbausteineSettings'
 import { SCHRIFTEN, SCHRIFT_GRUPPEN } from '@/lib/pdftext'
 import { type Plan, usePlan } from '@/hooks/usePlan'
+import { PLAN_REIHE, PLAENE, PREIS_IDS, PLAN_LABELS, deckel as planDeckelFuer, merkmaleFuerAnzeige } from '@/lib/plaene'
 
 const C = {
   black:   'var(--c-primary, #0D0D0D)',
@@ -117,12 +118,13 @@ type Materialgruppe = {
 
 const GRUPPEN_ORDER = ['Verwaltung','Planung','Konstruktion','Produktion','Montage','Lieferung']
 
-const PLANS: { id: Plan; name: string; price: number; priceId: string; angebote: string; features: string[] }[] = [
-  { id: 'solo',       name: 'Solo',       price: 7,  priceId: 'price_1Tn1xzRvozvhvO9JJ3og0R3w', angebote: '3 / Monat',         features: ['Spracheingabe & KI-Kalkulation','PDF-Angebot erstellen','1 Benutzer'] },
-  { id: 'starter',    name: 'Starter',    price: 29, priceId: 'price_1Tn1y0RvozvhvO9JK7pRRRht', angebote: '15 / Monat',        features: ['Alles aus Solo','Bilder & PDFs hochladen','Kalkulationsexport (CSV/Excel)','Lieferantenanfrage über CraftFlow','Bis zu 3 Benutzer'] },
-  { id: 'pro',        name: 'Pro',        price: 49, priceId: 'price_1Tn1y0RvozvhvO9J4QXMCzje', angebote: '50 / Monat',        features: ['Alles aus Starter','Lieferantenanfrage über eigene E-Mail (SMTP)'] },
-  { id: 'enterprise', name: 'Enterprise', price: 79, priceId: 'price_1Tn1y1RvozvhvO9JYlX8lp4z', angebote: 'Unbegrenzt',        features: ['Alles aus Pro','GAEB-Import & Kalkulation','Priorisierter Support'] },
-]
+// Eine Quelle für die Preisliste (Controller, Aufgabe 7): vorher standen die Preise,
+// Deckel und Merkmale hier fest im Text — unabhängig von plaene.ts. Ein Deckel, der
+// sich dort ändert, hätte diese Kacheln nie erreicht. Jetzt kommt alles aus PLAENE.
+const PLANS = PLAN_REIHE.map(id => ({
+  id, name: PLAN_LABELS[id], price: PLAENE[id].preisNetto, priceId: PREIS_IDS[id],
+  untertitel: PLAENE[id].untertitel, features: merkmaleFuerAnzeige(id),
+}))
 
 function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]> {
   const map: Record<string, Kostenstelle[]> = {}
@@ -135,7 +137,7 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const { isInTrial, trialDaysLeft, canUse, isBlocked, erlaubt } = usePlan()
+  const { isInTrial, trialDaysLeft, canUse, isBlocked } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
@@ -696,6 +698,7 @@ export default function SettingsPage() {
 
           {/* BEREICH 2 — MARKETING & CI */}
           {section === 'marketing' && (
+            <PlanGate funktion="gestaltung">
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: C.white }}>Marketing & CI</h2>
               <div style={{ display: 'grid', gap: 20 }}>
@@ -762,6 +765,7 @@ export default function SettingsPage() {
               </div>
               <SaveRow saving={profilSaving} msg={profilMsg} onSave={saveProfil} />
             </div>
+            </PlanGate>
           )}
 
           {/* BEREICH — BRIEFPAPIER */}
@@ -802,19 +806,11 @@ export default function SettingsPage() {
                 ))}
               </div>
 
-              {/* TAB: GESTALTUNG */}
+              {/* TAB: GESTALTUNG — hinter PlanGate (Aufgabe 7): der Sperr-Kasten
+                  ersetzt den früheren Solo-Hinweis (Aufgabe 6) für den ganzen Reiter. */}
               {briefpapierTab === 'gestaltung' && (
+                <PlanGate funktion="gestaltung">
                 <div style={{ display: 'grid', gap: 28 }}>
-
-                  {!erlaubt('gestaltung') && (
-                    // Solo bekommt das Standardlayout ohne Rückfrage (Aufgabe 6) —
-                    // kein Sperr-Kasten für den ganzen Bereich (das macht Aufgabe 7),
-                    // nur der Hinweis, dass die Einstellungen unten gespeichert
-                    // bleiben, aber erst ab Starter im PDF wirken.
-                    <div style={{ background: akzentTon('0D'), borderRadius: 6, padding: '10px 12px', fontSize: 12, color: C.textMid, lineHeight: 1.5 }}>
-                      Im Solo-Plan wird das Angebot im Standardlayout erzeugt. Deine Einstellungen bleiben gespeichert und gelten ab dem Starter-Plan.
-                    </div>
-                  )}
 
                   <div>
                     <label style={lbl}>Layout</label>
@@ -1047,6 +1043,7 @@ export default function SettingsPage() {
                   </div>
 
                 </div>
+                </PlanGate>
               )}
 
               {/* TAB: TEXTE */}
@@ -1190,7 +1187,11 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {section === 'textbausteine' && <TextbausteineSettings />}
+          {section === 'textbausteine' && (
+            <PlanGate funktion="gestaltung">
+              <TextbausteineSettings />
+            </PlanGate>
+          )}
 
           {/* BEREICH 3 — KOSTENSTELLEN */}
           {section === 'kostenstellen' && (
@@ -1318,30 +1319,34 @@ export default function SettingsPage() {
 
           {/* BEREICH — MEINE BAUWEISE */}
           {section === 'bauweise' && (
-            <BauweiseSettings />
+            <PlanGate funktion="bauweise">
+              <BauweiseSettings />
+            </PlanGate>
           )}
           {section === 'betrieb' && (
-            <div>
+            <PlanGate funktion="kalibrierung">
               <BetriebSettings />
-            </div>
+            </PlanGate>
           )}
 
           {section === 'materialpreise' && (
-            <div>
+            <PlanGate funktion="materialpreise">
               <MaterialpreiseSettings />
-            </div>
+            </PlanGate>
           )}
 
           {/* BEREICH 5 — LIEFERANTEN */}
           {section === 'lieferanten' && (
-            <PlanGate minPlan="starter">
+            <PlanGate funktion="lieferanten">
               <LieferantenSettings />
             </PlanGate>
           )}
 
           {/* BEREICH 6 — E-MAIL & VERSAND */}
           {section === 'email' && (
-            <EmailSettings />
+            <PlanGate funktion="smtp">
+              <EmailSettings />
+            </PlanGate>
           )}
 
           {/* BEREICH — BUCHHALTUNG */}
@@ -1529,7 +1534,7 @@ export default function SettingsPage() {
 
           {/* BEREICH — AUSWERTUNG */}
           {section === 'auswertung' && (
-            <PlanGate minPlan="pro">
+            <PlanGate funktion="auswertung">
               <AuswertungSection isMobile={isMobile} />
             </PlanGate>
           )}
@@ -1573,12 +1578,17 @@ export default function SettingsPage() {
                   const isCurrent = isInTrial ? plan.id === 'enterprise' : plan.id === userPlan
                   const isTrialEnterprise = isInTrial && plan.id === 'enterprise'
                   const isLoading = checkoutLoading === plan.priceId
+                  const isBeliebt = plan.id === 'pro'
+                  // Fair Use statt "unbegrenzt": Enterprise hat weiterhin einen Deckel
+                  // (150/Monat) — nur großzügig genug, dass er in der Praxis nicht
+                  // greift. deckel() aus plaene.ts ist hier die einzige Quelle.
+                  const angeboteDeckel = planDeckelFuer(plan.id, 'angebote')
                   return (
                     <div
                       key={plan.id}
                       style={{
-                        background: isCurrent ? C.gray2 : C.gray1,
-                        border: `2px solid ${isCurrent ? C.copper : C.border}`,
+                        background: isCurrent ? C.gray2 : isBeliebt ? akzentTon('11') : C.gray1,
+                        border: `2px solid ${isCurrent ? C.copper : isBeliebt ? akzentTon('66') : C.border}`,
                         borderRadius: 10, padding: '22px 20px',
                         display: 'flex', flexDirection: 'column', gap: 14,
                         position: 'relative',
@@ -1592,6 +1602,13 @@ export default function SettingsPage() {
                           letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap',
                         }}>AKTIV</div>
                       )}
+                      {isBeliebt && (
+                        <div style={{
+                          position: 'absolute', top: -11, right: 20,
+                          background: C.copper, color: C.black, fontSize: 9, fontWeight: 800,
+                          letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap',
+                        }}>BELIEBT</div>
+                      )}
                       {isTrialEnterprise && (
                         <div style={{
                           position: 'absolute', top: 14, right: 14,
@@ -1603,6 +1620,7 @@ export default function SettingsPage() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 16, fontWeight: 700, color: C.white, marginBottom: 2 }}>{plan.name}</div>
+                          <div style={{ fontSize: 11, color: C.textMid, marginBottom: 4 }}>{plan.untertitel}</div>
                           <div style={{ fontSize: 26, fontWeight: 800, color: isCurrent ? C.copper : C.white, lineHeight: 1 }}>
                             {plan.price} €<span style={{ fontSize: 13, fontWeight: 400, color: C.textMid }}> / Monat</span>
                           </div>
@@ -1611,20 +1629,20 @@ export default function SettingsPage() {
                           <div style={{
                             marginTop: 10,
                             display: 'inline-flex', alignItems: 'baseline', gap: 5,
-                            background: plan.id === 'enterprise' ? `${akzentTon('22')}` : plan.id === 'pro' ? `${akzentTon('15')}` : 'transparent',
-                            border: plan.id === 'enterprise' || plan.id === 'pro' ? `1px solid ${akzentTon('55')}` : 'none',
-                            borderRadius: 6, padding: plan.id === 'enterprise' || plan.id === 'pro' ? '5px 10px' : '0',
+                            background: plan.id === 'enterprise' ? `${akzentTon('22')}` : isBeliebt ? `${akzentTon('15')}` : 'transparent',
+                            border: plan.id === 'enterprise' || isBeliebt ? `1px solid ${akzentTon('55')}` : 'none',
+                            borderRadius: 6, padding: plan.id === 'enterprise' || isBeliebt ? '5px 10px' : '0',
                           }}>
                             <span style={{
-                              fontSize: plan.id === 'enterprise' ? 22 : plan.id === 'pro' ? 20 : 15,
+                              fontSize: plan.id === 'enterprise' ? 22 : isBeliebt ? 20 : 15,
                               fontWeight: 800,
-                              color: plan.id === 'enterprise' || plan.id === 'pro' ? C.copper : C.textMid,
+                              color: plan.id === 'enterprise' || isBeliebt ? C.copper : C.textMid,
                               lineHeight: 1,
                             }}>
-                              {plan.id === 'enterprise' ? '∞' : plan.angebote.split(' ')[0]}
+                              {angeboteDeckel ?? '∞'}
                             </span>
                             <span style={{ fontSize: 11, color: C.textMid }}>
-                              {plan.id === 'enterprise' ? 'Angebote – unbegrenzt' : plan.id === 'pro' ? 'Angebote / Monat' : `Angebote / Monat`}
+                              {plan.id === 'enterprise' ? 'Angebote / Monat · Fair Use' : 'Angebote / Monat'}
                             </span>
                           </div>
                         </div>

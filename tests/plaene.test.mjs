@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   PLAENE, PLAN_RANK, PREIS_IDS, erlaubt, mindestPlan, deckel, wendeDeckelAn,
-  effektiverPlan, sperrgrund, planFuerPreisId, merkmaleFuerAnzeige, TRIAL_DAYS,
+  effektiverPlan, sperrgrund, planFuerPreisId, merkmaleFuerAnzeige, naechsterPlanMitMehr, TRIAL_DAYS,
 } from '../src/lib/plaene.ts'
 
 // Die Matrix aus der Spec (Abschnitt 3), Zahl für Zahl. Wer hier etwas ändert,
@@ -150,6 +150,16 @@ test('Preis-IDs: BEIDE Sätze werden erkannt (Kauf über Einstellungen landete a
 })
 test('Preise netto: 7 / 29 / 49 / 79', () => {
   assert.deepEqual(['solo','starter','pro','enterprise'].map(p => PLAENE[p].preisNetto), [7, 29, 49, 79])
+})
+test('naechsterPlanMitMehr: nächster Plan mit größerem oder unbegrenztem Deckel, null wenn keiner mehr hat', () => {
+  assert.equal(naechsterPlanMitMehr('bauweiseRegeln', 'solo'), 'starter')
+  assert.equal(naechsterPlanMitMehr('bauweiseRegeln', 'starter'), 'pro', 'starter (5) -> pro (unbegrenzt)')
+  assert.equal(naechsterPlanMitMehr('bauweiseRegeln', 'pro'), null, 'pro ist bereits unbegrenzt')
+  assert.equal(naechsterPlanMitMehr('bauweiseRegeln', 'enterprise'), null)
+  assert.equal(naechsterPlanMitMehr('materialpreise', 'solo'), 'starter')
+  assert.equal(naechsterPlanMitMehr('materialpreise', 'starter'), 'pro')
+  assert.equal(naechsterPlanMitMehr('angebote', 'pro'), 'enterprise', 'pro (50) -> enterprise (150)')
+  assert.equal(naechsterPlanMitMehr('angebote', 'enterprise'), null, 'enterprise ist der höchste Plan')
 })
 test('merkmaleFuerAnzeige nennt Deckel als Zahlen und nur Funktionen, die der Plan hat', () => {
   const solo = merkmaleFuerAnzeige('solo').join(' | ')

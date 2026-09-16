@@ -100,6 +100,19 @@ export function deckel(plan: EffektiverPlan, art: DeckelArt): number | null {
 }
 
 /**
+ * Nächster Plan in der Reihe, der von `art` mehr erlaubt als `plan` (null = kein
+ * solcher Plan). Für die Anzeige: "Inaktiv durch Plan — ab {…} wieder aktiv" in den
+ * Deckel-Listen (Bauweise, Materialpreise) und für die 403-Texte (plantexte.ts).
+ */
+export function naechsterPlanMitMehr(art: DeckelArt, plan: Plan): Plan | null {
+  const aktuell = deckel(plan, art)
+  // `aktuell === null` heißt: der Plan ist bei dieser Deckel-Art schon unbegrenzt —
+  // dann kann kein höherer Plan noch mehr geben, egal was dessen Deckel zeigt.
+  if (aktuell === null) return null
+  return PLAN_REIHE.find(p => PLAN_RANK[p] > PLAN_RANK[plan] && (deckel(p, art) === null || (deckel(p, art) as number) > aktuell)) ?? null
+}
+
+/**
  * Regel beim Wechsel nach unten (Fabian, 15.09.): Die ältesten N bleiben aktiv, alle
  * weiteren werden inaktiv gestellt. Nichts wird gelöscht. Wird BEIM LESEN angewandt —
  * ein Upgrade wirkt sofort, ohne Skript. Reihenfolge der Eingabe bleibt erhalten.
