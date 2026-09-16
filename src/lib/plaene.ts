@@ -192,8 +192,14 @@ export function sperrgrund(
 ): 'testphase' | 'gutschein' | null {
   if (effektiverPlan(profil, jetzt) !== 'gesperrt') return null
   const gespeicherterPlan: Plan = istPlan(profil?.plan) ? profil!.plan as Plan : 'solo'
+  // Ein BEENDETES Abo ist immer 'testphase', nie 'gutschein' — auch wenn zufällig
+  // noch ein abgelaufenes plan_gueltig_bis aus einer früheren Gutschein-Zeit in der
+  // DB steht (M8, Fix-Runde 16.09.). Sonst hätte ein gekündigter Nutzer, der vorher
+  // mal einen Gutschein eingelöst hatte, die falsche (irreführende) Paywall-Meldung
+  // gesehen — "Gutschein abgelaufen" statt "Testphase/Abo beendet".
   const abgelaufenerGutschein = gespeicherterPlan !== 'solo'
     && profil?.abo_status !== 'aktiv'
+    && profil?.abo_status !== 'beendet'
     && !nochGueltig(profil?.plan_gueltig_bis, jetzt)
   return abgelaufenerGutschein ? 'gutschein' : 'testphase'
 }

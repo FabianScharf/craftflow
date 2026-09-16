@@ -132,6 +132,16 @@ test('sperrgrund: gutschein nur bei abgelaufenem Nicht-Solo-Plan ohne aktives Ab
   }, jetzt), 'gutschein')
 })
 
+// M8 (Fix-Runde 16.09.): ein beendetes Abo ist immer 'testphase', nie 'gutschein' —
+// auch wenn noch ein altes, abgelaufenes plan_gueltig_bis in der DB steht.
+test('sperrgrund: abo beendet + altes Gutscheindatum → testphase, nicht gutschein', () => {
+  const jetzt = new Date('2026-09-16T12:00:00Z')
+  const abgelaufenerTrial = '2026-08-01T00:00:00Z'
+  assert.equal(sperrgrund({
+    plan: 'enterprise', trial_starts_at: abgelaufenerTrial, abo_status: 'beendet', plan_gueltig_bis: '2026-09-15T00:00:00Z',
+  }, jetzt), 'testphase')
+})
+
 test('erlaubt/deckel mit gesperrt: nie erlaubt, Deckel 0', () => {
   for (const f of ['spracheingabe', 'pdf', 'assistent', 'dateien', 'bloecke', 'gaeb']) {
     assert.equal(erlaubt('gesperrt', f), false, f)
