@@ -15,7 +15,10 @@ export const MAX_BILDER_JE_BLOCK = 6
 // reichen für ~30 Positionen nicht) — Ergebnis war "JSON Parse Fehler" nach 200 s.
 // Die Zeichengrenze allein schützt also nicht; ein Block braucht zusätzlich einen Deckel
 // auf die Anzahl Positionen.
-export const MAX_POSITIONEN_JE_BLOCK = 12
+// 16.09.: Auch 12 Positionen sind noch zu viel — ein Block mit genau 12 Positionen
+// brauchte 191 s und 14.483 Ausgabe-Tokens, gefährlich nah an max_tokens 16000 und an
+// Vercels 300-s-Limit. Deckel auf 8 gesenkt.
+export const MAX_POSITIONEN_JE_BLOCK = 8
 
 /** Zeile beginnt mit einer Positionsnummer: "1.2", "01.03.0040", "4)", "Pos. 4". */
 const POSITIONSNUMMER = /^\s*(?:Pos\.?\s*)?\d{1,4}(?:[.\-]\d{1,4}){0,3}[.)]?\s+\S/

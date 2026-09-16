@@ -441,12 +441,12 @@ Nein → Fehler, und der wird behoben, nicht zur Wahl gestellt.
   noch für kleine Projekte ohne Dateien. Große Projekte laufen über
   `POST /api/upload` → `POST /api/analyze/vorbereiten` → `POST /api/analyze/block` (je Block).
 - **Die reine Teil-Logik liegt in `src/lib/bloecke.ts`** (importfrei, `tests/bloecke.test.mjs`):
-  schneiden (≤ 8.000 Zeichen, ≤ 12 Positionen, ≤ 6 Bilder), Kontext bauen, Positionen vereinigen, Dubletten
+  schneiden (≤ 8.000 Zeichen, ≤ 8 Positionen, ≤ 6 Bilder), Kontext bauen, Positionen vereinigen, Dubletten
   finden. Der Test prüft nicht nur die Schnittstellen, sondern dass sich der Ausgangstext
   wieder zusammensetzen lässt — das ist die Gegenprobe gegen stilles Wegwerfen.
 - **Schnittregel:** Positionsnummer vor Seitengrenze vor Absatz. Eine einzelne überlange
   Zeile bildet ihren eigenen Block — lieber ein zu großer Block als eine verschwundene Zeile.
-- **Höchstens 12 Positionen je Block** (`MAX_POSITIONEN_JE_BLOCK`). Grund: Bei ~30 Positionen wurde die KI-Antwort abgeschnitten (max_tokens) und das JSON war unlesbar — Live-Test 16.09. Die Route loggt `stop_reason` und `usage` nur serverseitig; Kosten und Token erscheinen nie in einer API-Antwort.
+- **Höchstens 8 Positionen je Block** (`MAX_POSITIONEN_JE_BLOCK`). Grund: Bei ~30 Positionen wurde die KI-Antwort abgeschnitten (max_tokens) und das JSON war unlesbar — Live-Test 16.09. (16.09.: 12 Positionen brauchten 191 s und 14.483 Ausgabe-Tokens) Die Route loggt `stop_reason` und `usage` nur serverseitig; Kosten und Token erscheinen nie in einer API-Antwort.
 - **Block 1 trägt Kunde, Kopfdaten und die Gemeinpositionen.** Folgeblöcke bekommen den
   Kontext (`baueKontext`) und die feste Prompt-Regel `BLOCK_REGEL` — ein eigener,
   unveränderlicher System-Block, damit `cache_control` greift. Nutzertext gehört nie hinein.

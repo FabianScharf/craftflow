@@ -9,10 +9,10 @@ import {
 } from '../src/lib/bloecke.ts'
 import { bloeckeAblehnung } from '../src/lib/plantexte.ts'
 
-test('Die Grenzen stehen fest: 8.000 Zeichen, 6 Bilder und 12 Positionen je Block', () => {
+test('Die Grenzen stehen fest: 8.000 Zeichen, 6 Bilder und 8 Positionen je Block', () => {
   assert.equal(MAX_ZEICHEN_JE_BLOCK, 8000)
   assert.equal(MAX_BILDER_JE_BLOCK, 6)
-  assert.equal(MAX_POSITIONEN_JE_BLOCK, 12)
+  assert.equal(MAX_POSITIONEN_JE_BLOCK, 8)
 })
 
 test('Schnittstellen werden nach Rang erkannt: Positionsnummer vor Seite vor Absatz', () => {
@@ -102,9 +102,10 @@ test('Eine einzelne überlange Zeile wird nicht weggeworfen', () => {
   assert.equal(teile.join('\n'), `kurz\n${lang}\nkurz2`)
 })
 
-test('Höchstens 12 Positionen je Block — auch wenn der Text weit unter dem Zeichenlimit bleibt', () => {
+test('Höchstens 8 Positionen je Block — auch wenn der Text weit unter dem Zeichenlimit bleibt', () => {
   // Live-Test 2026-09-16: genau dieser Fall (viele kurze Positionen, wenig Zeichen)
   // hat die KI-Antwort bei max_tokens abgeschnitten, bevor die Zeichengrenze griff.
+  // Auch 12 Positionen waren noch zu viel (191 s, 14.483 Ausgabe-Tokens) — Deckel auf 8.
   const zeilen = []
   for (let i = 1; i <= 30; i++) {
     zeilen.push(`Pos. ${i}.01 Position ${i}`)
@@ -112,9 +113,9 @@ test('Höchstens 12 Positionen je Block — auch wenn der Text weit unter dem Ze
   }
   const text = zeilen.join('\n')
   const teile = schneideText(text)
-  assert.equal(teile.length, 3, 'drei Blöcke aus 30 Positionen bei einer Grenze von 12')
+  assert.equal(teile.length, 4, 'vier Blöcke aus 30 Positionen bei einer Grenze von 8')
   const positionenJeTeil = teile.map(t => (t.match(/^Pos\. \d+\.01/gm) ?? []).length)
-  assert.deepEqual(positionenJeTeil, [12, 12, 6])
+  assert.deepEqual(positionenJeTeil, [8, 8, 8, 6])
   for (const t of teile) {
     assert.ok(/^Pos\. \d+\.01/.test(t), `Block beginnt nicht an einer Positionszeile: ${t.slice(0, 30)}`)
   }
