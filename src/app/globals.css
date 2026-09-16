@@ -37,6 +37,27 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* ── Hover und Fokus in der Farbe des Betriebs ─────────────────────────────
+   Fabian, 16.09.: Bei Farbkombinationen mit wenig Kontrast war beim Überfahren
+   der Menüpunkte kaum zu sehen, wo man ist. Menüpunkte bekommen beim Überfahren
+   eine Fläche im eigenen Ton und einen halb sichtbaren Akzentstreifen; Eingabe-
+   felder einen Akzentrahmen beim Fokus; Knöpfe werden beim Überfahren minimal
+   heller. Alles über die Palette-Variablen, nichts hart kodiert. */
+.nav-item { transition: background-color .15s ease, border-color .15s ease; }
+.nav-item:not(.aktiv):hover {
+  background-color: var(--c-surface1) !important;
+  border-left-color: color-mix(in srgb, var(--c-accent) 55%, transparent) !important;
+}
+.nav-item.aktiv:hover { filter: brightness(1.08); }
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 1px;
+}
+button { transition: filter .15s ease; }
+button:not(:disabled):hover { filter: brightness(1.12); }
+
 /* Scrollbar bleibt funktional, wird aber optisch nicht angezeigt. */
 .no-scrollbar {
   scrollbar-width: none; /* Firefox */

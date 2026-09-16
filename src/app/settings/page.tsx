@@ -614,6 +614,7 @@ export default function SettingsPage() {
             {sichtbareNavItems.map(item => (
               <button
                 key={item.id}
+                className={`nav-item${!isMobile && section === item.id ? ' aktiv' : ''}`}
                 onClick={() => { setSection(item.id); if (isMobile) setMobileShowContent(true); if (item.id === 'admin') loadAdminCodes() }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
