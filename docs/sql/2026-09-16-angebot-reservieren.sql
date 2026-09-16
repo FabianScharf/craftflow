@@ -72,3 +72,10 @@ as $function$
   set angebote_count = greatest(angebote_count - 1, 0)
   where user_id = auth.uid() and monat = p_monat;
 $function$;
+
+-- GEFUNDEN 16.09. (Controller, Live-Test): plan_usage hatte RLS-Policies, aber KEINE
+-- Rechte für die Rolle authenticated → jede Lese-/Schreibabfrage der App scheiterte
+-- still mit "permission denied" ({data:null, error}, nie geprüft). Folge: der alte
+-- Angebotszähler hat nie gezählt, und GET /api/usage meldete immer 0.
+-- Die RPCs oben laufen als security definer und waren davon nicht betroffen.
+grant select, insert, update on public.plan_usage to authenticated, service_role;
