@@ -113,6 +113,12 @@ export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
   // A4-Blatt auf 43 % gestaucht. Deshalb zwei Stufen und ein Vollbild.
   const [gross, setGross] = useState(false)
 
+  // Screenshot-Audit 2026-09-16: Solange das iframe nicht gezeichnet hatte, stand
+  // im Vorschau-Panel nur eine leere graue Flaeche — kein Wort dazu, ob da noch
+  // etwas kommt oder ob etwas kaputt ist. Jetzt steht ein Satz darauf, bis das
+  // Blatt wirklich da ist.
+  const [blattBereit, setBlattBereit] = useState(false)
+
   // A4 ist 794 px breit. transform:scale verkleinert nur die DARSTELLUNG, der
   // Platzbedarf im Layout bleibt — der Rahmen muss ihn also abschneiden.
   const A4_BREIT = 794
@@ -125,14 +131,30 @@ export default function BriefpapierVorschau({ profil }: { profil: Profil }) {
   const blatt = (hoehe: number, massstab: number, feste: boolean) => (
     <div style={{
       border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden',
-      background: '#e8e8e8', height: hoehe,
+      // Absichtlich fest: die Buehne hinter dem Blatt. Das PDF selbst bleibt
+      // immer weiss, unabhaengig von der Palette des Betriebs.
+      background: '#e8e8e8', height: hoehe, position: 'relative',
       width: feste ? Math.round(A4_BREIT * massstab) + 2 : '100%',
       maxWidth: feste ? '100%' : spaltenBreite,
     }}>
+      {!blattBereit && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+          padding: 16, fontSize: 12, lineHeight: 1.6,
+          // Auf der festen hellen Buehne muss auch die Schrift fest dunkel sein.
+          color: '#5A5A5A', fontFamily: 'Helvetica Neue,sans-serif',
+        }}>
+          {html.trim() === ''
+            ? 'Vorschau konnte nicht erzeugt werden.'
+            : 'Vorschau wird geladen …'}
+        </div>
+      )}
       <iframe
         title="Vorschau des Angebots"
         srcDoc={html}
         sandbox=""
+        onLoad={() => setBlattBereit(true)}
         style={{
           border: 'none', display: 'block',
           width: A4_BREIT, height: Math.ceil(hoehe / massstab),

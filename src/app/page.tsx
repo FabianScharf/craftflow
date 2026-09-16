@@ -3754,11 +3754,13 @@ export default function CraftFlow() {
               width: '100%', marginTop: 14,
               background: !canGenerate && !loading ? C.gray2 : C.copper,
               color: !canGenerate && !loading ? C.textMid : C.onAccent,
-              border: 'none', borderRadius: 10, padding: '18px 0',
+              border: !canGenerate && !loading ? `1px dashed ${C.border}` : 'none',
+              borderRadius: 10, padding: '18px 0',
               cursor: loading ? 'wait' : !canGenerate ? 'not-allowed' : 'pointer',
               fontSize: 17, fontFamily: 'Helvetica Neue,sans-serif',
               fontWeight: 800, letterSpacing: 2,
-              opacity: loading ? 0.85 : 1,
+              opacity: loading ? 0.85 : (!canGenerate ? 0.45 : 1),
+              transition: 'opacity 0.15s',
             }}
           >
             {loading ? '⟳  KI erstellt Kalkulation…' : '⚡ KALKULATION GENERIEREN'}
