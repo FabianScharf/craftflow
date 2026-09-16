@@ -52,8 +52,10 @@ body {
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--c-accent);
-  outline-offset: 1px;
+  /* !important: Viele Felder setzen inline `outline: none` (alte Tailwind-Gewohnheit);
+     der Fokusrahmen in der Akzentfarbe muss trotzdem sichtbar sein. */
+  outline: 2px solid var(--c-accent) !important;
+  outline-offset: 1px !important;
 }
 button { transition: filter .15s ease; }
 button:not(:disabled):hover { filter: brightness(1.12); }
