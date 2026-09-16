@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { zugangAblehnung } from '../src/lib/plantexte.ts'
+import { zugangAblehnung, deckelAblehnung, stimmenAblehnung } from '../src/lib/plantexte.ts'
 
 test('zugangAblehnung(testphase): Standardtext, minPlan solo', () => {
   const r = zugangAblehnung('testphase')
@@ -16,4 +16,9 @@ test('zugangAblehnung(gutschein): eigener Text, minPlan solo', () => {
 
 test('zugangAblehnung: beide Gründe liefern unterschiedliche Texte', () => {
   assert.notEqual(zugangAblehnung('testphase').error, zugangAblehnung('gutschein').error)
+})
+
+test('Deckel-Ablehnung kennt auch die Stimmen für Wünsche', () => {
+  assert.deepEqual(deckelAblehnung('wunschStimmen', 'solo', 1),
+    { error: 'Im Solo-Plan ist 1 Stimme für Wünsche möglich. Ab dem Starter-Plan 3 Stimmen für Wünsche.', minPlan: 'starter' })
 })

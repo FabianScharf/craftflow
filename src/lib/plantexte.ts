@@ -33,6 +33,7 @@ const DECKEL_NAME: Record<DeckelArt, [string, string]> = {
   bauweiseRegeln: ['Bauweise-Regel', 'Bauweise-Regeln'],
   materialpreise: ['Materialpreis', 'Materialpreise'],
   nutzer: ['Nutzer', 'Nutzer'],
+  wunschStimmen: ['Stimme für Wünsche', 'Stimmen für Wünsche'],
 }
 
 /** 403-Antwortkörper: gesperrte Funktion, nennt den Plan, ab dem sie freigeschaltet ist. */
@@ -47,9 +48,24 @@ export function deckelAblehnung(art: DeckelArt, plan: Plan, grenze: number): { e
   const naechster = naechsterPlanMitMehr(art, plan)
   const kopf = grenze === 0
     ? `Im ${PLAN_LABELS[plan]}-Plan ist kein ${art === 'dateien' ? 'Datei-Upload' : einzahl} möglich.`
-    : `Im ${PLAN_LABELS[plan]}-Plan sind ${grenze} ${grenze === 1 ? einzahl : mehrzahl} möglich.`
+    : grenze === 1
+      ? `Im ${PLAN_LABELS[plan]}-Plan ist ${grenze} ${einzahl} möglich.`
+      : `Im ${PLAN_LABELS[plan]}-Plan sind ${grenze} ${mehrzahl} möglich.`
   if (!naechster) return { error: kopf, minPlan: null }
   const d = deckel(naechster, art)
   const rest = d === null ? 'unbegrenzt' : `${d} ${d === 1 ? einzahl : mehrzahl}`
   return { error: `${kopf} Ab dem ${PLAN_LABELS[naechster]}-Plan ${rest}.`, minPlan: naechster }
+}
+
+/**
+ * 403-Antwortkörper: Das Stimmenbudget des Plans ist aufgebraucht.
+ * Eigener Text statt deckelAblehnung, weil hier ein AUSWEG dazugehört — eine Stimme
+ * zurücknehmen kostet nichts und ist meistens das, was der Nutzer will.
+ */
+export function stimmenAblehnung(plan: Plan): { error: string; minPlan: Plan | null } {
+  const n = deckel(plan, 'wunschStimmen') ?? 0
+  return {
+    error: `Du hast alle ${n} Stimmen deines Plans vergeben. Nimm eine zurück oder wechsle den Plan.`,
+    minPlan: naechsterPlanMitMehr('wunschStimmen', plan),
+  }
 }

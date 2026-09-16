@@ -24,7 +24,7 @@ export type Funktion =
   | 'bloecke' | 'lernschleife' | 'auswertung' | 'smtp'   // ab Pro
   | 'ausschreibung' | 'internetsuche' | 'gaeb'          // Enterprise
 
-export type DeckelArt = 'angebote' | 'optimierenRunden' | 'dateien' | 'bauweiseRegeln' | 'materialpreise' | 'nutzer'
+export type DeckelArt = 'angebote' | 'optimierenRunden' | 'dateien' | 'bauweiseRegeln' | 'materialpreise' | 'nutzer' | 'wunschStimmen'
 
 export type PlanDefinition = {
   preisNetto: number
@@ -41,22 +41,22 @@ const ENTERPRISE: Funktion[] = [...PRO, 'ausschreibung', 'internetsuche', 'gaeb'
 export const PLAENE: Record<Plan, PlanDefinition> = {
   solo: {
     preisNetto: 7, untertitel: 'Für Einzelkämpfer',
-    deckel: { angebote: 3, optimierenRunden: 5, dateien: 0, bauweiseRegeln: 0, materialpreise: 0, nutzer: 1 },
+    deckel: { angebote: 3, optimierenRunden: 5, dateien: 0, bauweiseRegeln: 0, materialpreise: 0, nutzer: 1, wunschStimmen: 1 },
     funktionen: BASIS,
   },
   starter: {
     preisNetto: 29, untertitel: 'Für kleine Betriebe',
-    deckel: { angebote: 15, optimierenRunden: 10, dateien: 5, bauweiseRegeln: 5, materialpreise: 20, nutzer: 1 },
+    deckel: { angebote: 15, optimierenRunden: 10, dateien: 5, bauweiseRegeln: 5, materialpreise: 20, nutzer: 1, wunschStimmen: 3 },
     funktionen: STARTER,
   },
   pro: {
     preisNetto: 49, untertitel: 'Mein eigener Kalkulator',
-    deckel: { angebote: 50, optimierenRunden: 20, dateien: 25, bauweiseRegeln: null, materialpreise: null, nutzer: 3 },
+    deckel: { angebote: 50, optimierenRunden: 20, dateien: 25, bauweiseRegeln: null, materialpreise: null, nutzer: 3, wunschStimmen: 10 },
     funktionen: PRO,
   },
   enterprise: {
     preisNetto: 79, untertitel: 'Ausschreibungen und große Betriebe',
-    deckel: { angebote: 150, optimierenRunden: 40, dateien: 60, bauweiseRegeln: null, materialpreise: null, nutzer: null },
+    deckel: { angebote: 150, optimierenRunden: 40, dateien: 60, bauweiseRegeln: null, materialpreise: null, nutzer: null, wunschStimmen: 30 },
     funktionen: ENTERPRISE,
   },
 }

@@ -28,6 +28,9 @@ test('Materialpreise: 0 / 20 / unbegrenzt / unbegrenzt', () => {
 test('Nutzer: 1 / 1 / 3 / unbegrenzt', () => {
   assert.deepEqual(['solo','starter','pro','enterprise'].map(p => deckel(p, 'nutzer')), [1, 1, 3, null])
 })
+test('Stimmen für Wünsche: 1 / 3 / 10 / 30 (Testphase = Enterprise = 30)', () => {
+  assert.deepEqual(['solo','starter','pro','enterprise'].map(p => deckel(p, 'wunschStimmen')), [1, 3, 10, 30])
+})
 test('Funktionen je Plan (Spec-Matrix)', () => {
   const f = (p) => ['dateien','bloecke','ausschreibung','kalibrierung','bauweise','lernschleife','materialpreise','gestaltung','lieferanten','internetsuche','auswertung','smtp','export','gaeb'].filter(x => erlaubt(p, x))
   assert.deepEqual(f('solo'), [])
@@ -44,7 +47,7 @@ test('mindestPlan nennt den ersten Plan, der die Funktion hat', () => {
 })
 test('Monotonie: kein höherer Plan hat weniger als ein niedrigerer', () => {
   const reihe = ['solo','starter','pro','enterprise']
-  for (const art of ['angebote','optimierenRunden','dateien','bauweiseRegeln','materialpreise','nutzer']) {
+  for (const art of ['angebote','optimierenRunden','dateien','bauweiseRegeln','materialpreise','nutzer','wunschStimmen']) {
     let vorher = -1
     for (const p of reihe) {
       const d = deckel(p, art); const wert = d === null ? Infinity : d
