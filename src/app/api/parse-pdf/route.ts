@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractText } from 'unpdf'
+import { createClient } from '@/utils/supabase/server'
+import { pruefeZugang } from '@/lib/planpruefung'
 
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
 export async function POST(req: NextRequest) {
   try {
+    // Bisher ohne jede Auth-Prüfung — die Middleware schützt zwar den Zugriff
+    // (Session-Cookie nötig), aber ohne Login-Check + pruefeZugang lief die Route
+    // auch für einen gesperrten (Testphase/Abo abgelaufen) Nutzer weiter (M9).
+    const supabase = await createClient()
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const zu = await pruefeZugang(supabase, user.id)
+    if (zu) return zu
+
     const formData = await req.formData()
     const file = formData.get('pdf') as File | null
 
