@@ -1083,14 +1083,19 @@ export default function CraftFlow() {
           const fd = new FormData()
           fd.append('audio', blob, `audio.${ext}`)
           const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
-          const json = await res.json()
-          if (json.success && json.text) {
+          const json = await res.json().catch(() => ({})) as { success?: boolean; text?: string; error?: string }
+          if (res.ok && json.success && json.text) {
             setStartText(prev => prev ? prev + ' ' + json.text : json.text)
           } else {
-            console.error('Transkription Fehler:', json.error)
+            // Vierte Mikrofon-Stelle (Review 17.09.): vorher nur console.error — der Nutzer sah nichts.
+            console.error('Transkription Fehler:', json.error ?? res.status)
+            setStartStatus('error')
+            setStartMsg(`Spracheingabe fehlgeschlagen: ${json.error ?? `Fehler ${res.status}`}. Bitte noch einmal versuchen oder den Text eintippen.`)
           }
         } catch (e) {
           console.error('Transkription fehlgeschlagen:', e)
+          setStartStatus('error')
+          setStartMsg('Spracheingabe fehlgeschlagen (Netzfehler). Bitte noch einmal versuchen oder den Text eintippen.')
         }
         setMicStatus('idle')
       }
