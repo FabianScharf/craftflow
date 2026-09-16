@@ -18,7 +18,7 @@ import {
 } from '@/lib/types'
 import { buildPDF, buildFooterTemplate, SCHRIFTEN, type FirmaOpts, type SchriftId } from '@/lib/pdf'
 import { positionenAusKi } from '@/lib/kiantwort'
-import { baueKontext, vereinigePositionen, brauchtBlockweg, blockFortschrittText } from '@/lib/bloecke'
+import { baueKontext, vereinigePositionen, brauchtBlockweg, blockFortschrittText, findeDubletten } from '@/lib/bloecke'
 import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
 import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
 import { klemmePreisfaktor, angezeigterPreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
@@ -656,6 +656,9 @@ export default function CraftFlow() {
   const [nichtVerarbeitet, setNichtVerarbeitet] = useState<Array<{ name: string; grund: string }>>([])
   const [blockAktuell, setBlockAktuell] = useState(0)
   const [blockLaeuft, setBlockLaeuft] = useState(false)
+  // Ein Block ist mitten im Lauf fehlgeschlagen, aber vorherige Blöcke haben schon
+  // Positionen geliefert — die bleiben stehen, der Nutzer entscheidet selbst weiter.
+  const [blockFehlerPartiell, setBlockFehlerPartiell] = useState(false)
   const abbrechenRef = useRef(false)
   const [fragenInput, setFragenInput] = useState('')
   const [fragenMicStatus, setFragenMicStatus] = useState<'idle' | 'recording' | 'transcribing'>('idle')
@@ -680,6 +683,11 @@ export default function CraftFlow() {
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Ref damit startAnalyse immer den aktuellen currentProjectId sieht (useCallback-Closure-Problem)
   const currentProjectIdRef = useRef<string | null>(null)
+  // Uploads laufen nacheinander, nicht parallel: `projekt_id` ist erst nach der ERSTEN
+  // Server-Antwort bekannt (der Server legt beim ersten Upload den Projekt-Entwurf an).
+  // Bei mehreren gleichzeitig ausgewählten Dateien würden ohne diese Kette zwei
+  // parallele Uploads beide mit leerer projekt_id starten — Ergebnis: zwei Entwürfe.
+  const uploadKetteRef = useRef<Promise<void>>(Promise.resolve())
   const MAX_REC_SECONDS = 300 // 5 Minuten
 
   // ── Optimierungs-Panel ──────────────────────────────
@@ -810,6 +818,9 @@ export default function CraftFlow() {
   // bereits vor (profilRoh) — dieselbe Quelle wie die PDF-Optionen.
   const preisfaktorAktuell = klemmePreisfaktor(profilRoh.preisfaktor) ?? PREISFAKTOR_STANDARD
   const preisfaktorAnzeige = angezeigterPreisfaktor(pos)
+  // Nur nach einer Blockanalyse: Bei einem einzelnen Block kann es diese Doppelungen
+  // nicht geben, und ein Hinweis ohne Anlass macht die Kalkulation unglaubwürdig.
+  const dublettenHinweise = bloecke.length > 1 ? findeDubletten(pos) : []
   const materialGesamt = materialkostenGesamt(pos)
   const stundenGesamtWert = stundenGesamt(pos)
   const vat = totals.net * 0.19
@@ -844,31 +855,40 @@ export default function CraftFlow() {
    * Speicher und Token, und die KI braucht keine 12-Megapixel-Vorlage.
    */
   const ladeDateiHoch = useCallback(async (datei: File, id: number) => {
+    // Sofort sichtbar, auch wenn die Datei noch in der Kette wartet — die Kachel
+    // zeigt "läuft" vom Klick weg, nicht erst wenn ihr Platz an der Reihe ist.
     setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, stand: 'laeuft' } : f))
-    const form = new FormData()
-    form.append('file', datei)
-    const projektId = currentProjectIdRef.current
-    if (projektId) form.append('projekt_id', projektId)
-    try {
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const j = await res.json().catch(() => ({})) as
-        { pfad?: string; projekt_id?: string; error?: string }
-      if (!res.ok) {
+    const arbeit = async () => {
+      const form = new FormData()
+      form.append('file', datei)
+      const projektId = currentProjectIdRef.current
+      if (projektId) form.append('projekt_id', projektId)
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: form })
+        const j = await res.json().catch(() => ({})) as
+          { pfad?: string; projekt_id?: string; error?: string }
+        if (!res.ok) {
+          setUploadedFiles(prev => prev.map(f => f.id === id
+            ? { ...f, stand: 'fehler', grund: j.error ?? `Fehlgeschlagen (${res.status})` } : f))
+          return
+        }
+        // Beim ersten Upload legt der Server einen Projekt-Entwurf an — ab jetzt
+        // gehören alle weiteren Dateien zu diesem Projekt.
+        if (j.projekt_id && !currentProjectIdRef.current) {
+          currentProjectIdRef.current = j.projekt_id
+          setCurrentProjectId(j.projekt_id)
+        }
+        setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, stand: 'fertig', pfad: j.pfad } : f))
+      } catch (e) {
         setUploadedFiles(prev => prev.map(f => f.id === id
-          ? { ...f, stand: 'fehler', grund: j.error ?? `Fehlgeschlagen (${res.status})` } : f))
-        return
+          ? { ...f, stand: 'fehler', grund: e instanceof Error ? e.message : 'Netzfehler' } : f))
       }
-      // Beim ersten Upload legt der Server einen Projekt-Entwurf an — ab jetzt
-      // gehören alle weiteren Dateien zu diesem Projekt.
-      if (j.projekt_id && !currentProjectIdRef.current) {
-        currentProjectIdRef.current = j.projekt_id
-        setCurrentProjectId(j.projekt_id)
-      }
-      setUploadedFiles(prev => prev.map(f => f.id === id ? { ...f, stand: 'fertig', pfad: j.pfad } : f))
-    } catch (e) {
-      setUploadedFiles(prev => prev.map(f => f.id === id
-        ? { ...f, stand: 'fehler', grund: e instanceof Error ? e.message : 'Netzfehler' } : f))
     }
+    // An die Kette anhängen statt sofort auszuführen — so startet der nächste Upload
+    // erst, wenn dieser fertig ist (und `currentProjectIdRef` gesetzt sein kann).
+    const weiter = uploadKetteRef.current.then(() => arbeit()).catch(() => {})
+    uploadKetteRef.current = weiter
+    await weiter
   }, [])
 
   const loadBild = useCallback(async (file: File) => {
@@ -1338,7 +1358,7 @@ export default function CraftFlow() {
     if (!projektId) { setStartMsg('Bitte zuerst eine Datei hochladen.'); return }
     abbrechenRef.current = false
     setStartStatus('loading'); setStartMsg(''); setStartMinPlan(null); setBlockLaeuft(true)
-    setBloecke([]); setNichtVerarbeitet([]); setBlockAktuell(0)
+    setBloecke([]); setNichtVerarbeitet([]); setBlockAktuell(0); setBlockFehlerPartiell(false)
 
     try {
       const vor = await fetch('/api/analyze/vorbereiten', {
@@ -1395,8 +1415,11 @@ export default function CraftFlow() {
           // Kein throw: Was bis hierher entstanden ist, bleibt stehen. Der Nutzer
           // sieht, an welchem Block es gehakt hat, und kann neu ansetzen.
           hatFehler = true
+          const teilHinweis = gesammelt.length > 0
+            ? ` Die bisherigen ${gesammelt.length} ${gesammelt.length === 1 ? 'Position bleibt' : 'Positionen bleiben'} erhalten.`
+            : ''
           setStartStatus('error')
-          setStartMsg(`Block ${b.nr}: ${j.error ?? `Fehlgeschlagen (${res.status})`}`)
+          setStartMsg(`Block ${b.nr}: ${j.error ?? `Fehlgeschlagen (${res.status})`}${teilHinweis}`)
           setStartMinPlan(j.minPlan ?? null)
           break
         }
@@ -1419,10 +1442,17 @@ export default function CraftFlow() {
 
       setBlockLaeuft(false)
       setBlockAktuell(0)
-      if (gesammelt.length > 0) {
+      if (hatFehler) {
+        // NICHT automatisch umschalten: Sonst sieht der Nutzer die Fehlermeldung nie,
+        // weil der Startbildschirm im selben Zug verlassen wird. Die Positionen aus den
+        // erfolgreichen Blöcken stehen bereits in `pos` — der Nutzer entscheidet über
+        // den Button "Mit N Positionen weiter" (unten auf dem Startbildschirm), ob er
+        // damit weiterarbeitet.
+        if (gesammelt.length > 0) setBlockFehlerPartiell(true)
+      } else if (gesammelt.length > 0) {
         setScreen('app')
         setTab('kalkulation')
-        if (!hatFehler) setStartStatus('idle')
+        setStartStatus('idle')
       }
     } catch (e) {
       setStartStatus('error')
@@ -3541,6 +3571,16 @@ export default function CraftFlow() {
                   <a href="/settings#plan" style={{ color: C.copper, textDecoration: 'underline' }}>Plan wechseln</a>
                 </div>
               )}
+              {blockFehlerPartiell && pos.length > 0 && (
+                <button
+                  onClick={() => { setScreen('app'); setTab('kalkulation'); setStartStatus('idle'); setBlockFehlerPartiell(false) }}
+                  style={{
+                    width: '100%', marginTop: 10, background: 'transparent', color: C.white,
+                    border: `1px solid ${C.copper}`, borderRadius: 4, padding: '11px 0',
+                    fontSize: 12, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}>
+                  Mit {pos.length} {pos.length === 1 ? 'Position' : 'Positionen'} weiter
+                </button>
+              )}
             </div>
           )}
 
@@ -3935,6 +3975,26 @@ export default function CraftFlow() {
                 </button>
               ))}
             </div>
+
+            {dublettenHinweise.length > 0 && (
+              <div style={{ background: C.gray1, border: `1px solid ${C.warn}`, borderRadius: 4,
+                padding: '12px 14px', marginBottom: 12 }}>
+                <div style={{ color: C.warn, fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
+                  Bitte nachsehen: mögliche Doppelungen aus den Blöcken
+                </div>
+                {dublettenHinweise.map(h => (
+                  <div key={`${h.art}-${h.titel}`} style={{ color: C.white, fontSize: 12, lineHeight: 1.7 }}>
+                    {h.art === 'gemeinposition'
+                      ? `„${h.titel}“ fällt für das ganze Projekt einmal an, steht aber in Position ${h.nummern.join(' und ')}.`
+                      : `„${h.titel}“ steht mit denselben Maßen in Position ${h.nummern.join(' und ')}.`}
+                  </div>
+                ))}
+                <div style={{ color: C.textMid, fontSize: 11.5, marginTop: 6 }}>
+                  CraftFlow legt nichts von selbst zusammen — zwei gleich benannte Möbel können
+                  auch wirklich zwei sein. Löschen oder anpassen kannst du sie unten.
+                </div>
+              </div>
+            )}
 
             {/* Gesamtübersicht oben */}
             <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${akzentTon('44')}`, overflow: 'hidden', marginBottom: 14 }}>
