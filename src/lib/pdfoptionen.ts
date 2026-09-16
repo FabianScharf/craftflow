@@ -58,8 +58,11 @@ export function pdfTextOptionen(p: Profilwerte, zusatz: Zusatz = {}, plan: Effek
     kleinunternehmer: ja(p, 'kleinunternehmer'),
     gueltigTage: zahl(p, 'angebot_gueltig_tage', 30),
     bausteine: gestaltung ? (zusatz.bausteine ?? []) : [],
-    zeigeMenge: gestaltung && ja(p, 'pdf_zeige_menge'),
-    zeigeEinheitspreis: gestaltung && ja(p, 'pdf_zeige_einheitspreis'),
+    // Menge/Einheitspreis sind AngebotsINHALT (was der Kunde sieht), keine
+    // Gestaltung — anders als Layout/Schrift/Briefpapier NICHT auf Solo
+    // zurücksetzen (Fix-Runde 16.09., M4).
+    zeigeMenge: ja(p, 'pdf_zeige_menge'),
+    zeigeEinheitspreis: ja(p, 'pdf_zeige_einheitspreis'),
     zeigeMassivholz: text(p, 'pdf_zeige_massivholz') !== 'false',
     massivholzText: text(p, 'pdf_massivholz_text') || undefined,
     zeigeUnterschrift: text(p, 'pdf_zeige_unterschrift') !== 'false',

@@ -173,6 +173,7 @@ test('Solo: Gestaltung fällt auf Standard zurück, Inhalt bleibt', () => {
     pdf_eigenes_briefpapier: true, pdf_briefpapier_url: 'x',
     pdf_margin_top: 40, farbe_akzent: '#C8102E',
     angebot_einleitung: 'Hallo', kleinunternehmer: true,
+    pdf_zeige_menge: true, pdf_zeige_einheitspreis: true,
   }
   const t = pdfTextOptionen(p, { bausteine: [{ inhalt: 'B' }] }, 'solo')
   assert.equal(t.layout, 'klassisch')
@@ -182,6 +183,10 @@ test('Solo: Gestaltung fällt auf Standard zurück, Inhalt bleibt', () => {
   assert.equal(t.bausteine?.length ?? 0, 0)
   // Inhalt bleibt: Kleinunternehmer ist keine Gestaltung.
   assert.equal(t.kleinunternehmer, true)
+  // Menge/Einheitspreis sind Angebotsinhalt, keine Gestaltung (M4, 16.09.) —
+  // Solo behält sie, wenn im Profil gesetzt.
+  assert.equal(t.zeigeMenge, true)
+  assert.equal(t.zeigeEinheitspreis, true)
   assert.equal(pdfFirmaOptionen(p, 'solo').akzentfarbe, undefined)
   assert.equal(pdfTextOptionen(p, { bausteine: [{ inhalt: 'B' }] }, 'starter').layout, 'kompakt')
 })
