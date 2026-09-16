@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { findePreis, bauePreisBlock, istVeraltet } from '../src/lib/materialpreise.ts'
+import {
+  findePreis, bauePreisBlock, istVeraltet, fehlendeMaterialpreise, materialpreisWarnung,
+} from '../src/lib/materialpreise.ts'
 
 const P = (bezeichnung, ek, stand = '2026-09-06') => ({ bezeichnung, ek, einheit: 'Stk', stand })
 
@@ -54,4 +56,49 @@ test('Preis aelter als ein Jahr gilt als veraltet', () => {
 
 test('Unlesbares Datum gilt nicht als veraltet — kein Fehlalarm', () => {
   assert.equal(istVeraltet('kaputt', '2026-09-06'), false)
+})
+
+// ── Platzhalter mit 0 EUR ────────────────────────────────────────────────────
+// Live-Test 2026-09-17 (Kuechen-Referenz): "Arbeitsplatte 38 mm — Material nach
+// Kundenwahl, Quadratmeterpreis eintragen" stand mit 0 EUR im Angebot, obwohl
+// der Text "Schichtstoff 38 mm" nannte.
+
+const M = (bezeichnung, ekPreis) => ({ bezeichnung, menge: 1, einheit: 'm²', ekPreis, aufschlag: 0.3 })
+
+test('Ein Platzhalter mit 0 EUR wird gemeldet', () => {
+  const treffer = fehlendeMaterialpreise([
+    M('Arbeitsplatte 38 mm — Material nach Kundenwahl, Quadratmeterpreis eintragen', 0),
+  ])
+  assert.deepEqual(treffer, ['Arbeitsplatte 38 mm — Material nach Kundenwahl, Quadratmeterpreis eintragen'])
+})
+
+test('Mehrere Platzhalter kommen alle durch', () => {
+  const treffer = fehlendeMaterialpreise([
+    M('Lackierung (Zukauf) — Quadratmeterpreis eintragen', 0),
+    M('Spanplatte dekorbeidseitig 18 mm', 15),
+    M('Arbeitsplatte nach Kundenwahl', 0),
+  ])
+  assert.equal(treffer.length, 2)
+})
+
+test('Ein bepreister Platzhalter ist kein Fall — der Nutzer hat ihn ausgefuellt', () => {
+  assert.deepEqual(fehlendeMaterialpreise([M('Lackierung (Zukauf) — Quadratmeterpreis eintragen', 42)]), [])
+})
+
+test('Ein normales Material mit 0 EUR wird NICHT gemeldet — nur Platzhalter', () => {
+  // Beigestelltes Material des Kunden darf 0 EUR kosten und ist kein Fehler.
+  assert.deepEqual(fehlendeMaterialpreise([M('Beistellung Kunde: Griffe', 0)]), [])
+})
+
+test('Leere und fehlende Listen ergeben nichts', () => {
+  assert.deepEqual(fehlendeMaterialpreise([]), [])
+  assert.deepEqual(fehlendeMaterialpreise(undefined), [])
+  assert.deepEqual(fehlendeMaterialpreise(null), [])
+  assert.deepEqual(fehlendeMaterialpreise([M('   ', 0)]), [])
+})
+
+test('Der Warntext nennt die Bezeichnung und die 0 EUR', () => {
+  const text = materialpreisWarnung([M('Arbeitsplatte nach Kundenwahl', 0)])
+  assert.equal(text, 'Materialpreis fehlt: Arbeitsplatte nach Kundenwahl steht mit 0 € im Angebot.')
+  assert.equal(materialpreisWarnung([M('Spanplatte roh 18 mm', 12)]), '')
 })

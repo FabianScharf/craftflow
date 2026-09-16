@@ -69,3 +69,42 @@ export function bauePreisBlock(preise: FixierterPreis[]): string {
     + ' diesen ek-Wert ein, statt zu schätzen. Der Aufschlag bleibt davon unberührt —'
     + ' der kommt weiterhin aus den Materialgruppen des Nutzers.'
 }
+
+// ── Platzhalter mit 0 EUR aufspueren ─────────────────────────────────────────
+//
+// VORFALL 2026-09-17 (Live-Test, Kuechen-Referenz): Im Angebot standen
+// "Fronten weiß matt (Zukauf) — Lackierung (Zukauf) Quadratmeterpreis eintragen"
+// und "Arbeitsplatte 38 mm — Material nach Kundenwahl, Quadratmeterpreis
+// eintragen", beide mit 0 EUR — obwohl der Text die Fronten als Dekor und die
+// Arbeitsplatte als Schichtstoff 38 mm benannte. Wer das Angebot ueberfliegt,
+// sieht eine fertige Summe und nicht, dass zwei Posten mit null darin stecken.
+//
+// Der Prompt ist dagegen geschaerft; diese Pruefung hier ist die deterministische
+// Rueckfalllinie — sie aendert keine Zahl, sie sagt nur Bescheid.
+
+/** Woran ein Platzhalter zu erkennen ist. Bewusst eng: nur die zwei Formulierungen. */
+const PLATZHALTER_RE = /eintragen|kundenwahl/i
+
+/** Bezeichnungen aller Materialzeilen, die mit 0 EUR als Platzhalter im Angebot stehen. */
+export function fehlendeMaterialpreise(
+  material: Array<{ bezeichnung?: string; ekPreis?: number }> | undefined | null,
+): string[] {
+  const treffer: string[] = []
+  for (const m of material ?? []) {
+    const bez = String(m?.bezeichnung ?? '').trim()
+    if (bez === '') continue
+    if (Number(m?.ekPreis) !== 0) continue
+    if (!PLATZHALTER_RE.test(bez)) continue
+    treffer.push(bez)
+  }
+  return treffer
+}
+
+/** Der Satz, der an die Warnung der Position angehaengt wird — oder nichts. */
+export function materialpreisWarnung(
+  material: Array<{ bezeichnung?: string; ekPreis?: number }> | undefined | null,
+): string {
+  return fehlendeMaterialpreise(material)
+    .map(b => `Materialpreis fehlt: ${b} steht mit 0 € im Angebot.`)
+    .join(' ')
+}

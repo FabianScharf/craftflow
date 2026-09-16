@@ -432,3 +432,13 @@ test('Kostenstellen folgen den Maschinen-Antworten: ohne Kantenanleimmaschine is
   assert.deepEqual(kostenstellenSollZustand({ maschinen: ['cnc', 'kantenanleim'], montage_selbst: 'nie' }), { CNC: true, Bekantung: true, Montage: false })
   assert.deepEqual(kostenstellenSollZustand(null), { CNC: true, Bekantung: true, Montage: true })
 })
+
+test('Lackierkabinen-Block gilt nur fuer wirklich lackierte Flaechen', () => {
+  // Live-Test 2026-09-17 (Kuechen-Referenz): Fuer Dekorfronten legte die KI eine
+  // Lackierposition mit 0 EUR an — die Regel griff, wo sie nicht hingehoert.
+  const b = lackBlockFuer({ maschinen: [] })
+  assert.match(b, /AUSSCHLIESSLICH FUER FLAECHEN, DIE DER SCHREINER SELBST LACKIEREN/)
+  for (const wort of ['Dekor', 'beschichtet', 'CPL', 'Folie', 'geoelt', 'gewachst']) {
+    assert.ok(b.includes(wort), 'fehlt im Block: ' + wort)
+  }
+})

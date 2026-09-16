@@ -625,6 +625,18 @@ export function lackBlockFuer(a: Betriebsantworten | null | undefined): string {
 
 == DIESER BETRIEB HAT KEINE LACKIERKABINE ==
 Er lackiert nicht selbst. Lackierte Oberflaechen kauft er zu.
+
+DIESE REGEL GILT AUSSCHLIESSLICH FUER FLAECHEN, DIE DER SCHREINER SELBST LACKIEREN
+ODER FARBIG SPRITZEN WUERDE. Nur dann, wenn im Text ausdruecklich "lackiert",
+"lackieren", "Lack", "gespritzt", "farbig gespritzt", "RAL" oder Gleichwertiges
+steht. Sonst NICHT anwenden.
+KEINE Lackierposition, sondern ganz normales Material mit EK-Preis, bei:
+Dekor, dekorbeschichtet, beschichtet, Melamin, CPL, HPL, Schichtstoff, Folie,
+foliert, furniert (roh), geoelt, gewachst, geseift, Hartwachsoel. "Fronten weiss
+matt" ohne das Wort Lack ist DEKOR — eine weisse Dekorfront ist kein Lackteil.
+(Vorfall 2026-09-17, Kuechen-Referenz: Fuer Dekorfronten legte die KI eine
+Lackierposition mit 0 EUR an. Die Kueche war damit unvollstaendig kalkuliert.)
+
 - Bei lackierten Teilen KEINE Zeit auf der Kostenstelle "Oberfläche" ansetzen.
 - Stattdessen eine Materialposition anlegen: bezeichnung "${LACK_BEZEICHNUNG}", einheit "m²", menge = zu lackierende Sichtflaeche in m².
 - Den Quadratmeterpreis kennst du NICHT und darfst ihn NICHT schaetzen. Lackierte Teile kosten je nach Qualitaet und Region sehr unterschiedlich. Steht in der Preisliste kein fixierter Preis dafuer, setze ekPreis auf 0 — der Nutzer traegt ihn ein.

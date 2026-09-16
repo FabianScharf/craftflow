@@ -9,6 +9,7 @@ import { zaehleTeile, plattenflaeche, deckelNachStueckliste, stuecklisteDeckelGi
 import { parseLaufmeter } from '@/lib/laufmeter'
 import { wendeFaktorenAn, KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { bucheUm } from '@/lib/handarbeit'
+import { materialpreisWarnung } from '@/lib/materialpreise'
 
 // FS Crafted knowledge base – embedded as system prompt so every calculation
 // uses real-world benchmarks instead of generic AI estimates.
@@ -408,6 +409,27 @@ Türgriff Standard bis Mittelklasse: 5–40 €/Stk
 Soft-Close-Dämpfer: 3–10 €/Stk
 Türfront Lack/HPL: 80–180 €/Stk
 
+### 0 € IST KEIN PREIS — REGEL FÜR PLATZHALTER
+
+Ein Materialpreis von 0 € mit einer Bezeichnung wie "Quadratmeterpreis eintragen"
+oder "Material nach Kundenwahl" ist NUR dann erlaubt, wenn das Material im Text
+wirklich offen bleibt ("Arbeitsplatte nach Kundenwahl", "Front noch offen").
+
+Sobald die Beschreibung das Material benennt — auch grob —, wird es aus den
+Richtwerten oben bepreist, niemals mit 0 €:
+- "Arbeitsplatte Schichtstoff 38 mm" → Schichtstoffplatte bepreisen, nicht offen lassen
+- "Fronten weiß matt" → Dekorfront bepreisen
+- "Eiche massiv 40 mm" → Massivholz Eiche bepreisen
+
+Kennst du für ein benanntes Material keinen genauen Preis, nimm den nächstliegenden
+Richtwert aus der Liste oben und schreibe die Annahme in die Beschreibung der
+Position. Eine Position mit 0 € liest der Kunde als kostenlos — das ist schlimmer
+als eine erkennbar geschätzte Zahl.
+
+(Vorfall 2026-09-17, Küchen-Referenz: "Arbeitsplatte 38 mm — Material nach
+Kundenwahl, Quadratmeterpreis eintragen, 0 €", obwohl im Text "Schichtstoff 38 mm"
+stand.)
+
 ---
 
 ## HISTORISCHE PREISPUNKTE FS CRAFTED (nur zur Einordnung, NICHT zur Kalkulation verwenden)
@@ -786,6 +808,18 @@ export function validateAndFix(
           `(erwartet ca. ${expectedHours} h) — bitte manuell prüfen.`
         console.warn('[analyze] Plausibilitätswarnung:', warnung)
       }
+    }
+
+    // 8. Platzhalter mit 0 EUR melden. Vorfall 2026-09-17 (Kuechen-Referenz):
+    //    "Arbeitsplatte 38 mm — Material nach Kundenwahl, Quadratmeterpreis
+    //    eintragen" stand mit 0 EUR im Angebot, obwohl der Text "Schichtstoff
+    //    38 mm" nannte. Der Prompt ist dagegen geschaerft; das hier ist die
+    //    deterministische Rueckfalllinie. Sie aendert keine Zahl, sie sagt
+    //    Bescheid — ueber dasselbe Feld, das die Oberflaeche ohnehin anzeigt.
+    const preisLuecke = materialpreisWarnung(material)
+    if (preisLuecke !== '') {
+      warnung = warnung ? warnung + ' ' + preisLuecke : preisLuecke
+      console.warn('[analyze] Materialpreis fehlt:', preisLuecke)
     }
 
     return warnung ? { ...pos, material, arbeitszeit: az, warnung } : { ...pos, material, arbeitszeit: az }

@@ -214,6 +214,14 @@ export interface Angebotsposition {
    * Regeln und Grenzen: src/lib/preisfaktor.ts.
    */
   preisfaktor?: number
+  /**
+   * Hinweis der Nachbearbeitung an den Schreiner — Plausibilitaetswarnung zur
+   * Werkstattzeit, fehlender Materialpreis. Steht NUR in der Oberflaeche, nie im
+   * PDF und nie in einem Prompt. Bis 2026-09-17 reichte validateAndFix das Feld
+   * zwar durch, die Oberflaeche zeigte es aber nirgends an — die Warnung war
+   * damit so gut wie nicht vorhanden.
+   */
+  warnung?: string
 }
 
 // ── Firmendaten ──────────────────────────────────────

@@ -4325,6 +4325,15 @@ export default function CraftFlow() {
                         Alternativposition
                       </label>
                     </div>
+                    {/* Hinweis der Nachbearbeitung: zu viel/zu wenig Werkstattzeit,
+                        Materialpreis mit 0 EUR. Stand bisher nur im Serverprotokoll. */}
+                    {p.warnung && (
+                      <div style={{ marginTop: 8, padding: '8px 10px', background: ton(C.warn, '22'),
+                        border: `1px solid ${ton(C.warn, '55')}`, borderRadius: 3, fontSize: 11,
+                        color: C.warn, lineHeight: 1.6 }}>
+                        ⚠ {p.warnung}
+                      </div>
+                    )}
                     {p.alternativ && (
                       <div style={{ marginTop: 6, fontSize: 11, color: C.textMid, lineHeight: 1.6 }}>
                         Steht im Angebot als Vorschlag, mit dem Preis in Klammern — und
