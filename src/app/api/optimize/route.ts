@@ -253,6 +253,20 @@ function applyUserRates(
       : pos.material
     return { ...pos, arbeitszeit, material }
   })
+  // I-6: Die Positionen sind hier die des Nutzers (aus dem bestehenden Angebot),
+  // aber die KI schreibt beim Chat-Update die VOLLSTÄNDIGE Liste zurück — inklusive
+  // eines vorhandenen preisfaktor-Felds, das sie dabei theoretisch verändern könnte.
+  // Klemmen statt vertrauen: 3,00 bleibt die Obergrenze, Unsinn wird verworfen und
+  // bekommt unten den aktuellen Betriebsfaktor gestempelt wie eine neue Position.
+  offer.positionen = (offer.positionen as Array<Record<string, unknown>>).map(p => {
+    if (!p || typeof p !== 'object' || !('preisfaktor' in p)) return p
+    const geklemmt = klemmePreisfaktor(p.preisfaktor)
+    if (geklemmt === null) {
+      const { preisfaktor: _weg, ...rest } = p
+      return rest
+    }
+    return { ...p, preisfaktor: geklemmt }
+  })
   // Neue Positionen aus dem Chat bekommen den heutigen Preisfaktor; bereits
   // gestempelte behalten ihren. Sonst wuerde ein Optimieren-Lauf ein verschicktes
   // Angebot rueckwirkend teurer machen.

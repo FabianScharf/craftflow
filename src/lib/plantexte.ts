@@ -64,8 +64,14 @@ export function deckelAblehnung(art: DeckelArt, plan: Plan, grenze: number): { e
  */
 export function stimmenAblehnung(plan: Plan): { error: string; minPlan: Plan | null } {
   const n = deckel(plan, 'wunschStimmen') ?? 0
+  // Minor (Live-Test W6, Controller-Review 16.09.): "Du hast alle 1 Stimmen ..."
+  // ist falsches Deutsch — trifft ausgerechnet den Solo-Plan mit Budget 1, also die
+  // häufigste Ablehnung überhaupt. Einzahlform wie in deckelAblehnung.
+  const satz = n === 1
+    ? `Du hast deine ${n} Stimme deines Plans vergeben.`
+    : `Du hast alle ${n} Stimmen deines Plans vergeben.`
   return {
-    error: `Du hast alle ${n} Stimmen deines Plans vergeben. Nimm eine zurück oder wechsle den Plan.`,
+    error: `${satz} Nimm eine zurück oder wechsle den Plan.`,
     minPlan: naechsterPlanMitMehr('wunschStimmen', plan),
   }
 }

@@ -56,6 +56,27 @@ export function stempelPreisfaktor<T extends { preisfaktor?: number }>(
 }
 
 /**
+ * Entfernt einen Preisfaktor, den die KI selbst in ihre Antwort geschrieben hat —
+ * BEVOR der Betrieb seinen eigenen stempelt (I-6, Controller-Review 2026-09-16).
+ *
+ * Nur fuer /api/analyze und /api/analyze/block gedacht: dort entstehen Positionen
+ * frisch aus der KI-Antwort, ein "vorhandener" Faktor kann dort also nur erfunden
+ * sein. stempelPreisfaktor liesse einen vorhandenen Wert bewusst stehen (Regel 1
+ * oben) — das ist beim Optimieren richtig (der Faktor stammt dann vom Nutzer/vom
+ * Betrieb selbst), waere hier aber eine ungeprüfte KI-Zahl mit direkter
+ * Preiswirkung: schreibt das Modell "preisfaktor": 3, verdreifacht sich der Preis,
+ * ohne dass irgendeine Pruefung greift.
+ */
+export function verwirfKiPreisfaktor(positionen: unknown[]): Record<string, unknown>[] {
+  if (!Array.isArray(positionen)) return []
+  return positionen.map(p => {
+    if (!p || typeof p !== 'object') return p as Record<string, unknown>
+    const { preisfaktor: _weg, ...rest } = p as Record<string, unknown>
+    return rest
+  })
+}
+
+/**
  * Was in der Kalkulationsuebersicht stehen soll.
  * `null` = nichts anzeigen (alle Positionen rechnen mit 1,00), `'gemischt'` = die
  * Positionen tragen verschiedene Faktoren (kommt vor, wenn ein Betrieb seinen Faktor

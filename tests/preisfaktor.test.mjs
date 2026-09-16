@@ -5,7 +5,7 @@ import {
 } from '../src/lib/types.ts'
 import {
   PREISFAKTOR_MIN, PREISFAKTOR_MAX, PREISFAKTOR_STANDARD,
-  klemmePreisfaktor, stempelPreisfaktor, angezeigterPreisfaktor,
+  klemmePreisfaktor, stempelPreisfaktor, angezeigterPreisfaktor, verwirfKiPreisfaktor,
 } from '../src/lib/preisfaktor.ts'
 import { deckele, deckeleHand, HAND_MIN, HAND_MAX } from '../src/lib/kalibrierung.ts'
 import { positionenAusKi } from '../src/lib/kiantwort.ts'
@@ -82,6 +82,22 @@ test('stempelPreisfaktor setzt den Faktor nur auf Positionen, die noch keinen tr
   const eingabe = [{ id: 1 }]
   stempelPreisfaktor(eingabe, 1.5)
   assert.ok(!('preisfaktor' in eingabe[0]))
+})
+
+test('I-6: ein von der KI erfundener Preisfaktor wird verworfen, nicht übernommen', () => {
+  // So laufen /api/analyze und /api/analyze/block: verwirfKiPreisfaktor VOR
+  // stempelPreisfaktor. Ohne diesen Schritt liesse stempelPreisfaktor einen
+  // "vorhandenen" Wert bewusst stehen (Regel 1) — hier waere das eine ungeprüfte
+  // KI-Zahl mit direkter Preiswirkung (schreibt die KI "preisfaktor": 7, würde
+  // sich der Preis versiebenfachen).
+  const kiPositionen = [{ id: 1, titel: 'X', preisfaktor: 7 }, { id: 2, titel: 'Y' }]
+  const bereinigt = verwirfKiPreisfaktor(kiPositionen)
+  const gestempelt = stempelPreisfaktor(bereinigt, 1.4)
+  assert.deepEqual(gestempelt.map(p => p.preisfaktor), [1.4, 1.4])
+  // Ohne den Verwurf bliebe der erfundene Wert stehen — zur Kontrolle, dass der
+  // Test wirklich den Verwurf prüft und nicht nur stempelPreisfaktor selbst.
+  const ohneVerwurf = stempelPreisfaktor(kiPositionen, 1.4)
+  assert.equal(ohneVerwurf[0].preisfaktor, 7)
 })
 
 test('angezeigterPreisfaktor meldet nur, was wirklich wirkt', () => {

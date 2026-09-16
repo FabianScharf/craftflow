@@ -11,7 +11,7 @@ import { pruefeZugang, ladeEffektivenPlan } from '@/lib/planpruefung'
 import { deckel, erlaubt } from '@/lib/plaene'
 import { deckelAblehnung, bloeckeAblehnung } from '@/lib/plantexte'
 import { aktuellerMonat, reserviereAngebot, gibAngebotFrei } from '@/lib/angebotszaehler'
-import { stempelPreisfaktor, klemmePreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
+import { stempelPreisfaktor, klemmePreisfaktor, PREISFAKTOR_STANDARD, verwirfKiPreisfaktor } from '@/lib/preisfaktor'
 import { BLOCK_REGEL, type Block } from '@/lib/bloecke'
 import { SYSTEM_PROMPT, validateAndFix, MAX_IMAGE_B64_BYTES } from '../gemeinsam'
 import { ladeFaktoren } from '@/lib/kalibrierungsspeicher'
@@ -282,8 +282,11 @@ export async function POST(req: NextRequest) {
         : validateAndFix(parsed, block.text ?? '', customSaetze, matGruppen, deaktiviert, faktoren)
       const positionen = (validated as { positionen?: unknown }).positionen
       if (Array.isArray(positionen)) {
+        // I-6: einen von der KI selbst erfundenen Faktor verwerfen, bevor der
+        // Betrieb seinen stempelt — hier entstehen die Positionen frisch aus der
+        // KI-Antwort, ein "vorhandener" Faktor kann also nur erfunden sein.
         (validated as { positionen: unknown }).positionen =
-          stempelPreisfaktor(positionen as Array<{ preisfaktor?: number }>, preisfaktorNutzer)
+          stempelPreisfaktor(verwirfKiPreisfaktor(positionen) as Array<{ preisfaktor?: number }>, preisfaktorNutzer)
       }
       const hatPositionen = Array.isArray(positionen) && positionen.length > 0
       if (!hatPositionen) await gibFrei()

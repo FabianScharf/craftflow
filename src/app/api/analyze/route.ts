@@ -7,7 +7,7 @@ import { deckel, type EffektiverPlan } from '@/lib/plaene'
 import { ladeEffektivenPlan, pruefeZugang } from '@/lib/planpruefung'
 import { deckelAblehnung } from '@/lib/plantexte'
 import { aktuellerMonat, reserviereAngebot, gibAngebotFrei } from '@/lib/angebotszaehler'
-import { stempelPreisfaktor, PREISFAKTOR_STANDARD, klemmePreisfaktor } from '@/lib/preisfaktor'
+import { stempelPreisfaktor, PREISFAKTOR_STANDARD, klemmePreisfaktor, verwirfKiPreisfaktor } from '@/lib/preisfaktor'
 import { KEINE_FAKTOREN, type Faktoren } from '@/lib/zeitfaktoren'
 import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { nutzungAusAntwort, nutzungAlsZeile } from '@/lib/kinutzung'
@@ -376,10 +376,13 @@ export async function POST(req: NextRequest) {
       // Preisfaktor des Betriebs auf die frisch entstandenen Positionen stempeln.
       // Nach validateAndFix, damit der deterministische vkStunde-/aufschlag-Override
       // unberuehrt bleibt — der Faktor ist reine Nachrechnung auf den Endpreis.
+      // I-6: Erst einen von der KI selbst erfundenen Faktor verwerfen — hier
+      // entstehen die Positionen frisch, ein "vorhandener" Wert kann nur von der
+      // KI stammen und wuerde stempelPreisfaktor sonst bewusst unangetastet lassen.
       const positionenRoh = (validated as { positionen?: unknown }).positionen
       if (Array.isArray(positionenRoh)) {
         (validated as { positionen: unknown }).positionen =
-          stempelPreisfaktor(positionenRoh as Array<{ preisfaktor?: number }>, preisfaktorNutzer)
+          stempelPreisfaktor(verwirfKiPreisfaktor(positionenRoh) as Array<{ preisfaktor?: number }>, preisfaktorNutzer)
       }
       // Angebot zählt bei der Analyse, nicht mehr beim PDF-Export (Fabian, 16.09.) —
       // das ist der teure Schritt, hier entsteht die Kalkulation. Aber NUR bei einem
