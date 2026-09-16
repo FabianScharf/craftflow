@@ -735,14 +735,20 @@ export default function SettingsPage() {
                         {profil.firma_name || 'FIRMENNAME'}
                       </span>
                     </div>
+                    {/* Reine Farbmuster, keine echten Knöpfe. Kundenrückmeldung 16.09. (Tischlerei
+                        Lembeck): Mit der Beschriftung „Speichern / Abbrechen" hielt der Nutzer diese
+                        Fläche für den Speichern-Knopf und fand den echten unten nicht. */}
                     <div style={{ background: profil.farbe_primaer || C.black, padding: '10px 18px 14px', display: 'flex', gap: 8 }}>
                       <div style={{ background: profil.farbe_akzent || C.copper, borderRadius: 4, padding: '7px 14px', fontSize: 12, fontWeight: 700, color: profil.farbe_primaer || C.black }}>
-                        Speichern
+                        Beispiel-Knopf
                       </div>
                       <div style={{ border: `1px solid ${profil.farbe_akzent || C.copper}`, borderRadius: 4, padding: '7px 14px', fontSize: 12, color: profil.farbe_akzent || C.copper }}>
-                        Abbrechen
+                        Beispiel-Text
                       </div>
                     </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 6, lineHeight: 1.6 }}>
+                    Nur eine Farbvorschau. Gespeichert wird mit dem Knopf „Speichern“ ganz unten auf dieser Seite.
                   </div>
                 </div>
 
