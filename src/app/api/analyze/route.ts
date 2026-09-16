@@ -26,6 +26,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage zu groß – bitte weniger oder kleinere Bilder verwenden.' }, { status: 413 })
     }
 
+    // Body genau einmal lesen (req.json() ist ein Stream) — deshalb hier schon,
+    // VOR der Zugangs-/Reservierungsprüfung weiter unten: I-3 (Controller-Review
+    // 16.09.) verlangt, dass ein zu langer Text abgelehnt wird, BEVOR überhaupt
+    // ein Angebot reserviert oder die KI gerufen wird — nicht erst stumm gekürzt
+    // nach der Reservierung.
+    const { text, imageBase64, userKostenstellen, userMaterialgruppen, deaktivierteKostenstellen } = await req.json()
+
+    // I-3: Wer ein Leistungsverzeichnis ins Textfeld einfügt statt es als PDF
+    // hochzuladen, landet im Direktweg (brauchtBlockweg greift nur mit Datei) —
+    // bisher wurde ab Zeichen 10.001 stillschweigend gekürzt (Spec:97 "nichts
+    // wird mehr stumm gekürzt"). Jetzt: klare Ablehnung, kein Angebot verbraucht.
+    const MAX_TEXT_CHARS = 10000
+    if (typeof text === 'string' && text.length > MAX_TEXT_CHARS) {
+      return NextResponse.json({
+        error: 'Der Text ist länger als 10.000 Zeichen. Bitte das Leistungsverzeichnis als PDF hochladen und „Großes Projekt in Blöcken kalkulieren“ wählen.',
+      }, { status: 400 })
+    }
+
     // Zugang UND Angebots-Deckel VOR dem teuren KI-Aufruf prüfen (Aufgabe 0) —
     // sonst kostet eine gesperrte oder ausgeschöpfte Anfrage trotzdem den vollen
     // Claude-Aufruf. Nutzer früh laden (statt wie bisher erst spät im try-Block
@@ -71,7 +89,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let { text, imageBase64, userKostenstellen, userMaterialgruppen, deaktivierteKostenstellen } = await req.json()
     const customKs = Array.isArray(userKostenstellen)
       ? (userKostenstellen as Array<{ code: string; bezeichnung: string; stundensatz: number; gruppe?: string | null }>)
       : []
@@ -148,12 +165,6 @@ export async function POST(req: NextRequest) {
     if (!text && images.length === 0) {
       await gibReservierungFrei()
       return NextResponse.json({ error: 'Kein Text oder Bild' }, { status: 400 })
-    }
-
-    const MAX_TEXT_CHARS = 10000
-    if (text && text.length > MAX_TEXT_CHARS) {
-      console.log('[analyze] text truncated from', text.length, 'to', MAX_TEXT_CHARS, 'chars')
-      text = text.slice(0, MAX_TEXT_CHARS)
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
