@@ -1,5 +1,5 @@
 // Tag-3-Mail (Fabian 2026-09-17): einmal täglich von Vercel aufgerufen (vercel.json
-// → crons, 07:00 UTC = 09:00 Sommerzeit), schickt jedem fälligen Konto GENAU EINE
+// → crons, 08:00 UTC = 10:00 Sommerzeit, 09:00 Winterzeit — Fabian: „immer um 10 Uhr vormittags“), schickt jedem fälligen Konto GENAU EINE
 // persönliche Nachfrage-Mail und setzt danach den Merker am Konto (app_metadata),
 // wie bei der Willkommens-Mail. Regeln in src/lib/mail/tag3.ts (tag3Faellig).
 //
