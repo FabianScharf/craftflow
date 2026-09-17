@@ -47,7 +47,13 @@ export default function EinladungPage() {
   const [angemeldet, setAngemeldet] = useState<string | null>(null)
   const [fehler, setFehler] = useState('')
   const [nimmtAn, setNimmtAn] = useState(false)
-  const [fertig, setFertig] = useState<string | null>(null)
+  // Erfolg ist ein EIGENER Zustand und nicht „Name ist gesetzt" (Review-Befund M1,
+  // 17.09.): Ein Betrieb kann ohne Firmennamen arbeiten, dann liefert die Route
+  // `betriebName: null` — und der Eingeladene hätte nach der erfolgreichen Annahme
+  // weiter die Einladungsansicht mit aktivem Knopf gesehen. Ein Erfolg, der wie ein
+  // Fehler aussieht.
+  const [angenommen, setAngenommen] = useState(false)
+  const [betriebDanach, setBetriebDanach] = useState<string | null>(null)
 
   useEffect(() => {
     let abgebrochen = false
@@ -87,7 +93,8 @@ export default function EinladungPage() {
         setFehler(json.error || 'Die Einladung konnte nicht angenommen werden.')
         return
       }
-      setFertig(json.betriebName ?? einladung?.betriebName ?? null)
+      setBetriebDanach(json.betriebName ?? einladung?.betriebName ?? null)
+      setAngenommen(true)
     } catch {
       setFehler('Die Einladung konnte nicht angenommen werden. Bitte später erneut versuchen.')
     } finally {
@@ -110,11 +117,11 @@ export default function EinladungPage() {
 
         {laedt && <p style={{ color: C.gray, fontSize: 13, margin: 0 }}>Einladung wird geladen …</p>}
 
-        {!laedt && fertig !== null && (
+        {!laedt && angenommen && (
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 36, marginBottom: 16 }}>✓</div>
             <h1 style={{ color: C.white, fontSize: 17, fontWeight: 700, marginBottom: 10 }}>
-              Du gehörst jetzt zu {fertig || 'deinem Betrieb'}.
+              Du gehörst jetzt zu {betriebDanach || 'deinem Betrieb'}.
             </h1>
             <p style={{ color: C.gray, fontSize: 13, lineHeight: 1.65, margin: 0 }}>
               Du arbeitest ab jetzt auf den Projekten, Kunden und Einstellungen des Betriebs.
@@ -125,7 +132,7 @@ export default function EinladungPage() {
           </div>
         )}
 
-        {!laedt && fertig === null && !einladung && (
+        {!laedt && !angenommen && !einladung && (
           <>
             <h1 style={{ color: C.white, fontSize: 18, fontWeight: 700, marginBottom: 12, letterSpacing: -0.3 }}>Einladung nicht gültig</h1>
             <p style={{ color: C.gray, fontSize: 13, lineHeight: 1.65, marginTop: 0 }}>
@@ -135,7 +142,7 @@ export default function EinladungPage() {
           </>
         )}
 
-        {!laedt && fertig === null && einladung && (
+        {!laedt && !angenommen && einladung && (
           <>
             <h1 style={{ color: C.white, fontSize: 18, fontWeight: 700, marginBottom: 12, letterSpacing: -0.3 }}>
               {betrieb} lädt dich ein

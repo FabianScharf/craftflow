@@ -55,7 +55,36 @@ export async function POST(req: NextRequest) {
     console.error('[team/annehmen] Einladung laden:', error.message)
     return NextResponse.json({ error: 'Die Einladung ist gerade nicht abrufbar.' }, { status: 500 })
   }
-  if (!zeile) return NextResponse.json({ error: 'Diese Einladung gibt es nicht mehr.' }, { status: 404 })
+  if (!zeile) {
+    // Derselbe Token, aber schon angenommen — UND zwar von genau diesem Login:
+    // Das ist kein Fehler, das ist der Zustand, den der Aufrufer wollte
+    // (Review-Befund N2, 17.09.). Ein alter Tab oder ein zweiter Klick landete
+    // sonst auf „Diese Einladung gibt es nicht mehr", obwohl der Nutzer im Team
+    // ist. Die Bindung an `user_id = user.id` ist der Punkt: Ein FREMDER oder
+    // unbekannter Token bekommt weiterhin 404 und erfährt nichts.
+    const { data: schonMeins, error: smErr } = await service
+      .from('betrieb_mitglieder')
+      .select('inhaber_id')
+      .eq('token', token)
+      .eq('status', 'aktiv')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (smErr) {
+      console.error('[team/annehmen] eigene angenommene Einladung:', smErr.message)
+      return NextResponse.json({ error: 'Die Einladung ist gerade nicht abrufbar.' }, { status: 500 })
+    }
+    if (schonMeins) {
+      const { data: p, error: pErr } = await service
+        .from('betriebsprofil')
+        .select('firma_name')
+        .eq('user_id', schonMeins.inhaber_id as string)
+        .maybeSingle()
+      if (pErr) console.error('[team/annehmen] Firmenname (schon angenommen):', pErr.message)
+      const schonName = ((p?.firma_name ?? '') as string).trim()
+      return NextResponse.json({ ok: true, betriebName: schonName || null })
+    }
+    return NextResponse.json({ error: 'Diese Einladung gibt es nicht mehr.' }, { status: 404 })
+  }
 
   // 2. Adressgleichheit — beide Seiten normalisiert, weil die Einladung
   // kleingeschrieben gespeichert ist und Supabase Adressen so liefert, wie sie
@@ -123,7 +152,15 @@ export async function POST(req: NextRequest) {
     .select('firma_name, plan, trial_starts_at, abo_status, plan_gueltig_bis')
     .eq('user_id', zeile.inhaber_id as string)
     .maybeSingle()
-  if (prErr) console.error('[team/annehmen] Profil des Betriebs:', prErr.message)
+  if (prErr) {
+    // NICHT weiterlaufen (Review-Befund N1, 17.09.): `effektiverPlan(null)` ist
+    // 'gesperrt', ein vorübergehender Datenbankfehler würde dem Eingeladenen also
+    // „Der Betrieb hat keinen gültigen Zugang" sagen — und der ruft dann den
+    // Inhaber wegen eines Abos an, das in Ordnung ist. Ablehnungen müssen den
+    // RICHTIGEN Grund nennen.
+    console.error('[team/annehmen] Profil des Betriebs:', prErr.message)
+    return NextResponse.json({ error: 'Die Einladung ist gerade nicht abrufbar.' }, { status: 500 })
+  }
   const plan = effektiverPlan((profil ?? null) as ProfilFuerPlan | null)
   if (plan === 'gesperrt') {
     return NextResponse.json({ error: 'Der Betrieb hat aktuell keinen gültigen Zugang — sprich mit dem Inhaber.' }, { status: 403 })
