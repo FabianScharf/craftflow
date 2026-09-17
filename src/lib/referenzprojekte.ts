@@ -637,36 +637,46 @@ const tueren: Referenzprojekt = {
 // Keine Massivholzfrage: Die Treppe IST Buche massiv.
 
 const treppeGrund: ReferenzPosition[] = [
+  // ZEITEN VON UNTEN (Fabian 2026-09-17, "Mache das so"): Bis hierher standen hier
+  // Minuten, die rueckwaerts aus der abgeloesten Faustregel-Formel kamen ("Aufteilung
+  // wie beim gemessenen Einbauschrank", "Setzung"). Jetzt jeder Schritt aus den
+  // Richtwerten, obere Haelfte der Baender. Der Referenztext ist der EINFACHE Fall
+  // (Neubau, Treppenloch fertig, Rohbetonauflager, vorgefertigte Rohtreppe) — der
+  // schwere Fall ist die Altbau-Alternative (× 1,6).
   p('Treppe Buche massiv, 13 Steigungen',
-    'Geradläufige Treppe Buche massiv, 13 Steigungen (Geschosshöhe 2,73 m), 90 cm laufbreit, Setzstufen, Wangen 40 mm, Stufen 40 mm. Rohtreppe zugekauft, fertig geölt vom Hersteller. Geländer mit Füllstäben und Handlauf rund 42 mm.',
+    'Geradläufige Treppe Buche massiv, 13 Steigungen (Geschosshöhe 2,73 m), 90 cm laufbreit, Setzstufen, Wangen 40 mm, Stufen 40 mm. Rohtreppe zugekauft, fertig geölt vom Hersteller. Geländer mit Füllstäben und Handlauf rund 42 mm, 5 lfm, in der Werkstatt vormontiert.',
     [
-      m('Rohtreppe Buche massiv, 13 Steigungen, geölt', 1, 'Stk', 2400.00),  // CLAUDE.md 6.1: Treppe gesamt 3.000–7.000 €, Materialanteil 50–60 % (6.2)
-      m('Geländer mit Füllstäben und Handlauf rund 42 mm', 1, 'Stk', 650.00),  // Annahme: Rest des Materialanteils (CLAUDE.md 6.2: Treppe 50–60 %) nach Abzug der Rohtreppe; Geländer stehen in 6.1 nur als Montagezeit
+      m('Rohtreppe Buche massiv, 13 Steigungen, geölt', 1, 'Stk', 2400.00),  // Annahme: Herstellerpreis fuer eine gerade Buche-Rohtreppe mit Setzstufen; CLAUDE.md 6.2 (Treppe 50–60 % Material) stuetzt die Groessenordnung
+      m('Geländer mit Füllstäben und Handlauf rund 42 mm, 5 lfm', 1, 'Stk', 650.00),  // Annahme: Handlauf, Pfosten, rund 40 Fuellstaebe Buche als Bausatz; Gelaender stehen in CLAUDE.md nur als Montagezeit (5.4)
       m('Kleinmaterial (Dübel, Anker, Schrauben, Leim)', 1, 'psch', 120.00),  // Annahme: Befestigungs- und Verbrauchsmaterial als Pauschale; kein CLAUDE.md-Richtwert
     ],
     [
-      z('Warenhandling', 40),  // Annahme: Treppe abladen, zwischenlagern, ans Treppenloch bringen
-      z('Zuschnitt', 108),     // Wangen an Wand und Decke anpassen, Handlauf ablängen
-      z('Zusammenbau', 162),   // CLAUDE.md 5.4: Geländer 30–60 min/lfm, Füllstäbe 60–90
-      z('Oberfläche', 154),    // CLAUDE.md 4.1/4.2: Nacharbeit an den angepassten Teilen
+      z('Warenhandling', 60),  // Annahme: Speditionsgut abladen, zwischenlagern, zweimal umladen (schwer, zwei Mann)
+      z('Zuschnitt', 160),     // CLAUDE.md 3.4: Profilieren/Fraesen 5–15 min/lfm — zwei Wangen an Wand und Decke anpassen (2 × 30), Handlauf ablaengen und Gehrungen (30), rund 40 Fuellstaebe ablaengen (70)
+      z('CNC', 45),            // CLAUDE.md 3.1: Duebelloecher/Verbinder 5–10 min je Bauteil — Bohrbild fuer rund 80 Fuellstab-Bohrungen in Handlauf und Fussleiste, Pfostenverbinder
+      z('Zusammenbau', 240),   // CLAUDE.md 5.4: Holzgelaender mit Fuellstaeben 60–90 min/lfm — davon die Werkstatt-Vormontage (Staebe einleimen, Pfosten setzen, Handlauf anpassen) 5 lfm × 48 min; der Rest steht in der Montage
+      z('Oberfläche', 180),    // CLAUDE.md 4.1/4.2: Gelaender rund 4 m² Sichtflaeche schleifen (10 min/m²) und zweimal oelen (25 min/m²) = 140, Nacharbeit an den angepassten Wangen 40
     ]),
   p('Planung und Konstruktion',
-    'Aufmaß am Rohbau, Steigungsverhältnis prüfen, Bestellzeichnung für den Treppenbauer, Arbeitsvorbereitung.',
+    'Aufmaß am Rohbau, Steigungsverhältnis prüfen, Bestellzeichnung für den Treppenbauer, Geländer konstruieren, Arbeitsvorbereitung.',
     [],
     [
-      // Fixsockel 269 min gesamt, aufgeteilt in denselben Anteilen wie beim
-      // gemessenen Einbauschrank (0,13 / 0,19 / 0,39 / 0,29 — so stand es auch in
-      // der abgeloesten SPECS-Formel in kalibrierung.ts). CLAUDE.md 2.1 stuetzt die
-      // Groessenordnung: Aufmass komplexer Innenausbau 1,5–3,0 h, CAD mit
-      // Detailplanung 2,0–4,0 h. ANNAHME in der Aufteilung, nicht gemessen.
-      z('Besprechung', 35), z('Planung', 51), z('Konstruktion', 105), z('Arbeitsvorbereitung', 78),
+      z('Besprechung', 90),           // CLAUDE.md 2.1: Aufmaß komplexer Innenausbau 1,5–3,0 h — Aufmass am Rohbau, Geschosshoehe, Auflager
+      z('Planung', 60),               // CLAUDE.md 2.1: Angebotserstellung 1,0–2,5 h, unterer Bereich: Rohtreppe kommt bepreist vom Hersteller
+      z('Konstruktion', 150),         // CLAUDE.md 2.1: CAD mit Detailplanung 2,0–4,0 h — Bestellzeichnung Treppe, Gelaenderkonstruktion
+      z('Arbeitsvorbereitung', 60),   // Annahme: Bestellung, Terminierung Spedition, Materialliste Gelaender
     ]),
   p('Lieferung und Montage, Neubau',
-    'Anlieferung 20 km, Treppe einbringen und aufstellen, an Wand und Decke anpassen, Auflager setzen, Geländer montieren.',
+    'Anlieferung 20 km, Treppe einbringen und aufstellen, an Wand und Decke anpassen, Auflager setzen, Geländer montieren. Zwei Mann, ein Tag plus Geländer.',
     [],
     [
-      z('Montage', 752),   // CLAUDE.md 5.4: gerade Treppe 1–2 Tage (2 Mann) + Geländer
-      z('Lieferung', 212),  // Annahme: Speditionsgut, zwei Mann beim Abladen und Einbringen
+      // CLAUDE.md 5.4: "Geradlaeufige Treppe aufstellen (vorgefertigt): 1–2 Tage (2 Mann)".
+      // Der Referenztext ist der einfache Neubaufall (Treppenloch fertig, Rohbeton-
+      // auflager) — 2 Mann × 1 Tag = 960 min. Dazu Gelaender vor Ort setzen: 5 lfm ×
+      // 45 min (5.4: 30–60 min/lfm gerade, vormontiert) = 225 min. Zusammen 1.185 min
+      // = 19,75 h. Vorher standen hier 752 min (12,5 h) — UNTER dem Richtwert.
+      z('Montage', 1185),
+      z('Lieferung', 180),  // Annahme: Spedition/Anhaenger 20 km, zwei Mann beim Abladen und Einbringen (2 × 90)
     ]),
 ]
 
@@ -678,7 +688,7 @@ const treppen: Referenzprojekt = {
   positionen: [
     ...treppeGrund,
     // LACK: 12 m² Sichtflaeche (Stufen, Setzstufen, Wangen, Gelaender).
-    // 40 min/m² (CLAUDE.md 4.4) = 480 min ERSETZT die 154 min Oelnacharbeit —
+    // 40 min/m² (CLAUDE.md 4.4) = 480 min ERSETZT die 180 min Oelnacharbeit —
     // lackiert statt geoelt, nicht zusaetzlich. Lack 12 m² × 4 € (CLAUDE.md 4.6).
     variante('lack', 'Alternative: weiß lackiert seidenmatt statt geölt',
       'Treppe roh bezogen, von uns geschliffen, grundiert, zwischengeschliffen und zweimal weiß seidenmatt lackiert — Stufen, Setzstufen, Wangen und Geländer.',
@@ -714,38 +724,53 @@ const treppen: Referenzprojekt = {
 // geliefert, Gestell und Platte werden vor Ort verschraubt (steht in der Lieferzeit).
 
 const tischGrund: ReferenzPosition[] = [
+  // ZEITEN VON UNTEN (Fabian 2026-09-17, "Mache das so"): Vorher standen hier
+  // Setzungen ohne Richtwert (Zusammenbau 485, Zuschnitt 242) und ein Fixsockel
+  // "wie beim Einbauschrank aufgeteilt". Jetzt jeder Schritt aus CLAUDE.md 3.4
+  // (Massivholz), 4.1/4.2 (Oberflaeche beidseitig) und 2.1, obere Haelfte.
   p('Esstisch Eiche massiv 200 × 90 cm',
-    'Platte 40 mm durchgehend verleimt, Kanten gerade, Wangengestell Eiche massiv 60 mm mit Metall-Zarge unter der Platte, Oberfläche Hartwachsöl zweimal, alle Seiten.',
+    'Platte 40 mm aus Eichenbohlen durchgehend verleimt, Kanten gerade, Wangengestell Eiche massiv 60 mm (zweilagig verleimt) mit Metall-Zarge unter der Platte, Oberfläche Hartwachsöl zweimal, alle Seiten.',
     [
-      m('Eiche massiv 40 mm (Platte)', 2.1, 'm²', 140.00),   // CLAUDE.md 7.1: Eiche 25 mm 80–140 €/m², 40 mm am oberen Ende
-      m('Eiche massiv 60 mm (Wangengestell)', 1.3, 'm²', 140.00),  // CLAUDE.md 7.1: Eiche massiv 25 mm 80–140 €/m²; 60 mm am oberen Ende
-      m('Hartwachsöl', 1.5, 'l', 22.00),                     // CLAUDE.md 4.6: 80–120 ml/m² je Auftrag
+      // Platte 1,80 m² fertig; bei Bohlenware 40 % Verschnitt (Splint, Risse, Besaeumen)
+      // → 2,5 m² Rohware (CLAUDE.md 8.2: Massivholz mit unbekannter Holzqualitaet +20 %,
+      // dazu der uebliche Besaeumverlust). 170 €/m²: CLAUDE.md 7.1 nennt 80–140 €/m²
+      // fuer 25 mm; 40 mm ist dicker, Annahme oberes Ende × 1,2.
+      m('Eiche massiv 40 mm, Bohlen (Platte)', 2.5, 'm²', 170.00),
+      // Gestell 60 mm: zwei Lagen 30 mm verleimt, 1,3 m² inkl. Verschnitt. 180 €/m²:
+      // Annahme aus dem Kubikmeterpreis fuer Eichenbohlen (rund 3.000 €/m³ × 0,06 m).
+      m('Eiche massiv 60 mm (Wangengestell)', 1.3, 'm²', 180.00),
+      m('Hartwachsöl', 1.5, 'l', 22.00),                     // CLAUDE.md 4.6: 80–120 ml/m² je Auftrag, 6,8 m² × 2 Auftraege
       m('Kleinmaterial (Metall-Zarge, Nutensteine, Schrauben)', 1, 'psch', 25.00),  // Annahme: Tischbeschlag als Pauschale; kein CLAUDE.md-Richtwert
     ],
     [
-      z('Zuschnitt', 242),     // CLAUDE.md 3.4: Abrichten und Hobeln 3–8 min/lfm, Lamellen zuschneiden
-      // ANNAHME (fuer Fabian zu pruefen): 485 min. CLAUDE.md 3.4 gibt fuer das
-      // Verleimen von Massivholzplatten 30–60 min/m² Leimflaeche — auf 2,1 m²
-      // Platte sind das 63–126 min. Der Rest ist Gestellbau (Wangen zapfen,
-      // Metall-Zarge einlassen, Pressen und Ausrichten), fuer den CLAUDE.md keinen
-      // eigenen Richtwert kennt. Die 485 min sind eine Setzung.
-      z('Zusammenbau', 485),
-      z('Warenhandling', 39),  // Annahme: Rohware holen, Platte mehrfach umlegen (schweres Einzelstück)
-      z('Verpacken', 29),      // Annahme: Kantenschutz, Decken, Verzurren für den Transport
-      z('Oberfläche', 334),    // CLAUDE.md 4.1 + 4.2: Schleifen 8–15 min/m² + 2× ölen 20–30 min/m², beidseitig
+      z('Warenhandling', 45),  // Annahme: Bohlen holen und sortieren, Platte mehrfach umlegen (schweres Einzelstueck)
+      z('Zuschnitt', 280),     // CLAUDE.md 3.4: Hobeln + Abrichten 3–8 min/lfm — rund 28 lfm Lamellen und Gestellteile × 8 = 224, dazu Bohlen auftrennen und ablaengen 56
+      z('CNC', 30),            // Annahme: Nut fuer die Metall-Zarge, Bohrbild der Wangenverbindung; ohne CNC von Hand (umgebucht)
+      // CLAUDE.md 3.4: Verleimen Massivholzplatten 30–60 min/m² Leimflaeche — Platte
+      // 2,1 m² × 60 = 126, Wangen zweilagig 1,3 m² × 60 = 78; Gestell zapfen und
+      // verbinden 150 (Annahme, kein Richtwert), Zarge einlassen 60, Platte nach dem
+      // Verleimen formatieren und Kanten 40, Probemontage 26.
+      z('Zusammenbau', 480),
+      z('Verpacken', 40),      // Annahme: Decken, Kantenschutz, Verzurren fuer den Transport
+      // CLAUDE.md 4.1 + 4.2, BEIDSEITIG (4.2: "beide Seiten behandeln"): 6,8 m²
+      // (Platte 2 × 1,8 + Kanten 0,2 + Gestell 3,0) — Schleifen 15 min/m² = 102,
+      // Zwischenschliff nach dem ersten Oelauftrag 8 min/m² = 54, komplett oelen
+      // 30 min/m² = 204, Kanten und Fasen von Hand 40.
+      z('Oberfläche', 400),
     ]),
   p('Planung und Konstruktion',
-    'Entwurf, Maßabstimmung, Konstruktion von Platte und Gestell, Holzauswahl und Arbeitsvorbereitung.',
+    'Entwurf, Maßabstimmung mit dem Kunden, Konstruktion von Platte und Gestell, Holzauswahl und Arbeitsvorbereitung.',
     [],
-    // Fixsockel 233 min gesamt, in denselben Anteilen aufgeteilt wie beim
-    // gemessenen Einbauschrank (0,13 / 0,19 / 0,39 / 0,29 — Aufteilung der
-    // abgeloesten SPECS-Formel). CLAUDE.md 2.1: Angebotsskizze 0,5–1,5 h,
-    // CAD einfaches Möbel 1,0–2,0 h. ANNAHME in der Aufteilung, nicht gemessen.
-    [z('Besprechung', 30), z('Planung', 44), z('Konstruktion', 91), z('Arbeitsvorbereitung', 68)]),
+    [
+      z('Besprechung', 60),           // CLAUDE.md 2.1: Angebotsskizze/Handskizze 0,5–1,5 h — Entwurf und Abstimmung
+      z('Planung', 60),               // CLAUDE.md 2.1: Angebotserstellung 1,0–2,5 h, unterer Bereich (ein Stueck)
+      z('Konstruktion', 120),         // CLAUDE.md 2.1: CAD einfaches Moebel 1,0–2,0 h, oberes Ende (Gestell mit Zarge)
+      z('Arbeitsvorbereitung', 60),   // Annahme: Holzauswahl beim Haendler, Bestellung Zarge und Oel
+    ]),
   p('Lieferung ins Erdgeschoss',
     'Anlieferung 20 km, Tisch ins Erdgeschoss tragen, Gestell und Platte vor Ort verschrauben, ausrichten.',
     [],
-    [z('Lieferung', 134)]),   // keine Montageposition: 30 min Verschrauben stecken in der Lieferzeit
+    [z('Lieferung', 150)]),   // Annahme: Fahrt 20 km hin und zurueck 60, zwei Mann tragen 30, Verschrauben und Ausrichten 30 — keine eigene Montageposition
 ]
 
 const solitaer: Referenzprojekt = {
@@ -772,7 +797,10 @@ const solitaer: Referenzprojekt = {
         return zeitSetzen(
           mitMaterialzeile(ohneMaterialzeile(pos, 'Hartwachsöl'),
             m('Lack: 2× Grundierung + 2× Decklack seidenmatt', 7.0, 'm²', 4.00)),
-          'Oberfläche', 385)   // 7,0 m² × 55 min/m²
+          // Schleifen bleibt (102) + Lackaufbau 7,0 m² × 55 min/m² = 385 (CLAUDE.md 4.4,
+          // oberes Ende: Eiche zweimal grundieren) + Abkleben/Kanten 35 = rund 520.
+          // Seit die Oelvariante 400 min beidseitig rechnet, muss Lack darueber liegen.
+          'Oberfläche', 520)
       }),
     // LIEFERUNG SCHWER: zweiter Stock ohne Aufzug, Gestell vor Ort montiert.
     // Lieferung × 1,6 (CLAUDE.md 8.2) und 60 min Montage, die es im Grundfall

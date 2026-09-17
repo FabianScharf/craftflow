@@ -228,3 +228,14 @@ in den Tests (`faustregelKontrolle().anzeigen`). Betrifft nur die Küche.
 **Nachtrag (Fabian):** Über dem Knopf „So rechnet CraftFlow dieses Projekt“ stehen jetzt die sechs Felder
 der Kalkulationsübersicht (Positionen, Netto, MwSt., Brutto, Materialkosten gesamt, Stunden gesamt) —
 gleiche Optik wie in der Projektkalkulation. Die alte Summenzeile Material/Arbeit/Netto unten entfällt.
+
+**Nachtrag (Fabian: „Klingt gut. Mache das so“):** Treppe und Tisch trugen noch Minuten aus der alten
+Faustregel-Formel. Jetzt von unten aus den Richtwerten, obere Hälfte:
+
+| Referenz | vorher | jetzt | Faustregel |
+|---|---|---|---|
+| Treppe | 6.037 € · 28,3 h (Montage 752 min, unter Richtwert) | **6.868 € · 40,2 h** (Montage 1.185 min = 2 Mann × 1 Tag + Geländer 5 lfm × 45; Werkstatt Zuschnitt 160, CNC 45, Zusammenbau 240, Oberfläche 180; Fixsockel 360) | 3.000–7.000 € |
+| Tisch | 2.423 € · 24,9 h (Setzungen) | **2.958 € · 28,8 h** (Zuschnitt 280 inkl. Hobeln 28 lfm, CNC 30, Zusammenbau 480 aus Verleimen 2,1 + 1,3 m² à 60 min + Gestell 150 + Zarge 60, Oberfläche 400 beidseitig 6,8 m², Platte 2,5 m² Bohlen à 170 €) | 2.000–4.500 € |
+
+Tisch-Lackvariante auf 520 min Oberfläche (Schleifen + 7 m² × 55 + Abkleben), sonst wäre Lack billiger
+als Öl. Tests 473/473.

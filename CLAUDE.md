@@ -172,7 +172,8 @@ ungefragt auf `main`.
   Faktoren funktionieren“), nie am unteren Rand; **Spanplatte 25 €/m²** (inkl. Verschnitt/Zuschnitt);
   **CNC ist eine eigene Kostenstelle** (Lochreihen, Topf-/Verbinderbohrungen, Ausschnitte) — Schrank und
   Küche tragen CNC-Zeit. Küche jetzt 8.593 € / 77,5 h (vorher 6.044 € / 23 h Werkstatt — „sehr wenig Zeit“),
-  Schrank 2.528 € (EK 584,50 €; der gemessene Anker 409,50 € gilt nicht mehr).
+  Schrank 2.528 € (EK 584,50 €; der gemessene Anker 409,50 € gilt nicht mehr). Treppe 6.868 € / 40,2 h und
+  Tisch 2.958 € / 28,8 h ebenfalls von unten neu (vorher Formel-Reste). Alle fünf folgen dem Konzept.
 - **Betrieb ohne CNC/Kantenanleimmaschine:** `umgebucht(projekt, deaktiviert)` bucht die Minuten × 1,6 auf
   den Zusammenbau (dieselbe Regel wie `bucheUm` in `handarbeit.ts`); Route, `als-projekt` und
   `referenzMitSaetzen(…, deaktiviert)` nutzen sie. „Montage nie“ verändert die Referenz nicht.
