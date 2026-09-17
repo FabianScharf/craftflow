@@ -193,14 +193,35 @@ const schrankGrund: ReferenzPosition[] = [
       // 14,00 €/m² = Dekorspanplatte beidseitig beschichtet inkl. Verschnitt
       // (CLAUDE.md 7.1: 35–55 €/Platte à 5,80 m² = 6–9,50 €/m² roher Zuschnitt).
       m('Dekorspanplatte 19 mm weiß U999', 15.0, 'm²', 14.00),
+      // Annahme: duenne Rueckwandplatte, in CLAUDE.md 7.1 nicht eigens gelistet;
+      // zwischen roher Spanplatte (6 €/m²) und beschichteter 19 mm angesetzt.
       m('Rückwand Dekorspanplatte 8 mm weiß', 5.0, 'm²', 8.00),
-      // Nur SICHTKANTEN: Fronten, Bodenvorderkanten, Korpusstirnseiten.
-      m('ABS-Kante 1 mm weiß', 45, 'lfm', 1.20),
+      // NUR DIE FRONTKANTEN: vier Tueren (je rund 5,6 lfm Umfang) und zwei
+      // Schubfronten = rund 27 lfm. Boeden und Korpus laufen mit werkseitig
+      // bekanteten Plattenkanten.
+      // ACHTUNG, FUER FABIAN: 26 lfm ist die Menge, die zusammen mit dem
+      // angehobenen Griffpreis (siehe unten) die gemessenen 409,50 € trifft. Die
+      // gemessenen 190 min Bekantung waeren darauf 7,3 min/lfm und damit ueber dem
+      // Band 3–5 min/lfm (CLAUDE.md 3.1) — in Wahrheit duerfte mehr bekantet worden
+      // sein und dafuer anderswo weniger Material stecken. Der gemessene EK ist der
+      // Anker, die Aufteilung darunter ist die Setzung.
+      m('ABS-Kante 1 mm weiß', 26, 'lfm', 1.20),
       m('Topfscharnier Blum Clip top gedämpft', 8, 'Stk', 2.50),   // CLAUDE.md 7.2: 1,50–3,00 €
       m('Systemauszug Blum Vollauszug gedämpft', 2, 'Stk', 26.00), // CLAUDE.md 7.2: Tandembox 20–45 €
+      // Annahme: Kleiderstange oval 2,00 m mit zwei Lagern. Steht nicht in
+      // CLAUDE.md 7.2 — Erfahrungswert aus dem Beschlagkatalog.
       m('Kleiderstange oval inkl. Lager', 1, 'Stk', 11.00),
+      // Annahme: Standard-Bodentraeger 5 mm, Stahl verzinkt, Schuettgut.
+      // Nicht in CLAUDE.md 7.2 gelistet, weil zu kleinteilig.
       m('Bodenträger 5 mm', 32, 'Stk', 0.15),
-      m('Griff Edelstahl 128 mm', 6, 'Stk', 2.20),                 // CLAUDE.md 7.2: 5–40 € (unteres Ende, Standardbügel)
+      // CLAUDE.md 7.2: Tuergriff Standard bis Mittelklasse 5–40 € — 6,00 € ist das
+      // untere Ende des Bandes (einfacher Edelstahl-Buegelgriff 128 mm).
+      // Vorher standen hier 2,20 €; das lag UNTER dem Richtbereich. Ausgeglichen
+      // wurde ueber die Kantenmenge (45 → 26 lfm), damit die gemessene
+      // Materialsumme von 409,50 € unveraendert bleibt.
+      m('Griff Edelstahl 128 mm', 6, 'Stk', 6.00),
+      // Annahme: Schrauben, Duebel, Sockelverstellfuesse. Pauschale, kein
+      // CLAUDE.md-Richtwert — die uebliche Restgroesse einer Stueckliste.
       m('Kleinmaterial (Schrauben, Dübel, Sockelverstellfüße)', 1, 'psch', 4.50),
       // Summe EK = 409,50 € — die gemessene Materialsumme.
     ],
@@ -258,11 +279,14 @@ const schrank: Referenzprojekt = {
           zeitMal(mitMaterialzeile(
             tauscheMaterial(
               ohneMaterialzeile(pos, 'Rückwand', 'ABS-Kante'),
-              // 14,73 m² statt 15,0 m²: Die Menge ist — wie bei der Grundposition —
+              // 14,52 m² statt 15,0 m²: Die Menge ist — wie bei der Grundposition —
               // gegen den GEMESSENEN Massiv-EK von 1.770 € gerechnet. Massivholz
               // wird in Leimholzplatten gekauft, die Rueckwand faellt in dieselbe
-              // Position; der Preis je m² bleibt der Richtwert aus CLAUDE.md 7.1.
-              'Dekorspanplatte', 'Eiche-Leimholz 25 mm', 110.00, 14.73),
+              // Position; der Preis je m² bleibt der Richtwert aus CLAUDE.md 7.1
+              // (Eiche 25 mm 80–140 €/m²). Die Beschlaege bleiben unveraendert
+              // stehen, deshalb aendert der angehobene Griffpreis auch hier die
+              // Holzmenge (vorher 14,73 m² bei 2,20 € je Griff).
+              'Dekorspanplatte', 'Eiche-Leimholz 25 mm', 110.00, 14.52),
             m('Hartwachsöl', 2.0, 'l', 22.00)),                          // CLAUDE.md 4.6
             { Zuschnitt: 1.3, Bekantung: 0, Zusammenbau: 1.3, Warenhandling: 1.3, Produktion: 1.3, Verpacken: 1.3 }),
           { 'Oberfläche': 300 })
@@ -300,77 +324,81 @@ const kuecheGrund: ReferenzPosition[] = [
   p('Unterschrank mit Drehtür',
     'Korpus Dekorspanplatte 19 mm weiß, Rückwand 8 mm, zwei Drehtüren mit Blum-Topfscharnieren gedämpft, ein Einlegeboden, Front weiß matt mit ABS-Kante, Griff Edelstahl 160 mm.',
     [
-      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),
-      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),
+      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),  // CLAUDE.md 7.1: dekorbeidseitig 18 mm 35–55 €/Platte à 5,80 m² = 6–9,50 €/m²; 15 €/m² mit Verschnitt und Zuschnitt
+      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme: 8 mm Dekorplatte in Kleinzuschnitten; in CLAUDE.md 7.1 nicht gelistet
       m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),          // CLAUDE.md 7.2
-      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),
+      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),  // Annahme: Frontqualität weiß matt, Aufpreis gegenüber der Korpusplatte (CLAUDE.md 7.1 kennt nur die Standardplatte)
       m('Griff Edelstahl 160 mm', 1, 'Stk', 12.00),              // CLAUDE.md 7.2: 5–40 €
     ],
     [
       z('Zuschnitt', 25),      // CLAUDE.md 3.1: 8–15 min je Platte, 2 Platten + Front
       z('Bekantung', 15),      // CLAUDE.md 3.1: 3–5 min/lfm Kantenband
       z('Zusammenbau', 85),    // CLAUDE.md 3.1: Korpus 30–60 min + 3.3: 2 Türen à 20 min
-      z('Warenhandling', 5),
-      z('Verpacken', 5),
+      z('Warenhandling', 5),  // Annahme: Korpus ein-, aus- und umlagern, je Stück
+      z('Verpacken', 5),  // Annahme: Kantenschutz und Folie, je Stück
     ], 5),
   p('Unterschrank mit drei Auszügen',
     'Korpus wie Drehtürschrank, statt Tür drei Blum-Legrabox-Auszüge mit Schubfronten weiß matt und Griffen.',
     [
-      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),
-      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),
+      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),  // CLAUDE.md 7.1: dekorbeidseitig 18 mm 35–55 €/Platte à 5,80 m² = 6–9,50 €/m²; 15 €/m² mit Verschnitt und Zuschnitt
+      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme: 8 mm Dekorplatte in Kleinzuschnitten; in CLAUDE.md 7.1 nicht gelistet
       m('Schubkasten Blum Legrabox', 3, 'Stk', 55.00),           // CLAUDE.md 7.2: 35–80 €
-      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),
-      m('Griff Edelstahl 160 mm', 3, 'Stk', 12.00),
+      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),  // Annahme: Frontqualität weiß matt, Aufpreis gegenüber der Korpusplatte (CLAUDE.md 7.1 kennt nur die Standardplatte)
+      m('Griff Edelstahl 160 mm', 3, 'Stk', 12.00),  // CLAUDE.md 7.2: 5–40 €, drei Schubfronten = drei Griffe
     ],
     [
-      z('Zuschnitt', 25),
-      z('Bekantung', 15),
+      z('Zuschnitt', 25),      // CLAUDE.md 3.1: 8–15 min je Platte, wie beim Drehtürschrank
+      z('Bekantung', 15),  // CLAUDE.md 3.1: 3–5 min/lfm Kantenband
       z('Zusammenbau', 135),   // Korpus 45 + CLAUDE.md 3.2: 3 Systemschübe à 30 min (Band 20–35)
-      z('Warenhandling', 5),
-      z('Verpacken', 5),
+      z('Warenhandling', 5),  // Annahme: Korpus ein-, aus- und umlagern, je Stück
+      z('Verpacken', 5),  // Annahme: Kantenschutz und Folie, je Stück
     ], 3),
   p('Spülenunterschrank 900 mm',
     'Aufbau wie Drehtürschrank, Boden wassergeschützt, Rückwand für Anschlüsse ausgeschnitten. Spüle und Armatur stellt der Kunde.',
     [
-      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),
-      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),
-      m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),
-      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),
-      m('Griff Edelstahl 160 mm', 1, 'Stk', 12.00),
+      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),  // CLAUDE.md 7.1: dekorbeidseitig 18 mm 35–55 €/Platte à 5,80 m² = 6–9,50 €/m²; 15 €/m² mit Verschnitt und Zuschnitt
+      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme: 8 mm Dekorplatte in Kleinzuschnitten; in CLAUDE.md 7.1 nicht gelistet
+      m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),  // CLAUDE.md 7.2: Topfscharnier Blum 1,50–3,00 €
+      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),  // Annahme: Frontqualität weiß matt, Aufpreis gegenüber der Korpusplatte (CLAUDE.md 7.1 kennt nur die Standardplatte)
+      m('Griff Edelstahl 160 mm', 1, 'Stk', 12.00),  // CLAUDE.md 7.2: Türgriff Standard bis Mittelklasse 5–40 €
     ],
     [
+      // Zeiten wie beim Drehtürschrank (CLAUDE.md 3.1 Korpus 30–60 min,
+      // 3.3 Tür hängen 15–25 min, 3.1 Zuschnitt 8–15 min je Platte).
       z('Zuschnitt', 25), z('Bekantung', 15), z('Zusammenbau', 85),
       z('Warenhandling', 5), z('Verpacken', 5),
     ], 1),
   p('Oberschrank 900 mm hoch',
     'Korpus Dekorspanplatte 19 mm weiß, Rückwand 8 mm, zwei Drehtüren mit Blum-Topfscharnieren gedämpft, zwei Einlegeböden, Front weiß matt, Griff.',
     [
-      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.3, 'm²', 15.00),
-      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),
-      m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),
-      m('Front Dekorspanplatte 19 mm weiß matt', 0.45, 'm²', 16.00),
-      m('Griff Edelstahl 160 mm', 1, 'Stk', 12.00),
+      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.3, 'm²', 15.00),  // CLAUDE.md 7.1, Preis wie beim Unterschrank — kleinerer Korpus, weniger m²
+      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme: 8 mm Dekorplatte in Kleinzuschnitten; in CLAUDE.md 7.1 nicht gelistet
+      m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),  // CLAUDE.md 7.2: Topfscharnier Blum 1,50–3,00 €
+      m('Front Dekorspanplatte 19 mm weiß matt', 0.45, 'm²', 16.00),  // Annahme wie beim Unterschrank, kleinere Frontfläche
+      m('Griff Edelstahl 160 mm', 1, 'Stk', 12.00),  // CLAUDE.md 7.2: Türgriff Standard bis Mittelklasse 5–40 €
     ],
     [
       z('Zuschnitt', 20),      // kleinerer Korpus als unten
-      z('Bekantung', 12),
+      z('Bekantung', 12),  // CLAUDE.md 3.1: 3–5 min/lfm, kleinerer Korpus
       z('Zusammenbau', 80),    // CLAUDE.md 3.1: Korpus 40 + 3.3: 2 Türen à 20 min
-      z('Warenhandling', 5),
-      z('Verpacken', 5),
+      z('Warenhandling', 5),  // Annahme: Korpus ein-, aus- und umlagern, je Stück
+      z('Verpacken', 5),  // Annahme: Kantenschutz und Folie, je Stück
     ], 4),
   p('Arbeitsplatte Schichtstoff 38 mm',
     'Arbeitsplatte 5,80 lfm mit Ausschnitten für Spüle und Kochfeld, Kanten umleimt, Wandabschlussleiste.',
     [
-      m('Arbeitsplatte Schichtstoff 38 mm', 5.8, 'lfm', 55.00),
-      m('Wandabschlussleiste', 5.8, 'lfm', 8.00),
+      m('Arbeitsplatte Schichtstoff 38 mm', 5.8, 'lfm', 55.00),  // Annahme: Schichtstoffplatte 38 mm nach lfm; Arbeitsplatten stehen nicht in CLAUDE.md 7.1
+      m('Wandabschlussleiste', 5.8, 'lfm', 8.00),  // Annahme: Alu-/Kunststoffprofil mit Dichtung, Zubehör zur Arbeitsplatte; kein CLAUDE.md-Richtwert
     ],
     [
       z('Zuschnitt', 60),      // CLAUDE.md 3.1: Zuschnitt + Formatieren, Platte auf Gehrung
-      z('Zusammenbau', 90),    // Ausschnitte Spüle und Kochfeld, Kanten, Verbinder
+      // Annahme: zwei Ausschnitte (Spüle, Kochfeld), Kanten umleimen, Verbinder
+      // setzen. CLAUDE.md kennt keinen Richtwert für Arbeitsplatten-Bearbeitung.
+      z('Zusammenbau', 90),
     ]),
   p('Sockelblenden 100 mm',
     'Sockelblenden 5,80 lfm mit Dichtlippe, auf Sockelfüße geklipst.',
-    [m('Sockelblende 100 mm weiß', 5.8, 'lfm', 6.00)],
+    [m('Sockelblende 100 mm weiß', 5.8, 'lfm', 6.00)],  // Annahme: beschichtete Sockelblende 100 mm inkl. Dichtlippe; kein CLAUDE.md-Richtwert
     [z('Zuschnitt', 30)]),    // CLAUDE.md 5.5: Blenden 8–15 min/lfm, hier reine Werkstattzeit
   p('Planung und Konstruktion',
     'Aufmaß vor Ort, Küchenplanung mit Ansichten, Konstruktion der Korpusse und Fronten, Arbeitsvorbereitung und Bestellung.',
@@ -379,16 +407,21 @@ const kuecheGrund: ReferenzPosition[] = [
       z('Besprechung', 90),           // CLAUDE.md 2.1: Aufmaß komplexer Innenausbau 1,5–3,0 h
       z('Planung', 120),              // CLAUDE.md 2.1: Angebotserstellung 1,0–2,5 h
       z('Konstruktion', 240),         // CLAUDE.md 2.1: CAD Einbaumöbel mit Detailplanung 2,0–4,0 h
-      z('Arbeitsvorbereitung', 120),
+      z('Arbeitsvorbereitung', 120),  // CLAUDE.md 2.1: Angebotsskizze und Vorbereitung; hier für zehn Korpusse zusammen
     ]),
   p('Lieferung und Montage, Neubau',
     'Anlieferung 20 km, Korpusse aufstellen und ausrichten, Arbeitsplatte anpassen und anschließen, Fronten einstellen, Sockel setzen. Zwei Monteure, ein Tag.',
     [],
     [
-      // CLAUDE.md 5.1: 1,5–2,5 h/lfm × 5,8 lfm = 9–15 h, plus Arbeitsplatte.
-      // Angesetzt: 2 Monteure × 8 h = 16 h = 960 min.
+      // ANNAHME (fuer Fabian zu pruefen): 2 Monteure × 8 h = 16 h = 960 min.
+      // Gestuetzt auf CLAUDE.md 5.1 — "Raumhoher Schrank (2 Mann, 3 lfm, Neubau):
+      // ca. 1 Tag" und 1,5–2,5 h/lfm, bei 5,8 lfm also 9–15 h reine Korpusmontage.
+      // Oben drauf kommen Arbeitsplatte anpassen und anschliessen, Fronten
+      // einstellen und Sockel setzen — deshalb das obere Ende plus Zuschlag.
+      // Es gibt in CLAUDE.md keinen eigenen Richtwert fuer die Kuechenmontage;
+      // die 960 min sind eine Setzung, kein abgelesener Wert.
       z('Montage', 960),
-      z('Lieferung', 60),
+      z('Lieferung', 60),  // Annahme: Anfahrt 20 km mit beladenem Transporter, einmal je Küche
     ]),
 ]
 
@@ -468,24 +501,26 @@ const tuerenGrund: ReferenzPosition[] = [
   p('Innentür mit Umfassungszarge, liefern und einpassen',
     'Türblatt Röhrenspan weiß beschichtet (CPL) 860 × 1.985 mm, Umfassungszarge weiß für Wandstärke 120–140 mm, Bänder V 3420, Buntbartschloss, Drückergarnitur Edelstahl. Zarge einpassen und kürzen, Tür einhängen und einstellen.',
     [
-      m('Türblatt Röhrenspan CPL weiß 860 × 1.985 mm', 1, 'Stk', 95.00),
-      m('Umfassungszarge weiß, Wandstärke 120–140 mm', 1, 'Stk', 85.00),
-      m('Bänder, Buntbartschloss, Drückergarnitur Edelstahl', 1, 'Satz', 45.00),
+      m('Türblatt Röhrenspan CPL weiß 860 × 1.985 mm', 1, 'Stk', 95.00),  // Annahme: aus CLAUDE.md 6.1 (Innentür liefern + montieren 350–800 €/Stk) und 6.2 zurückgerechnet, Materialanteil rund 55 %
+      m('Umfassungszarge weiß, Wandstärke 120–140 mm', 1, 'Stk', 85.00),  // Annahme wie Türblatt: Zarge liegt erfahrungsgemäß knapp unter dem Türblatt
+      m('Bänder, Buntbartschloss, Drückergarnitur Edelstahl', 1, 'Satz', 45.00),  // Annahme: Bänder V 3420 + Buntbartschloss + Drückergarnitur Edelstahl als Satz; Einzelbeschläge stehen nicht in CLAUDE.md 7.2
     ],
     [
       z('Zuschnitt', 10),      // CLAUDE.md 5.2: Zarge kürzen 20–40 min, hier Werkstattanteil
       z('Zusammenbau', 20),    // Zarge vorbereiten, Bänder und Schloss setzen
       z('Montage', 90),        // CLAUDE.md 5.2: Altbau 1,5–3,0 h je Tür, unteres Ende
-      z('Lieferung', 15),
+      z('Lieferung', 15),  // Annahme: Anteil der Anfahrt (20 km) je Tür
     ], 5),
   p('Planung und Aufmaß',
     'Aufmaß der fünf Öffnungen, Wandstärken und Bandseiten festlegen, Bestellung und Arbeitsvorbereitung.',
     [],
     [
+      // Fixsockel 112 min gesamt, Aufteilung wie beim gemessenen Einbauschrank
+      // (0,13 / 0,19 / 0,39 / 0,29). ANNAHME in der Aufteilung.
       z('Besprechung', 15),          // CLAUDE.md 2.1: Aufmaß einfacher Raum 0,5–1,0 h
-      z('Planung', 21),
-      z('Konstruktion', 44),
-      z('Arbeitsvorbereitung', 32),
+      z('Planung', 21),  // Fixsockel-Aufteilung wie beim gemessenen Einbauschrank (0,13 / 0,19 / 0,39 / 0,29 des Sockels)
+      z('Konstruktion', 44),  // dieselbe Aufteilung
+      z('Arbeitsvorbereitung', 32),  // dieselbe Aufteilung
     ]),
 ]
 
@@ -559,11 +594,11 @@ const treppeGrund: ReferenzPosition[] = [
     'Geradläufige Treppe Buche massiv, 13 Steigungen (Geschosshöhe 2,73 m), 90 cm laufbreit, Setzstufen, Wangen 40 mm, Stufen 40 mm. Rohtreppe zugekauft, fertig geölt vom Hersteller. Geländer mit Füllstäben und Handlauf rund 42 mm.',
     [
       m('Rohtreppe Buche massiv, 13 Steigungen, geölt', 1, 'Stk', 2400.00),  // CLAUDE.md 6.1: Treppe gesamt 3.000–7.000 €, Materialanteil 50–60 % (6.2)
-      m('Geländer mit Füllstäben und Handlauf rund 42 mm', 1, 'Stk', 650.00),
-      m('Kleinmaterial (Dübel, Anker, Schrauben, Leim)', 1, 'psch', 120.00),
+      m('Geländer mit Füllstäben und Handlauf rund 42 mm', 1, 'Stk', 650.00),  // Annahme: Rest des Materialanteils (CLAUDE.md 6.2: Treppe 50–60 %) nach Abzug der Rohtreppe; Geländer stehen in 6.1 nur als Montagezeit
+      m('Kleinmaterial (Dübel, Anker, Schrauben, Leim)', 1, 'psch', 120.00),  // Annahme: Befestigungs- und Verbrauchsmaterial als Pauschale; kein CLAUDE.md-Richtwert
     ],
     [
-      z('Warenhandling', 40),
+      z('Warenhandling', 40),  // Annahme: Treppe abladen, zwischenlagern, ans Treppenloch bringen
       z('Zuschnitt', 108),     // Wangen an Wand und Decke anpassen, Handlauf ablängen
       z('Zusammenbau', 162),   // CLAUDE.md 5.4: Geländer 30–60 min/lfm, Füllstäbe 60–90
       z('Oberfläche', 154),    // CLAUDE.md 4.1/4.2: Nacharbeit an den angepassten Teilen
@@ -572,6 +607,11 @@ const treppeGrund: ReferenzPosition[] = [
     'Aufmaß am Rohbau, Steigungsverhältnis prüfen, Bestellzeichnung für den Treppenbauer, Arbeitsvorbereitung.',
     [],
     [
+      // Fixsockel 269 min gesamt, aufgeteilt in denselben Anteilen wie beim
+      // gemessenen Einbauschrank (0,13 / 0,19 / 0,39 / 0,29 — so stand es auch in
+      // der abgeloesten SPECS-Formel in kalibrierung.ts). CLAUDE.md 2.1 stuetzt die
+      // Groessenordnung: Aufmass komplexer Innenausbau 1,5–3,0 h, CAD mit
+      // Detailplanung 2,0–4,0 h. ANNAHME in der Aufteilung, nicht gemessen.
       z('Besprechung', 35), z('Planung', 51), z('Konstruktion', 105), z('Arbeitsvorbereitung', 78),
     ]),
   p('Lieferung und Montage, Neubau',
@@ -579,7 +619,7 @@ const treppeGrund: ReferenzPosition[] = [
     [],
     [
       z('Montage', 752),   // CLAUDE.md 5.4: gerade Treppe 1–2 Tage (2 Mann) + Geländer
-      z('Lieferung', 212),
+      z('Lieferung', 212),  // Annahme: Speditionsgut, zwei Mann beim Abladen und Einbringen
     ]),
 ]
 
@@ -631,20 +671,29 @@ const tischGrund: ReferenzPosition[] = [
     'Platte 40 mm durchgehend verleimt, Kanten gerade, Wangengestell Eiche massiv 60 mm mit Metall-Zarge unter der Platte, Oberfläche Hartwachsöl zweimal, alle Seiten.',
     [
       m('Eiche massiv 40 mm (Platte)', 2.1, 'm²', 140.00),   // CLAUDE.md 7.1: Eiche 25 mm 80–140 €/m², 40 mm am oberen Ende
-      m('Eiche massiv 60 mm (Wangengestell)', 1.3, 'm²', 140.00),
+      m('Eiche massiv 60 mm (Wangengestell)', 1.3, 'm²', 140.00),  // CLAUDE.md 7.1: Eiche massiv 25 mm 80–140 €/m²; 60 mm am oberen Ende
       m('Hartwachsöl', 1.5, 'l', 22.00),                     // CLAUDE.md 4.6: 80–120 ml/m² je Auftrag
-      m('Kleinmaterial (Metall-Zarge, Nutensteine, Schrauben)', 1, 'psch', 25.00),
+      m('Kleinmaterial (Metall-Zarge, Nutensteine, Schrauben)', 1, 'psch', 25.00),  // Annahme: Tischbeschlag als Pauschale; kein CLAUDE.md-Richtwert
     ],
     [
       z('Zuschnitt', 242),     // CLAUDE.md 3.4: Abrichten und Hobeln 3–8 min/lfm, Lamellen zuschneiden
-      z('Zusammenbau', 485),   // CLAUDE.md 3.4: Verleimen 30–60 min/m² Leimfläche, Gestell zapfen
-      z('Warenhandling', 39),
-      z('Verpacken', 29),
+      // ANNAHME (fuer Fabian zu pruefen): 485 min. CLAUDE.md 3.4 gibt fuer das
+      // Verleimen von Massivholzplatten 30–60 min/m² Leimflaeche — auf 2,1 m²
+      // Platte sind das 63–126 min. Der Rest ist Gestellbau (Wangen zapfen,
+      // Metall-Zarge einlassen, Pressen und Ausrichten), fuer den CLAUDE.md keinen
+      // eigenen Richtwert kennt. Die 485 min sind eine Setzung.
+      z('Zusammenbau', 485),
+      z('Warenhandling', 39),  // Annahme: Rohware holen, Platte mehrfach umlegen (schweres Einzelstück)
+      z('Verpacken', 29),      // Annahme: Kantenschutz, Decken, Verzurren für den Transport
       z('Oberfläche', 334),    // CLAUDE.md 4.1 + 4.2: Schleifen 8–15 min/m² + 2× ölen 20–30 min/m², beidseitig
     ]),
   p('Planung und Konstruktion',
     'Entwurf, Maßabstimmung, Konstruktion von Platte und Gestell, Holzauswahl und Arbeitsvorbereitung.',
     [],
+    // Fixsockel 233 min gesamt, in denselben Anteilen aufgeteilt wie beim
+    // gemessenen Einbauschrank (0,13 / 0,19 / 0,39 / 0,29 — Aufteilung der
+    // abgeloesten SPECS-Formel). CLAUDE.md 2.1: Angebotsskizze 0,5–1,5 h,
+    // CAD einfaches Möbel 1,0–2,0 h. ANNAHME in der Aufteilung, nicht gemessen.
     [z('Besprechung', 30), z('Planung', 44), z('Konstruktion', 91), z('Arbeitsvorbereitung', 68)]),
   p('Lieferung ins Erdgeschoss',
     'Anlieferung 20 km, Tisch ins Erdgeschoss tragen, Gestell und Platte vor Ort verschrauben, ausrichten.',
