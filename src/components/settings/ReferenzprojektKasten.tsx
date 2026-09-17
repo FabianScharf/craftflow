@@ -224,6 +224,34 @@ export default function ReferenzprojektKasten({ daten, referenzmoebel, antwort, 
         </div>
       )}
 
+      {/* Fabian 2026-09-17: dieselben sechs Felder wie oben in der Kalkulation eines
+          normalen Projekts (Positionen, Netto, MwSt., Brutto, Materialkosten, Stunden) —
+          direkt sichtbar, darunter erst der Knopf zum Nachvollziehen. Gleiche Optik wie
+          die Gesamtuebersicht in page.tsx; MwSt. 19 % wie dort. */}
+      <div style={{ background: C.darkbg, borderRadius: 4, border: `1px solid ${akzentTon('44')}`, overflow: 'hidden', marginTop: 14 }}>
+        {[
+          [
+            { l: 'Positionen', v: `${grundPositionen.length}` },
+            { l: 'Netto', v: eur(daten.summen.netto) },
+            { l: 'MwSt.', v: eur(daten.summen.netto * 0.19) },
+            { l: 'Brutto', v: eur(daten.summen.netto * 1.19) },
+          ],
+          [
+            { l: 'Materialkosten gesamt', v: eur(daten.summen.material) },
+            { l: 'Stunden gesamt', v: `${daten.summen.stunden.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h` },
+          ],
+        ].map((zeile, z) => (
+          <div key={z} style={{ display: 'flex', borderTop: z > 0 ? `1px solid ${C.border}` : undefined }}>
+            {zeile.map(({ l, v }, i) => (
+              <div key={l} style={{ flex: 1, padding: '11px 6px', textAlign: 'center', borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
+                <div style={{ color: C.textMid, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 3 }}>{l}</div>
+                <div style={{ color: C.copper, fontSize: 11, fontWeight: 800 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
       <button onClick={() => setOffen(o => !o)} style={{
         background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8,
         color: C.white, padding: '8px 14px', fontSize: 12, cursor: 'pointer', marginTop: 12,
@@ -253,15 +281,7 @@ export default function ReferenzprojektKasten({ daten, referenzmoebel, antwort, 
             )
           })}
 
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', padding: '12px 4px',
-            borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
-            <div><span style={{ color: C.textMid, fontSize: 11 }}>Material</span><br />
-              <b style={{ color: C.white, fontSize: 14 }}>{eur(daten.summen.material)}</b></div>
-            <div><span style={{ color: C.textMid, fontSize: 11 }}>Arbeit</span><br />
-              <b style={{ color: C.white, fontSize: 14 }}>{eur(daten.summen.arbeit)}</b></div>
-            <div><span style={{ color: C.textMid, fontSize: 11 }}>Netto</span><br />
-              <b style={{ color: C.copper, fontSize: 14 }}>{eur(daten.summen.netto)}</b></div>
-          </div>
+          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 4, paddingTop: 8 }} />
 
           {frageBlock('grund', daten.anker.grund?.text ?? '')}
 

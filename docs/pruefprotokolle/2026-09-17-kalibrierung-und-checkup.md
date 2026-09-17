@@ -224,3 +224,7 @@ Massiv-Alternative rechnen jetzt mit 2 × Frontfläche. Lack-Aufpreis +530 € s
 **Nachtrag (Fabian):** Die Faustregel-Zeile „5.000–20.000 € — liegt im Rahmen“ unter der Küche verwirrt
 (Spanne zu groß). Regel: Faustregeln breiter als das Dreifache werden nicht angezeigt, bleiben aber Kontrolle
 in den Tests (`faustregelKontrolle().anzeigen`). Betrifft nur die Küche.
+
+**Nachtrag (Fabian):** Über dem Knopf „So rechnet CraftFlow dieses Projekt“ stehen jetzt die sechs Felder
+der Kalkulationsübersicht (Positionen, Netto, MwSt., Brutto, Materialkosten gesamt, Stunden gesamt) —
+gleiche Optik wie in der Projektkalkulation. Die alte Summenzeile Material/Arbeit/Netto unten entfällt.
