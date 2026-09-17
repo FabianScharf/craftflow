@@ -66,6 +66,48 @@ export function sortiereNachAnnahme<T extends { angenommen_am: string | null; ei
 }
 
 /**
+ * Ziel des Rücksprungs nach Anmeldung oder Registrierung (`/login?next=…`).
+ *
+ * WARUM GEPRÜFT: Der Einladungslink schickt Nichtangemeldete über
+ * `/login?next=/einladung/<token>` und holt sie danach zurück. Ein ungeprüftes
+ * `next` wäre eine offene Weiterleitung — `?next=//boese.example` landet nach dem
+ * Anmelden auf einer fremden Domain, die wie CraftFlow aussieht und dort das
+ * Passwort abfragt. Deshalb: nur eigene, relative Pfade, alles andere → '/'.
+ *
+ * Abgelehnt werden: alles ohne führenden '/', '//' (schemaloses fremdes Ziel),
+ * Backslashes (Browser deuten '\' wie '/'), Leer- und Steuerzeichen
+ * (Header-Umbruch) und absurd lange Werte.
+ */
+export function sicherNext(next: string | null | undefined): string {
+  if (typeof next !== 'string') return '/'
+  const s = next.trim()
+  if (s.length === 0 || s.length > 512) return '/'
+  if (!s.startsWith('/')) return '/'
+  if (s.startsWith('//')) return '/'
+  if (s.includes('\\')) return '/'
+  // Leerzeichen und Steuerzeichen (NUL bis US, DEL): Ein CR/LF im Ziel waere
+  // ein Header-Umbruch. Die Grenzen stehen als ESCAPES da, nicht als rohe
+  // Bytes - mit Rohbytes haelt Git diese Datei fuer binaer, und dann ist der
+  // Diff genau der sicherheitskritischen Funktion nicht mehr lesbar
+  // (Review-Befund H1, 17.09.).
+  if (/[\s\u0000-\u001F\u007F]/.test(s)) return '/'
+  return s
+}
+
+/**
+ * Anzeigeform einer eingeladenen Adresse für die ÖFFENTLICHE Einladungsseite:
+ * `chef@firma.de` → `c***@firma.de`. Der Empfänger erkennt sein Postfach wieder,
+ * aber wer den Link in die Hände bekommt, erfährt die Adresse nicht (Plan:
+ * „Keine Nutzerdaten in öffentlichen Routen außer Firmenname des Einladers").
+ */
+export function maskiereEmail(e: string): string {
+  const s = normalisiereEmail(e)
+  const at = s.indexOf('@')
+  if (at < 1) return '***'
+  return `${s[0]}***${s.slice(at)}`
+}
+
+/**
  * Die vier Sätze, mit denen das Team-Feature ablehnt. Eine Ablehnung ohne Grund ist
  * ein stiller Fehler (Lehre „KI-Werkzeuge: stille Fehler") — deshalb stehen sie hier
  * an einer Stelle und nicht verstreut in den Routen.
@@ -75,4 +117,9 @@ export const TEAM_TEXTE = {
   voll: (plan: string) => `Dein Plan ${plan} hat keine freien Nutzerplätze mehr.`,
   ruhend: 'Dein Betrieb hat aktuell weniger Nutzerplätze als Mitglieder — sprich mit dem Inhaber.',
   entfernt: 'Du gehörst diesem Betrieb nicht mehr an.',
+  // Die zwei Ablehnungen beim Annehmen einer Einladung (Aufgabe 3). Sie stehen
+  // hier und nicht in der Route, damit die Oberfläche denselben Wortlaut zeigen
+  // kann wie die Mail-Antwort.
+  andereAdresse: 'Die Einladung gilt für eine andere E-Mail-Adresse.',
+  eigenerBetrieb: 'Dieses Konto ist bereits ein eigener Betrieb.',
 }

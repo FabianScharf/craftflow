@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { emailGueltig, normalisiereEmail, plaetzeFrei, sortiereNachAnnahme, TEAM_TEXTE } from '../src/lib/team.ts'
+import { emailGueltig, normalisiereEmail, plaetzeFrei, sortiereNachAnnahme, sicherNext, maskiereEmail, TEAM_TEXTE } from '../src/lib/team.ts'
 
 test('E-Mail-Prüfung: eine Adresse braucht eine echte Domain', () => {
   assert.equal(emailGueltig('a@b.de'), true)
@@ -47,9 +47,49 @@ test('sortiereNachAnnahme: älteste Annahme zuerst, Eingeladene hinten, ohne die
   assert.deepEqual(ein.map(x => x.id), ['a', 'b', 'c', 'd'])
 })
 
+// ── Rücksprung nach dem Login (`?next=`) ────────────────────────────────────
+// Der Einladungslink führt Nichtangemeldete über /login?next=/einladung/<token>
+// zurück. Ein ungeprüftes `next` wäre eine offene Weiterleitung: /login?next=
+// //boese.example schickt den Nutzer nach dem Anmelden auf eine fremde Domain,
+// die wie CraftFlow aussieht und dort das Passwort abfragt.
+test('sicherNext lässt nur eigene, relative Pfade durch', () => {
+  assert.equal(sicherNext('/einladung/abc-123'), '/einladung/abc-123')
+  assert.equal(sicherNext('/settings?bereich=team'), '/settings?bereich=team')
+  assert.equal(sicherNext('/'), '/')
+})
+
+test('sicherNext weist fremde Ziele und Unsinn ab (Fallback /)', () => {
+  assert.equal(sicherNext('//boese.example/login'), '/')   // schemalos = fremde Domain
+  assert.equal(sicherNext('https://boese.example'), '/')
+  assert.equal(sicherNext('http://boese.example'), '/')
+  assert.equal(sicherNext('javascript:alert(1)'), '/')
+  assert.equal(sicherNext('/\\boese.example'), '/')        // Browser deuten \ wie /
+  assert.equal(sicherNext('/x\\y'), '/')
+  assert.equal(sicherNext('einladung/abc'), '/')           // relativ ohne /
+  assert.equal(sicherNext('/ein ladung'), '/')             // Leerzeichen
+  assert.equal(sicherNext('/ein\nladung'), '/')            // Steuerzeichen (Header-Umbruch)
+  assert.equal(sicherNext(''), '/')
+  assert.equal(sicherNext(null), '/')
+  assert.equal(sicherNext(undefined), '/')
+  assert.equal(sicherNext('/' + 'a'.repeat(600)), '/')
+})
+
+// Die Maskierung steht auf der ÖFFENTLICHEN Einladungsseite: sie zeigt dem
+// Empfänger, welches Postfach gemeint ist, ohne die Adresse jedem preiszugeben,
+// der den Link in die Hände bekommt.
+test('maskiereEmail zeigt nur den ersten Buchstaben und die Domain', () => {
+  assert.equal(maskiereEmail('fabian@fscrafted.de'), 'f***@fscrafted.de')
+  assert.equal(maskiereEmail('a@b.de'), 'a***@b.de')
+  assert.equal(maskiereEmail(' Chef@Firma.De '), 'c***@firma.de')
+  assert.equal(maskiereEmail('ohne-at'), '***')
+  assert.equal(maskiereEmail(''), '***')
+})
+
 test('Team-Texte sagen immer den Grund (keine stummen Ablehnungen)', () => {
   assert.equal(TEAM_TEXTE.nurInhaber, 'Nur der Inhaber des Betriebs kann das.')
   assert.equal(TEAM_TEXTE.voll('Pro'), 'Dein Plan Pro hat keine freien Nutzerplätze mehr.')
   assert.equal(TEAM_TEXTE.ruhend, 'Dein Betrieb hat aktuell weniger Nutzerplätze als Mitglieder — sprich mit dem Inhaber.')
   assert.equal(TEAM_TEXTE.entfernt, 'Du gehörst diesem Betrieb nicht mehr an.')
+  assert.equal(TEAM_TEXTE.andereAdresse, 'Die Einladung gilt für eine andere E-Mail-Adresse.')
+  assert.equal(TEAM_TEXTE.eigenerBetrieb, 'Dieses Konto ist bereits ein eigener Betrieb.')
 })
