@@ -149,6 +149,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: TEAM_TEXTE.eigenerBetrieb }, { status: 409 })
   }
 
+  // Gesamtprüfung M4 (17.09.): Ein Inhaber MIT Team (eingeladene oder aktive Mitglieder)
+  // darf nirgends Mitarbeiter werden (Spec §1) — seine Leute arbeiteten sonst auf
+  // einem verwaisten Betrieb weiter.
+  const { data: eigenesTeam, error: etErr } = await service
+    .from('betrieb_mitglieder')
+    .select('id')
+    .eq('inhaber_id', user.id)
+    .neq('status', 'entfernt')
+    .limit(1)
+  if (etErr) {
+    console.error('[team/annehmen] eigenes Team:', etErr.message || JSON.stringify(etErr))
+    return NextResponse.json({ error: 'Die Einladung ist gerade nicht abrufbar.' }, { status: 500 })
+  }
+  if ((eigenesTeam ?? []).length > 0) {
+    return NextResponse.json({ error: TEAM_TEXTE.eigenerBetrieb }, { status: 409 })
+  }
+
   // 5. Deckel des Betriebs — hier zählen NUR die aktiven Mitglieder. Die offenen
   // Einladungen (auch die eigene) sind beim Einladen schon eingerechnet worden;
   // sie hier nochmal zu zählen, würde die letzte Einladung nie annehmbar machen.

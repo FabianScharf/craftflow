@@ -237,7 +237,10 @@ export default function TeamSettings({ istInhaber, aufPlan }: {
           <span style={{ fontSize: 13, color: C.white, fontWeight: 700 }}>
             {plaetze.deckel === null
               ? `${plaetze.belegt} Nutzer — unbegrenzt viele Plätze`
-              : `${plaetze.belegt} von ${plaetze.deckel} Plätzen belegt`}
+              : plaetze.belegt > plaetze.deckel
+                // Gesamtprüfung M9 (17.09.): „2 von 1 Plätzen belegt“ las sich wie ein Rechenfehler.
+                ? `${plaetze.deckel} ${plaetze.deckel === 1 ? 'Platz' : 'Plätze'} im Plan, ${plaetze.belegt} Nutzer — ${plaetze.belegt - plaetze.deckel} ${plaetze.belegt - plaetze.deckel === 1 ? 'ruht' : 'ruhen'}`
+                : `${plaetze.belegt} von ${plaetze.deckel} Plätzen belegt`}
           </span>
           <span style={{ fontSize: 11, color: C.textMid }}>
             Der Inhaber belegt Platz 1. Offene Einladungen zählen mit.

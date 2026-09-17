@@ -15,10 +15,11 @@ import { ermittleKonto, type Konto, type Mitglied } from './konto'
 import { TEAM_TEXTE } from './team'
 import { deckel } from './plaene'
 import { ladeEffektivenPlan } from './planpruefung'
+import { getSupabaseClient } from './supabase'
 
 // Genau die Spalten, die src/lib/konto.ts kennt — `token` gehört NICHT dazu, der
 // Einladungslink hat in der Kontoauflösung nichts zu suchen.
-const FELDER = 'id, inhaber_id, user_id, email, status, angenommen_am, eingeladen_am'
+const FELDER = 'id, inhaber_id, user_id, email, status, angenommen_am, eingeladen_am, ruht'
 
 /**
  * Welchen Betrieb bearbeitet dieser Login?
@@ -63,7 +64,24 @@ export async function kontoIdFuer(supabase: SupabaseClient, user: { id: string }
   // (ein Mitarbeiter hat selbst gar keinen). Die betriebsprofil-Policy erlaubt das
   // Lesen über konto_ids().
   const plan = await ladeEffektivenPlan(supabase, aktiv.inhaber_id)
-  return ermittleKonto(user.id, liste, (aktive ?? []) as unknown as Mitglied[], deckel(plan, 'nutzer'))
+  const konto = ermittleKonto(user.id, liste, (aktive ?? []) as unknown as Mitglied[], deckel(plan, 'nutzer'))
+
+  // Gesamtprüfung I1 (17.09.): Den Ruhend-Zustand in die Zeile schreiben, damit
+  // konto_ids()/konto_id() in SQL ein ruhendes Mitglied ausschließen — sonst bliebe
+  // dem Browser (Anon-Key + Sitzung) der RLS-Zugriff auf den Betrieb, obwohl die App
+  // sperrt. Nur bei Abweichung, über die Service-Role (die Update-Policy gehört dem
+  // Inhaber). Ein Fehler hier ändert das Ergebnis nicht — die App-Sperre gilt ohnehin.
+  const ruhtSoll = konto.zustand === 'ruhend'
+  if (Boolean(aktiv.ruht) !== ruhtSoll) {
+    try {
+      const { error: rErr } = await getSupabaseClient()
+        .from('betrieb_mitglieder').update({ ruht: ruhtSoll }).eq('id', aktiv.id)
+      if (rErr) console.error('[kontoserver] ruht schreiben:', rErr.message)
+    } catch (e) {
+      console.error('[kontoserver] ruht schreiben:', e instanceof Error ? e.message : String(e))
+    }
+  }
+  return konto
 }
 
 /**

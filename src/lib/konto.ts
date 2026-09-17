@@ -27,6 +27,8 @@ export type Mitglied = {
   status: 'eingeladen' | 'aktiv' | 'entfernt'
   angenommen_am: string | null
   eingeladen_am: string
+  /** Von der App gesetzt (kontoserver): aktiv, aber über dem Deckel. SQL-Funktionen lesen es (I1, 17.09.). */
+  ruht?: boolean
 }
 
 export type Konto = {
