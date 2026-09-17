@@ -42,4 +42,4 @@ R1 Deckel in der App-Schicht (nicht in SQL) · R2 Zähler je Betrieb · R3/R6 St
 
 ## 6. Live-Gang
 
-17.09. nachts auf Fabians Wort: main = dev = 33ae968 (Merge mit einem Konflikt in `src/middleware.ts` PUBLIC_PATHS, dev-Fassung übernommen). Website unverändert. Produktionsproben nach dem Build: siehe Abschlussmeldung in der Session / nächster Eintrag.
+17.09. nachts auf Fabians Wort: main = dev = 33ae968 (Merge mit einem Konflikt in `src/middleware.ts` PUBLIC_PATHS, dev-Fassung übernommen). Website unverändert. Produktionsproben nach dem Build (alle wie erwartet): Stripe-Webhook POST 400 · Cron-Route ohne Secret 401 · `/api/team` ohne Anmeldung 307 auf /login · Einladungsseite öffentlich 200 · Einladungs-API mit unbekanntem Token 404 · Startseite 307 auf /login · Roadmap-API 200.
