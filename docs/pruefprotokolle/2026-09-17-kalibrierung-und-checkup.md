@@ -239,3 +239,9 @@ Faustregel-Formel. Jetzt von unten aus den Richtwerten, obere Hälfte:
 
 Tisch-Lackvariante auf 520 min Oberfläche (Schleifen + 7 m² × 55 + Abkleben), sonst wäre Lack billiger
 als Öl. Tests 473/473.
+
+**Nachtrag (Fabian: „immer die Küche … es wechselt nicht mehr“ / „+530 € liegt über der Mitte“):** Beides
+dieselbe Ursache — der Kasten kam aus dem gespeicherten Schwerpunkt, Fragen und Spannen folgten den Klicks;
+Anker (Küche) und Spannen (Schrank) gehörten zu zwei Möbeln. Jetzt lädt der Kasten bei jedem Klick auf
+Schwerpunkt/Maschinen/Montage neu (GET mit Query, ohne Speichern). Live geprüft: Küchen abwählen →
+Einbauschrank, alle vier Anker im mittleren Band; Treppen wählen → Treppe; gespeicherter Stand unverändert.
