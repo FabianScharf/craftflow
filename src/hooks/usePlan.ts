@@ -1,15 +1,29 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import {
   PLAN_RANK, TRIAL_DAYS, effektiverPlan, sperrgrund as planSperrgrund,
   erlaubt as planErlaubt, deckel as planDeckel,
   mindestPlan, PLAN_LABELS, type Plan, type EffektiverPlan, type Funktion, type DeckelArt,
 } from '@/lib/plaene'
+import type { KontoZustand } from '@/lib/konto'
 
 export type { Plan, EffektiverPlan } from '@/lib/plaene'
 export { mindestPlan, PLAN_LABELS, TRIAL_DAYS }
 export type { Funktion, DeckelArt }
+
+// Die Antwort von GET /api/konto (src/app/api/konto/route.ts). Die Feldnamen der
+// drei Rohfelder sind absichtlich die des betriebsprofil — so rechnet dieser Hook
+// unveraendert weiter.
+type KontoAntwort = {
+  kontoId: string
+  istInhaber: boolean
+  zustand: KontoZustand
+  betriebName: string | null
+  plan: Plan | 'gesperrt'
+  trial_starts_at: string | null
+  abo_status: string | null
+  plan_gueltig_bis: string | null
+}
 
 export interface UsageInfo {
   count: number
@@ -56,15 +70,29 @@ export function usePlan() {
   // Sperrkarte, die auf einer Vermutung beruht.
   const [planUnbekannt, setPlanUnbekannt] = useState(false)
   const [usage, setUsage] = useState<UsageInfo | null>(null)
+  // Teamfunktion (2026-09-17): Wessen Betrieb sehe ich hier? Startwerte sind die des
+  // Inhabers — ein Mitarbeiter-Abzeichen darf beim Laden nicht aufblitzen, und keine
+  // Sperrseite darf aus einem Startwert entstehen.
+  const [kontoId, setKontoId] = useState<string | null>(null)
+  const [istInhaber, setIstInhaber] = useState(true)
+  const [zustand, setZustand] = useState<KontoZustand>('inhaber')
+  const [betriebName, setBetriebName] = useState<string | null>(null)
 
   const loadUsage = useCallback(async () => {
     const res = await fetch('/api/usage')
     if (res.ok) setUsage(await res.json())
   }, [])
 
+  // WOHER DER PLAN KOMMT (Teamfunktion 2026-09-17):
+  // Nicht mehr aus einer eigenen Supabase-Abfrage im Browser, sondern aus
+  // GET /api/konto. Grund: Ein Mitarbeiter hat kein eigenes Betriebsprofil — die
+  // frühere Abfrage `betriebsprofil where user_id = user.id` hätte für ihn nichts
+  // gefunden und aus den Startwerten 'gesperrt' errechnet. Die Route löst das Konto
+  // auf (kontoIdFuer) und liefert Plan UND Betriebszustand in einem Zug.
+  //
   // WARUM DER FEHLERZWEIG SO AUSSIEHT (Audit 2026-09-17, I7):
-  // Supabase wirft nicht. Das `error`-Feld wurde bisher gar nicht gelesen — bei einem
-  // Aussetzer der Datenbank blieben die Startwerte stehen (plan 'solo', kein
+  // Supabase wirft nicht, und ein fetch liefert auch bei 500 eine Antwort. Wurde der
+  // Fehler nicht gelesen, blieben die Startwerte stehen (plan 'solo', kein
   // trial_starts_at, kein Abo), und genau daraus rechnet effektiverPlan() 'gesperrt'.
   // Ein zahlender Kunde sah dann die Paywall, weil die DB eine Sekunde gehustet hat.
   //
@@ -75,8 +103,10 @@ export function usePlan() {
   // eine falsche Sperre zu behaupten. Der Server entscheidet ohnehin eigenständig
   // (planpruefung.ts) — der Browser ist nie die Instanz.
   //
-  // PGRST116 ("kein Datensatz") ist KEIN Ausfall, sondern ein Konto ohne
-  // Betriebsprofil. Das läuft wie bisher mit den Startwerten weiter.
+  // Ein Konto OHNE Betriebsprofil ist KEIN Ausfall (neu registriert, noch nie in den
+  // Einstellungen gewesen): die Route antwortet dann 200 mit leeren Feldern, und das
+  // läuft wie bisher mit den Startwerten weiter. 401 heisst "nicht eingeloggt" — auch
+  // kein Ausfall, sondern das Ende des Ladens.
   //
   // NOTBREMSE (Screenshot-Audit 2026-09-16): Bleibt `loading` fuer immer stehen,
   // bleibt auch jeder PlanGate-Bereich fuer immer leer — im automatisierten
@@ -94,26 +124,33 @@ export function usePlan() {
       setLoading(false)
     }, 10_000)
     const laden = async (versuch: number) => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (abgebrochen) return
-      if (!user) { fertig = true; setLoading(false); return }
-      const { data, error } = await supabase
-        .from('betriebsprofil')
-        .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
-        .eq('user_id', user.id)
-        .single()
-      if (abgebrochen) return
-      if (error && error.code !== 'PGRST116') {
-        console.error('[usePlan] Betriebsprofil laden:', error.message)
+      let daten: KontoAntwort | null = null
+      try {
+        const res = await fetch('/api/konto')
+        if (abgebrochen) return
+        if (res.status === 401) { fertig = true; setLoading(false); return }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        daten = await res.json() as KontoAntwort
+      } catch (e) {
+        if (abgebrochen) return
+        console.error('[usePlan] Konto laden:', e instanceof Error ? e.message : e)
         if (versuch === 0) { setTimeout(() => { void laden(1) }, 1500) }
-        return   // loading bleibt absichtlich true — keine Sperre aus einem DB-Fehler
+        return   // loading bleibt absichtlich true — keine Sperre aus einem Ladefehler
       }
-      if (data?.plan) setPlan(data.plan as Plan)
-      setTrialStartsAt(data?.trial_starts_at ?? null)
-      setAboStatus(data?.abo_status ?? null)
-      setPlanGueltigBis(data?.plan_gueltig_bis ?? null)
-      setTrialDaysLeft(calcTrialDaysLeft(data?.trial_starts_at ?? null))
+      if (abgebrochen || !daten) return
+      setKontoId(daten.kontoId ?? null)
+      setIstInhaber(daten.istInhaber !== false)
+      setZustand(daten.zustand ?? 'inhaber')
+      setBetriebName(daten.betriebName ?? null)
+      // Die Route liefert in `plan` den WIRKSAMEN Plan (effektiverPlan über das Profil
+      // des Kontos). 'gesperrt' ist kein buchbarer Plan — als Rohwert gilt dann
+      // 'solo', woraus effektiverPlan() unten wieder genau 'gesperrt' errechnet.
+      // In jedem anderen Fall ist der wirksame Plan zugleich der richtige Rohwert.
+      setPlan(daten.plan && daten.plan !== 'gesperrt' ? daten.plan : 'solo')
+      setTrialStartsAt(daten.trial_starts_at ?? null)
+      setAboStatus(daten.abo_status ?? null)
+      setPlanGueltigBis(daten.plan_gueltig_bis ?? null)
+      setTrialDaysLeft(calcTrialDaysLeft(daten.trial_starts_at ?? null))
       fertig = true
       setPlanUnbekannt(false)
       setLoading(false)
@@ -163,5 +200,9 @@ export function usePlan() {
   return {
     plan, effectivePlan, isInTrial, trialDaysLeft, loading, planUnbekannt, canUse, erlaubt, deckel,
     usage, incrementUsage, refreshUsage: loadUsage, isBlocked, trialExpired, sperrgrund,
+    // Teamfunktion: Kopfzeile, Team-Einstellungen, Sperrseite und der Logo-Pfad
+    // hängen daran. `kontoId` ist der Datenschlüssel des Betriebs, NICHT die
+    // user.id des Logins (bei einem Mitarbeiter sind das zwei verschiedene Dinge).
+    kontoId, istInhaber, zustand, betriebName,
   }
 }

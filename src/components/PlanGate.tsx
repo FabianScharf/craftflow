@@ -1,4 +1,5 @@
 'use client'
+import { useEffect } from 'react'
 import { C } from '@/lib/types'
 import { akzentTon } from '@/lib/theme'
 import { PLAN_LABELS, type Plan, type Funktion } from '@/lib/plaene'
@@ -19,13 +20,30 @@ export function PlanGate({ minPlan, funktion, children, fallback }: {
   children: React.ReactNode
   fallback?: React.ReactNode
 }) {
-  const { canUse, erlaubt, loading, planUnbekannt } = usePlan()
+  const { canUse, erlaubt, loading, planUnbekannt, zustand } = usePlan()
+  // Ruhende und entfernte Mitglieder gehoeren auf die Sperrseite, nicht hinter einen
+  // Plan-Kasten (Teamfunktion 2026-09-17): Ihr Problem ist kein fehlender Plan,
+  // sondern ein fehlender Nutzerplatz im Betrieb — "Plan wechseln" hilft ihnen nicht.
+  // Erst nach dem Laden, sonst wuerde der Startwert 'inhaber' nie zum Zug kommen.
+  const gesperrterZustand = !loading && (zustand === 'ruhend' || zustand === 'entfernt')
+  useEffect(() => {
+    if (gesperrterZustand && window.location.pathname !== '/gesperrt') {
+      window.location.href = '/gesperrt'
+    }
+  }, [gesperrterZustand])
   // Frueher stand hier `return null`. Im Screenshot-Audit 2026-09-16 sahen dadurch
   // mehrere Einstellungsseiten komplett leer aus, solange der Plan noch lud — ohne
   // Ueberschrift, ohne Hinweis, ohne Fehler. Ein Wort ist besser als nichts.
   if (loading) return (
     <div style={{ padding: '28px 20px', textAlign: 'center', fontSize: 13, color: C.textMid }}>
       Lädt …
+    </div>
+  )
+  // Der Sprung auf /gesperrt laeuft im Effekt oben. Bis er greift, darf hier kein
+  // Inhalt stehen — sonst blitzt der Bereich eines fremden Betriebs kurz auf.
+  if (gesperrterZustand) return (
+    <div style={{ padding: '28px 20px', textAlign: 'center', fontSize: 13, color: C.textMid }}>
+      Kein Zugang zu diesem Betrieb — einen Moment …
     </div>
   )
   // Der Plan liess sich nicht laden (Notbremse in usePlan). Dann lieber zeigen als

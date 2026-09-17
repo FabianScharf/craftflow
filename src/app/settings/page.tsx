@@ -16,6 +16,7 @@ import MaterialpreiseSettings from '@/components/settings/MaterialpreiseSettings
 import BetriebSettings from '@/components/settings/BetriebSettings'
 import BriefpapierVorschau from '@/components/settings/BriefpapierVorschau'
 import TextbausteineSettings from '@/components/settings/TextbausteineSettings'
+import TeamSettings from '@/components/settings/TeamSettings'
 import { SCHRIFTEN, SCHRIFT_GRUPPEN } from '@/lib/pdftext'
 import { type Plan, usePlan } from '@/hooks/usePlan'
 import { PLAN_REIHE, PLAENE, PREIS_IDS, PLAN_LABELS, deckel as planDeckelFuer, merkmaleFuerAnzeige, mindestPlan } from '@/lib/plaene'
@@ -129,8 +130,8 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
 }
 
 export default function SettingsPage() {
-  const { isInTrial, trialDaysLeft, canUse, isBlocked, effectivePlan } = usePlan()
-  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'wuensche' | 'plan' | 'admin' | 'hilfe'>('firma')
+  const { isInTrial, trialDaysLeft, canUse, isBlocked, effectivePlan, plan, istInhaber, kontoId, zustand } = usePlan()
+  const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'wuensche' | 'team' | 'plan' | 'admin' | 'hilfe'>('firma')
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
   const [bpMsg, setBpMsg] = useState('')
@@ -268,6 +269,15 @@ export default function SettingsPage() {
     if (isBlocked) setSection('plan')
   }, [isBlocked])
 
+  // Ruhende und entfernte Mitglieder gehören auf die Sperrseite, NICHT auf die
+  // Paywall (Teamfunktion 2026-09-17). Ohne das hier griffe der isBlocked-Effekt
+  // darüber: ihr eigenes, leeres Betriebsprofil rechnet sich als 'gesperrt', und sie
+  // landeten auf „Mein Plan" mit dem falschen Grund. Der Startwert von `zustand` ist
+  // 'inhaber' — es springt also niemand los, bevor /api/konto geantwortet hat.
+  useEffect(() => {
+    if (zustand === 'ruhend' || zustand === 'entfernt') window.location.href = '/gesperrt'
+  }, [zustand])
+
   function setP(key: string, val: string) {
     setProfil(prev => ({ ...prev, [key]: val }))
   }
@@ -393,11 +403,17 @@ export default function SettingsPage() {
     if (!file) return
     setLogoUploading(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLogoUploading(false); return }
+
+    // Der Ordner ist die KONTO-ID, nicht die user.id des Logins (Teamfunktion
+    // 2026-09-17): Bei einem Mitarbeiter sind das zwei verschiedene Dinge. Unter
+    // seiner eigenen user.id lädt er in einen Ordner, den die Storage-Policy des
+    // Betriebs nicht kennt — das Logo wäre danach für den Betrieb unsichtbar (bzw.
+    // der Upload scheitert). Solange kontoId noch lädt, wird nichts hochgeladen:
+    // ein Logo im falschen Ordner ist schlimmer als ein Klick, der nichts tut.
+    if (!kontoId) { setLogoUploading(false); return }
 
     const ext = file.name.split('.').pop() ?? 'png'
-    const path = `${user.id}/logo.${ext}`
+    const path = `${kontoId}/logo.${ext}`
     const { error } = await supabase.storage.from('logos').upload(path, file, { upsert: true })
     if (error) { setLogoUploading(false); return }
 
@@ -546,6 +562,9 @@ export default function SettingsPage() {
     // sich das ableiten liesse — deshalb hier als einziger Eintrag fest, mit Begruendung.
     { id: 'email',            label: 'E-Mail & Versand', icon: '✉️', minPlan: 'starter' as Plan },
     { id: 'wuensche',         label: 'Wünsche',         icon: '💬' },
+    // Team steht direkt vor „Mein Plan": die Nutzerplätze hängen am Plan, und wer
+    // hier an eine volle Liste kommt, geht einen Eintrag weiter (Teamfunktion 17.09.).
+    { id: 'team',             label: 'Team',            icon: '👥' },
     { id: 'plan',             label: 'Mein Plan',       icon: '💳' },
     { id: 'hilfe',            label: 'Hilfe',           icon: '💡' },
     ...(istAdmin(userEmail) ? [{ id: 'admin' as typeof section, label: 'Admin', icon: '🛠' }] : []),
@@ -799,10 +818,13 @@ export default function SettingsPage() {
                 <div>
                   <button
                     onClick={() => fileRef.current?.click()}
-                    disabled={logoUploading}
-                    style={{ background: C.gray2, border: `1px solid ${C.border}`, color: C.white, borderRadius: 5, padding: '9px 16px', fontSize: 13, cursor: 'pointer', fontFamily: 'Helvetica Neue,sans-serif' }}
+                    // Ohne kontoId wüsste der Upload nicht, in welchen Ordner das Logo
+                    // gehört (siehe handleLogoUpload). Lieber der Knopf kurz gesperrt
+                    // als ein Klick, der stumm nichts tut.
+                    disabled={logoUploading || !kontoId}
+                    style={{ background: C.gray2, border: `1px solid ${C.border}`, color: C.white, borderRadius: 5, padding: '9px 16px', fontSize: 13, cursor: logoUploading || !kontoId ? 'not-allowed' : 'pointer', opacity: !kontoId ? 0.6 : 1, fontFamily: 'Helvetica Neue,sans-serif' }}
                   >
-                    {logoUploading ? 'Wird hochgeladen …' : logoPreview ? 'Logo ersetzen' : 'Logo hochladen'}
+                    {logoUploading ? 'Wird hochgeladen …' : !kontoId ? 'Lädt …' : logoPreview ? 'Logo ersetzen' : 'Logo hochladen'}
                   </button>
                   <div style={{ fontSize: 11, color: C.textMid, marginTop: 6 }}>PNG, SVG oder WebP, max. 2 MB. Erscheint im PDF-Angebot.</div>
                 </div>
@@ -1583,8 +1605,43 @@ export default function SettingsPage() {
             </PlanGate>
           )}
 
-          {/* BEREICH 7 — MEIN PLAN */}
-          {section === 'plan' && (
+          {/* BEREICH — TEAM (Teamfunktion 2026-09-17) */}
+          {section === 'team' && (
+            <TeamSettings istInhaber={istInhaber} aufPlan={() => setSection('plan')} />
+          )}
+
+          {/* Mitarbeiter sehen hier NUR den Plan ihres Betriebs — kein Kauf, kein
+              Gutschein, kein Stripe-Portal (Spec §5). Der Server lehnt diese Wege
+              ohnehin mit 403 ab; die Oberfläche zeigt sie deshalb gar nicht erst. */}
+          {section === 'plan' && !istInhaber && (
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Mein Plan</h2>
+              <p style={{ fontSize: 12, color: C.textMid, marginBottom: 18 }}>
+                Plan und Abo verwaltet der Inhaber des Betriebs.
+              </p>
+              <div style={{
+                background: akzentTon('11'), border: `1px solid ${akzentTon('44')}`,
+                borderRadius: 8, padding: '16px 18px',
+              }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: C.copper }}>
+                  Plan des Betriebs: {PLAN_LABELS[plan]}
+                </div>
+                {isInTrial && (
+                  <div style={{ fontSize: 12, color: C.textMid, marginTop: 8, lineHeight: 1.6 }}>
+                    Der Betrieb ist noch in der Testphase — alle Funktionen sind freigeschaltet.
+                  </div>
+                )}
+                {effectivePlan === 'gesperrt' && (
+                  <div style={{ fontSize: 12, color: C.err, marginTop: 8, lineHeight: 1.6 }}>
+                    Der Betrieb hat aktuell keinen gültigen Plan. Sprich mit dem Inhaber.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* BEREICH 7 — MEIN PLAN (Inhaber: Kauf, Gutschein, Abo-Portal) */}
+          {section === 'plan' && istInhaber && (
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Mein Plan</h2>
               <p style={{ fontSize: 12, color: C.textMid, marginBottom: 8 }}>Aktuelles Abonnement und Upgrade-Optionen.</p>
