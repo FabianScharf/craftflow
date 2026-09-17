@@ -13,7 +13,16 @@ import type { NextRequest } from 'next/server'
 // Titel, Beschreibung, Status, Stimmenzahl und Änderungszeitpunkt heraus — keine
 // Nutzerdaten. Bewusst der volle Pfad, nicht '/api/wuensche' — sonst öffnete
 // `startsWith` versehentlich auch /api/wuensche/[id]/stimme mit.
-const PUBLIC_PATHS = ['/login', '/register', '/impressum', '/datenschutz', '/agb', '/avv', '/auth/forgot-password', '/auth/reset-password', '/auth/callback', '/api/notify-signup', '/api/stripe/webhook', '/api/wuensche/oeffentlich']
+//
+// '/einladung' und '/api/team/einladung' gehören zur Teamfunktion (Fabian
+// 2026-09-17): Wer den Einladungslink aus der Mail anklickt, hat in der Regel noch
+// KEIN CraftFlow-Konto. Ohne die beiden Einträge käme eine 307 auf /login, und die
+// Seite, die erklärt, worum es überhaupt geht, wäre nie zu sehen. Die Route gibt
+// ausschließlich Firmenname, Status und die maskierte Adresse (a***@b.de) heraus —
+// keine Nutzerdaten. Angenommen wird die Einladung über /api/team/annehmen, und
+// das verlangt eine Anmeldung. Bewusst die vollen Pfade: '/api/team' würde über
+// `startsWith` das ganze Team-Feature öffnen.
+const PUBLIC_PATHS = ['/login', '/register', '/impressum', '/datenschutz', '/agb', '/avv', '/auth/forgot-password', '/auth/reset-password', '/auth/callback', '/api/notify-signup', '/api/stripe/webhook', '/api/wuensche/oeffentlich', '/einladung', '/api/team/einladung']
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })

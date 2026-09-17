@@ -3,8 +3,24 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import { sicherNext } from '@/lib/team'
 
 const C = { black: '#0D0D0D', dark: '#141414', copper: '#C8885A', white: '#F5F2EE', gray: '#8A8A8A', border: '#2E2E2E', err: '#E05A5A' }
+
+/**
+ * Rücksprungziel aus `?next=` (Teamfunktion, 2026-09-17): Der Einladungslink
+ * schickt Nichtangemeldete hierher und will sie danach zurück auf
+ * /einladung/<token>.
+ *
+ * ABSICHTLICH aus `window.location` statt mit `useSearchParams()`: Der Hook macht
+ * die Seite dynamisch und verlangt eine Suspense-Grenze — für einen Wert, der
+ * ohnehin erst im Browser gebraucht wird. `sicherNext` prüft ihn (offene
+ * Weiterleitung).
+ */
+function nextZiel(): string {
+  if (typeof window === 'undefined') return '/'
+  return sicherNext(new URLSearchParams(window.location.search).get('next'))
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -24,7 +40,7 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-    router.push('/')
+    router.push(nextZiel())
     router.refresh()
   }
 
@@ -91,7 +107,18 @@ export default function LoginPage() {
 
       <p style={{ color: C.gray, fontSize: 13, marginTop: 20 }}>
         Noch kein Konto?{' '}
-        <a href="/register" style={{ color: C.copper, textDecoration: 'none', fontWeight: 600 }}>
+        {/* Das Ziel wird erst beim Klick gebaut — im Markup stünde es vor der
+            Hydrierung anders da als danach (das `next` kommt aus der Adresse). */}
+        <a
+          href="/register"
+          onClick={e => {
+            const z = nextZiel()
+            if (z === '/') return
+            e.preventDefault()
+            router.push(`/register?next=${encodeURIComponent(z)}`)
+          }}
+          style={{ color: C.copper, textDecoration: 'none', fontWeight: 600 }}
+        >
           Kostenlos registrieren
         </a>
       </p>
