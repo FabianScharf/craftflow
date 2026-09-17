@@ -1,6 +1,6 @@
 // Für die Roadmap auf www.getcraftflow.de. Öffentlich (PUBLIC_PATHS), ohne Login,
 // OHNE Nutzerdaten: nur Titel, Beschreibung, Status, die Zahl der aktiven Stimmen
-// und der letzte Änderungszeitpunkt. Fünf Minuten Cache am Rand — die Seite muss
+// und der letzte Änderungszeitpunkt. Seit 17.09. auch offene Vorschläge (OEFFENTLICHE_STATUS). Fünf Minuten Cache am Rand — die Seite muss
 // nicht sekundengenau sein, und jeder Aufruf kostet sonst zwei Datenbankabfragen.
 
 import { NextResponse } from 'next/server'

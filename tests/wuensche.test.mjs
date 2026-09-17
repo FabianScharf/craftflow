@@ -23,7 +23,7 @@ test('Stimmenbudget je Plan: 1 / 3 / 10 / 30', () => {
 
 test('Der Status-Vorrat steht fest, Ausgeblendet ist nicht öffentlich', () => {
   assert.deepEqual(WUNSCH_STATUS, ['offen', 'geplant', 'in_arbeit', 'fertig', 'ausgeblendet'])
-  assert.deepEqual(OEFFENTLICHE_STATUS, ['geplant', 'in_arbeit', 'fertig'])
+  assert.deepEqual(OEFFENTLICHE_STATUS, ['offen', 'geplant', 'in_arbeit', 'fertig'])
   assert.equal(STATUS_LABEL.in_arbeit, 'In Arbeit')
   assert.ok(istWunschStatus('fertig'))
   assert.ok(!istWunschStatus('erledigt'))
@@ -90,8 +90,8 @@ test('Ohne Profil (gesperrt) zählt keine Stimme, und niemand fällt aus der Lis
   assert.deepEqual(stimmenJeWunsch(stimmen, {}, jetzt), { w1: 0 })
 })
 
-test('Öffentlich sind nur Geplant, In Arbeit und Fertig — Offenes bleibt in der App', () => {
-  assert.ok(!OEFFENTLICHE_STATUS.includes('offen'))
+test('Öffentlich sind Offen, Geplant, In Arbeit und Fertig — nur Ausgeblendetes bleibt in der App', () => {
+  assert.ok(OEFFENTLICHE_STATUS.includes('offen'), 'offene Wuensche gehoeren auf die Roadmap (Fabian, 17.09.)')
   assert.ok(!OEFFENTLICHE_STATUS.includes('ausgeblendet'))
 })
 

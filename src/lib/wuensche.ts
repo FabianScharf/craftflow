@@ -19,8 +19,13 @@ export const STATUS_LABEL: Record<WunschStatus, string> = {
   fertig: 'Fertig', ausgeblendet: 'Ausgeblendet',
 }
 
-/** Was auf der öffentlichen Roadmap der Website erscheint. „Offen“ bleibt in der App. */
-export const OEFFENTLICHE_STATUS: WunschStatus[] = ['geplant', 'in_arbeit', 'fertig']
+/**
+ * Was auf der öffentlichen Roadmap der Website erscheint. Fabian 2026-09-17: „Jeder
+ * Wunsch, der von einem Nutzer geäußert wird, soll auf der Roadmap landen, damit
+ * darüber abgestimmt werden kann“ — deshalb auch „offen“. Nur „ausgeblendet“ und
+ * Zusammengelegtes bleiben draußen.
+ */
+export const OEFFENTLICHE_STATUS: WunschStatus[] = ['offen', 'geplant', 'in_arbeit', 'fertig']
 
 export const TITEL_MAX = 120
 export const BESCHREIBUNG_MAX = 1000
