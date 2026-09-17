@@ -820,3 +820,54 @@ export function faustregelKontrolle(
   }
   return { imRahmen: true, text: `${spanne} — liegt im Rahmen.` }
 }
+
+/** Die Projektdaten, die "Als Projekt öffnen" fürs Angebot-Objekt braucht. */
+export type ReferenzprojektDaten = {
+  kunde: { name: string; zusatz: string; strasse: string; ort: string; projekt: string }
+  pos: Angebotsposition[]
+  docNr: string
+  docTyp: 'angebot'
+  anschr: string
+  widerruf: boolean
+  angebotsdatum: string
+  bausteinIds: string[]
+}
+
+/**
+ * Baut die Projektdaten fuer "Als Projekt öffnen" — GENAU die Form, in der die App
+ * ein Projekt selbst speichert (uebernehmeKiErgebnis/saveProject in page.tsx):
+ * kunde, pos, docNr, docTyp, anschr, widerruf, angebotsdatum, bausteinIds.
+ *
+ * `heute` kommt von aussen (types.ts: today()) — diese Datei bleibt importfrei bis
+ * auf types.ts (Dateikopf), today() gehoert schon dorthin.
+ *
+ * Die Positionen bekommen frische, fortlaufende IDs (1..n) statt der IDs aus dem
+ * gemeinsamen Zaehler in dieser Datei — ein neues Projekt faengt bei sich selbst an.
+ * `variante` ist nur eine interne Markierung dieser Datei (siehe ReferenzPosition)
+ * und gehoert nicht in Angebotsposition, wie die App sie kennt — wird gestrichen,
+ * `alternativ` bleibt.
+ */
+export function projektDatenAus(
+  projekt: Referenzprojekt, positionen: ReferenzPosition[], heute: string,
+): ReferenzprojektDaten {
+  const pos: Angebotsposition[] = positionen.map((q, i) => {
+    const { variante: _variante, ...rest } = q
+    return { ...rest, id: i + 1 }
+  })
+  return {
+    kunde: {
+      name: projekt.kunde.name,
+      zusatz: '',
+      strasse: projekt.kunde.strasse,
+      ort: projekt.kunde.ort,
+      projekt: projekt.kunde.projekt,
+    },
+    pos,
+    docNr: '',
+    docTyp: 'angebot',
+    anschr: '',
+    widerruf: false,
+    angebotsdatum: heute,
+    bausteinIds: [],
+  }
+}

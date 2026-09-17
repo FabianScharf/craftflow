@@ -9,6 +9,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   REFERENZPROJEKTE, STANDARDSAETZE_REFERENZ, mitSaetzen, summen, faustregelKontrolle,
+  projektDatenAus,
 } from '../src/lib/referenzprojekte.ts'
 
 const AUFSCHLAG = 0.30
@@ -273,4 +274,47 @@ test('Der Tisch wird geliefert, nicht montiert', () => {
   const ks = grund.flatMap(q => q.arbeitszeit.map(a => a.kostenstelle))
   assert.ok(ks.includes('Lieferung'))
   assert.equal(ks.includes('Montage'), false)
+})
+
+// ── projektDatenAus (Task R3: "Als Projekt öffnen") ──────────────────────────
+
+test('projektDatenAus liefert genau die Form, in der die App ein Projekt speichert', () => {
+  const p = REFERENZPROJEKTE.einbauschrank
+  const positionen = mitSaetzen(p, STANDARDSAETZE_REFERENZ, AUFSCHLAG)
+  const d = projektDatenAus(p, positionen, '17.9.2026')
+
+  assert.deepEqual(Object.keys(d).sort(), [
+    'anschr', 'angebotsdatum', 'bausteinIds', 'docNr', 'docTyp', 'kunde', 'pos', 'widerruf',
+  ].sort())
+  assert.deepEqual(d.kunde, {
+    name: p.kunde.name, zusatz: '', strasse: p.kunde.strasse, ort: p.kunde.ort, projekt: p.kunde.projekt,
+  })
+  assert.equal(d.docNr, '')
+  assert.equal(d.docTyp, 'angebot')
+  assert.equal(d.anschr, '')
+  assert.equal(d.widerruf, false)
+  assert.equal(d.angebotsdatum, '17.9.2026')
+  assert.deepEqual(d.bausteinIds, [])
+})
+
+test('projektDatenAus vergibt frische fortlaufende IDs und behaelt alternativ, streicht variante', () => {
+  const p = REFERENZPROJEKTE.einbauschrank
+  const positionen = mitSaetzen(p, STANDARDSAETZE_REFERENZ, AUFSCHLAG)
+  const d = projektDatenAus(p, positionen, '17.9.2026')
+
+  assert.deepEqual(d.pos.map(q => q.id), positionen.map((_, i) => i + 1))
+  assert.equal(d.pos.length, positionen.length)
+  for (const q of d.pos) assert.equal('variante' in q, false, `${q.titel} traegt noch "variante"`)
+
+  const alternative = positionen.filter(q => q.alternativ)
+  assert.ok(alternative.length > 0)
+  assert.equal(d.pos.filter(q => q.alternativ).length, alternative.length)
+})
+
+test('projektDatenAus veraendert die uebergebene Positionsliste nicht (Kopien)', () => {
+  const p = REFERENZPROJEKTE.einbauschrank
+  const positionen = mitSaetzen(p, STANDARDSAETZE_REFERENZ, AUFSCHLAG)
+  const idsVorher = positionen.map(q => q.id)
+  projektDatenAus(p, positionen, '17.9.2026')
+  assert.deepEqual(positionen.map(q => q.id), idsVorher)
 })

@@ -5,6 +5,7 @@ import { normalizeKsId } from '@/lib/types'
 import { berechneFaktoren, deckeleHand, referenzFuer } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { pruefeFunktion } from '@/lib/planpruefung'
+import { REFERENZPROJEKTE, mitSaetzen, summen, faustregelKontrolle } from '@/lib/referenzprojekte'
 
 export async function GET() {
   const supabase = await createClient()
@@ -23,7 +24,27 @@ export async function GET() {
   // rechnet die Oberflaeche beides aus demselben ref.
   const { saetze, aufschlag } = await ladeSaetzeUndAufschlag(supabase, user.id)
 
-  return NextResponse.json({ kalibrierung, saetze, aufschlag })
+  // Task R3: das gerechnete Referenzprojekt fuer die Oberflaeche — MIT den Saetzen
+  // und dem Materialaufschlag DIESES Betriebs, nicht mit den Standardsaetzen aus
+  // referenzprojekte.ts (die sind nur Platzhalter). Kein Preis kommt aus der
+  // Faustregel — sie ist nur die Kontrolle daneben (CLAUDE.md, "KI darf niemals
+  // selbst kalkulieren"/Globale Vorgabe dieser Aufgabe).
+  const ref = referenzFuer(kalibrierung?.schwerpunkt)
+  const projekt = REFERENZPROJEKTE[ref.schluessel]
+  const positionen = mitSaetzen(projekt, saetze, aufschlag)
+  const projektSummen = summen(positionen, true)
+  const referenzprojekt = {
+    schluessel: projekt.schluessel,
+    name: projekt.name,
+    kunde: projekt.kunde,
+    text: projekt.text,
+    positionen,
+    summen: projektSummen,
+    faustregel: faustregelKontrolle(projektSummen.netto, projekt.faustregel),
+    baender: ref.baender,
+  }
+
+  return NextResponse.json({ kalibrierung, saetze, aufschlag, referenzprojekt })
 }
 
 // Stundensaetze und Materialaufschlag des Nutzers. Die Referenzkalkulation ist fuer

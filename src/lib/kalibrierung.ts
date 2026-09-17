@@ -128,6 +128,11 @@ export function referenzAusProjekt(p: Referenzprojekt) {
   const montageAlt = montagePos ? minutenVon([montagePos], 'Montage') : grundMontage
 
   return {
+    // Rueckweg zum Referenzprojekt (referenzprojekte.ts REFERENZPROJEKTE) — Task R3
+    // braucht Kunde, Positionen und Faustregel des ganzen Projekts, nicht nur die
+    // Bandbasis. Ohne dieses Feld haette die Route raten muessen, welches Projekt
+    // zu einem Referenzmoebel gehoert.
+    schluessel: p.schluessel,
     name: p.name,
     text: p.text,
     fragen: p.fragen,
