@@ -101,17 +101,46 @@ Beschläge · Oberfläche · Montage und Lieferung · nicht enthalten.
 > Oberfläche Hartwachsöl zweimal, alle Seiten. Lieferung ins Erdgeschoss, Gestell und
 > Platte werden vor Ort verschraubt (30 Minuten). Nicht enthalten: Stühle, Bank.
 
-## 4. Die Referenzkalkulation auf der Seite
+## 4. Fünf Referenzprojekte — mit den Varianten als Alternativpositionen
 
-Unter dem Referenztext ein aufklappbarer Kasten **„So rechnet CraftFlow dieses
-Möbel“** mit denselben Blöcken wie in der Kalkulation: Positionen (Titel, Menge),
-Material (Bezeichnung, Menge, EK, Aufschlag, Preis), Arbeitszeit je Kostenstelle
-(Minuten, Satz, Betrag), Zwischensummen Material / Arbeit / Fixkosten, Netto. Mit den
-Sätzen und dem Aufschlag des Betriebs gerechnet; Änderungen an den Sätzen wirken
-sofort. Knopf **„Als Projekt öffnen“** legt eine Kopie als neues Projekt an.
+Fabian (17.09.): „Insgesamt soll es fünf Projekte geben, in die man reinschauen kann. Die
+Alternativen mit Massivholz, Lack etc. werden als Alternativpositionen mit dem kalkulierten
+Preis abgebildet.“
 
-Die Kalkulation stammt aus einer **festen, gepflegten Positionsliste je Referenz**
-(kein KI-Aufruf beim Anzeigen). Sie wird **von unten** aufgebaut, nicht aus einem Zielpreis:
+Jedes Referenzmöbel ist ein **vollständiges CraftFlow-Projekt** (Kunde, Kopfdaten,
+Positionen, Materiallisten, Arbeitszeiten je Kostenstelle, Summen), genau so, wie es in der
+Kalkulation eines echten Angebots aussieht. Die Varianten der Fragen sind darin
+**Alternativpositionen** — das vorhandene Konzept der App (Häkchen „Alternativposition“,
+zählt nicht zur Summe, steht mit eigenem Preis im Angebot):
+
+| Referenzprojekt | Grundposition(en) | Alternativpositionen (je mit kalkuliertem Preis) |
+|---|---|---|
+| Einbauschrank Flur | Einbauschrank Dekor weiß, Lieferung und Montage Neubau | Alternative: alle Flächen weiß lackiert seidenmatt · Alternative: komplett Eiche massiv, geölt · Alternative: Montage im Altbau (Wände nicht im Lot, Dielenboden, 2. Stock ohne Aufzug) |
+| Einbauküche | Unterschränke, Oberschränke, Spülenschrank, Arbeitsplatte, Lieferung und Montage Neubau | Alternative: Fronten weiß lackiert seidenmatt · Alternative: Fronten Eiche massiv, geölt · Alternative: Montage im Altbau |
+| Innentüren | 5 Türen mit Zargen, liefern und einpassen (Altbau) | Alternative: Türen von uns weiß lackiert statt CPL · Alternative: Türen Eiche massiv, geölt · Alternative: mit Ausbau der alten Zargen und Wandausbesserung |
+| Treppe | Rohtreppe Buche zugekauft, Einbau und Anpassung Neubau | Alternative: weiß lackiert seidenmatt statt geölt · Alternative: Einbau im Altbau (schiefe Wände, Podest anpassen, enges Treppenhaus) |
+| Massivholztisch | Tisch Eiche massiv geölt, Lieferung Erdgeschoss | Alternative: weiß lackiert seidenmatt · Alternative: Lieferung 2. Stock ohne Aufzug, Gestell vor Ort montiert |
+
+**Wie das auf der Seite „Mein Betrieb“ aussieht:**
+- Unter „Was baust du?“ erscheint das passende Referenzprojekt als aufklappbare Kalkulation:
+  Positionen mit Material (Bezeichnung, Menge, EK, Aufschlag) und Arbeitszeit (Kostenstelle,
+  Minuten, Satz), Zwischensummen, Netto — mit den Sätzen und Aufschlägen des Betriebs.
+  Alternativpositionen stehen darunter, so gekennzeichnet wie in jedem Angebot.
+- Knopf **„Als Projekt öffnen“**: legt eine Kopie als eigenes Projekt an (Titel „Referenz:
+  Einbauküche“), damit der Betrieb darin Material, Zeiten und Preise verändern und
+  vergleichen kann. Die Referenz selbst bleibt unverändert.
+- **Die Fragen** stehen direkt unter der jeweiligen Position: Die Grundfrage unter der
+  Grundposition („CraftFlow rechnet 2.245 € — was nimmst du?“), die Lackfrage unter der
+  Lack-Alternative („CraftFlow rechnet + 798 € — was kommt bei dir dazu?“), die Massivfrage
+  unter der Massiv-Alternative, die Montagefrage unter der Altbau-Alternative (als Dauer).
+  Die fünf Antwortspannen werden wie heute rückwärts aus den Zielfaktoren 0,6 … 1,4
+  gebildet — aber aus dem kalkulierten Preis **dieser** Position, nicht aus einer Formel.
+- Die **Faustregel** (CLAUDE.md 6.1) steht als Kontrollzeile neben der Summe: „Faustregel
+  1.800–2.600 € — liegt im Rahmen.“ Weicht die Kalkulation stark ab, ein Hinweis, keine
+  Korrektur.
+
+**Woher die Zahlen kommen:** aus einer festen, gepflegten Positionsliste je Referenz
+(kein KI-Aufruf beim Anzeigen), **von unten** aufgebaut:
 
 1. **Stückliste → Material-EK:** Platten nach m² (Korpus, Fronten, Rückwand), Kanten nach
    lfm, Beschläge nach Stück (Scharniere, Auszüge, Griffe), Arbeitsplatte nach lfm — mit
@@ -121,31 +150,32 @@ Die Kalkulation stammt aus einer **festen, gepflegten Positionsliste je Referenz
    Korpus je Stück, Schubkasten und Tür je Stück, Oberfläche je m² (CLAUDE.md Abschnitte
    3–4), Montage je lfm bzw. je Stück (Abschnitt 5), Fixsockel Besprechung/Planung/
    Konstruktion/Arbeitsvorbereitung wie beim gemessenen Einbauschrank.
-3. **Stundensätze und Aufschlag des Betriebs** machen daraus den Preis — sichtbar Zeile
-   für Zeile.
-4. **Faustregel als Kontrolle:** Das Ergebnis wird gegen Abschnitt 6.1 gehalten und
-   kommentiert, nie ersetzt.
+3. **Alternativen** ändern nur die betroffenen Zeilen: Lack = Oberfläche (min/m²) + Lackmaterial
+   statt Kante/Dekor; Massiv = Massivholz statt Platte **nur für die getauschten Bauteile**
+   (Küche: Fronten; Schrank: alles) + längere Werkstattzeit + Ölen statt Bekantung; Altbau =
+   Montage × Erschwernis (Abschnitt 5, Puffer-Regeln 8.2).
+4. **Stundensätze und Aufschlag des Betriebs** machen daraus den Preis.
 
 Der Einbauschrank ist die gemessene Vorlage (Ist-Zahlen aus dem Betrieb). Küche, Türen,
-Treppe und Tisch werden nach demselben Muster aufgebaut und von Fabian gegengelesen —
-er prüft das Ergebnis, statt einen Zielpreis vorzugeben.
-Damit ist die Referenz stabil und nachvollziehbar. Die 18 KI-Rechenläufe vom 16./17.09.
-dienen als Gegenprobe, was CraftFlow ohne Kalibrierung aus den Texten macht.
+Treppe und Tisch werden nach demselben Muster aufgebaut und von Fabian gegengelesen — er
+prüft Stückliste, Zeiten und Ergebnis, statt einen Zielpreis vorzugeben.
+
+**Technisch:** Die fünf Projekte liegen als Daten im Code (`src/lib/referenzprojekte.ts`,
+importfrei, getestet): je Referenz Kunde, Kopf, Positionen im Format `Angebotsposition`
+(inkl. `alternativ: true` für die Varianten). Die Seite rechnet sie mit `calcAngebotspos`
+und den Sätzen des Betriebs; die Bänder entstehen aus `skala()` wie heute. Die
+KI-Referenzläufe vom 16./17.09. bleiben als Gegenprobe im Protokoll.
 
 ## 5. Fragen und Spannen
 
-- Grundfrage, Lack, Massiv, Altbau-Montage bleiben. Jede Variante ist eine eigene
-  sichtbare Kalkulation (gleiche Positionsliste, geänderte Zeilen), die Spannen werden
-  wie heute rückwärts aus den Zielfaktoren gebildet — aber aus dieser Kalkulation.
-- **Massiv:** Grundmaterial bleibt, dazu Massivholz nur für die getauschten Bauteile
-  (Küche: Fronten; Schrank: alles), längere Werkstattzeit und Ölen statt Bekantung.
-- **Türen:** Grundtext ist Altbau — die Montagefrage fragt dann nicht „im Altbau“
-  noch einmal, sondern „mit Ausbau der alten Zargen und Wandausbesserung“ (echter Mehraufwand).
-- **Treppe/Tisch:** Ausgangszustand steht im Text (Neubau / Erdgeschoss), die
-  Montagefrage beschreibt eine klar schwerere Situation.
+- Grundfrage, Lack, Massiv, Altbau-Montage bleiben — jetzt je Position sichtbar (siehe 4).
+- **Türen:** Grundtext ist Altbau — die Montage-Alternative heißt „mit Ausbau der alten
+  Zargen und Wandausbesserung“ (echter Mehraufwand statt doppeltem Altbau).
+- **Treppe/Tisch:** Ausgangszustand steht im Text (Neubau / Erdgeschoss), die Alternative
+  beschreibt eine klar schwerere Situation.
 - **Lackierkabine:** Erklärsatz unter der Maschinenfrage: „Ohne Lackierkabine setzt
   CraftFlow lackierte Flächen als Zukauf an (Quadratmeterpreis von dir), nicht als
-  eigene Arbeitszeit.“
+  eigene Arbeitszeit.“ Die Lack-Alternative der Referenz zeigt dann den Zukaufpreis.
 - **Schwerpunkte ohne eigenes Referenzmöbel** (Bad, Böden, Verkleidung, Ladenbau,
   Außen, Reparatur): Hinweis „Kalibriert am Einbauschrank — er steht deiner Arbeit am
   nächsten.“
@@ -156,4 +186,4 @@ dienen als Gegenprobe, was CraftFlow ohne Kalibrierung aus den Texten macht.
    der Stückliste. Stattdessen liest Fabian die fünf aufgebauten Kalkulationen gegen
    (Stückliste vollständig? Zeitrichtwerte passend? Ergebnis plausibel?).
 2. Die Texte oben: fachlich richtig? Fehlt etwas, was ein Kunde fragen würde?
-3. Referenzkalkulation: feste Positionsliste (empfohlen) oder KI-Lauf?
+3. ~~Referenzkalkulation: feste Positionsliste oder KI-Lauf?~~ → entschieden (17.09.): fünf feste Referenzprojekte mit Alternativpositionen, kein KI-Lauf.
