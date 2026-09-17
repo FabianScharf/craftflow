@@ -879,16 +879,24 @@ const eur = (n: number) => `${Math.round(n).toLocaleString('de-DE')} €`
  */
 export function faustregelKontrolle(
   netto: number, f: Referenzprojekt['faustregel'],
-): { imRahmen: boolean; text: string } {
+): { imRahmen: boolean; text: string; anzeigen: boolean } {
+  // Fabian 2026-09-17: "Faustregel 5.000–20.000 € liegt im Rahmen" unter der Kueche
+  // "sollte dort nicht stehen. Die Spanne ist zu gross und verwirrt." Eine Spanne,
+  // deren oberes Ende mehr als das Dreifache des unteren ist, sagt dem Nutzer
+  // nichts — sie bleibt Kontrolle in den Tests, wird aber nicht angezeigt.
+  const anzeigen = f.bis <= f.von * FAUSTREGEL_MAX_SPANNE
   const spanne = `Faustregel ${eur(f.von)}–${eur(f.bis)}`
   if (netto < f.von) {
-    return { imRahmen: false, text: `${spanne} — liegt darunter: prüfe Materialansatz, Stundensätze, Zeitrichtwerte.` }
+    return { imRahmen: false, anzeigen, text: `${spanne} — liegt darunter: prüfe Materialansatz, Stundensätze, Zeitrichtwerte.` }
   }
   if (netto > f.bis) {
-    return { imRahmen: false, text: `${spanne} — liegt darüber: prüfe Materialansatz, Stundensätze, Zeitrichtwerte.` }
+    return { imRahmen: false, anzeigen, text: `${spanne} — liegt darüber: prüfe Materialansatz, Stundensätze, Zeitrichtwerte.` }
   }
-  return { imRahmen: true, text: `${spanne} — liegt im Rahmen.` }
+  return { imRahmen: true, anzeigen, text: `${spanne} — liegt im Rahmen.` }
 }
+
+/** Breiter als das Dreifache: nur noch Kontrolle, keine Anzeige (Kueche 5.000–20.000 €). */
+export const FAUSTREGEL_MAX_SPANNE = 3
 
 /** Die Projektdaten, die "Als Projekt öffnen" fürs Angebot-Objekt braucht. */
 export type ReferenzprojektDaten = {

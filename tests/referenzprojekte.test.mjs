@@ -306,6 +306,15 @@ test('faustregelKontrolle meldet im Rahmen, darunter und darueber', () => {
   assert.ok(drueber.text.includes('darüber'), drueber.text)
 })
 
+test('Zu breite Faustregeln werden nicht angezeigt — die Kueche (5.000–20.000 €) bleibt reine Kontrolle', () => {
+  const k = REFERENZPROJEKTE.kueche
+  assert.equal(faustregelKontrolle(8593, k.faustregel).anzeigen, false)
+  assert.equal(faustregelKontrolle(8593, k.faustregel).imRahmen, true)
+  for (const s of ['einbauschrank', 'tueren', 'treppen', 'solitaer']) {
+    assert.equal(faustregelKontrolle(1, REFERENZPROJEKTE[s].faustregel).anzeigen, true, `${s} muss angezeigt werden`)
+  }
+})
+
 test('Die Bandgrenzen selbst gelten noch als im Rahmen', () => {
   const f = { von: 1800, bis: 2600, quelle: 'CLAUDE.md 6.1' }
   assert.equal(faustregelKontrolle(1800, f).imRahmen, true)

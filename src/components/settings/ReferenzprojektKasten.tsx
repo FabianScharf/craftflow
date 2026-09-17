@@ -26,7 +26,7 @@ export type ReferenzprojektDaten = {
   text: string
   positionen: ReferenzPosition[]
   summen: { netto: number; material: number; arbeit: number; stunden: number }
-  faustregel: { imRahmen: boolean; text: string }
+  faustregel: { imRahmen: boolean; text: string; anzeigen?: boolean }
   /** Task R2 Fix Runde 2: EINE Quelle fuer den Anker-Text, aus der Route (ankerFuer). */
   anker: Partial<Record<Fragenschluessel, Anker>>
 }
@@ -265,9 +265,11 @@ export default function ReferenzprojektKasten({ daten, referenzmoebel, antwort, 
 
           {frageBlock('grund', daten.anker.grund?.text ?? '')}
 
-          <div style={{ color: daten.faustregel.imRahmen ? C.ok : C.warn, fontSize: 12, marginBottom: 14 }}>
-            {daten.faustregel.text}
-          </div>
+          {daten.faustregel.anzeigen !== false && (
+            <div style={{ color: daten.faustregel.imRahmen ? C.ok : C.warn, fontSize: 12, marginBottom: 14 }}>
+              {daten.faustregel.text}
+            </div>
+          )}
 
           <button onClick={() => void alsProjektOeffnen()} disabled={oeffnenLaeuft} style={{
             background: C.copper, border: 'none', borderRadius: 8, color: C.onAccent,

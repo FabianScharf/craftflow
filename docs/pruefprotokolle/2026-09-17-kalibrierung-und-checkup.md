@@ -220,3 +220,7 @@ aufschlag, deaktiviert)` in beiden Oberflächen, Sätze/Aufschlag kommen aus GET
 
 **Nachtrag (Fabian: „Ja verdoppeln“):** Küchenfronten werden beidseitig lackiert bzw. geölt — Lack- und
 Massiv-Alternative rechnen jetzt mit 2 × Frontfläche. Lack-Aufpreis +530 € statt +213 €, Massiv 10.291 €.
+
+**Nachtrag (Fabian):** Die Faustregel-Zeile „5.000–20.000 € — liegt im Rahmen“ unter der Küche verwirrt
+(Spanne zu groß). Regel: Faustregeln breiter als das Dreifache werden nicht angezeigt, bleiben aber Kontrolle
+in den Tests (`faustregelKontrolle().anzeigen`). Betrifft nur die Küche.
