@@ -14,12 +14,19 @@ export const MITGLIED_FELDER = 'id, inhaber_id, user_id, email, status, angenomm
 
 /**
  * Der Einladungslink. Absolut und auf die App-Domain, NICHT auf die Website und
- * nicht auf `window.location.origin`: Eine Einladung, die von einer
- * Vorschau-Adresse aus verschickt wird, muss trotzdem auf app.getcraftflow.de
- * zeigen — dieselbe Lehre wie beim Registrierungslink (08.09.).
+ * nicht auf `window.location.origin` — dieselbe Lehre wie beim Registrierungslink
+ * (08.09.).
+ *
+ * EINE Ausnahme (Controller, 2026-09-17, Live-Test der Teamfunktion mit Fabians
+ * iCloud-Adresse): Auf einem Vercel-VORSCHAU-Deployment zeigt der Link auf genau
+ * diese Vorschau (VERCEL_BRANCH_URL), sonst landete jeder Testklick auf der Live-App,
+ * die die Teamfunktion noch gar nicht hat. Produktion (VERCEL_ENV = 'production')
+ * bleibt fest auf app.getcraftflow.de.
  */
 export function einladungsLink(token: string): string {
-  return `${APP_URL}/einladung/${token}`
+  const vorschau = process.env.VERCEL_ENV === 'preview' && process.env.VERCEL_BRANCH_URL
+  const basis = vorschau ? `https://${process.env.VERCEL_BRANCH_URL}` : APP_URL
+  return `${basis}/einladung/${token}`
 }
 
 /** Token-Form prüfen, bevor damit gesucht wird: eine uuid, sonst gar nicht erst fragen. */
