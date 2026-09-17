@@ -32,7 +32,7 @@ test('Die Mail traegt Anrede, vier Tipps, WhatsApp-Link, Portrait und Impressum'
   assert.match(m.html, /Hallo Max, läuft alles\?/)
   assert.equal((m.html.match(/border-top:1px solid #E6DDD1;font-family:Georgia/g) || []).length, 4)
   assert.match(m.html, new RegExp(`https://wa.me/${WHATSAPP_NUMMER}\\?text=`))
-  assert.match(m.html, /getcraftflow\.de\/fabian\.jpg/)
+  assert.match(m.html, /getcraftflow\.de\/fabian-rund\.jpg/)
   assert.match(m.html, /Impressum/)
   assert.match(m.text, /WhatsApp/)
   assert.doesNotMatch(m.html, /Nachkalkulation/)

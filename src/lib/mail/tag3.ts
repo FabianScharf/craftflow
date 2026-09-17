@@ -21,7 +21,7 @@ export const TAG3_MERKER = 'tag3_mail_am'
 
 export const WHATSAPP_NUMMER = '491604416822'
 export const TELEFON_ANZEIGE = '+49 160 4416822'
-export const PORTRAIT_URL = 'https://www.getcraftflow.de/fabian.jpg'
+export const PORTRAIT_URL = 'https://www.getcraftflow.de/fabian-rund.jpg'  // quadratischer Ausschnitt — object-fit kennen Mail-Programme nicht
 export const KONTAKT_MAIL = 'fabian@fscrafted.de'
 
 export type Konto = {
@@ -56,7 +56,7 @@ export function vornameAus(inhaber?: string | null): string {
 
 // ── Gestaltung (inline, wie in vorlagen.ts begründet: Mail-Programme ignorieren CSS-Dateien) ──
 const F = 'Helvetica Neue, Helvetica, Arial, sans-serif'
-const SERIF = 'Georgia, "Times New Roman", serif'
+const SERIF = "Georgia, 'Times New Roman', serif"
 const KUPFER = '#B87333'
 const INK = '#1A1714'
 const TEXT = '#2F2A25'
