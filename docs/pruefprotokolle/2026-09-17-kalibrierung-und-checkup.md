@@ -245,3 +245,6 @@ dieselbe Ursache — der Kasten kam aus dem gespeicherten Schwerpunkt, Fragen un
 Anker (Küche) und Spannen (Schrank) gehörten zu zwei Möbeln. Jetzt lädt der Kasten bei jedem Klick auf
 Schwerpunkt/Maschinen/Montage neu (GET mit Query, ohne Speichern). Live geprüft: Küchen abwählen →
 Einbauschrank, alle vier Anker im mittleren Band; Treppen wählen → Treppe; gespeicherter Stand unverändert.
+
+**Nachtrag (Fabian: „Faustregel wird immer noch angezeigt“, Einbauschrank):** Die Zeile ist jetzt bei
+allen fünf Referenzen aus dem Kasten entfernt. Die Faustregel bleibt reine Kontrolle in den Tests.

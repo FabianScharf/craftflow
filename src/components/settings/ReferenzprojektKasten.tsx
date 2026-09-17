@@ -285,11 +285,9 @@ export default function ReferenzprojektKasten({ daten, referenzmoebel, antwort, 
 
           {frageBlock('grund', daten.anker.grund?.text ?? '')}
 
-          {daten.faustregel.anzeigen !== false && (
-            <div style={{ color: daten.faustregel.imRahmen ? C.ok : C.warn, fontSize: 12, marginBottom: 14 }}>
-              {daten.faustregel.text}
-            </div>
-          )}
+          {/* Faustregel-Zeile bewusst NICHT mehr angezeigt (Fabian 2026-09-17, zweimal):
+              sie ist Kontrolle fuer die Tests (faustregelKontrolle), nicht fuer den Nutzer. */}
+          <div style={{ height: 14 }} />
 
           <button onClick={() => void alsProjektOeffnen()} disabled={oeffnenLaeuft} style={{
             background: C.copper, border: 'none', borderRadius: 8, color: C.onAccent,
