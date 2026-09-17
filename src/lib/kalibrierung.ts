@@ -348,10 +348,27 @@ type Bandbasis = ReturnType<typeof referenzAusProjekt>
 
 /**
  * Die Antwortskalen eines Referenzmoebels — nur zu den Fragen, die es stellt.
+ *
+ * FIX RUNDE 3 (Controller-Ruling nach Re-Review): `saetze`/`aufschlag` sind jetzt
+ * Parameter statt fest STANDARDSAETZE/STANDARDAUFSCHLAG. WARUM: Vorher waren die
+ * Baender IMMER in Standard-Satz-Euro beschriftet, waehrend berechneFaktoren mit
+ * den ECHTEN Saetzen des Betriebs rechnete. Ein Betrieb mit z.B. doppelten Saetzen
+ * sah "über 2.700 €" als hoechstes Band, obwohl sein ehrlicher Preis (rund 3.958 €)
+ * WEIT darueber liegt — er waehlte trotzdem wahrheitsgemaess das oberste Band, aber
+ * dessen Standard-Satz-Mittelwert (2.853 €) wurde dann gegen SEINEN Sockel/
+ * Skalierbar-Anteil gestellt und ergab Faktor ≈0,56→gedeckelt 0,6: seine Zeiten
+ * wurden um 40 % gekuerzt, nur weil er teurer kalkuliert. Werden die Baender MIT
+ * denselben Saetzen/demselben Aufschlag gebaut, mit denen spaeter auch verglichen
+ * wird, ist Band 3 (Faktor 1,0) IMMER exakt der eigene Referenzpreis — unabhaengig
+ * vom Satzniveau. `REFERENZEN` bleibt bei den Standardwerten (Defaultparameter) fuer
+ * Tests und den unangemeldeten Fallback; `referenzMitSaetzen()` baut sie fuer einen
+ * konkreten Betrieb neu.
  */
-function baueBaender(r: Bandbasis): Record<string, Band[]> {
-  const w = (posten: readonly Zeitposten[], faktor = 1) => wert(posten, STANDARDSAETZE, faktor)
-  const material = r.materialEk * (1 + STANDARDAUFSCHLAG)
+function baueBaender(
+  r: Bandbasis, saetze: Saetze = STANDARDSAETZE, aufschlag: number = STANDARDAUFSCHLAG,
+): Record<string, Band[]> {
+  const w = (posten: readonly Zeitposten[], faktor = 1) => wert(posten, saetze, faktor)
+  const material = r.materialEk * (1 + aufschlag)
   const fix = w(r.fixsockel)
   const montage = w(r.montage)
   const alle: Record<string, Band[]> = {}
@@ -372,16 +389,16 @@ function baueBaender(r: Bandbasis): Record<string, Band[]> {
 
   // Lackfrage: nur der AUFSCHLAG gegenueber der Standardoberflaeche, deshalb ohne
   // Sockel und ohne Montage.
-  const lackZeitwert = (r.lackMinuten / 60) * STANDARDSAETZE['Oberfläche']
-  alle.lack = skala(r.lackMaterialEk * (1 + STANDARDAUFSCHLAG), lackZeitwert,
+  const lackZeitwert = (r.lackMinuten / 60) * (saetze['Oberfläche'] ?? 72)
+  alle.lack = skala(r.lackMaterialEk * (1 + aufschlag), lackZeitwert,
     label('lack')).map(b => ({ ...b, text: `+ ${b.text}` }))
 
   // Massivholzfrage: wieder ein Gesamtpreis, aber mit Massivholzmaterial, laengerer
   // Werkstattzeit und Oberflaeche statt Bekantung.
   const massivZeit = w(r.werkstatt, r.massivWerkstattFaktor)
-    + (r.massivOberflaecheMinuten / 60) * STANDARDSAETZE['Oberfläche']
+    + (r.massivOberflaecheMinuten / 60) * (saetze['Oberfläche'] ?? 72)
   alle.massiv = skala(
-    (ohne('massiv') ? 0 : r.massivMaterialEk * (1 + STANDARDAUFSCHLAG)) + fix + montage,
+    (ohne('massiv') ? 0 : r.massivMaterialEk * (1 + aufschlag)) + fix + montage,
     massivZeit, label('massiv'))
 
   // Montagefrage: eine DAUER im Altbau, nicht ein Preis. Ohne Sockel, weil der
@@ -407,8 +424,10 @@ export type Referenzmoebel = Bandbasis & {
   fragenliste: Array<{ schluessel: Fragenschluessel; text: string; hinweis: string; baender: Band[] }>
 }
 
-function mitBaendern(r: Bandbasis): Referenzmoebel {
-  const baender = baueBaender(r)
+function mitBaendern(
+  r: Bandbasis, saetze: Saetze = STANDARDSAETZE, aufschlag: number = STANDARDAUFSCHLAG,
+): Referenzmoebel {
+  const baender = baueBaender(r, saetze, aufschlag)
   const fragenliste = (['grund', 'lack', 'massiv', 'montage'] as const)
     .filter(k => r.fragen[k] && baender[k])
     .map(k => ({
@@ -454,6 +473,21 @@ export function referenzFuer(schwerpunkt: string[] | null | undefined): Referenz
     }
   }
   return REFERENZEN.einbauschrank
+}
+
+/**
+ * Baut die Baender/Fragenliste eines Referenzmoebels MIT den Saetzen und dem
+ * Materialaufschlag EINES Betriebs neu (Fix Runde 3, Controller-Ruling) — REFERENZEN
+ * selbst bleibt bei STANDARDSAETZE (Tests, unangemeldeter Fallback). Route und PUT
+ * rufen das mit DENSELBEN Saetzen/demselben Aufschlag auf, mit denen sie auch
+ * berechneFaktoren aufrufen, damit Baender, Anker (ankerFuer) und Faktoren dieselbe
+ * Grundlage teilen — Band 3 trifft dann fuer JEDEN Betrieb den eigenen Referenzpreis.
+ */
+export function referenzMitSaetzen(
+  schluesselOderRef: string | Referenzmoebel, saetze: Saetze, aufschlag: number,
+): Referenzmoebel {
+  const basis = typeof schluesselOderRef === 'string' ? REFERENZEN[schluesselOderRef] : schluesselOderRef
+  return mitBaendern(basis, saetze, aufschlag)
 }
 
 // Die fuenf Betriebsfragen. Liegen hier, damit Erst-Anmeldung und Einstellungen

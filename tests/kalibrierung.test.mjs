@@ -505,7 +505,7 @@ test('Einbauschrank: Grund-Baender unveraendert (±1 €) seit referenzAusProjek
 
 // ── Task R2 Fix Runde 2/3: Anker liegt im mittleren Band (Controller-Ruling) ────
 
-import { ankerFuer } from '../src/lib/kalibrierung.ts'
+import { ankerFuer, referenzMitSaetzen } from '../src/lib/kalibrierung.ts'
 
 test('Der Anker jeder gestellten Frage liegt im mittleren Band (b3) — bei STANDARDSAETZE/30 %', () => {
   // Der Anker ("CraftFlow rechnet ...") ist die ECHTE Preisdifferenz/-summe der
@@ -529,6 +529,68 @@ test('Der Anker jeder gestellten Frage liegt im mittleren Band (b3) — bei STAN
         `${r.name}/${frage.schluessel}: Anker ${a.wert} ausserhalb Band 3 [${lo.toFixed(1)}, ${hi.toFixed(1)}]`)
     }
   }
+})
+
+// ── Task R2 Fix Runde 3: Baender mit den Saetzen des Betriebs (Controller-Ruling) ──
+//
+// GEFUNDEN (Re-Review): Ein Betrieb mit doppelten Saetzen sah "über 2.700 €" als
+// hoechstes Grundband, obwohl sein eigener Preis (rund 3.958 €) weit darueber liegt.
+// Waehlte er trotzdem wahrheitsgemaess das oberste Band, verglich berechneFaktoren
+// dessen STANDARD-Satz-Mittelwert (2.853 €) gegen SEINEN Sockel/Skalierbar-Anteil —
+// Faktor ≈0,56, gedeckelt auf 0,6: seine Zeiten wurden um 40 % gekuerzt, nur weil er
+// teurer kalkuliert. Fix: referenzMitSaetzen() baut Baender MIT den Saetzen/dem
+// Aufschlag des Betriebs — Band 3 (Faktor 1,0) ist dann fuer JEDEN Betrieb exakt der
+// eigene Referenzpreis.
+
+const DOPPELTE_SAETZE = Object.fromEntries(Object.entries(SAETZE).map(([k, v]) => [k, v * 2]))
+const DOPPELTER_AUFSCHLAG = 0.45
+
+test('Bei STANDARDSAETZE aendert referenzMitSaetzen nichts (identisch zu REFERENZEN)', () => {
+  for (const [schluessel, r] of Object.entries(REFERENZEN)) {
+    const neu = referenzMitSaetzen(schluessel, SAETZE, AUFSCHLAG)
+    for (const frage of r.fragenliste) {
+      const alt = r.baender[frage.schluessel].filter(b => b.mitte !== null).map(b => b.mitte)
+      const jetzt = neu.baender[frage.schluessel].filter(b => b.mitte !== null).map(b => b.mitte)
+      assert.deepEqual(jetzt, alt, `${r.name}/${frage.schluessel}: Baender veraendert`)
+    }
+  }
+})
+
+test('Bei doppelten Saetzen (und 45 % Aufschlag) liegt der Anker weiterhin in Band 3, und Band 3 selbst ergibt Faktor 1,0', () => {
+  for (const [schluessel, basis] of Object.entries(REFERENZEN)) {
+    const r = referenzMitSaetzen(schluessel, DOPPELTE_SAETZE, DOPPELTER_AUFSCHLAG)
+    const anker = ankerFuer(r, DOPPELTE_SAETZE, DOPPELTER_AUFSCHLAG)
+    for (const frage of r.fragenliste) {
+      const teiler = r.teiler?.[frage.schluessel] ?? 1
+      const echte = frage.baender.filter(b => b.mitte !== null)
+      assert.equal(echte.length, 5, `${r.name}/${frage.schluessel}: ${echte.length} Baender`)
+      const mitten = echte.map(b => b.mitte / teiler)
+      const [, b2, b3, b4] = mitten
+      const lo = (b2 + b3) / 2, hi = (b3 + b4) / 2
+      const a = anker[frage.schluessel]
+      assert.ok(a, `${r.name}/${frage.schluessel}: kein Anker`)
+      assert.ok(a.wert >= lo - 0.5 && a.wert <= hi + 0.5,
+        `${r.name}/${frage.schluessel}: Anker ${a.wert} ausserhalb Band 3 [${lo.toFixed(1)}, ${hi.toFixed(1)}]`)
+
+      // Wer genau Band 3 waehlt ("ich nehme, was CraftFlow rechnet"), muss bei
+      // JEDEM Satzniveau Faktor 1,0 bekommen — das ist der Kern des Fixes.
+      const antworten = { grund: '', lack: '', massiv: '', montage: '', [frage.schluessel]: 'b3' }
+      const f = berechneFaktoren(antworten, DOPPELTE_SAETZE, DOPPELTER_AUFSCHLAG, r)
+      const feld = { grund: 'werkstatt', lack: 'oberflaeche', massiv: 'massivholz', montage: 'montage' }[frage.schluessel]
+      assert.ok(Math.abs(f[feld] - 1.0) <= 0.03,
+        `${basis.name}/${frage.schluessel}: Faktor ${f[feld]} bei Band 3, nicht 1,0`)
+    }
+  }
+})
+
+test('Der Randhinweis-Mechanismus bleibt unveraendert — auch bei doppelten Saetzen', () => {
+  const r = referenzMitSaetzen('einbauschrank', DOPPELTE_SAETZE, DOPPELTER_AUFSCHLAG)
+  for (const schluessel of RANDBAENDER) {
+    const f = berechneFaktoren({ grund: schluessel, lack: '', massiv: '', montage: '' }, DOPPELTE_SAETZE, DOPPELTER_AUFSCHLAG, r)
+    assert.ok(f.werkstatt === 0.6 || f.werkstatt === 1.4,
+      `${schluessel} liegt bei ${f.werkstatt}, nicht auf dem Deckel`)
+  }
+  assert.ok(!RANDBAENDER.includes('b3'))
 })
 
 test('Kostenstellen folgen den Maschinen-Antworten: ohne Kantenanleimmaschine ist Bekantung aus, mit ihr wieder an', () => {

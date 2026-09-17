@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { kostenstellenSollZustand } from '@/lib/kalibrierung'
 import { normalizeKsId } from '@/lib/types'
-import { berechneFaktoren, deckeleHand, referenzFuer, ankerFuer } from '@/lib/kalibrierung'
+import { berechneFaktoren, deckeleHand, referenzFuer, referenzMitSaetzen, ankerFuer } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { pruefeFunktion } from '@/lib/planpruefung'
 import { REFERENZPROJEKTE, mitSaetzen, summen, faustregelKontrolle } from '@/lib/referenzprojekte'
@@ -29,7 +29,13 @@ export async function GET() {
   // referenzprojekte.ts (die sind nur Platzhalter). Kein Preis kommt aus der
   // Faustregel — sie ist nur die Kontrolle daneben (CLAUDE.md, "KI darf niemals
   // selbst kalkulieren"/Globale Vorgabe dieser Aufgabe).
-  const ref = referenzFuer(kalibrierung?.schwerpunkt)
+  //
+  // Fix Runde 3 (Controller-Ruling): referenzMitSaetzen() statt referenzFuer() —
+  // die Baender selbst muessen mit DENSELBEN Saetzen/demselben Aufschlag gebaut
+  // werden, mit denen unten auch der Anker (ankerFuer) gerechnet wird. Sonst zeigt
+  // ein teurer Betrieb "über 2.700 €" als hoechstes Band, obwohl sein eigener Preis
+  // weit darueber liegt.
+  const ref = referenzMitSaetzen(referenzFuer(kalibrierung?.schwerpunkt), saetze, aufschlag)
   const projekt = REFERENZPROJEKTE[ref.schluessel]
   const positionen = mitSaetzen(projekt, saetze, aufschlag)
   const projektSummen = summen(positionen, true)
@@ -102,7 +108,11 @@ export async function PUT(req: NextRequest) {
   // einer Treppe gemessen, nicht an einem Flurschrank. Dieselbe Ableitung nutzt die
   // Oberflaeche, um die Baender anzuzeigen; sonst wuerde gegen andere Zahlen
   // gerechnet als gefragt wurde.
-  const ref = referenzFuer(schwerpunkt)
+  //
+  // Fix Runde 3: mit DENSELBEN Saetzen/demselben Aufschlag gebaut, mit denen direkt
+  // darunter auch berechneFaktoren rechnet — nur so trifft die Antwort auf Band 3
+  // (Faktor 1,0) IMMER den eigenen Referenzpreis, unabhaengig vom Satzniveau.
+  const ref = referenzMitSaetzen(referenzFuer(schwerpunkt), saetze, aufschlag)
 
   // Die Faktoren entstehen IMMER serverseitig. Sie steuern Preise — was aus dem
   // Browser kommt, wird dafuer nie uebernommen. Gleiche Haltung wie bei vkStunde.
