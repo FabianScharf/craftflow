@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { pruefeFunktion } from '@/lib/planpruefung'
 
 // Eigene Textbausteine des Betriebs.
@@ -33,11 +34,14 @@ async function nutzer() {
 export async function GET() {
   const { supabase, user, error } = await nutzer()
   if (error || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const { data, error: dbFehler } = await supabase
     .from('textbausteine')
     .select('id, titel, inhalt, immer, reihenfolge, aktiv')
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .order('reihenfolge')
   // Supabase wirft nicht — ohne diese Pruefung sieht ein Ausfall aus wie
   // "keine Bausteine vorhanden", und der Nutzer glaubt, seine Texte seien weg.
@@ -48,13 +52,16 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { supabase, user, error } = await nutzer()
   if (error || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   // Textbausteine gehören zur Funktion 'gestaltung' (ab Starter). Im Browser sperrt
   // PlanGate funktion="gestaltung", der Server nicht (Audit 2026-09-17, I4).
   // LESEN (GET) bleibt offen: Ein Solo-Betrieb soll seine früher angelegten
   // Bausteine weiter sehen — sie wirken dann nur nicht mehr im Angebot.
-  const sperre = await pruefeFunktion(supabase, user.id, 'gestaltung')
-  if (sperre) return sperre
+  const funktionsSperre = await pruefeFunktion(supabase, kontoId, 'gestaltung')
+  if (funktionsSperre) return funktionsSperre
 
   const b = await req.json() as Baustein
   const titel = String(b.titel ?? '').trim()
@@ -63,13 +70,13 @@ export async function POST(req: NextRequest) {
   // Ans Ende einsortieren.
   const { data: letzte } = await supabase
     .from('textbausteine').select('reihenfolge')
-    .eq('user_id', user.id).order('reihenfolge', { ascending: false }).limit(1)
+    .eq('user_id', kontoId).order('reihenfolge', { ascending: false }).limit(1)
   const reihenfolge = ((letzte?.[0]?.reihenfolge as number) ?? 0) + 1
 
   const { data, error: dbFehler } = await supabase
     .from('textbausteine')
     .insert({
-      user_id: user.id, titel,
+      user_id: kontoId, titel,
       inhalt: String(b.inhalt ?? ''),
       immer: b.immer === true,
       reihenfolge,
@@ -83,9 +90,12 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const { supabase, user, error } = await nutzer()
   if (error || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
-  const sperre = await pruefeFunktion(supabase, user.id, 'gestaltung')
-  if (sperre) return sperre
+  const funktionsSperre = await pruefeFunktion(supabase, kontoId, 'gestaltung')
+  if (funktionsSperre) return funktionsSperre
 
   const b = await req.json() as Baustein
   if (!b.id) return NextResponse.json({ error: 'id fehlt' }, { status: 400 })
@@ -99,7 +109,7 @@ export async function PUT(req: NextRequest) {
 
   const { error: dbFehler } = await supabase
     .from('textbausteine').update(feld)
-    .eq('id', b.id).eq('user_id', user.id)
+    .eq('id', b.id).eq('user_id', kontoId)
   if (dbFehler) return NextResponse.json({ error: dbFehler.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
@@ -107,16 +117,19 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { supabase, user, error } = await nutzer()
   if (error || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
-  const sperre = await pruefeFunktion(supabase, user.id, 'gestaltung')
-  if (sperre) return sperre
+  const funktionsSperre = await pruefeFunktion(supabase, kontoId, 'gestaltung')
+  if (funktionsSperre) return funktionsSperre
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id fehlt' }, { status: 400 })
 
   const { error: dbFehler } = await supabase
     .from('textbausteine').delete()
-    .eq('id', id).eq('user_id', user.id)
+    .eq('id', id).eq('user_id', kontoId)
   // Der echte Grund gehoert zurueck. "permission denied for table ..." hat am
   // 2026-09-07 einen Fehler in einem Anlauf erklaert.
   if (dbFehler) return NextResponse.json({ error: dbFehler.message }, { status: 500 })

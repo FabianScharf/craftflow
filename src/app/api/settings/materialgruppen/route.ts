@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const { data, error } = await supabase
     .from('materialgruppen')
     .select('id, name, aufschlag_prozent, beschreibung, reihenfolge, aktiv')
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .order('reihenfolge')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -20,6 +24,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const { name, aufschlag_prozent } = await req.json() as { name: string; aufschlag_prozent: number }
   if (!name || aufschlag_prozent == null) {
@@ -27,12 +34,12 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: maxRow } = await supabase
-    .from('materialgruppen').select('reihenfolge').eq('user_id', user.id).order('reihenfolge', { ascending: false }).limit(1).single()
+    .from('materialgruppen').select('reihenfolge').eq('user_id', kontoId).order('reihenfolge', { ascending: false }).limit(1).single()
   const reihenfolge = ((maxRow?.reihenfolge as number | null) ?? 0) + 1
 
   const { data, error } = await supabase
     .from('materialgruppen')
-    .insert({ user_id: user.id, name, aufschlag_prozent, reihenfolge })
+    .insert({ user_id: kontoId, name, aufschlag_prozent, reihenfolge })
     .select('id, name, aufschlag_prozent, beschreibung, reihenfolge, aktiv')
     .single()
 
@@ -44,6 +51,9 @@ export async function PUT(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const { id, name, aufschlag_prozent } = await req.json() as { id: string; name?: string; aufschlag_prozent?: number }
   if (!id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })
@@ -56,7 +66,7 @@ export async function PUT(req: NextRequest) {
     .from('materialgruppen')
     .update(patch)
     .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
@@ -66,6 +76,9 @@ export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const { id } = await req.json() as { id: string }
   if (!id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })
@@ -74,7 +87,7 @@ export async function DELETE(req: NextRequest) {
     .from('materialgruppen')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
