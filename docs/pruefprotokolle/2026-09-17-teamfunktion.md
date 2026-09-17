@@ -23,8 +23,9 @@ R1 Deckel in der App-Schicht (nicht in SQL) · R2 Zähler je Betrieb · R3/R6 St
 | Registrierung über den Link | ✓ Konto angelegt — **aber** Bestätigungsmail führt fest auf die Live-Adresse, dort Sitzung, auf dev keine; Passwort musste zurückgesetzt werden (Ursache offen, siehe §5) |
 | Annahme | ✗ zuerst 500 — zwei Fehler gefunden und behoben (§4) — dann ✓ `status=aktiv`, angenommen 21:26 |
 | Inhaberliste zeigt „Aktiv“ | ✓ |
-| Mitarbeitersicht (Kopfzeile, Projekte, Team nur lesen, Plan nur Anzeige) | von Fabian in Safari zu bestätigen |
-| Deckel/Sperrseite (Inhaber auf Solo → Mitarbeiter ruhend) | noch offen |
+| Mitarbeitersicht in Chrome (iCloud-Konto): Kopfzeile „FS CRAFTED · MITARBEITER“, 25 Projekte des Betriebs, Profil/Kalibrierung/Kostenstellen des Betriebs, Nutzung des Betriebs, Team nur lesend mit „Betrieb verlassen“, Mein Plan „Plan des Betriebs: Enterprise“ ohne Kaufknöpfe | ✓ |
+| Verbotene Aktionen als Mitarbeiter: Stripe-Checkout, Portal, Gutschein, Einladen → 403 „Nur der Inhaber des Betriebs kann das.“; PATCH mit `plan` wirkungslos (Whitelist) | ✓ |
+| Deckel: Inhaber per SQL auf Starter (1 Nutzer) → Mitarbeiter sofort `zustand=ruhend`, Umleitung auf `/gesperrt` mit richtigem Text, `/api/projects` 403, kontoId = eigene ID; zurück auf Enterprise → wieder `mitarbeiter` | ✓ |
 
 ## 4. Gefunden und behoben
 
@@ -36,6 +37,5 @@ R1 Deckel in der App-Schicht (nicht in SQL) · R2 Zähler je Betrieb · R3/R6 St
 ## 5. Offen vor dem Live-Gang
 
 - Passwort nach Registrierung über den Einladungsweg zweimal „nicht funktioniert“ — mit frischer Adresse nachstellen (Bestätigungslink → Live-Adresse → Sitzung; dev-Vorschau ohne Sitzung).
-- Deckel-Test: Inhaber auf Solo stellen, Mitarbeiter muss die Sperrseite sehen, zurück auf Enterprise.
 - Gesamtprüfung des ganzen Zweigs (Opus) läuft.
 - Hilfe-Assistent kennt „Team“ (EINSTELLUNGSBEREICHE), CLAUDE.md-Abschnitt folgt.
