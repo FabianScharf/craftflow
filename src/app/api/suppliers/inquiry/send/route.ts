@@ -1,24 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import nodemailer from 'nodemailer'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { pruefeFunktion } from '@/lib/planpruefung'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+  const konto = await kontoIdFuer(supabase, user)
+  const kontoSperre = kontoGesperrt(konto); if (kontoSperre) return kontoSperre
+  const kontoId = konto.kontoId
+  const sperre = await pruefeFunktion(supabase, kontoId, 'lieferanten')
   if (sperre) return sperre
-  // Versand läuft ausschließlich über die eigene SMTP-Konfiguration des Nutzers
+  // Versand läuft ausschließlich über die eigene SMTP-Konfiguration des Betriebs
   // (kein CraftFlow-eigener Versandweg hier) — das ist ab Pro (Funktion 'smtp').
-  const smtpSperre = await pruefeFunktion(supabase, user.id, 'smtp')
+  const smtpSperre = await pruefeFunktion(supabase, kontoId, 'smtp')
   if (smtpSperre) return smtpSperre
 
   // SMTP-Konfiguration laden
   const { data: emailCfg } = await supabase
     .from('email_config')
     .select('smtp_host, smtp_port, smtp_user, smtp_password_encrypted, smtp_from_email, smtp_from_name, email_signatur, smtp_verified')
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .single()
 
   if (!emailCfg?.smtp_host || !emailCfg?.smtp_user || !emailCfg?.smtp_from_email) {

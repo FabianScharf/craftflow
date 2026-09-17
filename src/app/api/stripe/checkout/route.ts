@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe, umsatzsteuerSatzId } from '@/lib/stripe'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
+import { TEAM_TEXTE } from '@/lib/team'
 import { planFuerPreisId } from '@/lib/plaene'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const kontoSperre = kontoGesperrt(konto); if (kontoSperre) return kontoSperre
+  // Ein Abo betrifft den ganzen Betrieb — nur der Inhaber darf es buchen (Spec).
+  if (!konto.istInhaber) return NextResponse.json({ error: TEAM_TEXTE.nurInhaber }, { status: 403 })
+  const kontoId = konto.kontoId
 
   const { priceId } = await req.json() as { priceId: string }
   if (!priceId) return NextResponse.json({ error: 'priceId erforderlich' }, { status: 400 })
@@ -40,9 +47,9 @@ export async function POST(req: NextRequest) {
       tax_id_collection: { enabled: true },
       success_url: `${origin}/settings?stripe=success`,
       cancel_url: `${origin}/settings?stripe=cancelled`,
-      metadata: { userId: user.id },
+      metadata: { userId: kontoId },
       subscription_data: {
-        metadata: { userId: user.id },
+        metadata: { userId: kontoId },
       },
     })
 

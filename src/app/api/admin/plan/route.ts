@@ -12,12 +12,14 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer } from '@/lib/kontoserver'
 import { ADMIN_EMAIL } from '@/lib/admin'
 import { istPlan } from '@/lib/plaene'
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  // Admin-Gate bleibt unverändert: die E-Mail des Logins entscheidet, nicht die kontoId.
   if (authErr || !user || user.email !== ADMIN_EMAIL) {
     return NextResponse.json({ error: 'Kein Zugriff' }, { status: 403 })
   }
@@ -27,10 +29,14 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: `„${String(plan)}“ ist kein gültiger Plan.` }, { status: 400 })
   }
 
+  // Geschrieben wird das Profil DES KONTOS (Konto-ID des Admins) — falls der Admin
+  // selbst je Mitglied eines Betriebs wäre, träfe die Änderung sonst den Login statt
+  // den Betrieb, dessen Plan das Panel eigentlich umschaltet.
+  const konto = await kontoIdFuer(supabase, user)
   const { error } = await supabase
     .from('betriebsprofil')
     .update({ plan, updated_at: new Date().toISOString() })
-    .eq('user_id', user.id)
+    .eq('user_id', konto.kontoId)
 
   // Supabase wirft nicht — ohne diese Prüfung sähe ein Fehlschlag wie ein Erfolg aus
   // und das Panel zeigte einen Plan an, der in der Datenbank nie ankam.

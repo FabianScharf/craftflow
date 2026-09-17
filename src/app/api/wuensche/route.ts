@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getSupabaseClient } from '@/lib/supabase'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { pruefeZugang } from '@/lib/planpruefung'
 import type { ProfilFuerPlan } from '@/lib/plaene'
 import {
@@ -66,7 +67,10 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   const istAdmin = user.email === ADMIN_EMAIL
@@ -98,19 +102,20 @@ export async function GET(req: NextRequest) {
   const zaehlerGedeckelt = stimmenJeWunsch(stimmenZaehlbar, profile, new Date())
   const zaehlerRoh: Record<string, number> = {}
   for (const s of stimmenAlle) zaehlerRoh[s.wunsch_id] = (zaehlerRoh[s.wunsch_id] ?? 0) + 1
-  const eigeneJeWunsch = eigeneStimmenJeWunsch(stimmenAlle, user.id)
+  // R3: Stimmen tragen die kontoId ihres Urhebers, das Budget hängt am Betrieb.
+  const eigeneJeWunsch = eigeneStimmenJeWunsch(stimmenAlle, kontoId)
 
   const { data: eigenesProfil, error: pErr } = await supabase
     .from('betriebsprofil')
     .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .single()
   if (pErr) console.error('[wuensche] eigenes Profil:', pErr.message)
   const gesamt = stimmenbudget(eigenesProfil as ProfilFuerPlan | null)
 
-  const eigeneZaehlbar = stimmenZaehlbar.filter(s => s.user_id === user.id)
+  const eigeneZaehlbar = stimmenZaehlbar.filter(s => s.user_id === kontoId)
   const benutzt = Math.min(
-    aktiveStimmen(eigeneZaehlbar, { [user.id]: eigenesProfil as ProfilFuerPlan | null }).length,
+    aktiveStimmen(eigeneZaehlbar, { [kontoId]: eigenesProfil as ProfilFuerPlan | null }).length,
     gesamt,
   )
   // Ruhend: eigene zählbare Stimmen, die über dem Budget liegen — nur > 0 nach einem
@@ -126,7 +131,7 @@ export async function GET(req: NextRequest) {
     // Admin-Ansicht zeigt 0 — dort wäre eine alte Zahl irreführend.
     stimmen: zaehlerGedeckelt[w.id] ?? (w.status === 'fertig' ? zaehlerRoh[w.id] ?? 0 : 0),
     eigeneStimmen: eigeneJeWunsch[w.id] ?? 0,
-    vonDir: w.user_id === user.id,
+    vonDir: w.user_id === kontoId,
   })).sort((a, b) => b.stimmen - a.stimmen || b.created_at.localeCompare(a.created_at))
 
   return NextResponse.json({
@@ -140,19 +145,22 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   const body = await req.json().catch(() => ({})) as { titel?: unknown; beschreibung?: unknown }
   const geprueft = pruefeTexte(body.titel, body.beschreibung)
   if (!geprueft.ok) return NextResponse.json({ error: geprueft.grund }, { status: 400 })
 
-  // Spam-Bremse: höchstens drei neue Vorschläge je Nutzer und Tag.
+  // Spam-Bremse: höchstens drei neue Vorschläge je Betrieb (Konto) und Tag.
   const seit = new Date(); seit.setHours(0, 0, 0, 0)
   const { count, error: zErr } = await supabase
     .from('wuensche')
     .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .gte('created_at', seit.toISOString())
   if (zErr) return NextResponse.json({ error: zErr.message }, { status: 500 })
   if ((count ?? 0) >= VORSCHLAEGE_JE_TAG) {
@@ -164,7 +172,7 @@ export async function POST(req: NextRequest) {
 
   const { data: row, error } = await supabase
     .from('wuensche')
-    .insert({ user_id: user.id, titel: geprueft.titel, beschreibung: geprueft.beschreibung })
+    .insert({ user_id: kontoId, titel: geprueft.titel, beschreibung: geprueft.beschreibung })
     .select('id, titel, beschreibung, status, created_at')
     .single()
   if (error || !row) return NextResponse.json({ error: error?.message ?? 'Anlegen fehlgeschlagen' }, { status: 500 })

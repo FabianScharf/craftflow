@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { pruefeFunktion } from '@/lib/planpruefung'
 
 export async function GET(req: NextRequest) {
@@ -7,10 +8,13 @@ export async function GET(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const konto = await kontoIdFuer(supabase, user)
+    const kontoSperre = kontoGesperrt(konto); if (kontoSperre) return kontoSperre
+    const kontoId = konto.kontoId
 
     // Lieferantenverwaltung ist ab Starter (src/lib/plaene.ts) — geprueft wurde das
     // bisher nur in settings/suppliers und suppliers/inquiry* (Audit 2026-09-17, I3).
-    const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+    const sperre = await pruefeFunktion(supabase, kontoId, 'lieferanten')
     if (sperre) return sperre
 
     const category = req.nextUrl.searchParams.get('category')
@@ -20,7 +24,7 @@ export async function GET(req: NextRequest) {
       const { data: cat, error: catErr } = await supabase
         .from('product_categories')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', kontoId)
         .eq('name', category)
         .single()
 
@@ -44,7 +48,7 @@ export async function GET(req: NextRequest) {
         website, general_email, phone, notes,
         supplier_contacts(id, first_name, last_name, email, phone, mobile, position, is_primary)
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .order('company_name')
 
     if (supplierIds) query = query.in('id', supplierIds)
