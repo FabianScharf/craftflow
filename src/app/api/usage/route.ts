@@ -4,17 +4,22 @@ import { deckel, effektiverPlan } from '@/lib/plaene'
 import { deckelAblehnung } from '@/lib/plantexte'
 import { pruefeZugang } from '@/lib/planpruefung'
 import { aktuellerMonat, ladeAngebotsstand, reserviereAngebot } from '@/lib/angebotszaehler'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 // GET — aktuellen Verbrauch + Limit zurückgeben
 export async function GET() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto)
+  if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const { data: profil, error: profilErr } = await supabase
     .from('betriebsprofil')
     .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .single()
   // Faellt in der Praxis fail-closed auf 'gesperrt' — aber bisher unbemerkt und
   // ungeloggt (Audit 2026-09-17, Minor 11).
@@ -22,7 +27,7 @@ export async function GET() {
 
   const plan = effektiverPlan(profil)
   const limit = deckel(plan, 'angebote')
-  const { count } = await ladeAngebotsstand(supabase, user.id)
+  const { count } = await ladeAngebotsstand(supabase, kontoId)
 
   return NextResponse.json({
     plan,
@@ -42,14 +47,18 @@ export async function POST() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto)
+  if (sperre) return sperre
+  const kontoId = konto.kontoId
 
-  const zu = await pruefeZugang(supabase, user.id)
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   const { data: profil, error: profilErr } = await supabase
     .from('betriebsprofil')
     .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .single()
   // Faellt in der Praxis fail-closed auf 'gesperrt' — aber bisher unbemerkt und
   // ungeloggt (Audit 2026-09-17, Minor 11).

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeFunktion } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 function getTagText(xml: string, tag: string): string {
   const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'))
@@ -54,7 +55,10 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const sperre = await pruefeFunktion(supabase, user.id, 'gaeb')
+  const konto = await kontoIdFuer(supabase, user)
+  const kontoSperre = kontoGesperrt(konto)
+  if (kontoSperre) return kontoSperre
+  const sperre = await pruefeFunktion(supabase, konto.kontoId, 'gaeb')
   if (sperre) return sperre
 
   const body = await req.json() as { xml?: string }

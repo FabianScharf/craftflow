@@ -5,6 +5,8 @@ import { regelBlockFuerNutzer, zaehleRegelnHoch } from '@/lib/bauweise'
 import { preisBlockFuerNutzer } from '@/lib/preisspeicher'
 import { deckel, type EffektiverPlan } from '@/lib/plaene'
 import { ladeEffektivenPlan, pruefeZugang } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
+import type { Konto } from '@/lib/konto'
 import { deckelAblehnung } from '@/lib/plantexte'
 import { aktuellerMonat, reserviereAngebot, gibAngebotFrei } from '@/lib/angebotszaehler'
 import { stempelPreisfaktor, PREISFAKTOR_STANDARD, klemmePreisfaktor, verwirfKiPreisfaktor } from '@/lib/preisfaktor'
@@ -76,10 +78,16 @@ export async function POST(req: NextRequest) {
       catch (e) { console.error('[usage] gibAngebotFrei (analyze):', e) }
     }
     freigabe = gibReservierungFrei
+    // Datenschlüssel ist ab hier konto.kontoId, nicht user.id (Teamfunktion,
+    // Spec §3) — ein Mitarbeiter rechnet auf den Daten/Deckeln des Inhabers.
+    let konto: Konto | null = null
     if (user) {
-      const zu = await pruefeZugang(supabase, user.id)
+      konto = await kontoIdFuer(supabase, user)
+      const sperre = kontoGesperrt(konto)
+      if (sperre) return sperre
+      const zu = await pruefeZugang(supabase, konto.kontoId)
       if (zu) return zu
-      plan = await ladeEffektivenPlan(supabase, user.id)
+      plan = await ladeEffektivenPlan(supabase, konto.kontoId)
       // pruefeZugang hat 'gesperrt' bereits ausgeschlossen — plan ist hier ein echter Plan.
       if (plan !== 'gesperrt') {
         const limit = deckel(plan, 'angebote')
@@ -235,23 +243,26 @@ export async function POST(req: NextRequest) {
     let faktoren: Faktoren = KEINE_FAKTOREN
     try {
       // supabase/user bereits ganz oben geladen (Zugangsprüfung) — nicht doppelt holen.
-      if (user) {
+      // konto ist gesetzt, sobald user gesetzt ist (siehe oben) — Datenschlüssel bleibt
+      // konto.kontoId, damit ein Mitarbeiter auf den Betriebsdaten des Inhabers rechnet.
+      if (konto) {
+        const kontoId = konto.kontoId
         // Ohne abgeschlossene Kalibrierung bleibt es bei 1,0 in allen vier Bereichen
         // — also bei den CraftFlow-Werten.
-        try { faktoren = await ladeFaktoren(supabase, user.id) }
+        try { faktoren = await ladeFaktoren(supabase, kontoId) }
         catch (e) { console.error('[kalibrierung] Faktoren laden (analyze):', e) }
         // Die Betriebsfragen wirken hier: Kein CNC, keine Kantenanleimmaschine oder
         // keine eigene Montage schalten die jeweilige Kostenstelle ab. Die Arbeit
         // verschwindet dabei nicht, sie wandert zur Handarbeit.
         try {
-          const kal = await ladeKalibrierung(supabase, user.id)
+          const kal = await ladeKalibrierung(supabase, kontoId)
           for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
           lackBlock = lackBlockFuer(kal)
         } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
         const { data: profil, error: profilErr } = await supabase
           .from('betriebsprofil')
           .select('strasse, plz, ort, preisfaktor')
-          .eq('user_id', user.id)
+          .eq('user_id', kontoId)
           .single()
         if (profilErr) console.error('[analyze] Betriebsprofil:', profilErr.message)
         if (profil) {
@@ -262,7 +273,7 @@ export async function POST(req: NextRequest) {
         // auf die Positionen gestempelt (Spec: Vault beeinflusst keine Preise).
         preisfaktorNutzer = klemmePreisfaktor(profil?.preisfaktor) ?? PREISFAKTOR_STANDARD
         try {
-          const r = await regelBlockFuerNutzer(supabase, user.id)
+          const r = await regelBlockFuerNutzer(supabase, kontoId)
           regelBlock = r.block
           regelIds = r.ids
           supabaseFuerZaehler = supabase
@@ -280,7 +291,7 @@ export async function POST(req: NextRequest) {
         // entsteht über diese Route. Nur im Optimieren zu wirken hiesse, die
         // Preise erst nach dem Schaetzen zu korrigieren statt vorher richtig zu
         // rechnen.
-        try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
+        try { preisBlock = await preisBlockFuerNutzer(supabase, kontoId) }
         catch (e) { console.error('[preise] Preise laden (analyze):', e) }
       }
     } catch { /* kein Profil / nicht eingeloggt → Default-Verhalten */ }

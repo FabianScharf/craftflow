@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const konto = await kontoIdFuer(supabase, user)
+    const sperre = kontoGesperrt(konto)
+    if (sperre) return sperre
+    const kontoId = konto.kontoId
 
     const { searchParams } = req.nextUrl
     const offerId = searchParams.get('offerId')
@@ -20,7 +25,7 @@ export async function GET(req: NextRequest) {
         .from('offer_versions')
         .select('id, version_number, created_at, description, data')
         .eq('id', versionId)
-        .eq('user_id', user.id)
+        .eq('user_id', kontoId)
         .maybeSingle()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       if (!data) return NextResponse.json({ error: 'Diese Version gibt es nicht.' }, { status: 404 })
@@ -33,7 +38,7 @@ export async function GET(req: NextRequest) {
       .from('offer_versions')
       .select('id, version_number, created_at, description')
       .eq('offer_id', offerId)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .order('version_number', { ascending: false })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -49,7 +54,11 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-    const zu = await pruefeZugang(supabase, user.id)
+    const konto = await kontoIdFuer(supabase, user)
+    const sperre = kontoGesperrt(konto)
+    if (sperre) return sperre
+    const kontoId = konto.kontoId
+    const zu = await pruefeZugang(supabase, kontoId)
     if (zu) return zu
 
     const { offerId, description, data } = await req.json() as {
@@ -61,7 +70,7 @@ export async function POST(req: NextRequest) {
       .from('offer_versions')
       .select('version_number')
       .eq('offer_id', offerId)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .order('version_number', { ascending: false })
       .limit(1)
 
@@ -69,7 +78,7 @@ export async function POST(req: NextRequest) {
 
     const { error } = await supabase
       .from('offer_versions')
-      .insert({ user_id: user.id, offer_id: offerId, version_number: nextVersion, description: description ?? null, data })
+      .insert({ user_id: kontoId, offer_id: offerId, version_number: nextVersion, description: description ?? null, data })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ success: true, version: nextVersion })

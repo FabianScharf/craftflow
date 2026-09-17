@@ -22,6 +22,7 @@ import { ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
 import { normalizeKsId } from '@/lib/types'
 import { bildMedientyp, istUuid } from '@/lib/upload'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export const maxDuration = 300
 
@@ -45,7 +46,11 @@ export async function POST(req: NextRequest) {
     supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-    const zu = await pruefeZugang(supabase, user.id)
+    const konto = await kontoIdFuer(supabase, user)
+    const sperre = kontoGesperrt(konto)
+    if (sperre) return sperre
+    const kontoId = konto.kontoId
+    const zu = await pruefeZugang(supabase, kontoId)
     if (zu) return zu
 
     const body = await req.json().catch(() => ({})) as {
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
       .from('projects')
       .select('id')
       .eq('id', projektId)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .single()
     if (projErr || !projektRow) {
       if (projErr) console.error('[analyze/block] Projekt-Prüfung:', projErr.message)
@@ -80,7 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Die vorbereiteten Blöcke liegen im Projektordner (Task C2).
-    const ordner = `${user.id}/${projektId}`
+    const ordner = `${kontoId}/${projektId}`
     const { data: blob, error: dlErr } = await supabase.storage.from(BUCKET).download(`${ordner}/${VORBEREITET}`)
     if (dlErr || !blob) {
       return NextResponse.json({ error: 'Die Vorbereitung fehlt. Bitte „Vorbereiten“ erneut ausführen.' }, { status: 409 })
@@ -90,7 +95,7 @@ export async function POST(req: NextRequest) {
     const block = bloecke.find(b => b.nr === blockNr)
     if (!block) return NextResponse.json({ error: `Block ${blockNr} gibt es nicht.` }, { status: 404 })
 
-    const plan = await ladeEffektivenPlan(supabase, user.id)
+    const plan = await ladeEffektivenPlan(supabase, kontoId)
     if (bloecke.length > 1 && !erlaubt(plan, 'bloecke')) {
       return NextResponse.json(bloeckeAblehnung(), { status: 403 })
     }
@@ -147,23 +152,23 @@ export async function POST(req: NextRequest) {
     const deaktiviert = new Set<string>((body.deaktivierteKostenstellen ?? []).map(c => normalizeKsId(c)))
 
     let faktoren: Faktoren = KEINE_FAKTOREN
-    try { faktoren = await ladeFaktoren(supabase, user.id) }
+    try { faktoren = await ladeFaktoren(supabase, kontoId) }
     catch (e) { console.error('[analyze/block] Faktoren:', e) }
     let lackBlock = ''
     try {
-      const kal = await ladeKalibrierung(supabase, user.id)
+      const kal = await ladeKalibrierung(supabase, kontoId)
       for (const ks of abzuschaltendeKostenstellen(kal)) deaktiviert.add(normalizeKsId(ks))
       lackBlock = lackBlockFuer(kal)
     } catch (e) { console.error('[analyze/block] Kalibrierung:', e) }
     let regelBlock = ''
-    try { regelBlock = (await regelBlockFuerNutzer(supabase, user.id)).block }
+    try { regelBlock = (await regelBlockFuerNutzer(supabase, kontoId)).block }
     catch (e) { console.error('[analyze/block] Regeln:', e) }
     let preisBlock = ''
-    try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
+    try { preisBlock = await preisBlockFuerNutzer(supabase, kontoId) }
     catch (e) { console.error('[analyze/block] Preise:', e) }
 
     const { data: profil, error: profilErr } = await supabase
-      .from('betriebsprofil').select('strasse, plz, ort, preisfaktor').eq('user_id', user.id).single()
+      .from('betriebsprofil').select('strasse, plz, ort, preisfaktor').eq('user_id', kontoId).single()
     if (profilErr) console.error('[analyze/block] Betriebsprofil:', profilErr.message)
     const preisfaktorNutzer = klemmePreisfaktor(profil?.preisfaktor) ?? PREISFAKTOR_STANDARD
     const standort = profil

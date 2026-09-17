@@ -42,9 +42,14 @@ export function zaehltGegenDeckel(name: string): boolean {
   return !name.startsWith('_')
 }
 
-/** Objektpfad im Bucket `projektdateien` — eine Stelle, damit Route und Tests nicht auseinanderlaufen. */
-export function bauePfad(userId: string, projektId: string, uuid: string, name: string): string {
-  return `${userId}/${projektId}/${uuid}-${sichererName(name)}`
+/**
+ * Objektpfad im Bucket `projektdateien` — eine Stelle, damit Route und Tests nicht
+ * auseinanderlaufen. Erstes Segment ist die `kontoId` (Teamfunktion: der Betrieb),
+ * nicht `user.id` eines einzelnen Logins — ein Mitarbeiter legt Dateien im Ordner
+ * des Inhabers ab, RLS erlaubt das über `konto_ids()`.
+ */
+export function bauePfad(kontoId: string, projektId: string, uuid: string, name: string): string {
+  return `${kontoId}/${projektId}/${uuid}-${sichererName(name)}`
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
