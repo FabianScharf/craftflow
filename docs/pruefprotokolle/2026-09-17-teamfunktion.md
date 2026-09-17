@@ -37,5 +37,9 @@ R1 Deckel in der App-Schicht (nicht in SQL) · R2 Zähler je Betrieb · R3/R6 St
 ## 5. Offen vor dem Live-Gang
 
 - Passwort nach Registrierung über den Einladungsweg zweimal „nicht funktioniert“ — mit frischer Adresse nachstellen (Bestätigungslink → Live-Adresse → Sitzung; dev-Vorschau ohne Sitzung).
-- Gesamtprüfung des ganzen Zweigs (Opus) läuft.
+- Gesamtprüfung des ganzen Zweigs (Opus): „bereit“, 0 kritisch, 2 wichtig + 9 klein; I1 (ruhende Mitglieder in SQL sperren, Spalte `ruht`), M2, M4, M9 behoben (bf0dc3b); M1/M3/M5–M8 geparkt (`final-review-report.md`).
 - Hilfe-Assistent kennt „Team“ (EINSTELLUNGSBEREICHE), CLAUDE.md-Abschnitt folgt.
+
+## 6. Live-Gang
+
+17.09. nachts auf Fabians Wort: main = dev = 33ae968 (Merge mit einem Konflikt in `src/middleware.ts` PUBLIC_PATHS, dev-Fassung übernommen). Website unverändert. Produktionsproben nach dem Build: siehe Abschlussmeldung in der Session / nächster Eintrag.
