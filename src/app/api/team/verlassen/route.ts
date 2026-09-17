@@ -7,6 +7,27 @@
 // Über die Service-Role, weil die update-Policy nur dem Inhaber gehört. Die Zeile
 // wird über `user_id = user.id` gefunden — es gibt keine Eingabe, mit der man
 // eine fremde Mitgliedschaft treffen könnte.
+//
+// DREI AUSGANGSLAGEN, EIN ERGEBNIS (Controller-Ergänzung aus Task 4, 17.09.):
+//   · aktives Mitglied  → verlässt den Betrieb
+//   · ruhendes Mitglied → in der Datenbank ebenfalls `status='aktiv'`, fällt also
+//     in denselben Fall
+//   · schon entferntes  → hier ist nichts mehr zu ändern, die Antwort ist
+//     trotzdem `{ ok: true }` (idempotent): Der Knopf auf der Sperrseite darf
+//     beim zweiten Druck nicht mit einem Fehler antworten.
+//
+// WARUM `user_id = null` UND NICHT NUR `status='entfernt'`: `ermittleKonto`
+// (src/lib/konto.ts) erkennt ein entferntes Mitglied genau an `status='entfernt'
+// && user_id = userId` und zeigt dafür die Sperrseite. Bliebe die `user_id`
+// stehen, wäre der Nutzer nach dem Verlassen weiter gesperrt — die Sperrseite
+// würde sich selbst wieder aufrufen. Mit gelöster `user_id` findet
+// `ermittleKonto` keine Zeile mehr und liefert `zustand: 'inhaber'`: Der Nutzer
+// arbeitet als eigener Betrieb weiter, so wie /settings es danach erwartet.
+//
+// Die Zeile selbst bleibt stehen (Plan-Constraint „Nichts wird gelöscht") und
+// trägt weiter Betrieb, Adresse und Daten — nur die Verbindung zum Login ist
+// gelöst. Das ist genau der Unterschied zwischen „der Inhaber hat mich entfernt"
+// (Zeile behält die user_id, Sperrseite) und „ich gehe selbst" (Zeile löst sich).
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
@@ -17,23 +38,20 @@ export async function POST() {
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
-  // Zeile bleibt stehen, nur der Zugang geht (Plan-Constraint „Nichts wird
-  // gelöscht"). Danach ist der Nutzer wieder sein eigener Betrieb: `ermittleKonto`
-  // findet keine aktive Mitgliedschaft mehr, nur eine entfernte — und die zählt
-  // erst, wenn keine aktive existiert.
+  // `in('status', …)` nimmt beide Fälle mit: das aktive (oder ruhende) Mitglied
+  // UND eine schon entfernte Zeile, deren `user_id` noch am Login hängt.
   const { data, error } = await getSupabaseClient()
     .from('betrieb_mitglieder')
-    .update({ status: 'entfernt' })
+    .update({ status: 'entfernt', user_id: null })
     .eq('user_id', user.id)
-    .eq('status', 'aktiv')
-    .select('id, inhaber_id')
+    .in('status', ['aktiv', 'entfernt'])
+    .select('id')
   if (error) {
     console.error('[team/verlassen] verlassen:', error.message)
     return NextResponse.json({ error: 'Der Betrieb konnte nicht verlassen werden.' }, { status: 500 })
   }
-  if ((data ?? []).length === 0) {
-    return NextResponse.json({ error: 'Du bist in keinem Betrieb Mitarbeiter.' }, { status: 400 })
-  }
 
-  return NextResponse.json({ ok: true })
+  // Auch „nichts zu tun" ist Erfolg: Der Nutzer ist danach in jedem Fall sein
+  // eigener Betrieb, und genau darauf verlässt sich die Sperrseite.
+  return NextResponse.json({ ok: true, geloest: (data ?? []).length })
 }
