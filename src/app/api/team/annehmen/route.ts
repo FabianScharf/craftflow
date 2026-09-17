@@ -170,16 +170,18 @@ export async function POST(req: NextRequest) {
   if (plan === 'gesperrt') {
     return NextResponse.json({ error: 'Der Betrieb hat aktuell keinen gültigen Zugang — sprich mit dem Inhaber.' }, { status: 403 })
   }
-  const { count: aktive, error: aErr } = await service
+  // Gleiche Falle wie oben (count/head ohne Fehlermeldung): die Zeilen holen und zählen.
+  const { data: aktiveZeilen, error: aErr } = await service
     .from('betrieb_mitglieder')
-    .select('id', { count: 'exact', head: true })
+    .select('id')
     .eq('inhaber_id', zeile.inhaber_id as string)
     .eq('status', 'aktiv')
   if (aErr) {
-    console.error('[team/annehmen] aktive Mitglieder:', aErr.message)
+    console.error('[team/annehmen] aktive Mitglieder:', aErr.message || JSON.stringify(aErr))
     return NextResponse.json({ error: 'Die Einladung ist gerade nicht abrufbar.' }, { status: 500 })
   }
-  if (plaetzeFrei(plan, aktive ?? 0, 0).voll) {
+  const aktive = (aktiveZeilen ?? []).length
+  if (plaetzeFrei(plan, aktive, 0).voll) {
     return NextResponse.json({ error: TEAM_TEXTE.voll(PLAN_LABELS[plan as Plan] ?? plan) }, { status: 403 })
   }
 
