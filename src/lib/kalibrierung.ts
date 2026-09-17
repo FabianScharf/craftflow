@@ -284,8 +284,11 @@ const AUSWEICHEN: Band[] = [
 const zahl = (n: number) => (Math.round(n * 2) / 2).toLocaleString('de-DE')
 const einheit = (n: number, ein: string, viele: string) =>
   `${zahl(n)} ${Math.round(n * 2) / 2 === 1 ? ein : viele}`
-const inTagen = (min: number) => einheit(min / 480, 'Tag', 'Tage')
-const inStunden = (min: number) => einheit(min / 60, 'Stunde', 'Stunden')
+// Exportiert fuer Task R4 (BetriebSettings): die Montage-Frage zeigt dort die
+// Dauer der Montage-Alternative als Anker unter der Position — dieselbe
+// Formatierung wie in den Bandtexten oben, keine zweite Rechenstelle.
+export const inTagen = (min: number) => einheit(min / 480, 'Tag', 'Tage')
+export const inStunden = (min: number) => einheit(min / 60, 'Stunde', 'Stunden')
 /** Tage, wenn es lange dauert — sonst Stunden. Stunden als Ausweichstufe. */
 const dauerFormen = (grenzeMin: number) =>
   grenzeMin >= 9 * 60 ? [inTagen, inStunden] : [inStunden]

@@ -2,9 +2,10 @@
 import { useEffect, useState } from 'react'
 import { akzentTon, ton } from '@/lib/theme'
 import { C } from '@/lib/types'
-import { BETRIEBSFRAGEN, referenzFuer, referenzPreis, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
+import { BETRIEBSFRAGEN, referenzFuer } from '@/lib/kalibrierung'
 import { klemmePreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
 import { PlanGate } from '@/components/PlanGate'
+import ReferenzprojektKasten, { type ReferenzprojektDaten } from '@/components/settings/ReferenzprojektKasten'
 
 // Einstellungen -> Mein Betrieb. Zeigt dieselben Fragen wie die Erst-Anmeldung
 // und die vier daraus abgeleiteten Faktoren in Klartext.
@@ -69,10 +70,9 @@ export default function BetriebSettings() {
   const [faktorenSpeichern, setFaktorenSpeichern] = useState(false)
   const [schleife, setSchleife] = useState<{ angebote: number; begruendung: string[] } | null>(null)
   const [schleifeLaeuft, setSchleifeLaeuft] = useState(false)
-  // SEINE Stundensaetze und SEIN Materialaufschlag — daraus rechnet die Oberflaeche
-  // den Ankerpreis, mit DEMSELBEN ref wie der Text darueber.
-  const [saetze, setSaetze] = useState<Record<string, number> | null>(null)
-  const [aufschlag, setAufschlag] = useState(0.30)
+  // Task R4: die ECHTE Kalkulation des Referenzprojekts, mit SEINEN Saetzen
+  // gerechnet — kommt fertig von der Route, hier wird nichts nachgerechnet.
+  const [referenzprojekt, setReferenzprojekt] = useState<ReferenzprojektDaten | null>(null)
   // Preisfaktor: eigener Zustand, eigenes Laden, eigener Knopf — dasselbe Muster wie
   // "Faktoren von Hand uebernehmen" (aktiv nur bei Aenderung, Meldung daneben).
   const [preisfaktor, setPreisfaktor] = useState<number>(PREISFAKTOR_STANDARD)
@@ -87,11 +87,9 @@ export default function BetriebSettings() {
     if (res.ok) {
       const j = await res.json() as {
         kalibrierung?: Kalibrierung | null
-        saetze?: Record<string, number>
-        aufschlag?: number
+        referenzprojekt?: ReferenzprojektDaten
       }
-      if (j.saetze) setSaetze(j.saetze)
-      if (typeof j.aufschlag === 'number') setAufschlag(j.aufschlag)
+      if (j.referenzprojekt) setReferenzprojekt(j.referenzprojekt)
       if (j.kalibrierung) {
         setK({ ...LEER, ...j.kalibrierung,
           maschinen: Array.isArray(j.kalibrierung.maschinen) ? j.kalibrierung.maschinen : [],
@@ -260,22 +258,14 @@ export default function BetriebSettings() {
 
   // Das Referenzmoebel folgt dem Schwerpunkt — sofort, ohne Speichern. Dieselbe
   // Ableitung nutzt die Route beim Rechnen (referenzFuer), sonst wuerde gegen andere
-  // Zahlen gerechnet als hier gefragt wurde.
+  // Zahlen gerechnet als hier gefragt wurde. Die eigentliche Kalkulation (Positionen,
+  // Summen, Faustregel) kommt fertig gerechnet von der Route (referenzprojekt) —
+  // ref liefert hier nur noch die Fragen/Baender und die Montage-Dauer.
   const ref = referenzFuer(k.schwerpunkt)
 
-  // Der Ankerpreis kommt aus DEMSELBEN ref wie der Text — deshalb kann er nicht mehr
-  // zu einem anderen Moebel gehoeren. Bei Fragen ohne Material ist es der reine
-  // Arbeitspreis, bei Referenzen mit Teiler der Wert je Stueck.
-  const anker = (() => {
-    if (!saetze) return null
-    const p = referenzPreis(saetze, aufschlag, ref)
-    const ohneMaterial = (ref.ohneMaterial ?? []).includes('grund')
-    const teiler = ref.teiler?.grund ?? 1
-    return {
-      preis: Math.round((ohneMaterial ? p.gesamt - p.material : p.gesamt) / teiler),
-      ohneMaterial, teiler,
-    }
-  })()
+  // "Kalibriert am Einbauschrank" nur zeigen, wenn wirklich KEIN angekreuzter
+  // Schwerpunkt eine eigene Referenz hat (referenzFuer faellt dann auf ihn zurueck).
+  const eigeneReferenz = ref.schluessel !== 'einbauschrank' || k.schwerpunkt.includes('einbau')
 
   const schluesselZuFeld: Record<string, keyof Kalibrierung> = {
     grund: 'antwort_grund', lack: 'antwort_lack',
@@ -306,6 +296,11 @@ export default function BetriebSettings() {
         <div style={{ color: C.textMid, fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>
           Ohne CNC oder Kantenanleimmaschine schaltet CraftFlow beim Speichern die Kostenstellen „CNC“ bzw. „Bekantung“ ab — und wieder an, sobald du sie hier auswählst.
         </div>
+        <div style={{ color: C.textMid, fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
+          Ohne Lackierkabine bleibt die Kostenstelle „Oberfläche“ trotzdem an — Ölen,
+          Wachsen und Schleifen machst du weiter selbst. Lackierte Flächen kalkuliert
+          CraftFlow dann als Zukauf-Material, dessen Quadratmeterpreis du selbst einträgst.
+        </div>
       </div>
 
       <div style={{ marginBottom: 26 }}>
@@ -323,33 +318,16 @@ export default function BetriebSettings() {
 
       <div style={{ height: 1, background: C.border, margin: '30px 0' }} />
 
-      <div style={{ background: C.gray1, borderRadius: 8, padding: 16, marginBottom: 22 }}>
-        <div style={{ color: C.white, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-          Das Referenzmöbel: {ref.name}
-        </div>
-        <div style={{ color: C.white, fontSize: 13, lineHeight: 1.7 }}>{ref.text}</div>
-        <div style={{ color: C.textMid, fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
-          Es richtet sich nach dem, was du oben angekreuzt hast. Genau diese fünf Dinge
-          braucht CraftFlow immer: Möbelart, Maße, Material, Ausstattung, Montage.
-        </div>
-        {anker && (
-          <div style={{ color: C.textMid, fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
-            Mit deinen Stundensätzen rechnet CraftFlow dafür zurzeit{' '}
-            <b style={{ color: C.copper }}>{anker.preis.toLocaleString('de-DE')} €</b>
-            {anker.teiler > 1 ? ' je Stück' : ''}
-            {anker.ohneMaterial ? ' für die Arbeit, ohne Material' : ' netto'}.
-            Weicht deine Zahl stark ab, passt CraftFlow die Zeiten an.
-          </div>
-        )}
-      </div>
-
-      {ref.fragenliste.map(f => (
-        <div key={f.schluessel}>
-          {gruppe(f.text, f.hinweis, f.baender.map(b => ({ wert: b.schluessel, text: b.text })),
-            antwort(f.schluessel), w => setzeAntwort(f.schluessel, w),
-            RANDBAENDER.includes(antwort(f.schluessel)) ? RANDHINWEIS : '')}
-        </div>
-      ))}
+      {referenzprojekt && (
+        <ReferenzprojektKasten
+          daten={referenzprojekt}
+          referenzmoebel={ref}
+          antwort={antwort}
+          setzeAntwort={setzeAntwort}
+          gruppe={gruppe}
+          eigeneReferenz={eigeneReferenz}
+        />
+      )}
 
       <div style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6, marginBottom: 24 }}>
         &bdquo;Weiß ich gerade nicht&ldquo; ist eine gültige Antwort: Dann rechne ich in diesem
