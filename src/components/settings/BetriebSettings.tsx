@@ -86,6 +86,25 @@ export default function BetriebSettings() {
 
   useEffect(() => { void laden() }, [])
 
+  // GEFUNDEN 2026-09-17 von Fabian: Das Referenzprojekt im Kasten blieb die Kueche,
+  // auch nachdem er "Kuechen" abgewaehlt hatte — der Kasten kam aus dem gespeicherten
+  // Stand, nur die Baender folgten den Klicks. Jetzt holt jede Aenderung an Schwerpunkt,
+  // Maschinen oder Montage das Projekt neu (Route mit Query), ohne Speichern.
+  const schwerpunktKey = k.schwerpunkt.join(',')
+  const maschinenKey = k.maschinen.join(',')
+  useEffect(() => {
+    if (laedt) return
+    let abgebrochen = false
+    const q = new URLSearchParams({ schwerpunkt: schwerpunktKey, maschinen: maschinenKey, montage_selbst: k.montage_selbst })
+    fetch(`/api/settings/kalibrierung?${q.toString()}`, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then((j: { referenzprojekt?: ReferenzprojektDaten } | null) => {
+        if (!abgebrochen && j?.referenzprojekt) setReferenzprojekt(j.referenzprojekt)
+      })
+      .catch(() => { /* alter Kasten bleibt stehen */ })
+    return () => { abgebrochen = true }
+  }, [laedt, schwerpunktKey, maschinenKey, k.montage_selbst])
+
   async function laden() {
     const res = await fetch('/api/settings/kalibrierung')
     if (res.ok) {

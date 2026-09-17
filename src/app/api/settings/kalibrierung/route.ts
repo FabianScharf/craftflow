@@ -7,11 +7,25 @@ import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspei
 import { pruefeFunktion } from '@/lib/planpruefung'
 import { REFERENZPROJEKTE, mitSaetzen, summen, faustregelKontrolle, umgebucht } from '@/lib/referenzprojekte'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
   const kalibrierung = await ladeKalibrierung(supabase, user.id)
+
+  // GEFUNDEN 2026-09-17 von Fabian: "Bei den Referenzmoebeln ist jetzt immer die
+  // Kueche vorhanden. Auch wenn ich die Kuechen abwaehle. Es wechselt nicht mehr."
+  // Das Referenzprojekt wurde aus dem GESPEICHERTEN Schwerpunkt gebaut — die
+  // Klicks in Mein Betrieb erreichten nur die Antwortbaender (Oberflaeche), nicht
+  // den Kasten. Jetzt duerfen Schwerpunkt, Maschinen und Montage per Query
+  // mitkommen (kommagetrennt); ohne Query gilt weiter der gespeicherte Stand.
+  const sp = req.nextUrl.searchParams
+  const liste = (k: string, gespeichert: unknown) => sp.has(k)
+    ? (sp.get(k) ?? '').split(',').map(x => x.trim()).filter(Boolean)
+    : (Array.isArray(gespeichert) ? (gespeichert as unknown[]).map(String) : [])
+  const schwerpunkt = liste('schwerpunkt', kalibrierung?.schwerpunkt)
+  const maschinen = liste('maschinen', kalibrierung?.maschinen)
+  const montageSelbst = sp.has('montage_selbst') ? (sp.get('montage_selbst') ?? '') : String(kalibrierung?.montage_selbst ?? '')
 
   // Fuer den Ankerpreis: SEINE Stundensaetze und SEIN Materialaufschlag. Gerechnet
   // wird damit in der Oberflaeche, nicht hier.
@@ -40,8 +54,8 @@ export async function GET() {
   // jetzt CNC-Zeit. Ein Betrieb OHNE CNC/Kantenanleimmaschine sieht sie UMGEBUCHT
   // auf Handarbeit (umgebucht/referenzMitSaetzen) — so, wie seine Kalkulation
   // rechnet. "Montage nie" laesst die Referenz unveraendert (siehe umgebucht).
-  const deaktiviert = abzuschaltendeKostenstellen(kalibrierung)
-  const ref = referenzMitSaetzen(referenzFuer(kalibrierung?.schwerpunkt), saetze, aufschlag, deaktiviert)
+  const deaktiviert = abzuschaltendeKostenstellen({ maschinen, montage_selbst: montageSelbst })
+  const ref = referenzMitSaetzen(referenzFuer(schwerpunkt), saetze, aufschlag, deaktiviert)
   const projekt = umgebucht(REFERENZPROJEKTE[ref.schluessel], deaktiviert)
   const positionen = mitSaetzen(projekt, saetze, aufschlag)
   const projektSummen = summen(positionen, true)
