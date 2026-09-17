@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getSupabaseClient } from '@/lib/supabase'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { pruefeZugang } from '@/lib/planpruefung'
 import { stimmenAblehnung } from '@/lib/plantexte'
 import { istPlan, type EffektiverPlan, type Plan, type ProfilFuerPlan } from '@/lib/plaene'
@@ -66,7 +67,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   const { data: wunsch, error: wErr } = await supabase
@@ -77,14 +81,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Dieser Wunsch nimmt keine Stimmen mehr an.' }, { status: 400 })
   }
 
+  // R3: Budget und Plan hängen am Betrieb (Konto), nicht am einzelnen Login.
   const { data: profil, error: pErr } = await supabase
     .from('betriebsprofil')
     .select('plan, trial_starts_at, abo_status, plan_gueltig_bis')
-    .eq('user_id', user.id).single()
+    .eq('user_id', kontoId).single()
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 })
 
   const { data: eigene, error: eErr } = await supabase
-    .from('wunsch_stimmen').select('wunsch_id, user_id, created_at').eq('user_id', user.id)
+    .from('wunsch_stimmen').select('wunsch_id, user_id, created_at').eq('user_id', kontoId)
   if (eErr) return NextResponse.json({ error: eErr.message }, { status: 500 })
 
   const budget = stimmenbudget(profil as ProfilFuerPlan)
@@ -92,17 +97,17 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const { data: versteckteRoh } = await getSupabaseClient()
     .from('wuensche').select('id').or('status.in.(ausgeblendet,fertig),zusammengelegt_in.not.is.null')
   const zaehlbar = ohneVersteckte((eigene ?? []) as Stimme[], ((versteckteRoh ?? []) as Array<{ id: string }>).map(w => String(w.id)))
-  const benutzt = aktiveStimmen(zaehlbar, { [user.id]: profil as ProfilFuerPlan }).length
+  const benutzt = aktiveStimmen(zaehlbar, { [kontoId]: profil as ProfilFuerPlan }).length
   if (benutzt >= budget) {
     const plan: EffektiverPlan = effektiverPlan(profil as ProfilFuerPlan)
     const fuerText: Plan = istPlan(plan) ? plan : 'solo'
     return NextResponse.json(stimmenAblehnung(fuerText), { status: 403 })
   }
 
-  const { error } = await supabase.from('wunsch_stimmen').insert({ wunsch_id: id, user_id: user.id })
+  const { error } = await supabase.from('wunsch_stimmen').insert({ wunsch_id: id, user_id: kontoId })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({
-    ok: true, stimmen: await zaehleWunsch(id), eigeneStimmen: await zaehleEigene(supabase, id, user.id),
+    ok: true, stimmen: await zaehleWunsch(id), eigeneStimmen: await zaehleEigene(supabase, id, kontoId),
   })
 }
 
@@ -111,14 +116,17 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   // Genau EINE eigene Stimme zurücknehmen — die NEUESTE eigene Zeile auf diesem Wunsch.
   const { data: neueste, error: nErr } = await supabase
     .from('wunsch_stimmen')
     .select('id')
-    .eq('wunsch_id', id).eq('user_id', user.id)
+    .eq('wunsch_id', id).eq('user_id', kontoId)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -128,6 +136,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { error } = await supabase.from('wunsch_stimmen').delete().eq('id', neueste.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({
-    ok: true, stimmen: await zaehleWunsch(id), eigeneStimmen: await zaehleEigene(supabase, id, user.id),
+    ok: true, stimmen: await zaehleWunsch(id), eigeneStimmen: await zaehleEigene(supabase, id, kontoId),
   })
 }

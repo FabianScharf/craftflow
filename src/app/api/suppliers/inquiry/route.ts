@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { erlaubt } from '@/lib/plaene'
 import { pruefeFunktion, ladeEffektivenPlan } from '@/lib/planpruefung'
 
@@ -150,7 +151,10 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-    const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+    const konto = await kontoIdFuer(supabase, user)
+    const kontoSperre = kontoGesperrt(konto); if (kontoSperre) return kontoSperre
+    const kontoId = konto.kontoId
+    const sperre = await pruefeFunktion(supabase, kontoId, 'lieferanten')
     if (sperre) return sperre
 
     const { positionTitel, materials } = await req.json() as {
@@ -161,13 +165,13 @@ export async function POST(req: NextRequest) {
     if (!materials?.length) return NextResponse.json({ error: 'Keine Materialien übergeben' }, { status: 400 })
 
     // Plan laden (für Internetrecherche-Feature)
-    const plan = await ladeEffektivenPlan(supabase, user.id)
+    const plan = await ladeEffektivenPlan(supabase, kontoId)
 
-    // Materialgruppen für diesen User laden
+    // Materialgruppen des Betriebs (Konto) laden
     const { data: matGruppen } = await supabase
       .from('materialgruppen')
       .select('name')
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .eq('aktiv', true)
       .order('name')
 
@@ -177,7 +181,7 @@ export async function POST(req: NextRequest) {
     const { data: allSuppliers } = await supabase
       .from('suppliers')
       .select('id, company_name, general_email, ansprechpartner, phone, website, kategorien, ist_favorit')
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .eq('aktiv', true)
 
     const suppliers = (allSuppliers ?? []) as SupplierRow[]

@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
+import { TEAM_TEXTE } from '@/lib/team'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const kontoSperre = kontoGesperrt(konto); if (kontoSperre) return kontoSperre
+  // Die Rechnungsverwaltung des Betriebs-Abos ist Sache des Inhabers (Spec).
+  if (!konto.istInhaber) return NextResponse.json({ error: TEAM_TEXTE.nurInhaber }, { status: 403 })
+  const kontoId = konto.kontoId
 
   const { data } = await supabase
     .from('betriebsprofil')
     .select('stripe_customer_id')
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .single()
 
   if (!data?.stripe_customer_id) {

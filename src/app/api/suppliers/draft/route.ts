@@ -23,6 +23,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { pruefeFunktion } from '@/lib/planpruefung'
 
 function getGmailClient() {
@@ -46,11 +47,14 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const konto = await kontoIdFuer(supabase, user)
+    const kontoSperre = kontoGesperrt(konto); if (kontoSperre) return kontoSperre
+    const kontoId = konto.kontoId
 
     // Lieferantenverwaltung ist ab Starter. Diese Route ruft zusaetzlich die
     // Gmail-API (externe Kosten) — ohne Pruefung fuer jeden Plan offen
     // (Audit 2026-09-17, I3).
-    const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+    const sperre = await pruefeFunktion(supabase, kontoId, 'lieferanten')
     if (sperre) return sperre
 
     const { supplierId, templateId, variables = {} } = await req.json() as {
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
       .from('suppliers')
       .select('id, company_name, general_email')
       .eq('id', supplierId)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .single()
 
     if (supplierErr || !supplier) {
@@ -87,8 +91,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: template, error: templateErr } = templateId
-      ? await supabase.from('email_templates').select('subject, body').eq('id', templateId).eq('user_id', user.id).single()
-      : await supabase.from('email_templates').select('subject, body').eq('is_default', true).eq('user_id', user.id).single()
+      ? await supabase.from('email_templates').select('subject, body').eq('id', templateId).eq('user_id', kontoId).single()
+      : await supabase.from('email_templates').select('subject, body').eq('is_default', true).eq('user_id', kontoId).single()
 
     if (templateErr || !template) {
       return NextResponse.json({ error: 'Kein E-Mail-Template gefunden' }, { status: 404 })
