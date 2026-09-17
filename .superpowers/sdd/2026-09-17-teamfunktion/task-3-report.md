@@ -1,11 +1,14 @@
 # Task 3 — Einladung: Routen, Mail, Seite, Rücksprung
 
-**Status:** fertig (Tests, tsc, eslint grün; ein Commit, nicht gepusht)
+**Status:** fertig, Fix-Runde 1 eingearbeitet (Tests, tsc, eslint grün; nicht gepusht)
 
 - **Worktree:** `/Users/fabianscharf/Downloads/craftflow/.claude/worktrees/agent-a9869d2dace55a3b7`
 - **Branch:** `worktree-agent-a9869d2dace55a3b7`
 - **Basis:** `02045b1` (dev, Task 1)
-- **Commit:** `93f1eb5` — `feat(team): Einladung per E-Mail-Link, Annehmen, Verlassen, Rücksprung nach Login`
+- **Commits:**
+  - `93f1eb5` — `feat(team): Einladung per E-Mail-Link, Annehmen, Verlassen, Rücksprung nach Login`
+  - `a59d9d6` — `fix(team): Betrieb verlassen wirkt auch für ruhende und schon entfernte Mitglieder` (+ dieser Bericht)
+  - `cf4097a` — `fix(team): Review-Runde 1 — lesbarer Regex, eigener Erfolgszustand, zwei ehrliche Antworten` (siehe Abschnitt 6)
 
 > **Hinweis an den Controller:** Der Worktree stand beim Start auf `8826876`, also
 > vier Commits VOR der Task-1-Basis — `src/lib/konto.ts`, `kontoserver.ts`,
@@ -269,3 +272,60 @@ eine Falle ohne Ausweg.
   ausgeführt (Regel „Code lesen ist nicht prüfen"). Der Live-Test gehört in
   Task 5: Einladen → Resend-Log → Link im zweiten Browserprofil → annehmen →
   Plan auf Solo → Sperrseite.
+
+---
+
+## 6. Fix-Runde 1 (Review vom 17.09., `task-3-review.md`)
+
+**Commit:** `cf4097a` — `fix(team): Review-Runde 1 — lesbarer Regex, eigener
+Erfolgszustand, zwei ehrliche Antworten`
+**Prüfungen danach:** `npm run test` **499/499 grün**, `tsc --noEmit` **leer**,
+`eslint` über `src/app/api/team`, `src/app/einladung`, `src/lib/team.ts`
+**keine Meldung**.
+
+Alle vier Befunde behoben:
+
+**H1 — rohe Steuerzeichen in `src/lib/team.ts` (behoben).** Die
+Zeichenklasse in `sicherNext` enthielt die Rohbytes `0x00`, `0x1F`, `0x7F`;
+jetzt stehen die Grenzen als Escapes (`\u0000`–`\u001F`, `\u007F`), mit einem
+Kommentar, der sagt WARUM das kein Stilfrage ist. Verhalten unverändert — die
+Fälle in `tests/team.test.mjs` (Leerzeichen, Steuerzeichen, uuid mit
+Bindestrichen) bleiben grün.
+Gegenprobe gelaufen, nicht nur gelesen:
+- `git grep -I "sicherNext" HEAD -- src/lib/team.ts` findet die Zeile — `-I`
+  überspringt binäre Dateien, Git sieht die Datei also als Text.
+- Probe mit einer eingefügten Zeile: `git diff --stat` meldet
+  `src/lib/team.ts | 1 +` statt `Bin … bytes`; Arbeitsbaum danach wieder sauber.
+- Ein Byte-Durchlauf über **alle 16** von mir angefassten Dateien zeigt
+  0 rohe Steuerzeichen (erlaubt nur Tab, LF, CR).
+- Der `--stat` des Fix-Commits selbst sagt weiterhin `Bin`, weil die ALTE Seite
+  des Diffs noch das NUL-Byte trägt. Jede künftige Änderung ist lesbar.
+
+**M1 — Erfolg hing am Firmennamen (behoben).** Die Einladungsseite hat jetzt
+`angenommen: boolean` als eigenen Zustand; der Name liegt getrennt in
+`betriebDanach` und fällt im Text auf „deinem Betrieb" zurück. Vorher hätte ein
+Betrieb **ohne** Firmennamen (Route liefert dann bewusst `null`) nach der
+erfolgreichen Annahme weiter die Einladungsansicht mit aktivem Knopf gezeigt —
+und der zweite Druck 409. Ein Erfolg, der wie ein Fehler aussieht.
+
+**N1 — Datenbankfehler wurde zur falschen 403 (behoben).** `prErr` beim Lesen des
+Betriebsprofils führt jetzt zu **500** „Die Einladung ist gerade nicht abrufbar."
+statt weiterzulaufen in `effektiverPlan(null) === 'gesperrt'` und dem
+Eingeladenen „Der Betrieb hat aktuell keinen gültigen Zugang" zu erzählen. Die
+Route behandelt damit alle ihre Abfragen gleich.
+
+**N2 — bereits angenommener Token (behoben, idempotent).** Findet die erste
+Abfrage (`status='eingeladen'`) nichts, sieht die Route einmal ohne Statusfilter
+nach — aber gebunden an `status='aktiv' AND user_id = user.id`. Trifft das zu,
+kommt `{ ok: true, betriebName }` zurück; ein alter Tab oder ein zweiter Klick
+landet also nicht mehr auf „Diese Einladung gibt es nicht mehr", obwohl der
+Nutzer im Team ist. **Ein fremder oder unbekannter Token bekommt weiterhin 404**
+— die Bindung an `user_id` ist genau der Punkt, an dem das kein Auskunftsleck
+wird. Ein Fehler bei dieser Zusatzabfrage antwortet 500, nicht still 404.
+
+**Lehre für künftige Runden (Werkzeugfalle):** Die Rohbytes aus H1 sind
+entstanden, weil `\uXXXX` in einem Werkzeug-Parameter beim Schreiben der Datei
+aufgelöst wird — aus `\u0000` im Text wurde ein echtes NUL-Byte. Wer hier
+Escape-Sequenzen in Quelltext schreiben will, muss den Backslash verdoppeln oder
+die Zeile über ein Skript setzen (so ist dieser Fix gelaufen) und danach die
+Bytes nachmessen. Derselbe Fallstrick traf die Commit-Nachricht.
