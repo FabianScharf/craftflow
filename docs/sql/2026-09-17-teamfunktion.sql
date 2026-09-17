@@ -458,3 +458,36 @@ end $$;
 --
 -- Und die Funktionen selbst:
 -- select public.konto_id(), public.konto_ids();
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- NACHTRAG CONTROLLER (2026-09-17, vor dem Ausführen), Live-Stand geprüft:
+--   email_config:  RLS an, EINE bestehende Policy "email_config_user_isolation"
+--                  [ALL] (user_id = auth.uid()) — die fehlte im Export. Sie bleibt
+--                  sonst neben den neuen stehen und sperrt Mitarbeiter beim Löschen.
+--   consent_log:   RLS AUS, keine Policy. Persönliche Zustimmung (AGB/AVV) — nur der
+--                  Nutzer selbst, NIE der Betrieb (Inventar §1.2).
+--   optim_events:  RLS AUS, keine Policy. Ereignis-Log je Projekt — betriebsintern.
+-- Beides Altlasten: bis hierher konnte jeder Angemeldete über PostgREST alle Zeilen
+-- dieser zwei Tabellen lesen. Die Routen schreiben mit dem Cookie-Client, die
+-- Policies unten lassen genau das weiter zu.
+-- ═══════════════════════════════════════════════════════════════════════════
+drop policy if exists "email_config_user_isolation" on public.email_config;
+drop policy if exists "eigene email_config loeschen" on public.email_config;
+create policy "eigene email_config loeschen" on public.email_config for delete
+  using (user_id = any(public.konto_ids()));
+
+alter table public.consent_log enable row level security;
+drop policy if exists "eigene Zustimmung lesen" on public.consent_log;
+create policy "eigene Zustimmung lesen" on public.consent_log for select
+  using (user_id = auth.uid());
+drop policy if exists "eigene Zustimmung anlegen" on public.consent_log;
+create policy "eigene Zustimmung anlegen" on public.consent_log for insert
+  with check (user_id = auth.uid());
+
+alter table public.optim_events enable row level security;
+drop policy if exists "eigene Optimieren-Ereignisse lesen" on public.optim_events;
+create policy "eigene Optimieren-Ereignisse lesen" on public.optim_events for select
+  using (user_id = any(public.konto_ids()));
+drop policy if exists "eigene Optimieren-Ereignisse anlegen" on public.optim_events;
+create policy "eigene Optimieren-Ereignisse anlegen" on public.optim_events for insert
+  with check (user_id = any(public.konto_ids()));
