@@ -13,7 +13,7 @@ import type { NextRequest } from 'next/server'
 // Titel, Beschreibung, Status, Stimmenzahl und Änderungszeitpunkt heraus — keine
 // Nutzerdaten. Bewusst der volle Pfad, nicht '/api/wuensche' — sonst öffnete
 // `startsWith` versehentlich auch /api/wuensche/[id]/stimme mit.
-const PUBLIC_PATHS = ['/login', '/register', '/impressum', '/datenschutz', '/agb', '/avv', '/auth/forgot-password', '/auth/reset-password', '/auth/callback', '/api/notify-signup', '/api/stripe/webhook', '/api/wuensche/oeffentlich']
+const PUBLIC_PATHS = ['/login', '/register', '/impressum', '/datenschutz', '/agb', '/avv', '/auth/forgot-password', '/auth/reset-password', '/auth/callback', '/api/notify-signup', '/api/stripe/webhook', '/api/wuensche/oeffentlich', '/api/cron/tag3-mail']
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
