@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { today } from '@/lib/types'
 import { pruefeZugang } from '@/lib/planpruefung'
-import { REFERENZPROJEKTE, mitSaetzen, projektDatenAus } from '@/lib/referenzprojekte'
+import { abzuschaltendeKostenstellen } from '@/lib/kalibrierung'
+import { ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
+import { REFERENZPROJEKTE, mitSaetzen, projektDatenAus, umgebucht } from '@/lib/referenzprojekte'
 
 // Dieselbe Rechnung wie in ../route.ts (ladeSaetzeUndAufschlag) — bewusst hier
 // noch einmal, statt aus route.ts zu exportieren: eine route.ts darf laut
@@ -55,7 +57,12 @@ export async function POST(req: NextRequest) {
   if (!Object.keys(REFERENZPROJEKTE).includes(schluessel)) {
     return NextResponse.json({ error: 'Unbekanntes Referenzprojekt.' }, { status: 400 })
   }
-  const projekt = REFERENZPROJEKTE[schluessel as keyof typeof REFERENZPROJEKTE]
+  // Ohne CNC/Kantenanleimmaschine: dieselbe Umbuchung auf Handarbeit wie in GET
+  // (../route.ts) — das angelegte Projekt muss zeigen, was der Kasten gezeigt hat.
+  const kalibrierung = await ladeKalibrierung(supabase, user.id)
+  const projekt = umgebucht(
+    REFERENZPROJEKTE[schluessel as keyof typeof REFERENZPROJEKTE],
+    abzuschaltendeKostenstellen(kalibrierung))
 
   const { saetze, aufschlag } = await ladeSaetzeUndAufschlag(supabase, user.id)
   const positionen = mitSaetzen(projekt, saetze, aufschlag)

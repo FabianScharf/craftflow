@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { akzentTon, ton } from '@/lib/theme'
 import { C } from '@/lib/types'
-import { BETRIEBSFRAGEN, referenzFuer } from '@/lib/kalibrierung'
+import { BETRIEBSFRAGEN, referenzFuer, referenzMitSaetzen, abzuschaltendeKostenstellen } from '@/lib/kalibrierung'
 import { klemmePreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
 import { PlanGate } from '@/components/PlanGate'
 import ReferenzprojektKasten, { type ReferenzprojektDaten } from '@/components/settings/ReferenzprojektKasten'
@@ -73,6 +73,10 @@ export default function BetriebSettings() {
   // Task R4: die ECHTE Kalkulation des Referenzprojekts, mit SEINEN Saetzen
   // gerechnet — kommt fertig von der Route, hier wird nichts nachgerechnet.
   const [referenzprojekt, setReferenzprojekt] = useState<ReferenzprojektDaten | null>(null)
+  // Saetze und Materialaufschlag DIESES Betriebs (von der Route) — damit die
+  // Antwortbaender unten in SEINEN Euro stehen, nicht in Standardsatz-Euro.
+  const [saetze, setSaetze] = useState<Record<string, number>>({})
+  const [aufschlag, setAufschlag] = useState<number>(0.30)
   // Preisfaktor: eigener Zustand, eigenes Laden, eigener Knopf — dasselbe Muster wie
   // "Faktoren von Hand uebernehmen" (aktiv nur bei Aenderung, Meldung daneben).
   const [preisfaktor, setPreisfaktor] = useState<number>(PREISFAKTOR_STANDARD)
@@ -88,8 +92,12 @@ export default function BetriebSettings() {
       const j = await res.json() as {
         kalibrierung?: Kalibrierung | null
         referenzprojekt?: ReferenzprojektDaten
+        saetze?: Record<string, number>
+        aufschlag?: number
       }
       if (j.referenzprojekt) setReferenzprojekt(j.referenzprojekt)
+      if (j.saetze && typeof j.saetze === 'object') setSaetze(j.saetze)
+      if (typeof j.aufschlag === 'number' && Number.isFinite(j.aufschlag)) setAufschlag(j.aufschlag)
       if (j.kalibrierung) {
         setK({ ...LEER, ...j.kalibrierung,
           maschinen: Array.isArray(j.kalibrierung.maschinen) ? j.kalibrierung.maschinen : [],
@@ -261,7 +269,15 @@ export default function BetriebSettings() {
   // Zahlen gerechnet als hier gefragt wurde. Die eigentliche Kalkulation (Positionen,
   // Summen, Faustregel) kommt fertig gerechnet von der Route (referenzprojekt) —
   // ref liefert hier nur noch die Fragen/Baender und die Montage-Dauer.
-  const ref = referenzFuer(k.schwerpunkt)
+  //
+  // GEFUNDEN 2026-09-17: Die Baender kamen bis hierher aus REFERENZEN, also mit
+  // STANDARDSAETZEN — obwohl die Route (Fix Runde 3, 9a31284) sie laengst mit den
+  // Saetzen des Betriebs baute und PUT auch so rechnet. Ein teurer Betrieb sah
+  // Standard-Euro, gerechnet wurde in seinen Euro. Jetzt DIESELBE Funktion wie in
+  // der Route: eigene Saetze, eigener Aufschlag, und ohne CNC/Kantenanleimmaschine
+  // die Umbuchung auf Handarbeit (abzuschaltendeKostenstellen) — live zu den Klicks.
+  const ref = referenzMitSaetzen(referenzFuer(k.schwerpunkt), saetze, aufschlag,
+    abzuschaltendeKostenstellen({ maschinen: k.maschinen, montage_selbst: k.montage_selbst }))
 
   // "Kalibriert am Einbauschrank" nur zeigen, wenn wirklich KEIN angekreuzter
   // Schwerpunkt eine eigene Referenz hat (referenzFuer faellt dann auf ihn zurueck).

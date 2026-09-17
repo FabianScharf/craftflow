@@ -187,3 +187,12 @@ KI-Referenzläufe vom 16./17.09. bleiben als Gegenprobe im Protokoll.
    (Stückliste vollständig? Zeitrichtwerte passend? Ergebnis plausibel?).
 2. Die Texte oben: fachlich richtig? Fehlt etwas, was ein Kunde fragen würde?
 3. ~~Referenzkalkulation: feste Positionsliste oder KI-Lauf?~~ → entschieden (17.09.): fünf feste Referenzprojekte mit Alternativpositionen, kein KI-Lauf.
+
+## Nachtrag 17.09. nachmittags (Fabian)
+
+- Zeiten der Referenzen im **oberen Mittelfeld** der Richtwerte, nicht am unteren Rand — „damit die
+  Faktoren auch funktionieren“. Küche jetzt 8.593 € netto ohne Geräte (77,5 h), Schrank 2.528 €.
+- Spanplatte **25 €/m²** (inkl. Verschnitt/Zuschnitt), Frontqualität 30 €/m².
+- **CNC** ist eine eigene Kostenstelle in Schrank und Küche (Lochreihen, Beschlag- und Verbinderbohrungen,
+  Ausschnitte). Betriebe ohne CNC sehen die Zeit × 1,6 auf dem Zusammenbau (`umgebucht`).
+- Kasten: Mengen und Minuten gelten je Stück, das steht jetzt dran (Preise für alle Stück).

@@ -168,6 +168,18 @@ ungefragt auf `main`.
   Positionen (Lack = Aufpreis, Massiv = Gesamtpreis, Montage = Dauer), Faustregel-Zeile, „Als Projekt öffnen“.
 - Referenzen NIE aus KI-Läufen bauen: derselbe Text ergibt ±30 % Stunden je Lauf (Vault „KI-Streuung
   und feste Referenzkalkulationen“). Prüfprotokoll: `docs/pruefprotokolle/2026-09-17-kalibrierung-und-checkup.md`.
+- **Fabians Korrekturen 17.09. nachmittags:** Zeiten im **oberen Mittelfeld** der Richtwerte („damit die
+  Faktoren funktionieren“), nie am unteren Rand; **Spanplatte 25 €/m²** (inkl. Verschnitt/Zuschnitt);
+  **CNC ist eine eigene Kostenstelle** (Lochreihen, Topf-/Verbinderbohrungen, Ausschnitte) — Schrank und
+  Küche tragen CNC-Zeit. Küche jetzt 8.593 € / 77,5 h (vorher 6.044 € / 23 h Werkstatt — „sehr wenig Zeit“),
+  Schrank 2.528 € (EK 584,50 €; der gemessene Anker 409,50 € gilt nicht mehr).
+- **Betrieb ohne CNC/Kantenanleimmaschine:** `umgebucht(projekt, deaktiviert)` bucht die Minuten × 1,6 auf
+  den Zusammenbau (dieselbe Regel wie `bucheUm` in `handarbeit.ts`); Route, `als-projekt` und
+  `referenzMitSaetzen(…, deaktiviert)` nutzen sie. „Montage nie“ verändert die Referenz nicht.
+- **Eine Bandquelle:** Mein Betrieb und Erst-Anmeldung bauen die Antwortbänder mit `referenzMitSaetzen`
+  (eigene Sätze/Aufschlag aus der Route + Umbuchung) — vorher zeigte die Oberfläche Standardsatz-Bänder,
+  während PUT mit den eigenen rechnete. Im Kasten steht bei Stückzahl > 1 „je Stück“ an Mengen/Minuten
+  (Fabian: „5 Minuten Verpacken — für einen Schrank oder alle fünf?“).
 
 ## Farben / CI (Stand 2026-09-15)
 - Zwei Nutzerfarben (`farbe_primaer`, `farbe_akzent` im Betriebsprofil). Alles andere —

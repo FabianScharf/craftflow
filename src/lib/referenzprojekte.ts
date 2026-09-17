@@ -13,14 +13,16 @@
 // oder der Abschnitt aus CLAUDE.md (3 Korpusbau, 4 Oberflaeche, 5 Montage,
 // 6 Faustregeln, 7 Materialpreise, 8 Puffer, 9 Qualitaetsstufen).
 //
-// Importiert NUR aus ./types.ts — kein React, kein Supabase, sonst laeuft
-// `npm run test` nicht (Node fuehrt die .ts-Dateien direkt aus).
+// Importiert NUR aus ./types.ts und ./handarbeit.ts — kein React, kein Supabase,
+// sonst laeuft `npm run test` nicht (Node fuehrt die .ts-Dateien direkt aus).
 
 import type { Angebotsposition, MaterialPosten, ArbeitsPosten } from './types.ts'
 import {
   calcAngebotspos, materialkostenGesamt, stundenGesamt,
   materialRabatt, zeitFaktorFuer, stueckzahlVon, normalizeKsId,
 } from './types.ts'
+// handarbeit.ts importiert selbst nichts — bleibt also mit `npm run test` vertraeglich.
+import { bucheUm, HANDARBEIT_ZIEL } from './handarbeit.ts'
 
 export type Variante = 'lack' | 'massiv' | 'montage'
 
@@ -190,21 +192,23 @@ const schrankGrund: ReferenzPosition[] = [
     'Korpus und Fronten Egger Dekorspanplatte 19 mm weiß (U999), Sichtkanten ABS 1 mm. Vier Drehtüren mit Blum-Topfscharnieren gedämpft, zwei Schubkästen auf Blum-Systemauszügen, Kleiderstange, je Fach zwei Einlegeböden, Sockel 100 mm, Rückwand 8 mm.',
     [
       // Plattenflaeche 2,00 × 2,40 × 0,60 m inkl. Fronten, Boeden und Sockel.
-      // 14,00 €/m² = Dekorspanplatte beidseitig beschichtet inkl. Verschnitt
-      // (CLAUDE.md 7.1: 35–55 €/Platte à 5,80 m² = 6–9,50 €/m² roher Zuschnitt).
-      m('Dekorspanplatte 19 mm weiß U999', 15.0, 'm²', 14.00),
+      // 25,00 €/m²: FABIANS WERT (2026-09-17) fuer Dekorspanplatte beidseitig
+      // beschichtet inkl. Verschnitt und Zuschnitt. Vorher standen hier 14 €/m²
+      // (aus CLAUDE.md 7.1: 35–55 €/Platte à 5,80 m² zurueckgerechnet) — das war
+      // der reine Plattenpreis ohne Verschnitt, zu guenstig fuer ein Mittelfeld.
+      m('Dekorspanplatte 19 mm weiß U999', 15.0, 'm²', 25.00),
       // Annahme: duenne Rueckwandplatte, in CLAUDE.md 7.1 nicht eigens gelistet;
-      // zwischen roher Spanplatte (6 €/m²) und beschichteter 19 mm angesetzt.
-      m('Rückwand Dekorspanplatte 8 mm weiß', 5.0, 'm²', 8.00),
+      // derselbe Wert wie in der Kueche (Kleinzuschnitte).
+      m('Rückwand Dekorspanplatte 8 mm weiß', 5.0, 'm²', 10.00),
       // NUR DIE FRONTKANTEN: vier Tueren (je rund 5,6 lfm Umfang) und zwei
       // Schubfronten = rund 27 lfm. Boeden und Korpus laufen mit werkseitig
       // bekanteten Plattenkanten.
-      // ACHTUNG, FUER FABIAN: 26 lfm ist die Menge, die zusammen mit dem
-      // angehobenen Griffpreis (siehe unten) die gemessenen 409,50 € trifft. Die
-      // gemessenen 190 min Bekantung waeren darauf 7,3 min/lfm und damit ueber dem
-      // Band 3–5 min/lfm (CLAUDE.md 3.1) — in Wahrheit duerfte mehr bekantet worden
-      // sein und dafuer anderswo weniger Material stecken. Der gemessene EK ist der
-      // Anker, die Aufteilung darunter ist die Setzung.
+      // 26 lfm war die Menge, die zusammen mit dem Griffpreis die urspruenglich
+      // gemessenen 409,50 € Material-EK traf. Seit Fabians Plattenpreis von 25 €/m²
+      // (2026-09-17) ist der gemessene EK kein Anker mehr — die Summe liegt jetzt
+      // bei 584,50 €. Die 190 min Bekantung sind auf 26 lfm 7,3 min/lfm und damit
+      // ueber dem Band 3–5 min/lfm (CLAUDE.md 3.1); Fabian will die Zeiten im
+      // oberen Mittelfeld, deshalb bleiben sie.
       m('ABS-Kante 1 mm weiß', 26, 'lfm', 1.20),
       m('Topfscharnier Blum Clip top gedämpft', 8, 'Stk', 2.50),   // CLAUDE.md 7.2: 1,50–3,00 €
       m('Systemauszug Blum Vollauszug gedämpft', 2, 'Stk', 26.00), // CLAUDE.md 7.2: Tandembox 20–45 €
@@ -216,14 +220,12 @@ const schrankGrund: ReferenzPosition[] = [
       m('Bodenträger 5 mm', 32, 'Stk', 0.15),
       // CLAUDE.md 7.2: Tuergriff Standard bis Mittelklasse 5–40 € — 6,00 € ist das
       // untere Ende des Bandes (einfacher Edelstahl-Buegelgriff 128 mm).
-      // Vorher standen hier 2,20 €; das lag UNTER dem Richtbereich. Ausgeglichen
-      // wurde ueber die Kantenmenge (45 → 26 lfm), damit die gemessene
-      // Materialsumme von 409,50 € unveraendert bleibt.
+      // Vorher standen hier 2,20 €; das lag UNTER dem Richtbereich.
       m('Griff Edelstahl 128 mm', 6, 'Stk', 6.00),
       // Annahme: Schrauben, Duebel, Sockelverstellfuesse. Pauschale, kein
       // CLAUDE.md-Richtwert — die uebliche Restgroesse einer Stueckliste.
       m('Kleinmaterial (Schrauben, Dübel, Sockelverstellfüße)', 1, 'psch', 4.50),
-      // Summe EK = 409,50 € — die gemessene Materialsumme.
+      // Summe EK = 584,50 € (vor Fabians Plattenpreis: 409,50 € gemessen).
     ],
     [
       z('Besprechung', 20),          // gemessen
@@ -232,7 +234,15 @@ const schrankGrund: ReferenzPosition[] = [
       z('Arbeitsvorbereitung', 45),  // gemessen
       z('Zuschnitt', 216),           // gemessen (CLAUDE.md 3.1: 8–15 min je Platte)
       z('Bekantung', 190),           // gemessen (CLAUDE.md 3.1: 3–5 min je lfm)
-      z('Zusammenbau', 479),         // gemessen (CLAUDE.md 3.1/3.2/3.3: Korpus, Schübe, Türen)
+      // CNC: Lochreihen fuer 32 Bodentraeger, 8 Topfbohrungen, Auszugs- und
+      // Griffbohrungen, Verbinder. Fabian 2026-09-17: "Die Kostenstelle CNC fehlt
+      // komplett" — vorher steckte diese Arbeit stillschweigend im Zusammenbau.
+      // Aus den gemessenen 479 min Zusammenbau herausgeloest (479 → 419), damit
+      // die Gesamtzeit gleich bleibt; sie laeuft jetzt zum CNC-Satz. Betriebe OHNE
+      // CNC bekommen sie ueber umgebucht() als Handarbeit zurueck (× 1,6).
+      // CLAUDE.md 3.1: Duebelloecher bohren, Verbinder setzen 5–10 min je Bauteil.
+      z('CNC', 60),
+      z('Zusammenbau', 419),         // gemessen 479, davon 60 min zur CNC (siehe oben)
       z('Warenhandling', 20),        // gemessen
       z('Produktion', 30),           // gemessen
       z('Verpacken', 30),            // gemessen
@@ -318,88 +328,113 @@ const schrank: Referenzprojekt = {
 // (fuenf gleiche Unterschraenke sind nicht fuenfmal so teuer wie einer).
 //
 // OHNE Elektrogeraete, Spuele, Armatur, Anschluesse und Nischenrueckwand — steht so
-// im Referenztext. Deshalb liegt die Summe am unteren Ende der Faustregel-Spanne.
+// im Referenztext.
 
 const kuecheGrund: ReferenzPosition[] = [
+  // ZEITEN JE KORPUS — Fabian 2026-09-17: "Das ist insgesamt sehr wenig Zeit. Hier
+  // haben wir die Kalkulationslogik sehr weit nach unten korrigiert." und "Wir
+  // muessen ein gutes Mittelfeld abbilden, damit die Faktoren auch funktionieren."
+  // Vorher lag jeder Wert am UNTEREN Rand der CLAUDE.md-Baender (Unterschrank 135
+  // min = 2,25 h Werkstatt). Jetzt obere Haelfte der Baender, dazu die Kostenstelle
+  // CNC (Lochreihen, Topf- und Verbinderbohrungen, Griffbohrungen), die vorher
+  // komplett fehlte — "wenn das haendisch gemacht werden muss, reicht die Zeit
+  // lange nicht." Betriebe ohne CNC: umgebucht() bucht die Minuten × 1,6 auf den
+  // Zusammenbau (src/lib/handarbeit.ts, dieselbe Regel wie in der Kalkulation).
+  //
+  // PLATTENPREIS 25 €/m²: Fabians Wert (2026-09-17), vorher 15 €/m².
   p('Unterschrank mit Drehtür',
-    'Korpus Dekorspanplatte 19 mm weiß, Rückwand 8 mm, zwei Drehtüren mit Blum-Topfscharnieren gedämpft, ein Einlegeboden, Front weiß matt mit ABS-Kante, Griff Edelstahl 160 mm.',
+    'Korpus Dekorspanplatte 19 mm weiß, Rückwand 8 mm, zwei Drehtüren mit Blum-Topfscharnieren gedämpft, ein Einlegeboden, Front weiß matt mit ABS-Kante, zwei Griffe Edelstahl 160 mm, Sockelverstellfüße.',
     [
-      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),  // CLAUDE.md 7.1: dekorbeidseitig 18 mm 35–55 €/Platte à 5,80 m² = 6–9,50 €/m²; 15 €/m² mit Verschnitt und Zuschnitt
+      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 25.00),  // Fabian 2026-09-17: 25 €/m² inkl. Verschnitt und Zuschnitt
       m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme: 8 mm Dekorplatte in Kleinzuschnitten; in CLAUDE.md 7.1 nicht gelistet
       m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),          // CLAUDE.md 7.2
-      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),  // Annahme: Frontqualität weiß matt, Aufpreis gegenüber der Korpusplatte (CLAUDE.md 7.1 kennt nur die Standardplatte)
-      m('Griff Edelstahl 160 mm', 1, 'Stk', 12.00),              // CLAUDE.md 7.2: 5–40 €
+      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 30.00),  // Annahme: Frontqualitaet weiß matt, rund 20 % ueber der Korpusplatte (CLAUDE.md 7.1 kennt nur die Standardplatte)
+      m('Griff Edelstahl 160 mm', 2, 'Stk', 12.00),              // CLAUDE.md 7.2: 5–40 €; zwei Tueren = zwei Griffe (vorher stand hier einer)
+      m('Kleinmaterial (Sockelverstellfüße, Verbinder, Schrauben)', 1, 'psch', 4.00),  // Annahme: Restgroesse einer Korpus-Stueckliste; kein CLAUDE.md-Richtwert
     ],
     [
-      z('Zuschnitt', 25),      // CLAUDE.md 3.1: 8–15 min je Platte, 2 Platten + Front
-      z('Bekantung', 15),      // CLAUDE.md 3.1: 3–5 min/lfm Kantenband
-      z('Zusammenbau', 85),    // CLAUDE.md 3.1: Korpus 30–60 min + 3.3: 2 Türen à 20 min
-      z('Warenhandling', 5),  // Annahme: Korpus ein-, aus- und umlagern, je Stück
-      z('Verpacken', 5),  // Annahme: Kantenschutz und Folie, je Stück
+      z('Zuschnitt', 35),      // CLAUDE.md 3.1: 8–15 min je Platte — Seiten, Boden, Traversen, Einlegeboden, zwei Fronten
+      z('Bekantung', 30),      // CLAUDE.md 3.1: 3–5 min/lfm — rund 8 lfm Sichtkanten (Korpusfront und Tuerumfang)
+      z('CNC', 25),            // CLAUDE.md 3.1: Duebelloecher/Verbinder 5–10 min je Bauteil — Lochreihen beidseitig, 4 Topfbohrungen, Griffbohrungen, Verbinder
+      z('Zusammenbau', 125),   // CLAUDE.md 3.1: Korpus 30–60 (55) + Rueckwand 15–25 (20) + Einlegeboden 10–20 (10) + 3.3: 2 Tueren à 15–25 (40)
+      z('Warenhandling', 10),  // Annahme: Korpus ein-, aus- und umlagern, je Stueck
+      z('Verpacken', 10),      // Annahme: Kantenschutz und Folie, je Stueck
     ], 5),
   p('Unterschrank mit drei Auszügen',
     'Korpus wie Drehtürschrank, statt Tür drei Blum-Legrabox-Auszüge mit Schubfronten weiß matt und Griffen.',
     [
-      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),  // CLAUDE.md 7.1: dekorbeidseitig 18 mm 35–55 €/Platte à 5,80 m² = 6–9,50 €/m²; 15 €/m² mit Verschnitt und Zuschnitt
-      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme: 8 mm Dekorplatte in Kleinzuschnitten; in CLAUDE.md 7.1 nicht gelistet
+      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 25.00),  // Fabian 2026-09-17: 25 €/m²
+      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme wie oben
       m('Schubkasten Blum Legrabox', 3, 'Stk', 55.00),           // CLAUDE.md 7.2: 35–80 €
-      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),  // Annahme: Frontqualität weiß matt, Aufpreis gegenüber der Korpusplatte (CLAUDE.md 7.1 kennt nur die Standardplatte)
+      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 30.00),  // Annahme wie oben
       m('Griff Edelstahl 160 mm', 3, 'Stk', 12.00),  // CLAUDE.md 7.2: 5–40 €, drei Schubfronten = drei Griffe
+      m('Kleinmaterial (Sockelverstellfüße, Verbinder, Schrauben)', 1, 'psch', 4.00),  // Annahme wie oben
     ],
     [
-      z('Zuschnitt', 25),      // CLAUDE.md 3.1: 8–15 min je Platte, wie beim Drehtürschrank
-      z('Bekantung', 15),  // CLAUDE.md 3.1: 3–5 min/lfm Kantenband
-      z('Zusammenbau', 135),   // Korpus 45 + CLAUDE.md 3.2: 3 Systemschübe à 30 min (Band 20–35)
-      z('Warenhandling', 5),  // Annahme: Korpus ein-, aus- und umlagern, je Stück
-      z('Verpacken', 5),  // Annahme: Kantenschutz und Folie, je Stück
+      z('Zuschnitt', 40),      // CLAUDE.md 3.1: 8–15 min je Platte — wie Drehtuerschrank plus drei Schubfronten
+      z('Bekantung', 35),      // CLAUDE.md 3.1: 3–5 min/lfm — drei Fronten haben mehr Kante als zwei Tueren
+      z('CNC', 30),            // CLAUDE.md 3.1: 5–10 min je Bauteil — Lochreihen, Auszugsbohrungen fuer drei Schienenpaare, Griffbohrungen
+      z('Zusammenbau', 200),   // CLAUDE.md 3.1: Korpus 55 + Rueckwand 20 + 3.2: 3 Systemschuebe à 20–35 (30) + 3 Schubfronten à 10–20 (15) = 210, leicht gerundet
+      z('Warenhandling', 10),  // Annahme, je Stueck
+      z('Verpacken', 10),      // Annahme, je Stueck
     ], 3),
   p('Spülenunterschrank 900 mm',
-    'Aufbau wie Drehtürschrank, Boden wassergeschützt, Rückwand für Anschlüsse ausgeschnitten. Spüle und Armatur stellt der Kunde.',
+    'Aufbau wie Drehtürschrank, 900 mm breit, Boden mit Schutzwanne, Rückwand für Anschlüsse ausgeschnitten, zwei Drehtüren. Spüle und Armatur stellt der Kunde.',
     [
-      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.8, 'm²', 15.00),  // CLAUDE.md 7.1: dekorbeidseitig 18 mm 35–55 €/Platte à 5,80 m² = 6–9,50 €/m²; 15 €/m² mit Verschnitt und Zuschnitt
-      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme: 8 mm Dekorplatte in Kleinzuschnitten; in CLAUDE.md 7.1 nicht gelistet
-      m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),  // CLAUDE.md 7.2: Topfscharnier Blum 1,50–3,00 €
-      m('Front Dekorspanplatte 19 mm weiß matt', 0.55, 'm²', 16.00),  // Annahme: Frontqualität weiß matt, Aufpreis gegenüber der Korpusplatte (CLAUDE.md 7.1 kennt nur die Standardplatte)
-      m('Griff Edelstahl 160 mm', 1, 'Stk', 12.00),  // CLAUDE.md 7.2: Türgriff Standard bis Mittelklasse 5–40 €
+      m('Dekorspanplatte 19 mm weiß (Korpus)', 2.2, 'm²', 25.00),  // Fabian 2026-09-17: 25 €/m²; 900 statt 600 mm breit
+      m('Rückwand 8 mm weiß', 0.7, 'm²', 10.00),  // Annahme wie oben, breiterer Korpus
+      m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),  // CLAUDE.md 7.2
+      m('Front Dekorspanplatte 19 mm weiß matt', 0.8, 'm²', 30.00),  // Annahme wie oben, zwei Tueren à 450 mm
+      m('Griff Edelstahl 160 mm', 2, 'Stk', 12.00),  // CLAUDE.md 7.2; zwei Tueren = zwei Griffe
+      m('Bodenschutzwanne Spülenschrank 900 mm', 1, 'Stk', 14.00),  // Annahme: Kunststoffwanne aus dem Beschlagkatalog; kein CLAUDE.md-Richtwert
+      m('Kleinmaterial (Sockelverstellfüße, Verbinder, Schrauben)', 1, 'psch', 4.00),  // Annahme wie oben
     ],
     [
-      // Zeiten wie beim Drehtürschrank (CLAUDE.md 3.1 Korpus 30–60 min,
-      // 3.3 Tür hängen 15–25 min, 3.1 Zuschnitt 8–15 min je Platte).
-      z('Zuschnitt', 25), z('Bekantung', 15), z('Zusammenbau', 85),
-      z('Warenhandling', 5), z('Verpacken', 5),
+      z('Zuschnitt', 40),      // CLAUDE.md 3.1: 8–15 min je Platte — breiterer Korpus, Rueckwandausschnitte
+      z('Bekantung', 30),      // CLAUDE.md 3.1: 3–5 min/lfm
+      z('CNC', 30),            // CLAUDE.md 3.1: 5–10 min je Bauteil — Lochreihen, Topfbohrungen, Ausschnitte fuer Anschluesse
+      z('Zusammenbau', 135),   // CLAUDE.md 3.1: Korpus 55 + Rueckwand 20 + Wanne einlegen 20 + 3.3: 2 Tueren à 20
+      z('Warenhandling', 10),  // Annahme, je Stueck
+      z('Verpacken', 10),      // Annahme, je Stueck
     ], 1),
   p('Oberschrank 900 mm hoch',
-    'Korpus Dekorspanplatte 19 mm weiß, Rückwand 8 mm, zwei Drehtüren mit Blum-Topfscharnieren gedämpft, zwei Einlegeböden, Front weiß matt, Griff.',
+    'Korpus Dekorspanplatte 19 mm weiß, Rückwand 8 mm, zwei Drehtüren mit Blum-Topfscharnieren gedämpft, zwei Einlegeböden, Front weiß matt, zwei Griffe, Schrankaufhänger mit Wandschiene.',
     [
-      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.3, 'm²', 15.00),  // CLAUDE.md 7.1, Preis wie beim Unterschrank — kleinerer Korpus, weniger m²
-      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme: 8 mm Dekorplatte in Kleinzuschnitten; in CLAUDE.md 7.1 nicht gelistet
-      m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),  // CLAUDE.md 7.2: Topfscharnier Blum 1,50–3,00 €
-      m('Front Dekorspanplatte 19 mm weiß matt', 0.45, 'm²', 16.00),  // Annahme wie beim Unterschrank, kleinere Frontfläche
-      m('Griff Edelstahl 160 mm', 1, 'Stk', 12.00),  // CLAUDE.md 7.2: Türgriff Standard bis Mittelklasse 5–40 €
+      m('Dekorspanplatte 19 mm weiß (Korpus)', 1.3, 'm²', 25.00),  // Fabian 2026-09-17: 25 €/m²; kleinerer Korpus, weniger m²
+      m('Rückwand 8 mm weiß', 0.5, 'm²', 10.00),  // Annahme wie oben
+      m('Topfscharnier Blum gedämpft', 4, 'Stk', 2.50),  // CLAUDE.md 7.2
+      m('Front Dekorspanplatte 19 mm weiß matt', 0.45, 'm²', 30.00),  // Annahme wie oben, kleinere Frontflaeche
+      m('Griff Edelstahl 160 mm', 2, 'Stk', 12.00),  // CLAUDE.md 7.2; zwei Tueren = zwei Griffe
+      m('Schrankaufhänger mit Wandschiene', 1, 'Satz', 6.00),  // Annahme: verstellbarer Aufhaenger je Oberschrank; kein CLAUDE.md-Richtwert
     ],
     [
-      z('Zuschnitt', 20),      // kleinerer Korpus als unten
-      z('Bekantung', 12),  // CLAUDE.md 3.1: 3–5 min/lfm, kleinerer Korpus
-      z('Zusammenbau', 80),    // CLAUDE.md 3.1: Korpus 40 + 3.3: 2 Türen à 20 min
-      z('Warenhandling', 5),  // Annahme: Korpus ein-, aus- und umlagern, je Stück
-      z('Verpacken', 5),  // Annahme: Kantenschutz und Folie, je Stück
+      z('Zuschnitt', 30),      // CLAUDE.md 3.1: 8–15 min je Platte — kleinerer Korpus als unten
+      z('Bekantung', 25),      // CLAUDE.md 3.1: 3–5 min/lfm, kleinerer Korpus
+      z('CNC', 25),            // CLAUDE.md 3.1: 5–10 min je Bauteil — Lochreihen fuer zwei Boeden, Topfbohrungen, Aufhaengerfraesung
+      z('Zusammenbau', 110),   // CLAUDE.md 3.1: Korpus 45 + Rueckwand 15 + 2 Boeden 10 + 3.3: 2 Tueren à 20
+      z('Warenhandling', 10),  // Annahme, je Stueck
+      z('Verpacken', 10),      // Annahme, je Stueck
     ], 4),
   p('Arbeitsplatte Schichtstoff 38 mm',
-    'Arbeitsplatte 5,80 lfm mit Ausschnitten für Spüle und Kochfeld, Kanten umleimt, Wandabschlussleiste.',
+    'Arbeitsplatte 5,80 lfm in L-Form mit Gehrungsstoß, Ausschnitten für Spüle und Kochfeld, Kanten umleimt, Wandabschlussleiste.',
     [
       m('Arbeitsplatte Schichtstoff 38 mm', 5.8, 'lfm', 55.00),  // Annahme: Schichtstoffplatte 38 mm nach lfm; Arbeitsplatten stehen nicht in CLAUDE.md 7.1
-      m('Wandabschlussleiste', 5.8, 'lfm', 8.00),  // Annahme: Alu-/Kunststoffprofil mit Dichtung, Zubehör zur Arbeitsplatte; kein CLAUDE.md-Richtwert
+      m('Wandabschlussleiste', 5.8, 'lfm', 8.00),  // Annahme: Alu-/Kunststoffprofil mit Dichtung, Zubehoer zur Arbeitsplatte; kein CLAUDE.md-Richtwert
     ],
     [
-      z('Zuschnitt', 60),      // CLAUDE.md 3.1: Zuschnitt + Formatieren, Platte auf Gehrung
-      // Annahme: zwei Ausschnitte (Spüle, Kochfeld), Kanten umleimen, Verbinder
-      // setzen. CLAUDE.md kennt keinen Richtwert für Arbeitsplatten-Bearbeitung.
-      z('Zusammenbau', 90),
+      z('Zuschnitt', 90),      // CLAUDE.md 3.1: Zuschnitt + Formatieren — zwei Platten auf Laenge, Gehrungsstoss der L-Form
+      z('CNC', 60),            // Annahme: zwei Ausschnitte (Spuele, Kochfeld) und Fraesungen fuer die Gehrungsverbinder; kein CLAUDE.md-Richtwert
+      z('Zusammenbau', 120),   // Annahme: Kanten umleimen, Gehrung verleimen und verbinden, Wandabschlussleiste vorbereiten; kein CLAUDE.md-Richtwert
+      z('Warenhandling', 15),  // Annahme: schwere Platten, zweimal umlagern
+      z('Verpacken', 15),      // Annahme: Kantenschutz, Folie, Transportsicherung
     ]),
   p('Sockelblenden 100 mm',
     'Sockelblenden 5,80 lfm mit Dichtlippe, auf Sockelfüße geklipst.',
     [m('Sockelblende 100 mm weiß', 5.8, 'lfm', 6.00)],  // Annahme: beschichtete Sockelblende 100 mm inkl. Dichtlippe; kein CLAUDE.md-Richtwert
-    [z('Zuschnitt', 30)]),    // CLAUDE.md 5.5: Blenden 8–15 min/lfm, hier reine Werkstattzeit
+    [
+      z('Zuschnitt', 30),      // CLAUDE.md 5.5: Blenden 8–15 min/lfm, hier reine Werkstattzeit
+      z('Zusammenbau', 15),    // Annahme: Sockelclips setzen, Eckverbinder
+    ]),
   p('Planung und Konstruktion',
     'Aufmaß vor Ort, Küchenplanung mit Ansichten, Konstruktion der Korpusse und Fronten, Arbeitsvorbereitung und Bestellung.',
     [],
@@ -407,7 +442,7 @@ const kuecheGrund: ReferenzPosition[] = [
       z('Besprechung', 90),           // CLAUDE.md 2.1: Aufmaß komplexer Innenausbau 1,5–3,0 h
       z('Planung', 120),              // CLAUDE.md 2.1: Angebotserstellung 1,0–2,5 h
       z('Konstruktion', 240),         // CLAUDE.md 2.1: CAD Einbaumöbel mit Detailplanung 2,0–4,0 h
-      z('Arbeitsvorbereitung', 120),  // CLAUDE.md 2.1: Angebotsskizze und Vorbereitung; hier für zehn Korpusse zusammen
+      z('Arbeitsvorbereitung', 120),  // CLAUDE.md 2.1: Angebotsskizze und Vorbereitung; hier für dreizehn Korpusse zusammen
     ]),
   p('Lieferung und Montage, Neubau',
     'Anlieferung 20 km, Korpusse aufstellen und ausrichten, Arbeitsplatte anpassen und anschließen, Fronten einstellen, Sockel setzen. Zwei Monteure, ein Tag.',
@@ -437,7 +472,7 @@ const kueche: Referenzprojekt = {
   positionen: [
     ...kuecheGrund,
     // LACK: nur die FRONTEN werden lackiert (ca. 6,75 m² gesamt). Traegermaterial
-    // wechselt von Dekor 16 €/m² auf MDF roh 12 €/m², dazu 40 min/m² Oberflaeche
+    // wechselt von Dekor 30 €/m² auf MDF roh 18 €/m², dazu 40 min/m² Oberflaeche
     // (CLAUDE.md 4.4: 35–55 min/m² 3-Schicht seidenmatt) und 4 €/m² Lack
     // (CLAUDE.md 4.6). Korpusse bleiben Dekor — so baut es jeder Betrieb.
     variante('lack', 'Alternative: Fronten weiß lackiert seidenmatt',
@@ -447,7 +482,7 @@ const kueche: Referenzprojekt = {
         if (flaeche === 0) return pos
         return zeitPlus(
           mitMaterialzeile(
-            tauscheMaterial(pos, 'Front', 'Front MDF roh 19 mm (Lackträger)', 12.00),
+            tauscheMaterial(pos, 'Front', 'Front MDF roh 19 mm (Lackträger)', 18.00),  // CLAUDE.md 7.1: MDF 18 mm 30–50 €/Platte à 5,80 m² = 5–9 €/m² roh, mit Verschnitt und Zuschnitt 18 €/m² (Verhaeltnis wie Spanplatte 6–9,50 → 25)
             m('Lack: Grundierung + 2× Decklack seidenmatt', flaeche, 'm²', 4.00)),
           { 'Oberfläche': flaeche * 40 })
       }),
@@ -473,7 +508,7 @@ const kueche: Referenzprojekt = {
       kuecheGrund, pos => zeitMal(pos, { Montage: 1.6 })),
   ],
   // CLAUDE.md 6.1: Einbauküche nach Maß 5.000–20.000 € netto.
-  // OHNE Geräte, Spüle und Armatur — deshalb am unteren Ende der Spanne.
+  // OHNE Geräte, Spüle und Armatur — deshalb in der unteren Haelfte der Spanne.
   faustregel: { von: 5000, bis: 20000, quelle: 'CLAUDE.md 6.1 (Einbauküche nach Maß, ohne Geräte)' },
   fragen: {
     grund: 'Was nimmst du für so eine Küche, netto?',
@@ -782,6 +817,34 @@ export function mitSaetzen(
         ? saetze[a.kostenstelle] : a.vkStunde,
     })),
   }))
+}
+
+/**
+ * Das Referenzprojekt fuer einen Betrieb OHNE bestimmte Maschinen: Die Minuten der
+ * abgeschalteten Kostenstellen (CNC, Bekantung) wandern × 1,6 auf den Zusammenbau —
+ * genau die Regel, mit der die Kalkulation dieses Betriebs rechnet (bucheUm in
+ * handarbeit.ts). Sonst stuende in der Referenz eine CNC-Zeile zu 120 €/h, die es
+ * in diesem Betrieb gar nicht gibt, und die Antwortbaender waeren gegen ein Moebel
+ * gebaut, das er so nie kalkuliert bekommt.
+ *
+ * Nur Kostenstellen mit einem Handarbeits-Ziel (HANDARBEIT_ZIEL) werden umgebucht.
+ * "Montage nie" veraendert die Referenz NICHT: Die Montagefrage misst eine Dauer,
+ * ohne Montagezeile gaebe es kein Band mehr.
+ *
+ * Gibt eine KOPIE zurueck; die Vorlage bleibt unberuehrt. Ohne betroffene
+ * Kostenstelle kommt das Projekt unveraendert zurueck.
+ */
+export function umgebucht(projekt: Referenzprojekt, deaktiviert: Iterable<string>): Referenzprojekt {
+  const betroffen = new Set([...deaktiviert].filter(k => k in HANDARBEIT_ZIEL))
+  if (betroffen.size === 0) return projekt
+  return {
+    ...projekt,
+    positionen: projekt.positionen.map(q => ({
+      ...q,
+      arbeitszeit: bucheUm(q.arbeitszeit.map(a => ({ ...a })), betroffen, STANDARDSAETZE_REFERENZ)
+        .map(a => (a.id ? a : { ...a, id: ++zeilenId })),
+    })),
+  }
 }
 
 /**

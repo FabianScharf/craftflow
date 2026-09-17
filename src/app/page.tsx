@@ -20,7 +20,10 @@ import { buildPDF, buildFooterTemplate, SCHRIFTEN, type FirmaOpts, type SchriftI
 import { positionenAusKi } from '@/lib/kiantwort'
 import { baueKontext, vereinigePositionen, brauchtBlockweg, blockFortschrittText, findeDubletten } from '@/lib/bloecke'
 import { pdfTextOptionen, pdfFirmaOptionen } from '@/lib/pdfoptionen'
-import { BETRIEBSFRAGEN, referenzFuer, RANDHINWEIS, RANDBAENDER } from '@/lib/kalibrierung'
+import {
+  BETRIEBSFRAGEN, referenzFuer, referenzMitSaetzen, abzuschaltendeKostenstellen,
+  STANDARDSAETZE, STANDARDAUFSCHLAG, RANDHINWEIS, RANDBAENDER,
+} from '@/lib/kalibrierung'
 import { klemmePreisfaktor, angezeigterPreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
 // Ein Zeichen, eine Definition — sonst steht irgendwann ein zweites CF daneben.
 import { AppHeader } from '@/components/AppHeader'
@@ -228,6 +231,9 @@ export default function CraftFlow() {
   // gespeichert; wer ueberspringt, speichert nichts und rechnet mit den CraftFlow-Werten.
   // null = noch nicht geprueft, false = nicht kalibriert, true = kalibriert
   const [istKalibriert, setIstKalibriert] = useState<boolean | null>(null)
+  // Saetze/Aufschlag des Betriebs fuer die Antwortbaender (null = noch nicht geladen → Standard).
+  const [kalibSaetze, setKalibSaetze] = useState<Record<string, number> | null>(null)
+  const [kalibAufschlag, setKalibAufschlag] = useState<number | null>(null)
   const [kalib, setKalib] = useState({
     mitarbeiter: '', maschinen: [] as string[], schwerpunkt: [] as string[],
     montage_selbst: '', stueckzahlen: '',
@@ -2543,7 +2549,13 @@ export default function CraftFlow() {
   // Das Referenzmoebel folgt dem Schwerpunkt aus Schritt 5 — ein Treppenbauer wird
   // an einer Treppe gefragt, nicht an einem Flurschrank. Dieselbe Ableitung nutzt
   // die Route beim Rechnen, sonst wuerde gegen andere Zahlen gerechnet als gefragt.
-  const refMoebel = referenzFuer(kalib.schwerpunkt)
+  //
+  // 2026-09-17: dieselbe Bandquelle wie in Mein Betrieb (BetriebSettings) und in der
+  // Route — eigene Saetze/Aufschlag (sobald geladen, sonst Standard) und ohne
+  // CNC/Kantenanleimmaschine die Umbuchung auf Handarbeit, live zu den Klicks.
+  const refMoebel = referenzMitSaetzen(referenzFuer(kalib.schwerpunkt),
+    kalibSaetze ?? STANDARDSAETZE, kalibAufschlag ?? STANDARDAUFSCHLAG,
+    abzuschaltendeKostenstellen({ maschinen: kalib.maschinen, montage_selbst: kalib.montage_selbst }))
   const refDiff = refMoebel.fragenliste.filter(f => f.schluessel !== 'grund')
   const refGrund = refMoebel.fragenliste.find(f => f.schluessel === 'grund')
   const kalibFeld: Record<string, 'antwort_grund' | 'antwort_lack' | 'antwort_massiv' | 'antwort_montage'> = {
@@ -2848,9 +2860,12 @@ export default function CraftFlow() {
     let abgebrochen = false
     fetch('/api/settings/kalibrierung')
       .then(r => (r.ok ? r.json() : null))
-      .then((j: { kalibrierung?: { abgeschlossen?: boolean } | null } | null) => {
+      .then((j: { kalibrierung?: { abgeschlossen?: boolean } | null; saetze?: Record<string, number>; aufschlag?: number } | null) => {
         if (abgebrochen) return
         setIstKalibriert(Boolean(j?.kalibrierung?.abgeschlossen))
+        // Fuer die Antwortbaender der Erst-Anmeldung: eigene Saetze statt Standard.
+        if (j?.saetze && typeof j.saetze === 'object') setKalibSaetze(j.saetze)
+        if (typeof j?.aufschlag === 'number' && Number.isFinite(j.aufschlag)) setKalibAufschlag(j.aufschlag)
       })
       .catch(() => { if (!abgebrochen) setIstKalibriert(null) })
     return () => { abgebrochen = true }

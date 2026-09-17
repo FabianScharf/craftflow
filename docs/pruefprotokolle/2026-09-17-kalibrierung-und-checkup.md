@@ -181,3 +181,39 @@ Netto 8.564 €, 96 h. Die Lackregel griff nicht mehr auf Dekor-Fronten.
   Standard, Zeitfaktor Werkstatt 1,08, Preisfaktor 1,04, eine Stimme auf dem Wunsch — alles wie vor
   der Nacht; alle Test-Umschaltungen wurden zurückgesetzt und gegengeprüft.
 - KI-Kosten der Nacht: 17 Referenzläufe + 9 Live-Varianten + 1 Nachtest ≈ 27 Aufrufe ≈ 3–4 $.
+
+## 5. Nachtrag 17.09. nachmittags — Fabians Rückmeldung zur Küchen-Referenz
+
+**Fund (Fabian, Screenshot Unterschrank mit Drehtür):** „5 Minuten Verpacken? Ist das jetzt für ein Schrank,
+oder für alle 5? Das ist insgesamt sehr wenig Zeit. Hier haben wir jetzt die Kalkulationslogik sehr weit
+nach unten korrigiert.“ Dazu: „Bei der Spanplatte würde ich mit 25 Euro pro qm rechnen“ und „Die
+Kostenstelle CNC fehlt komplett … Wenn das händisch gemacht werden muss, reicht die Zeit lange nicht.“
+
+**Ursache:** Der Implementer hatte jede Zeit am unteren Rand der CLAUDE.md-Bänder angesetzt (Unterschrank
+135 min = 2,25 h Werkstatt) und die CNC-Arbeit (Lochreihen, Topf-/Verbinderbohrungen, Ausschnitte)
+stillschweigend im Zusammenbau versteckt. Die Anzeige sagte nirgends, dass Mengen und Minuten je Stück gelten.
+
+**Geändert:**
+
+| Referenz | vorher | jetzt | Faustregel |
+|---|---|---|---|
+| Einbauküche (ohne Geräte) | 6.044 € · 23 h Werkstatt | **8.593 € · 77,5 h gesamt** | 5.000–20.000 € |
+| Einbauschrank | 2.245 € (EK 409,50 €) | **2.528 € (EK 584,50 €)** | 1.800–2.600 € |
+| Türen / Treppe / Tisch | unverändert | 2.672 € / 6.037 € / 2.423 € | im Rahmen |
+
+Je Küchenkorpus (Unterschrank Drehtür): Zuschnitt 35, Bekantung 30, **CNC 25**, Zusammenbau 125, Warenhandling 10,
+Verpacken 10 = 235 min (3,9 h). Auszugschrank 345 min, Spülenschrank 255, Oberschrank 210, Arbeitsplatte 300
+(mit CNC 60 für Ausschnitte). Zwei Türen = zwei Griffe (vorher einer). Spanplatte 25 €/m², Front weiß matt 30 €/m².
+Schrank: 60 min CNC aus den gemessenen 479 min Zusammenbau herausgelöst (Gesamtzeit gleich), Platte 25 €/m².
+
+**Betrieb ohne CNC:** `umgebucht()` bucht die CNC-Minuten × 1,6 auf den Zusammenbau — dieselbe Regel wie
+in der Kalkulation (`handarbeit.ts`). Route, „Als Projekt öffnen“ und die Antwortbänder nutzen sie.
+Ohne CNC liegt die Küche bei 8.500 € / 81 h.
+
+**Nebenfund beim Umbau:** Mein Betrieb und Erst-Anmeldung zeigten die Antwortbänder mit
+STANDARDSÄTZEN (`referenzFuer` → `REFERENZEN`), obwohl die Route (9a31284) sie mit den Sätzen des
+Betriebs baute und PUT damit rechnete. Jetzt eine Quelle: `referenzMitSaetzen(referenzFuer(…), saetze,
+aufschlag, deaktiviert)` in beiden Oberflächen, Sätze/Aufschlag kommen aus GET.
+
+**Prüfung:** Tests 472/472 (neu: Küche 8.000–9.500 € und ≥ 70 h, Unterschrank ≥ 210 min je Stück und
+2 Griffe, `umgebucht` ohne CNC, Bänder ohne CNC treffen b3), `tsc` sauber, kein neuer Lint-Fehler.

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { kostenstellenSollZustand } from '@/lib/kalibrierung'
+import { kostenstellenSollZustand, abzuschaltendeKostenstellen } from '@/lib/kalibrierung'
 import { normalizeKsId } from '@/lib/types'
 import { berechneFaktoren, deckeleHand, referenzFuer, referenzMitSaetzen, ankerFuer } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { pruefeFunktion } from '@/lib/planpruefung'
-import { REFERENZPROJEKTE, mitSaetzen, summen, faustregelKontrolle } from '@/lib/referenzprojekte'
+import { REFERENZPROJEKTE, mitSaetzen, summen, faustregelKontrolle, umgebucht } from '@/lib/referenzprojekte'
 
 export async function GET() {
   const supabase = await createClient()
@@ -35,8 +35,14 @@ export async function GET() {
   // werden, mit denen unten auch der Anker (ankerFuer) gerechnet wird. Sonst zeigt
   // ein teurer Betrieb "über 2.700 €" als hoechstes Band, obwohl sein eigener Preis
   // weit darueber liegt.
-  const ref = referenzMitSaetzen(referenzFuer(kalibrierung?.schwerpunkt), saetze, aufschlag)
-  const projekt = REFERENZPROJEKTE[ref.schluessel]
+  //
+  // 2026-09-17 (Fabian: "Die Kostenstelle CNC fehlt komplett"): Die Referenz traegt
+  // jetzt CNC-Zeit. Ein Betrieb OHNE CNC/Kantenanleimmaschine sieht sie UMGEBUCHT
+  // auf Handarbeit (umgebucht/referenzMitSaetzen) — so, wie seine Kalkulation
+  // rechnet. "Montage nie" laesst die Referenz unveraendert (siehe umgebucht).
+  const deaktiviert = abzuschaltendeKostenstellen(kalibrierung)
+  const ref = referenzMitSaetzen(referenzFuer(kalibrierung?.schwerpunkt), saetze, aufschlag, deaktiviert)
+  const projekt = umgebucht(REFERENZPROJEKTE[ref.schluessel], deaktiviert)
   const positionen = mitSaetzen(projekt, saetze, aufschlag)
   const projektSummen = summen(positionen, true)
   const referenzprojekt = {
@@ -112,7 +118,9 @@ export async function PUT(req: NextRequest) {
   // Fix Runde 3: mit DENSELBEN Saetzen/demselben Aufschlag gebaut, mit denen direkt
   // darunter auch berechneFaktoren rechnet — nur so trifft die Antwort auf Band 3
   // (Faktor 1,0) IMMER den eigenen Referenzpreis, unabhaengig vom Satzniveau.
-  const ref = referenzMitSaetzen(referenzFuer(schwerpunkt), saetze, aufschlag)
+  const maschinen = Array.isArray(b.maschinen) ? (b.maschinen as unknown[]).map(String) : []
+  const deaktiviert = abzuschaltendeKostenstellen({ maschinen, montage_selbst: text('montage_selbst') })
+  const ref = referenzMitSaetzen(referenzFuer(schwerpunkt), saetze, aufschlag, deaktiviert)
 
   // Die Faktoren entstehen IMMER serverseitig. Sie steuern Preise — was aus dem
   // Browser kommt, wird dafuer nie uebernommen. Gleiche Haltung wie bei vkStunde.
@@ -127,7 +135,7 @@ export async function PUT(req: NextRequest) {
 
   const r = await speichereKalibrierung(supabase, user.id, {
     mitarbeiter:     text('mitarbeiter'),
-    maschinen:       Array.isArray(b.maschinen) ? (b.maschinen as unknown[]).map(String) : [],
+    maschinen,
     schwerpunkt,
     montage_selbst:  text('montage_selbst'),
     stueckzahlen:    text('stueckzahlen'),
@@ -146,7 +154,7 @@ export async function PUT(req: NextRequest) {
 
   // Kostenstellen mitziehen: CNC, Bekantung, Montage folgen den Antworten — sonst zeigt
   // „Kostenstellen“ etwas anderes als die Kalkulation rechnet (Fabian, 15.09.).
-  const soll = kostenstellenSollZustand({ maschinen: Array.isArray(b.maschinen) ? (b.maschinen as unknown[]).map(String) : [], montage_selbst: text('montage_selbst') })
+  const soll = kostenstellenSollZustand({ maschinen, montage_selbst: text('montage_selbst') })
   const { data: alleKs } = await supabase.from('kostenstellen').select('id, code, aktiv').eq('user_id', user.id)
   const geaendert: string[] = []
   for (const ks of alleKs ?? []) {

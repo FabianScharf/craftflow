@@ -4,6 +4,7 @@ import { akzentTon } from '@/lib/theme'
 import {
   C, eur, calcAngebotspos, materialkostenPos, arbeitszeitPreisPos,
   stueckzahlVon, materialRabatt, zeitFaktorFuer, normalizeKsId, KOSTENSTELLEN_LABELS,
+  serienHinweis,
 } from '@/lib/types'
 import type { ReferenzPosition } from '@/lib/referenzprojekte.ts'
 import type { Referenzmoebel, Fragenschluessel, Anker } from '@/lib/kalibrierung'
@@ -112,20 +113,29 @@ export default function ReferenzprojektKasten({ daten, referenzmoebel, antwort, 
         </div>
         {auf && (
           <div style={{ padding: '0 4px 12px 24px' }}>
+            {/* Fabian 2026-09-17: "5 Minuten Verpacken? Ist das jetzt für ein Schrank,
+                oder für alle 5?" — Mengen und Minuten gelten JE STUECK, die Preise
+                rechts sind fuer alle Stueck. Das stand nirgends dran. */}
+            {n > 1 && (
+              <div style={{ fontSize: 11, color: C.textMid, marginBottom: 8, lineHeight: 1.5 }}>
+                Mengen und Minuten gelten <b style={{ color: C.white }}>je Stück</b>, die Preise für alle {n} Stück.
+                {' '}{serienHinweis(n)}.
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: C.textMid, fontWeight: 700 }}>Material</span>
-              <span style={{ fontSize: 11, color: C.textMid }}>{eur(matTotal)}</span>
+              <span style={{ fontSize: 11, color: C.textMid, fontWeight: 700 }}>Material{n > 1 ? ' je Stück' : ''}</span>
+              <span style={{ fontSize: 11, color: C.textMid }}>{n > 1 ? `${n} Stück: ` : ''}{eur(matTotal)}</span>
             </div>
             <div style={{ overflowX: 'auto', marginBottom: 12 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                     <th style={thStyle}>Bezeichnung</th>
-                    <th style={thStyle}>Menge</th>
+                    <th style={thStyle}>Menge{n > 1 ? ' / Stk' : ''}</th>
                     <th style={thStyle}>Einheit</th>
                     <th style={thStyle}>EK</th>
                     <th style={thStyle}>Aufschlag</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Preis</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>Preis{n > 1 ? ` (${n} Stk)` : ''}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -150,17 +160,17 @@ export default function ReferenzprojektKasten({ daten, referenzmoebel, antwort, 
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: C.textMid, fontWeight: 700 }}>Arbeitszeit</span>
-              <span style={{ fontSize: 11, color: C.textMid }}>{eur(arbTotal)}</span>
+              <span style={{ fontSize: 11, color: C.textMid, fontWeight: 700 }}>Arbeitszeit{n > 1 ? ' je Stück' : ''}</span>
+              <span style={{ fontSize: 11, color: C.textMid }}>{n > 1 ? `${n} Stück: ` : ''}{eur(arbTotal)}</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 380 }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                     <th style={thStyle}>Kostenstelle</th>
-                    <th style={thStyle}>Minuten</th>
+                    <th style={thStyle}>Minuten{n > 1 ? ' / Stk' : ''}</th>
                     <th style={thStyle}>Satz</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Betrag</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>Betrag{n > 1 ? ` (${n} Stk)` : ''}</th>
                   </tr>
                 </thead>
                 <tbody>

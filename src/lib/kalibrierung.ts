@@ -15,7 +15,7 @@
 // daraus. Jetzt kommt sie aus referenzAusProjekt() direkt aus den Stuecklisten in
 // referenzprojekte.ts (Task R1). Kein Preis mehr aus einer Faustregel.
 
-import { REFERENZPROJEKTE } from './referenzprojekte.ts'
+import { REFERENZPROJEKTE, umgebucht } from './referenzprojekte.ts'
 import type { Referenzprojekt, ReferenzPosition, Variante } from './referenzprojekte.ts'
 import { stueckzahlVon, zeitFaktorFuer, materialRabatt, normalizeKsId } from './types.ts'
 
@@ -48,7 +48,7 @@ function gruppeVon(kostenstelle: string): Kostenstellengruppe {
 // STANDARDSAETZE-Nutzung in baueBaender/berechneFaktoren. Absichtlich hier
 // wiederholt statt importiert (siehe Dateikopf): Sie bestimmen nur die
 // Beschriftung/den Anker; gerechnet wird spaeter mit den Saetzen des Nutzers.
-const STANDARDSAETZE: Saetze = {
+export const STANDARDSAETZE: Saetze = {
   Besprechung: 65, Planung: 85, Konstruktion: 75, Arbeitsvorbereitung: 75,
   Produktion: 65, Warenhandling: 65, Zuschnitt: 72, Bekantung: 100, CNC: 120,
   'Oberfläche': 72, Zusammenbau: 65, Verpacken: 65, Azubi: 52,
@@ -271,7 +271,7 @@ const ZIEL_FAKTOREN = [0.60, 0.80, 1.00, 1.20, 1.40]
 // Nutzers. Wer teurer kalkuliert als der Standard und trotzdem das mittlere Band
 // waehlt, bekommt einen Faktor unter 1 — und das ist richtig: Dann sind seine
 // Zeiten kuerzer, als seine eigenen Saetze es hergeben.
-const STANDARDAUFSCHLAG = 0.30
+export const STANDARDAUFSCHLAG = 0.30
 
 // Rundung nach Groessenordnung: Ein Preis je Tuer (rund 250 EUR) auf 50er gerundet
 // waere unbrauchbar grob.
@@ -485,8 +485,17 @@ export function referenzFuer(schwerpunkt: string[] | null | undefined): Referenz
  */
 export function referenzMitSaetzen(
   schluesselOderRef: string | Referenzmoebel, saetze: Saetze, aufschlag: number,
+  deaktiviert: Iterable<string> = [],
 ): Referenzmoebel {
-  const basis = typeof schluesselOderRef === 'string' ? REFERENZEN[schluesselOderRef] : schluesselOderRef
+  let basis: Bandbasis = typeof schluesselOderRef === 'string' ? REFERENZEN[schluesselOderRef] : schluesselOderRef
+  // Betrieb ohne CNC oder Kantenanleimmaschine (Fabian 2026-09-17, "Die Kostenstelle
+  // CNC fehlt komplett"): Die Bandbasis wird aus dem UMGEBUCHTEN Projekt neu gebaut
+  // (umgebucht in referenzprojekte.ts, dieselbe Handarbeitsregel wie bucheUm in der
+  // Kalkulation). Sonst laegen in `werkstatt` CNC-Minuten, fuer die dieser Betrieb
+  // keinen Satz hat — wert() rechnete sie zu 65 €/h, die Baender waeren falsch.
+  const projekt = REFERENZPROJEKTE[basis.schluessel]
+  const umgeb = umgebucht(projekt, deaktiviert)
+  if (umgeb !== projekt) basis = referenzAusProjekt(umgeb)
   return mitBaendern(basis, saetze, aufschlag)
 }
 

@@ -14,7 +14,8 @@ const AUFSCHLAG = 0.30
 test('Die Referenzkalkulation ergibt einen plausiblen Gesamtpreis', () => {
   const r = referenzPreis(SAETZE, AUFSCHLAG)
   assert.ok(r.gesamt > 1900 && r.gesamt < 2600, `Gesamt war ${r.gesamt}`)
-  assert.ok(Math.abs(r.material - 409.5 * 1.3) < 1)
+  // 2026-09-17: Material-EK 584,50 € (Fabians Plattenpreis 25 €/m²), vorher 409,50 €.
+  assert.ok(Math.abs(r.material - 584.5 * 1.3) < 1)
   assert.ok(r.werkstatt > r.montage)
 })
 
@@ -496,8 +497,11 @@ test('Einbauschrank: Grund-Baender unveraendert (±1 €) seit referenzAusProjek
   //   Kostenstelle "Lieferung" bekommt denselben Faktor wie "Montage"
   //   (wendeFaktorenAn in zeitfaktoren.ts), die Frage muss also beide messen.
   // Alle drei sind dokumentierte, gewollte Verschiebungen, keine Regression.
+  // 2026-09-17, Fabian: Spanplatte 25 €/m² statt 14 und CNC als eigene
+  // Kostenstelle (60 min aus dem Zusammenbau herausgeloest) — der Schrank liegt
+  // jetzt bei 2.528 € statt 2.245 €; davor: [1638, 1942, 2245, 2549, 2852].
   const r = REFERENZEN.einbauschrank
-  const vorherGrund = [1638, 1942, 2245, 2549, 2852]
+  const vorherGrund = [1899, 2214, 2528, 2843, 3157]
   const jetztGrund = r.baender.grund.filter(b => b.mitte !== null).map(b => b.mitte)
   vorherGrund.forEach((v, i) => assert.ok(Math.abs(jetztGrund[i] - v) <= 1,
     `grund Band ${i}: ${jetztGrund[i]} statt ${v}`))
@@ -607,4 +611,26 @@ test('Lackierkabinen-Block gilt nur fuer wirklich lackierte Flaechen', () => {
   for (const wort of ['Dekor', 'beschichtet', 'CPL', 'Folie', 'geoelt', 'gewachst']) {
     assert.ok(b.includes(wort), 'fehlt im Block: ' + wort)
   }
+})
+
+// ── Betrieb ohne CNC: Bandbasis aus dem umgebuchten Projekt ──────────────────
+
+test('referenzMitSaetzen ohne CNC: keine CNC-Minuten in der Werkstatt, mehr Zusammenbau', () => {
+  const mit = referenzMitSaetzen('kueche', SAETZE, AUFSCHLAG)
+  const ohne = referenzMitSaetzen('kueche', SAETZE, AUFSCHLAG, ['CNC'])
+  const min = (ref, ks) => ref.werkstatt.find(z => z.kostenstelle === ks)?.minuten ?? 0
+  assert.ok(min(mit, 'CNC') > 0, 'Kueche mit CNC muss CNC-Minuten haben')
+  assert.equal(min(ohne, 'CNC'), 0)
+  assert.ok(min(ohne, 'Zusammenbau') > min(mit, 'Zusammenbau'))
+  // Band 3 (Faktor 1,0) trifft weiterhin den eigenen Referenzpreis — jetzt den OHNE CNC.
+  const preis = referenzPreis(SAETZE, AUFSCHLAG, ohne)
+  const b3 = ohne.baender.grund.find(b => b.schluessel === 'b3')
+  assert.ok(Math.abs(b3.mitte - preis.gesamt) <= 1, `b3 ${b3.mitte} gegen ${preis.gesamt}`)
+})
+
+test('referenzMitSaetzen ohne betroffene Kostenstelle liefert dieselbe Bandbasis', () => {
+  const a = referenzMitSaetzen('einbauschrank', SAETZE, AUFSCHLAG)
+  const b = referenzMitSaetzen('einbauschrank', SAETZE, AUFSCHLAG, ['Montage'])
+  assert.deepEqual(a.werkstatt, b.werkstatt)
+  assert.deepEqual(a.baender, b.baender)
 })

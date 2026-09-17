@@ -9,7 +9,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   REFERENZPROJEKTE, STANDARDSAETZE_REFERENZ, mitSaetzen, summen, faustregelKontrolle,
-  projektDatenAus,
+  projektDatenAus, umgebucht,
 } from '../src/lib/referenzprojekte.ts'
 
 const AUFSCHLAG = 0.30
@@ -145,15 +145,75 @@ test('Jede Grundsumme liegt in ihrer Faustregel-Spanne', () => {
   }
 })
 
-test('Der Einbauschrank trifft die gemessenen 2.245 €', () => {
+// 2026-09-17, Fabian: Spanplatte 25 €/m² statt 14, CNC als eigene Kostenstelle.
+// Die urspruenglich gemessenen 2.245 € / 409,50 € EK sind damit Geschichte; der
+// Schrank liegt jetzt bei 2.528 € — am oberen Rand der Faustregel 1.800–2.600 €.
+test('Der Einbauschrank liegt bei 2.528 € (Fabians Plattenpreis, CNC herausgeloest)', () => {
   const s = summen(bewertet(REFERENZPROJEKTE.einbauschrank))
-  assert.ok(Math.abs(s.netto - 2245) <= 30, `Grundsumme war ${s.netto.toFixed(2)} €`)
+  assert.ok(Math.abs(s.netto - 2528) <= 30, `Grundsumme war ${s.netto.toFixed(2)} €`)
 })
 
-test('Der Material-EK des Einbauschranks ist die gemessene Summe 409,50 €', () => {
+test('Der Material-EK des Einbauschranks ist 584,50 € (409,50 € gemessen + 25 €/m² Platte)', () => {
   const grund = REFERENZPROJEKTE.einbauschrank.positionen.filter(q => !q.alternativ)
   const ek = grund.reduce((s, q) => s + q.material.reduce((t, m) => t + m.menge * m.ekPreis, 0), 0)
-  assert.ok(Math.abs(ek - 409.5) <= 1, `Material-EK war ${ek.toFixed(2)} €`)
+  assert.ok(Math.abs(ek - 584.5) <= 1, `Material-EK war ${ek.toFixed(2)} €`)
+})
+
+test('Der Einbauschrank und die Kueche tragen die Kostenstelle CNC', () => {
+  for (const k of ['einbauschrank', 'kueche']) {
+    const grund = REFERENZPROJEKTE[k].positionen.filter(q => !q.alternativ)
+    assert.ok(grund.some(q => q.arbeitszeit.some(a => a.kostenstelle === 'CNC')), `${k}: keine CNC-Zeile`)
+  }
+})
+
+test('Die Kueche liegt im Mittelfeld: 8.000–9.500 € netto ohne Geraete, ueber 70 Stunden', () => {
+  // Fabian 2026-09-17: "Das ist insgesamt sehr wenig Zeit" (vorher 6.044 € / 23 h
+  // Werkstatt) — "wir muessen ein gutes Mittelfeld abbilden".
+  const s = summen(bewertet(REFERENZPROJEKTE.kueche))
+  assert.ok(s.netto >= 8000 && s.netto <= 9500, `Kueche war ${s.netto.toFixed(2)} €`)
+  assert.ok(s.stunden >= 70, `Kueche hat nur ${s.stunden.toFixed(1)} h`)
+})
+
+test('Jeder Unterschrank mit Drehtuer braucht mindestens 3,5 Stunden je Stueck', () => {
+  const pos = REFERENZPROJEKTE.kueche.positionen.find(q => q.titel.startsWith('Unterschrank mit Drehtür'))
+  const min = pos.arbeitszeit.reduce((s, a) => s + a.minuten, 0)
+  assert.ok(min >= 210, `nur ${min} min je Stueck`)
+  assert.equal(pos.material.find(m => m.bezeichnung.startsWith('Griff')).menge, 2, 'zwei Tueren, zwei Griffe')
+})
+
+// ── umgebucht: Betrieb ohne CNC / Kantenanleimmaschine ───────────────────────
+
+test('umgebucht ohne CNC: keine CNC-Zeile mehr, Minuten × 1,6 auf dem Zusammenbau', () => {
+  const p = REFERENZPROJEKTE.kueche
+  const u = umgebucht(p, ['CNC'])
+  assert.notEqual(u, p)
+  for (let i = 0; i < p.positionen.length; i++) {
+    const vorher = p.positionen[i], nachher = u.positionen[i]
+    const cnc = vorher.arbeitszeit.find(a => a.kostenstelle === 'CNC')?.minuten ?? 0
+    assert.equal(nachher.arbeitszeit.some(a => a.kostenstelle === 'CNC'), false, `${vorher.titel}: CNC noch da`)
+    const zbVor = vorher.arbeitszeit.find(a => a.kostenstelle === 'Zusammenbau')?.minuten ?? 0
+    const zbNach = nachher.arbeitszeit.find(a => a.kostenstelle === 'Zusammenbau')?.minuten ?? 0
+    assert.equal(zbNach, zbVor + Math.round(cnc * 1.6), `${vorher.titel}: Zusammenbau ${zbNach} statt ${zbVor + Math.round(cnc * 1.6)}`)
+  }
+  const sVor = summen(bewertet(p)), sNach = summen(mitSaetzen(u, STANDARDSAETZE_REFERENZ, AUFSCHLAG))
+  assert.ok(sNach.stunden > sVor.stunden, 'ohne CNC muessen es MEHR Stunden sein')
+})
+
+test('umgebucht laesst die Vorlage unberuehrt und vergibt eindeutige Zeilen-IDs', () => {
+  const p = REFERENZPROJEKTE.einbauschrank
+  const vorher = JSON.stringify(p.positionen)
+  const u = umgebucht(p, ['CNC', 'Bekantung'])
+  assert.equal(JSON.stringify(p.positionen), vorher)
+  const ids = u.positionen.flatMap(q => q.arbeitszeit.map(a => a.id))
+  assert.equal(new Set(ids).size, ids.length)
+  assert.ok(ids.every(id => Number.isInteger(id) && id > 0))
+})
+
+test('umgebucht ignoriert Kostenstellen ohne Handarbeits-Ziel (Montage) und leere Listen', () => {
+  const p = REFERENZPROJEKTE.kueche
+  assert.equal(umgebucht(p, ['Montage']), p)
+  assert.equal(umgebucht(p, []), p)
+  assert.equal(umgebucht(p, ['Zuschnitt']), p)
 })
 
 test('Der Massivholz-EK des Einbauschranks ist die gemessene Summe 1.770 €', () => {
