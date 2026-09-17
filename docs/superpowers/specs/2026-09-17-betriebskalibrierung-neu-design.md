@@ -20,9 +20,11 @@ Dinge stimmen nicht:
    Fehler: Bei der Küche liegt „Fronten Eiche massiv“ (8.100–11.000 €) unter „Dekor“
    (8.600–11.500 €), weil die Massiv-Rechnung Korpusse, Beschläge und Arbeitsplatte
    verliert.
-3. **Der Referenzpreis der Küche (10.000 € netto)** kommt aus der Faustregel „1 lfm ≈
-   1.000 €“ — für eine Schreinerküche mit 12 Korpussen vermutlich zu niedrig. Alle
-   Spannen hängen an dieser einen Zahl.
+3. **Der Referenzpreis kommt heute aus der Faustregel** („1 lfm ≈ 1.000 €“, 10.000 € für
+   die Küche) und ist damit die Vorgabe für alle Spannen. Fabian (17.09.): „Die Faustregel
+   soll als Kontrolle dienen, nicht als Kalkulationsvorgabe.“ Richtig ist die umgekehrte
+   Richtung: Der Referenzpreis entsteht **von unten** aus Stückliste, Zeitrichtwerten und
+   Stundensätzen; die Faustregel prüft danach nur, ob das Ergebnis im plausiblen Rahmen liegt.
 
 ## 2. Grundsätze
 
@@ -35,6 +37,13 @@ Dinge stimmen nicht:
 - **Die Antwortspannen werden aus genau dieser Kalkulation abgeleitet** — und die
   Varianten (Lack, Massiv, Altbau) sind eigene, sichtbare Kalkulationen derselben
   Referenz, nicht Formelableitungen.
+- **Die Faustregeln (CLAUDE.md Abschnitt 6.1) sind eine Kontrolle, keine Vorgabe.** Neben
+  der Referenzkalkulation steht: „Faustregel für so ein Möbel: 1.800–2.600 € — deine
+  Kalkulation liegt im Rahmen.“ Weicht sie stark ab, erscheint ein Hinweis mit dem
+  wahrscheinlichen Grund (Materialansatz, Stundensatz, Zeitrichtwert); die Zahl wird nie
+  angepasst.
+- **„Nicht enthalten“ nennt nur, was ein Kunde vom Schreiner erwarten könnte** und trotzdem
+  nicht im Preis ist (Fabian, 17.09.: Malerarbeiten haben dort nichts verloren).
 - **Ausgangszustand und Umfang stehen in jedem Text:** Neubau/Altbau, Entfernung,
   was enthalten ist, was nicht.
 
@@ -52,7 +61,7 @@ Beschläge · Oberfläche · Montage und Lieferung · nicht enthalten.
 > gedämpft), eine Kleiderstange, je Fach zwei Einlegeböden auf Bodenträgern, Sockel
 > 100 mm, Rückwand 8 mm. Griffe: Kunde stellt keine — verdeckte Griffleiste gefräst
 > entfällt, Standardgriffe Edelstahl 128 mm. Lieferung und Montage beim Kunden,
-> Erdgeschoss. Nicht enthalten: Elektrik, Beleuchtung, Malerarbeiten.
+> Erdgeschoss. Nicht enthalten: Innenbeleuchtung und Elektroanschluss.
 
 ### 3.2 Einbauküche
 > Kunde: Familie Muster, Musterstraße 12, 63517 Rodenbach (20 km Anfahrt).
@@ -74,7 +83,7 @@ Beschläge · Oberfläche · Montage und Lieferung · nicht enthalten.
 > 860 × 1.985 mm, Zargen weiß beschichtet für Wandstärke 120–140 mm, Bänder V 3420,
 > Buntbartschloss, Drückergarnitur Edelstahl. Liefern, Zargen einpassen und kürzen,
 > Türen einhängen und einstellen, Erdgeschoss und erster Stock. Nicht enthalten:
-> Ausbau alter Zargen, Putz- und Malerarbeiten.
+> Ausbau der alten Zargen (in der Altbau-Frage unten gesondert).
 
 ### 3.4 Treppe
 > Kunde: Familie Muster, Musterstraße 12, 63517 Rodenbach (20 km Anfahrt).
@@ -82,8 +91,8 @@ Beschläge · Oberfläche · Montage und Lieferung · nicht enthalten.
 > laufbreit, mit Setzstufen, Wangen 40 mm, Stufen 40 mm, Geländer mit Füllstäben und
 > Handlauf rund 42 mm, Oberfläche geölt. Rohtreppe zugekauft (fertig geölt vom
 > Hersteller), Neubau, Treppenloch fertig, Rohbetonauflager. Anlieferung, Einbau,
-> Anpassung an Wand und Decke, Montage des Geländers. Nicht enthalten: Podest,
-> Bodenbelag im Umfeld, Malerarbeiten.
+> Anpassung an Wand und Decke, Montage des Geländers. Nicht enthalten: Podest und
+> Treppenbelag im Umfeld.
 
 ### 3.5 Massivholztisch
 > Kunde: Familie Muster, Musterstraße 12, 63517 Rodenbach (20 km Anfahrt).
@@ -102,7 +111,24 @@ Sätzen und dem Aufschlag des Betriebs gerechnet; Änderungen an den Sätzen wir
 sofort. Knopf **„Als Projekt öffnen“** legt eine Kopie als neues Projekt an.
 
 Die Kalkulation stammt aus einer **festen, gepflegten Positionsliste je Referenz**
-(kein KI-Aufruf beim Anzeigen): Material und Minuten sind Fabians geprüfte Zahlen.
+(kein KI-Aufruf beim Anzeigen). Sie wird **von unten** aufgebaut, nicht aus einem Zielpreis:
+
+1. **Stückliste → Material-EK:** Platten nach m² (Korpus, Fronten, Rückwand), Kanten nach
+   lfm, Beschläge nach Stück (Scharniere, Auszüge, Griffe), Arbeitsplatte nach lfm — mit
+   den Richtpreisen aus CLAUDE.md Abschnitt 7, plus Kleinmaterial-Pauschale. Der Aufschlag
+   kommt aus den Warenaufschlägen des Betriebs.
+2. **Zeitrichtwerte → Minuten je Kostenstelle:** Zuschnitt je Platte, Kante je lfm,
+   Korpus je Stück, Schubkasten und Tür je Stück, Oberfläche je m² (CLAUDE.md Abschnitte
+   3–4), Montage je lfm bzw. je Stück (Abschnitt 5), Fixsockel Besprechung/Planung/
+   Konstruktion/Arbeitsvorbereitung wie beim gemessenen Einbauschrank.
+3. **Stundensätze und Aufschlag des Betriebs** machen daraus den Preis — sichtbar Zeile
+   für Zeile.
+4. **Faustregel als Kontrolle:** Das Ergebnis wird gegen Abschnitt 6.1 gehalten und
+   kommentiert, nie ersetzt.
+
+Der Einbauschrank ist die gemessene Vorlage (Ist-Zahlen aus dem Betrieb). Küche, Türen,
+Treppe und Tisch werden nach demselben Muster aufgebaut und von Fabian gegengelesen —
+er prüft das Ergebnis, statt einen Zielpreis vorzugeben.
 Damit ist die Referenz stabil und nachvollziehbar. Die 18 KI-Rechenläufe vom 16./17.09.
 dienen als Gegenprobe, was CraftFlow ohne Kalibrierung aus den Texten macht.
 
@@ -126,6 +152,8 @@ dienen als Gegenprobe, was CraftFlow ohne Kalibrierung aus den Texten macht.
 
 ## 6. Offene Entscheidungen für Fabian
 
-1. Referenzpreise netto je Möbel (vor allem Küche) — deine Zahl als Meister.
+1. ~~Referenzpreise netto je Möbel~~ → entfällt (Fabian, 17.09.): Der Preis entsteht aus
+   der Stückliste. Stattdessen liest Fabian die fünf aufgebauten Kalkulationen gegen
+   (Stückliste vollständig? Zeitrichtwerte passend? Ergebnis plausibel?).
 2. Die Texte oben: fachlich richtig? Fehlt etwas, was ein Kunde fragen würde?
 3. Referenzkalkulation: feste Positionsliste (empfohlen) oder KI-Lauf?
