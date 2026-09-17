@@ -150,6 +150,25 @@ ungefragt auf `main`.
 - Speicherort `betriebsprofil.preisfaktor numeric(4,2) not null default 1.00`
   (`docs/sql/2026-09-16-preisfaktor.sql`). Tests: `tests/preisfaktor.test.mjs`.
 
+## Betriebskalibrierung: Referenzprojekte (Stand 2026-09-17)
+- **Fünf Referenzprojekte als Daten** in `src/lib/referenzprojekte.ts` (importfrei, `tests/referenzprojekte.test.mjs`):
+  Einbauschrank (gemessen), Einbauküche, Innentüren, Treppe, Massivholztisch — je Kunde, ausführlicher
+  Text, Grundpositionen und **Varianten als Alternativpositionen** (`alternativ: true`, `variante`).
+  Jede Zahl trägt einen Quellenkommentar (CLAUDE.md-Abschnitt, „gemessen“ oder „Annahme: …“).
+- **Preise entstehen von unten** (Stückliste × Richtpreise, Zeitrichtwerte × Sätze, Fixsockel). Die
+  Faustregeln aus Abschnitt 6.1 sind NUR Kontrolle (`faustregelKontrolle`), nie Vorgabe (Fabian, 17.09.).
+- `src/lib/kalibrierung.ts` leitet die Bandbasis aus dem Projekt ab (`referenzAusProjekt`); `REFERENZEN`
+  und `REFERENZ` kommen daraus, `SPECS`/`baueReferenz` gibt es nicht mehr. Massiv = Grundmaterial +
+  Mehrkosten (nie Ersatz). Die Bandbasis jeder Variantenfrage muss der Preisdifferenz der
+  Alternative entsprechen — der Anker („CraftFlow rechnet …“) liegt immer im mittleren Band (Test).
+- Route `GET /api/settings/kalibrierung` liefert `referenzprojekt` (mit den Sätzen des Betriebs
+  gerechnet, `summen`, `faustregel`, `baender`); `POST …/als-projekt` legt „Referenz: <Name>“ als
+  Projekt an (`projektDatenAus`, Datenform wie `saveProject`).
+- UI `src/components/settings/ReferenzprojektKasten.tsx`: aufklappbare Kalkulation, Fragen an den
+  Positionen (Lack = Aufpreis, Massiv = Gesamtpreis, Montage = Dauer), Faustregel-Zeile, „Als Projekt öffnen“.
+- Referenzen NIE aus KI-Läufen bauen: derselbe Text ergibt ±30 % Stunden je Lauf (Vault „KI-Streuung
+  und feste Referenzkalkulationen“). Prüfprotokoll: `docs/pruefprotokolle/2026-09-17-kalibrierung-und-checkup.md`.
+
 ## Farben / CI (Stand 2026-09-15)
 - Zwei Nutzerfarben (`farbe_primaer`, `farbe_akzent` im Betriebsprofil). Alles andere —
   Schrift, Nebentext, Kästen, Rahmen, Kopfzeile — leitet `leitePaletteAb()` in

@@ -151,7 +151,7 @@ test('Die Aufteilung der Fragen je Referenzmöbel stimmt', () => {
   // Deshalb steht die Zuordnung jetzt ausgeschrieben im Wissen — und wird hier
   // gegen die echten Daten geprüft.
   const wissen = assistentWissen()
-  const treffer = wissen.match(/Neun bei den Referenzmöbeln ([^—]+)— acht bei ([^.\n]+)\./)
+  const treffer = wissen.match(/Neun bei den Referenzprojekten ([^—]+)— acht bei ([^.\n]+)\./)
   assert.ok(treffer, 'Die Zeile mit der Aufteilung je Referenzmöbel fehlt im Wissen')
 
   const namenAus = (s) => new Set(s.split(',').map(x => x.trim()).filter(Boolean))
