@@ -6,8 +6,8 @@ import {
   stueckzahlVon, materialRabatt, zeitFaktorFuer, normalizeKsId, KOSTENSTELLEN_LABELS,
 } from '@/lib/types'
 import type { ReferenzPosition } from '@/lib/referenzprojekte.ts'
-import type { Referenzmoebel, Fragenschluessel } from '@/lib/kalibrierung'
-import { RANDBAENDER, RANDHINWEIS, inStunden, inTagen } from '@/lib/kalibrierung'
+import type { Referenzmoebel, Fragenschluessel, Anker } from '@/lib/kalibrierung'
+import { RANDBAENDER, RANDHINWEIS } from '@/lib/kalibrierung'
 
 // Task R4: die "Das Referenzprojekt"-Box in Mein Betrieb. Zeigt die ECHTE
 // Kalkulation der Route (GET /api/settings/kalibrierung -> referenzprojekt),
@@ -26,6 +26,8 @@ export type ReferenzprojektDaten = {
   positionen: ReferenzPosition[]
   summen: { netto: number; material: number; arbeit: number; stunden: number }
   faustregel: { imRahmen: boolean; text: string }
+  /** Task R2 Fix Runde 2: EINE Quelle fuer den Anker-Text, aus der Route (ankerFuer). */
+  anker: Partial<Record<Fragenschluessel, Anker>>
 }
 
 type GruppeFn = (
@@ -41,53 +43,6 @@ type Props = {
   gruppe: GruppeFn
   /** true, wenn der gewaehlte Schwerpunkt eine EIGENE Referenz hat (kein Einbauschrank-Fallback). */
   eigeneReferenz: boolean
-}
-
-// Gerundete Euro-Anzeige fuer die Anker-Saetze — dieselbe Groessenordnung wie
-// die Bandtexte daneben (kalibrierung.ts eur()), keine Cent-Genauigkeit noetig,
-// wenn ohnehin in Baendern verglichen wird.
-const eurRund = (n: number) => `${Math.round(n).toLocaleString('de-DE')} €`
-
-const jeStueckSuffix = (teiler: number) => (teiler > 1 ? ' je Stück' : '')
-const ohneMaterialSuffix = (ohne: boolean) => (ohne ? ' für die Arbeit, ohne Material' : '')
-
-function grundAnkerText(daten: ReferenzprojektDaten, ref: Referenzmoebel): string {
-  const ohneMaterial = (ref.ohneMaterial ?? []).includes('grund')
-  const teiler = ref.teiler?.grund ?? 1
-  const basis = ohneMaterial ? daten.summen.netto - daten.summen.material : daten.summen.netto
-  const preis = Math.round(basis / teiler)
-  return `CraftFlow rechnet ${eurRund(preis)}${jeStueckSuffix(teiler)}${ohneMaterialSuffix(ohneMaterial)} — was nimmst du?`
-}
-
-/** Anker fuer Lack: die Frage fragt den AUFPREIS ("Was kommt dazu?"), nicht den Gesamtpreis. */
-function lackAnkerText(daten: ReferenzprojektDaten, ref: Referenzmoebel, pos: ReferenzPosition): string {
-  const teiler = ref.teiler?.lack ?? 1
-  const aufpreis = Math.round((calcAngebotspos(pos) - daten.summen.netto) / teiler)
-  return `CraftFlow rechnet + ${eurRund(aufpreis)}${jeStueckSuffix(teiler)} dazu — was nimmst du?`
-}
-
-/** Anker fuer Massivholz: wieder ein Gesamtpreis, wie bei der Grundfrage. */
-function massivAnkerText(ref: Referenzmoebel, pos: ReferenzPosition): string {
-  const ohneMaterial = (ref.ohneMaterial ?? []).includes('massiv')
-  const teiler = ref.teiler?.massiv ?? 1
-  const basis = ohneMaterial ? calcAngebotspos(pos) - materialkostenPos(pos) : calcAngebotspos(pos)
-  const preis = Math.round(basis / teiler)
-  return `CraftFlow rechnet ${eurRund(preis)}${jeStueckSuffix(teiler)}${ohneMaterialSuffix(ohneMaterial)} — was nimmst du?`
-}
-
-/**
- * Anker fuer Montage: eine DAUER, keine Zahl in Euro — die Frage fragt "Wie lange
- * bist du dran?". Minuten sind stundensatzunabhaengig, deshalb genuegt hier das
- * Referenzmoebel (ref.montage/altbauFaktor) — dieselbe Rechnung wie die Bandmitten
- * in kalibrierung.ts (baueBaender), keine zweite Formel.
- */
-function montageAnkerText(ref: Referenzmoebel): string {
-  const basis = ref.montage.find(z => z.kostenstelle === 'Montage')?.minuten ?? 0
-  const erwartet = basis * ref.altbauFaktor
-  const teiler = ref.teiler?.montage ?? 1
-  const minuten = erwartet / teiler
-  const dauer = minuten >= 9 * 60 ? inTagen(minuten) : inStunden(minuten)
-  return `CraftFlow rechnet ${dauer} — was nimmst du?`
 }
 
 const thStyle: React.CSSProperties = {
@@ -279,9 +234,7 @@ export default function ReferenzprojektKasten({ daten, referenzmoebel, antwort, 
           {varianten.map(schluessel => {
             const pos = daten.positionen.find(q => q.variante === schluessel)
             if (!pos) return null
-            const anker = schluessel === 'lack' ? lackAnkerText(daten, referenzmoebel, pos)
-              : schluessel === 'massiv' ? massivAnkerText(referenzmoebel, pos)
-              : montageAnkerText(referenzmoebel)
+            const anker = daten.anker[schluessel]?.text ?? ''
             return (
               <div key={schluessel}>
                 {positionsZeile(pos)}
@@ -300,7 +253,7 @@ export default function ReferenzprojektKasten({ daten, referenzmoebel, antwort, 
               <b style={{ color: C.copper, fontSize: 14 }}>{eur(daten.summen.netto)}</b></div>
           </div>
 
-          {frageBlock('grund', grundAnkerText(daten, referenzmoebel))}
+          {frageBlock('grund', daten.anker.grund?.text ?? '')}
 
           <div style={{ color: daten.faustregel.imRahmen ? C.ok : C.warn, fontSize: 12, marginBottom: 14 }}>
             {daten.faustregel.text}

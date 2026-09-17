@@ -274,7 +274,6 @@ test('Die Flaechen-Kennwerte treffen den gemessenen Einbauschrank', () => {
   const nah = (formel, gemessen, name) =>
     assert.ok(Math.abs(formel - gemessen) / gemessen <= 0.10,
       `${name}: Formel ${formel} gegen gemessen ${gemessen}`)
-  nah(m2 * 40, REFERENZ.lackMinuten, 'Lackminuten')
   nah(m2 * 110, REFERENZ.massivMaterialEk, 'Massivholzmaterial')
   nah(m2 * 20, REFERENZ.massivOberflaecheMinuten, 'Oelminuten')
   // Lackmaterial NICHT mehr gegen die CLAUDE.md-Faustformel (4 EUR/m2 = 64 EUR) —
@@ -285,6 +284,14 @@ test('Die Flaechen-Kennwerte treffen den gemessenen Einbauschrank', () => {
   // Kante nicht. Aendert sich mit der Stueckliste (zuletzt Commit 2ddc370, das
   // den Griffpreis anhob und die Kantenmenge dagegen ausglich).
   assert.equal(REFERENZ.lackMaterialEk, 29, `Lackmaterial war ${REFERENZ.lackMaterialEk}`)
+  // Lackminuten ebenfalls NICHT mehr gegen die Flaechenformel (40 min/m2 = 644 min):
+  // Fix Runde 2 (Controller-Fund, Live-Preview) — lackMinuten ist jetzt das
+  // Oberflaeche-Minuten-AEQUIVALENT der ECHTEN Preisdifferenz ueber ALLE
+  // Kostenstellen (inkl. der wegfallenden Bekantung, 190 min à 100 €/h), nicht nur
+  // der zusaetzlichen Oberflaeche-Minuten. Der Anker "CraftFlow rechnet + 441 € dazu"
+  // fiel vorher in Band 1 statt 3 — mit 336 statt 644 (aequivalenten) Minuten liegt
+  // er wieder mittig (siehe Konsistenz-Test unten).
+  assert.equal(REFERENZ.lackMinuten, 336, `Lackminuten war ${REFERENZ.lackMinuten}`)
 })
 
 test('Der Schwerpunkt waehlt das Referenzmoebel, Kueche hat Vorrang', () => {
@@ -474,27 +481,54 @@ test('Kueche: Massivholz-Bandmitten liegen ueber den Grund-Bandmitten, in jedem 
     `Band ${i}: massiv ${massiv[i]} nicht groesser als grund ${g}`))
 })
 
-test('Einbauschrank: Grund- und Montage-Baender unveraendert (±1 €) seit referenzAusProjekt()', () => {
-  // Grund und Montage kommen 1:1 aus denselben Zeitposten wie vorher (REFERENZ war
-  // schon vorher exakt auf den gemessenen Schrank gesetzt) — hier duerfen sich die
-  // Bandmitten NICHT nennenswert veraendert haben.
+test('Einbauschrank: Grund-Baender unveraendert (±1 €) seit referenzAusProjekt()', () => {
+  // Grund kommt 1:1 aus denselben Zeitposten wie vorher (REFERENZ war schon vorher
+  // exakt auf den gemessenen Schrank gesetzt) — hier duerfen sich die Bandmitten
+  // NICHT nennenswert veraendert haben.
   //
-  // Lack und Massiv NICHT geprueft: Beide haengen an lackMaterialEk/
-  // massivWerkstattFaktor, die referenzAusProjekt() jetzt aus der echten
-  // Stueckliste ableitet statt aus den alten hart hinterlegten Naeherungswerten
-  // (600/60/1770/1,3/300 fest im Code). Fabians Commit 2ddc370 (Griffpreis
-  // angehoben) sagt es selbst: "Verschoben haben sich nur die Lack- und die
-  // Massiv-Alternative des Einbauschranks." Erwartete, dokumentierte Verschiebung,
-  // keine Regression.
+  // Lack, Massiv UND Montage NICHT (mehr) geprueft:
+  // - Lack/Massiv haengen an lackMinuten/lackMaterialEk/massivWerkstattFaktor, die
+  //   referenzAusProjekt() aus der echten Stueckliste ableitet statt aus den alten
+  //   hart hinterlegten Naeherungswerten (600/60/1770/1,3/300 fest im Code).
+  // - Montage wurde in Fix Runde 2 (R4-Review) bewusst NEU definiert: die Frage
+  //   misst jetzt Montage+Lieferung der Montage-Alternative direkt (ref.montageMinuten,
+  //   454 min statt vorher aus "Grund-Montage × altbauFaktor" = 384 min) — die
+  //   Kostenstelle "Lieferung" bekommt denselben Faktor wie "Montage"
+  //   (wendeFaktorenAn in zeitfaktoren.ts), die Frage muss also beide messen.
+  // Alle drei sind dokumentierte, gewollte Verschiebungen, keine Regression.
   const r = REFERENZEN.einbauschrank
   const vorherGrund = [1638, 1942, 2245, 2549, 2852]
-  const vorherMontage = [230, 307, 384, 461, 538]
   const jetztGrund = r.baender.grund.filter(b => b.mitte !== null).map(b => b.mitte)
-  const jetztMontage = r.baender.montage.filter(b => b.mitte !== null).map(b => b.mitte)
   vorherGrund.forEach((v, i) => assert.ok(Math.abs(jetztGrund[i] - v) <= 1,
     `grund Band ${i}: ${jetztGrund[i]} statt ${v}`))
-  vorherMontage.forEach((v, i) => assert.ok(Math.abs(jetztMontage[i] - v) <= 1,
-    `montage Band ${i}: ${jetztMontage[i]} statt ${v}`))
+})
+
+// ── Task R2 Fix Runde 2/3: Anker liegt im mittleren Band (Controller-Ruling) ────
+
+import { ankerFuer } from '../src/lib/kalibrierung.ts'
+
+test('Der Anker jeder gestellten Frage liegt im mittleren Band (b3) — bei STANDARDSAETZE/30 %', () => {
+  // Der Anker ("CraftFlow rechnet ...") ist die ECHTE Preisdifferenz/-summe der
+  // Alternative bei den Saetzen/dem Aufschlag DIESES Betriebs (ankerFuer). Bei
+  // STANDARDSAETZE/30 % — derselbe Satz, mit dem die Baender selbst beschriftet
+  // sind — muss er deshalb (bis auf Rundung) in die Mitte von Band 3 fallen.
+  // "Innerhalb Band 3" heisst: zwischen der Grenze b2/b3 (Faktor 0,9) und der
+  // Grenze b3/b4 (Faktor 1,1) — dieselbe Formel wie skala()/g(i) in kalibrierung.ts.
+  for (const r of Object.values(REFERENZEN)) {
+    const anker = ankerFuer(r, SAETZE, AUFSCHLAG)
+    for (const frage of r.fragenliste) {
+      const teiler = r.teiler?.[frage.schluessel] ?? 1
+      const echte = frage.baender.filter(b => b.mitte !== null)
+      assert.equal(echte.length, 5, `${r.name}/${frage.schluessel}: ${echte.length} Baender`)
+      const mitten = echte.map(b => b.mitte / teiler)
+      const [, b2, b3, b4] = mitten
+      const lo = (b2 + b3) / 2, hi = (b3 + b4) / 2
+      const a = anker[frage.schluessel]
+      assert.ok(a, `${r.name}/${frage.schluessel}: kein Anker`)
+      assert.ok(a.wert >= lo - 0.5 && a.wert <= hi + 0.5,
+        `${r.name}/${frage.schluessel}: Anker ${a.wert} ausserhalb Band 3 [${lo.toFixed(1)}, ${hi.toFixed(1)}]`)
+    }
+  }
 })
 
 test('Kostenstellen folgen den Maschinen-Antworten: ohne Kantenanleimmaschine ist Bekantung aus, mit ihr wieder an', () => {

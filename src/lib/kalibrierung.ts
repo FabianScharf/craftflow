@@ -41,6 +41,45 @@ function gruppeVon(kostenstelle: string): Kostenstellengruppe {
   return 'fix'
 }
 
+// Die Standardsaetze der Handwerkskammer. Hier (statt weiter unten bei den
+// Antwortskalen) definiert, weil referenzAusProjekt() sie schon beim Aufbau der
+// Bandbasis braucht (Lack-/Massiv-Anker als ECHTE Preisdifferenz der Alternative,
+// siehe unten) — REFERENZ/REFERENZEN entstehen bei Modulstart, vor der spaeteren
+// STANDARDSAETZE-Nutzung in baueBaender/berechneFaktoren. Absichtlich hier
+// wiederholt statt importiert (siehe Dateikopf): Sie bestimmen nur die
+// Beschriftung/den Anker; gerechnet wird spaeter mit den Saetzen des Nutzers.
+const STANDARDSAETZE: Saetze = {
+  Besprechung: 65, Planung: 85, Konstruktion: 75, Arbeitsvorbereitung: 75,
+  Produktion: 65, Warenhandling: 65, Zuschnitt: 72, Bekantung: 100, CNC: 120,
+  'Oberfläche': 72, Zusammenbau: 65, Verpacken: 65, Azubi: 52,
+  Montage: 65, Lieferung: 65,
+}
+
+/**
+ * Arbeitspreis (EUR) einer Positionsliste bei den angegebenen Saetzen — Stueckzahl
+ * UND Serienstaffel eingerechnet (zeitFaktorFuer), ueber ALLE Kostenstellen. Bei
+ * einer Alternativposition (stueckzahl 1) ist zeitFaktorFuer immer genau 1, das
+ * ist dann einfach ihr eigener Arbeitspreis — dieselbe Rechnung wie
+ * arbeitszeitPreisPos in types.ts.
+ */
+function arbeitspreisVon(positionen: readonly ReferenzPosition[], saetze: Saetze): number {
+  return positionen.reduce((summe, pos) => {
+    const n = stueckzahlVon(pos)
+    return summe + pos.arbeitszeit.reduce((s, a) =>
+      s + (a.minuten / 60) * (saetze[a.kostenstelle] ?? 65) * zeitFaktorFuer(normalizeKsId(a.kostenstelle), n), 0)
+  }, 0)
+}
+
+/** Wie arbeitspreisVon, aber nur die Werkstatt-Kostenstellen OHNE Oberflaeche. */
+function werkstattpreisReinerVon(positionen: readonly ReferenzPosition[], saetze: Saetze): number {
+  return positionen.reduce((summe, pos) => {
+    const n = stueckzahlVon(pos)
+    return summe + pos.arbeitszeit
+      .filter(a => gruppeVon(a.kostenstelle) === 'werkstatt' && a.kostenstelle !== 'Oberfläche')
+      .reduce((s, a) => s + (a.minuten / 60) * (saetze[a.kostenstelle] ?? 65) * zeitFaktorFuer(normalizeKsId(a.kostenstelle), n), 0)
+  }, 0)
+}
+
 /**
  * Effektive Minuten EINER Kostenstelle ueber eine Positionsliste — Stueckzahl UND
  * Serienstaffel eingerechnet, exakt wie stundenPos in types.ts (zeitFaktorFuer
@@ -109,23 +148,41 @@ export function referenzAusProjekt(p: Referenzprojekt) {
   const alternative = (v: Variante) => p.positionen.find(q => q.alternativ && q.variante === v)
 
   const materialEk = materialEkVon(grund)
+  const grundLabour = arbeitspreisVon(grund, STANDARDSAETZE)
+  const grundWerkstattReiner = werkstattpreisReinerVon(grund, STANDARDSAETZE)
   const grundOberflaeche = minutenVon(grund, 'Oberfläche')
-  const grundWerkstattReiner = minutenGruppe(grund, 'werkstatt') - grundOberflaeche
-  const grundMontage = minutenVon(grund, 'Montage')
+  const grundMontageGesamt = minutenGruppe(grund, 'montage')
 
   const lackPos = alternative('lack')
-  const lackOberflaeche = lackPos ? minutenVon([lackPos], 'Oberfläche') : grundOberflaeche
   const lackMaterial = lackPos ? materialEkVon([lackPos]) : materialEk
+  // FIX RUNDE 2 (Controller-Fund, Live-Preview Einbauschrank): Die Preisdifferenz
+  // der Lack-Alternative muss ueber ALLE Kostenstellen gebildet werden, nicht nur
+  // ueber Oberflaeche — sonst fehlt z.B. beim Einbauschrank die eingesparte
+  // Bekantung (190 min à 100 €/h), und der Anker "CraftFlow rechnet + 441 € dazu"
+  // fiel in Band 1 statt 3 (die alte Rechnung kam auf +758 €, weil sie nur die
+  // ZUSAETZLICHEN Oberflaeche-Minuten zaehlte). Der Preis-Delta bei STANDARDSAETZE
+  // wird danach in ein Oberflaeche-Minuten-Aequivalent zurueckgerechnet (÷
+  // Oberflaeche-Satz), damit baueBaender/berechneFaktoren dieselbe Formel wie
+  // bisher (lackZeitwert = lackMinuten/60 × Oberflaeche-Satz) weiterverwenden
+  // koennen und trotzdem die ECHTE Preisdifferenz reproduzieren.
+  const lackLabourDelta = lackPos ? arbeitspreisVon([lackPos], STANDARDSAETZE) - grundLabour : 0
 
   const massivPos = alternative('massiv')
-  const massivWerkstattReiner = massivPos
-    ? minutenGruppe([massivPos], 'werkstatt') - minutenVon([massivPos], 'Oberfläche')
-    : grundWerkstattReiner
+  // Verhaeltnis der WERKSTATTPREISE (bei STANDARDSAETZE), nicht der rohen Minuten:
+  // Eine Kostenstelle mit hohem Satz (Bekantung 100 €/h), die in der Massiv-
+  // Alternative komplett wegfaellt, wuerde ein reines Minutenverhaeltnis zu klein
+  // ausweisen. Kleinere Nebenwirkung desselben Fundes wie bei "lack" oben.
+  const massivWerkstattReiner = massivPos ? werkstattpreisReinerVon([massivPos], STANDARDSAETZE) : grundWerkstattReiner
   const massivOberflaeche = massivPos ? minutenVon([massivPos], 'Oberfläche') : grundOberflaeche
   const massivMaterial = massivPos ? materialEkVon([massivPos]) : materialEk
 
+  // FIX RUNDE 2 (R4-Review): Die Montagefrage misst die ON-SITE-ZEIT der Montage-
+  // Alternative direkt — Montage UND Lieferung, weil wendeFaktorenAn (zeitfaktoren.ts)
+  // den Montagefaktor auf BEIDE Kostenstellen anwendet. Keine Ableitung mehr aus
+  // "Grund-Montage-Minuten × altbauFaktor" (Feld entfaellt) — das Feld unten
+  // (montageMinuten) IST bereits die volle erwartete Alternativzeit.
   const montagePos = alternative('montage')
-  const montageAlt = montagePos ? minutenVon([montagePos], 'Montage') : grundMontage
+  const montageAltMinuten = montagePos ? minutenGruppe([montagePos], 'montage') : grundMontageGesamt
 
   return {
     // Rueckweg zum Referenzprojekt (referenzprojekte.ts REFERENZPROJEKTE) — Task R3
@@ -146,12 +203,13 @@ export function referenzAusProjekt(p: Referenzprojekt) {
     fixsockel: zeitJeGruppe(grund, 'fix'),
     werkstatt: zeitJeGruppe(grund, 'werkstatt'),
     montage: zeitJeGruppe(grund, 'montage'),
-    lackMinuten: Math.round(lackOberflaeche - grundOberflaeche),
+    lackMinuten: Math.round(lackLabourDelta * 60 / STANDARDSAETZE['Oberfläche']),
     lackMaterialEk: Math.round(lackMaterial - materialEk),
     massivMaterialEk: Math.round(materialEk + (massivMaterial - materialEk)),
     massivWerkstattFaktor: grundWerkstattReiner > 0 ? massivWerkstattReiner / grundWerkstattReiner : 1,
     massivOberflaecheMinuten: Math.round(massivOberflaeche - grundOberflaeche),
-    altbauFaktor: grundMontage > 0 ? montageAlt / grundMontage : 1,
+    // Ersetzt das fruehere "altbauFaktor" (Verhaeltnis) — siehe Kommentar oben.
+    montageMinuten: montageAltMinuten,
   }
 }
 
@@ -208,18 +266,11 @@ export type Fragenschluessel = 'grund' | 'lack' | 'massiv' | 'montage'
 //      Auswahl endete bei "laenger" = 1.250 min. Die Frage war fuer ihn kaputt.
 const ZIEL_FAKTOREN = [0.60, 0.80, 1.00, 1.20, 1.40]
 
-// Die Standardsaetze der Handwerkskammer, mit denen die Baender beziffert werden.
-// Absichtlich hier wiederholt statt importiert (siehe Dateikopf). Sie bestimmen nur
-// die Beschriftung; gerechnet wird spaeter mit den Saetzen des Nutzers. Wer teurer
-// kalkuliert als der Standard und trotzdem das mittlere Band waehlt, bekommt einen
-// Faktor unter 1 — und das ist richtig: Dann sind seine Zeiten kuerzer, als seine
-// eigenen Saetze es hergeben.
-const STANDARDSAETZE: Saetze = {
-  Besprechung: 65, Planung: 85, Konstruktion: 75, Arbeitsvorbereitung: 75,
-  Produktion: 65, Warenhandling: 65, Zuschnitt: 72, Bekantung: 100, CNC: 120,
-  'Oberfläche': 72, Zusammenbau: 65, Verpacken: 65, Azubi: 52,
-  Montage: 65, Lieferung: 65,
-}
+// STANDARDSAETZE ist oben definiert (referenzAusProjekt braucht sie schon). Sie
+// bestimmen nur die Beschriftung; gerechnet wird spaeter mit den Saetzen des
+// Nutzers. Wer teurer kalkuliert als der Standard und trotzdem das mittlere Band
+// waehlt, bekommt einen Faktor unter 1 — und das ist richtig: Dann sind seine
+// Zeiten kuerzer, als seine eigenen Saetze es hergeben.
 const STANDARDAUFSCHLAG = 0.30
 
 // Rundung nach Groessenordnung: Ein Preis je Tuer (rund 250 EUR) auf 50er gerundet
@@ -334,12 +385,12 @@ function baueBaender(r: Bandbasis): Record<string, Band[]> {
     massivZeit, label('massiv'))
 
   // Montagefrage: eine DAUER im Altbau, nicht ein Preis. Ohne Sockel, weil der
-  // Faktor die reine Montagezeit gegen unsere Altbau-Erwartung stellt.
-  const basisMontage = r.montage.find(p => p.kostenstelle === 'Montage')?.minuten ?? 240
-  const erwartet = basisMontage * r.altbauFaktor
+  // Faktor die reine Montagezeit gegen die erwartete Alternativzeit stellt.
+  // r.montageMinuten ist bereits die volle Montage+Lieferung-Zeit der Montage-
+  // Alternative (siehe referenzAusProjekt) — keine weitere Ableitung noetig.
   const tMontage = r.teiler?.montage ?? 1
-  alle.montage = skala(0, erwartet,
-    dauerFormen(erwartet / tMontage).map(fo => (n: number) => fo(n / tMontage)))
+  alle.montage = skala(0, r.montageMinuten,
+    dauerFormen(r.montageMinuten / tMontage).map(fo => (n: number) => fo(n / tMontage)))
 
   // Nur die Fragen behalten, die dieses Moebel wirklich stellt. Die Grundfrage
   // stellt jedes.
@@ -591,6 +642,74 @@ export function referenzPreis(
   return { material, fixsockel, werkstatt, montage, gesamt: material + fixsockel + werkstatt + montage }
 }
 
+export type Anker = { wert: number; text: string }
+
+const jeStueckSuffix = (teiler: number) => (teiler > 1 ? ' je Stück' : '')
+const ohneMaterialSuffix = (ohne: boolean) => (ohne ? ' für die Arbeit, ohne Material' : '')
+
+/**
+ * Task R2 Fix Runde 2/3 (Controller-Ruling): EINE Quelle fuer den Anker-Text
+ * ("CraftFlow rechnet ... — was nimmst du?"), den "Mein Betrieb" ueber jeder Frage
+ * zeigt. Vorher rechnete ReferenzprojektKasten.tsx das selbst nach, mit einer
+ * eigenen Formel je Frage (grundAnkerText/lackAnkerText/massivAnkerText/
+ * montageAnkerText) — bei "lack" fehlte dort NICHTS, aber die zugrundeliegende
+ * Bandbasis (lackMinuten) war falsch (siehe referenzAusProjekt-Kommentar), und zwei
+ * Rechenstellen fuer denselben Wert waeren ohnehin auseinandergelaufen.
+ *
+ * Rechnet mit GENAU denselben Sockel-/Skalierbar-Formeln wie baueBaender (Faktor
+ * 1,0 = "Band 3"), aber mit den Saetzen/dem Aufschlag DIESES Betriebs statt
+ * STANDARDSAETZE — der Anker ist die ECHTE Kalkulation, die Baender sind die
+ * (immer gleich beschrifteten) Antwortstufen. Bei STANDARDSAETZE/30 % faellt der
+ * Anker deshalb (bis auf Rundung) auf die Bandmitte von Band 3 — als Konsistenz-
+ * Test in kalibrierung.test.mjs festgeschrieben.
+ */
+export function ankerFuer(
+  ref: Referenzmoebel, saetze: Saetze, aufschlag: number,
+): Partial<Record<Fragenschluessel, Anker>> {
+  const w = (posten: readonly Zeitposten[], faktor = 1) => wert(posten, saetze, faktor)
+  const material = ref.materialEk * (1 + aufschlag)
+  const fix = w(ref.fixsockel)
+  const montage = w(ref.montage)
+  const ohne = (k: Fragenschluessel) => (ref.ohneMaterial ?? []).includes(k)
+  const teilerVon = (k: Fragenschluessel) => ref.teiler?.[k] ?? 1
+  const anker: Partial<Record<Fragenschluessel, Anker>> = {}
+
+  const grundGesamt = (ohne('grund') ? fix : material + fix) + w(ref.werkstatt) + montage
+  const grundWert = Math.round(grundGesamt / teilerVon('grund'))
+  anker.grund = {
+    wert: grundWert,
+    text: `CraftFlow rechnet ${eur(grundWert)}${jeStueckSuffix(teilerVon('grund'))}${ohneMaterialSuffix(ohne('grund'))} — was nimmst du?`,
+  }
+
+  if (ref.fragen.lack) {
+    const lackZeitwert = (ref.lackMinuten / 60) * (saetze['Oberfläche'] ?? 72)
+    const lackWert = Math.round((ref.lackMaterialEk * (1 + aufschlag) + lackZeitwert) / teilerVon('lack'))
+    anker.lack = {
+      wert: lackWert,
+      text: `CraftFlow rechnet + ${eur(lackWert)}${jeStueckSuffix(teilerVon('lack'))} dazu — was nimmst du?`,
+    }
+  }
+
+  if (ref.fragen.massiv) {
+    const massivZeit = w(ref.werkstatt, ref.massivWerkstattFaktor) + (ref.massivOberflaecheMinuten / 60) * (saetze['Oberfläche'] ?? 72)
+    const massivGesamt = (ohne('massiv') ? 0 : ref.massivMaterialEk * (1 + aufschlag)) + fix + montage + massivZeit
+    const massivWert = Math.round(massivGesamt / teilerVon('massiv'))
+    anker.massiv = {
+      wert: massivWert,
+      text: `CraftFlow rechnet ${eur(massivWert)}${jeStueckSuffix(teilerVon('massiv'))}${ohneMaterialSuffix(ohne('massiv'))} — was nimmst du?`,
+    }
+  }
+
+  if (ref.fragen.montage) {
+    const tMontage = teilerVon('montage')
+    const minuten = ref.montageMinuten / tMontage
+    const dauer = minuten >= 9 * 60 ? inTagen(minuten) : inStunden(minuten)
+    anker.montage = { wert: Math.round(minuten), text: `CraftFlow rechnet ${dauer} — was nimmst du?` }
+  }
+
+  return anker
+}
+
 // Testschluessel "test:<zahl>" erlaubt es, die Bandmitte im Test genau auf den
 // eigenen Referenzpreis zu setzen. In der Oberflaeche kommt so ein Wert nie vor.
 function mitte(frage: string, schluessel: string, ref?: Referenzmoebel): number | null {
@@ -657,14 +776,14 @@ export function berechneFaktoren(
     }
   }
 
-  // Gefragt wird die ALTBAU-Dauer in Tagen, verglichen gegen unsere Altbau-Erwartung
-  // (Neubau x 1,6, ohne Fahrt). Der Faktor gilt dann fuer alle Montage; der
-  // Altbau-Zuschlag selbst bleibt Sache der Engine.
-  // Ueberschreibt die geerbte Montage, wenn ausdruecklich beantwortet.
+  // Gefragt wird die ALTBAU-Dauer in Tagen, verglichen gegen ref.montageMinuten —
+  // die volle Montage+Lieferung-Zeit der Montage-Alternative (referenzAusProjekt).
+  // Der Faktor gilt dann fuer alle Montage; der Altbau-Zuschlag selbst steckt schon
+  // in der Alternative. Ueberschreibt die geerbte Montage, wenn ausdruecklich
+  // beantwortet.
   const montage = mitte('montage', a.montage, ref)
   if (montage !== null) {
-    const basis = ref.montage.find(p => p.kostenstelle === 'Montage')?.minuten ?? 240
-    const erwartetMin = basis * ref.altbauFaktor
+    const erwartetMin = ref.montageMinuten
     if (erwartetMin > 0) f.montage = deckele(montage / erwartetMin)
   }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { kostenstellenSollZustand } from '@/lib/kalibrierung'
 import { normalizeKsId } from '@/lib/types'
-import { berechneFaktoren, deckeleHand, referenzFuer } from '@/lib/kalibrierung'
+import { berechneFaktoren, deckeleHand, referenzFuer, ankerFuer } from '@/lib/kalibrierung'
 import { ladeKalibrierung, speichereKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { pruefeFunktion } from '@/lib/planpruefung'
 import { REFERENZPROJEKTE, mitSaetzen, summen, faustregelKontrolle } from '@/lib/referenzprojekte'
@@ -42,6 +42,9 @@ export async function GET() {
     summen: projektSummen,
     faustregel: faustregelKontrolle(projektSummen.netto, projekt.faustregel),
     baender: ref.baender,
+    // Task R2 Fix Runde 2 (Controller-Ruling): EINE Quelle fuer den Anker-Text —
+    // mit DIESEM Betrieb gerechnet, nicht mehr in ReferenzprojektKasten.tsx dupliziert.
+    anker: ankerFuer(ref, saetze, aufschlag),
   }
 
   return NextResponse.json({ kalibrierung, saetze, aufschlag, referenzprojekt })
