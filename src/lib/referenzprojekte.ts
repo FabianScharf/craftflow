@@ -506,10 +506,16 @@ const tuerenGrund: ReferenzPosition[] = [
       m('Bänder, Buntbartschloss, Drückergarnitur Edelstahl', 1, 'Satz', 45.00),  // Annahme: Bänder V 3420 + Buntbartschloss + Drückergarnitur Edelstahl als Satz; Einzelbeschläge stehen nicht in CLAUDE.md 7.2
     ],
     [
-      z('Zuschnitt', 10),      // CLAUDE.md 5.2: Zarge kürzen 20–40 min, hier Werkstattanteil
-      z('Zusammenbau', 20),    // Zarge vorbereiten, Bänder und Schloss setzen
-      z('Montage', 90),        // CLAUDE.md 5.2: Altbau 1,5–3,0 h je Tür, unteres Ende
-      z('Lieferung', 15),  // Annahme: Anteil der Anfahrt (20 km) je Tür
+      // FIX RUNDE 1 (Controller-Entscheid): Der Referenztext ist ausdrücklich
+      // ALTBAU mit "Zargen kürzen" — die vorherigen 90 min Montage lagen am
+      // unteren Rand von CLAUDE.md 5.2 und trafen die Grundfrage (180/230/270/
+      // 320 €/Tür) nicht mehr, nachdem referenzAusProjekt() (Task R2) mit der
+      // echten Serienstaffel statt der alten Formel rechnet. Angehoben, jeweils
+      // im CLAUDE.md-Band:
+      z('Zuschnitt', 30),      // CLAUDE.md 5.2: "Zimmertür kürzen (Säge vor Ort) 20–40 min" — Zarge kürzen, Werkstattanteil, Bandmitte
+      z('Zusammenbau', 20),    // Zarge vorbereiten, Bänder und Schloss setzen (unverändert)
+      z('Montage', 167),       // CLAUDE.md 5.2: "Innentür + Zarge (Altbau, Kürzen, Einpassen) 1,5–3,0 h" (90–180 min) — oberes Drittel, weil der Referenztext ausdrücklich alte Zarge/Kürzen nennt
+      z('Lieferung', 15),  // Annahme: Anteil der Anfahrt (20 km) je Tür (unverändert)
     ], 5),
   p('Planung und Aufmaß',
     'Aufmaß der fünf Öffnungen, Wandstärken und Bandseiten festlegen, Bestellung und Arbeitsvorbereitung.',

@@ -390,31 +390,28 @@ test('Ohne Material gefragt heisst auch ohne Material gerechnet', () => {
 })
 
 test('Die Tuerfrage deckt die echte Marktbreite ab', () => {
-  // STAND TASK R2 (Kommentar statt Zahlenwechsel, siehe unten): Vorher (Formel-
-  // Referenz) lagen die Baender bei 162-342 EUR/Tuer (Grenzen 180/230/270/320).
-  // Seit referenzAusProjekt() aus der echten Stueckliste rechnet (Stueckzahl UND
-  // Serienstaffel wie im echten Angebot), liegen sie bei rund 105-208 EUR/Tuer —
-  // die Grundfrage-Zeit (Zuschnitt+Zusammenbau je Tuer, ohne Montage/Material) ist
-  // in der echten Stueckliste kleiner, als die alte Formel angenommen hatte.
-  // FUER FABIAN (siehe task-R2-report.md): Das ist eine offene Ruecknachfrage an
-  // R1 — entweder die Tueren-Grundposition braucht mehr Werkstattminuten, oder die
-  // 180/230/270/320-Zielspanne aus der Spec war zu hoch gegriffen. Nicht hier
-  // gefixt (kein Zahlen-Zurechtbiegen in referenzprojekte.ts), nur dokumentiert.
+  // 350-800 EUR je Tuer liefern und montieren (CLAUDE.md 6.1), davon rund die
+  // Haelfte Material -> die Arbeit liegt real bei etwa 150-400 EUR je Tuer. Die
+  // Baender muessen diese Spanne treffen, sonst landen die meisten auf dem Deckel.
+  //
+  // FIX RUNDE 1 (Controller-Entscheid, 2026-09-17): Nach Task R2 lag das oberste
+  // Band bei nur 208 EUR/Tuer, weil die Grund-Zeiten (Zuschnitt 10 min, Montage
+  // 90 min) am unteren Rand von CLAUDE.md 5.2 lagen — zu knapp fuer den Altbau-
+  // Referenztext ("Zargen kuerzen"). Mit angehobenen Zeiten in referenzprojekte.ts
+  // (Zuschnitt 30 min, Montage 167 min, beide im CLAUDE.md-Band) trifft die
+  // Grundfrage wieder 180/230/270/320 EUR/Tuer — die urspruengliche, von Fabian
+  // erinnerte Marktspanne war die richtige Kontrolle, nicht die Formel.
   const r = REFERENZEN.tueren
   const jeTuer = r.baender.grund
     .filter(b => b.mitte !== null).map(b => b.mitte / (r.teiler.grund ?? 1))
   assert.ok(jeTuer[0] <= 175, `unterstes Band ${jeTuer[0].toFixed(0)} EUR je Tuer ist zu hoch`)
-  assert.ok(jeTuer[4] >= 200, `oberstes Band ${jeTuer[4].toFixed(0)} EUR je Tuer ist zu niedrig`)
+  assert.ok(jeTuer[4] >= 330, `oberstes Band ${jeTuer[4].toFixed(0)} EUR je Tuer ist zu niedrig`)
 })
 
-test('Tueren-Grundbaender, aktueller Stand aus der Stueckliste (Kontrolle gegen Verschiebung)', () => {
-  // Fixiert die HEUTIGEN Bandgrenzen (120/140/170/200 EUR/Tuer), damit eine
-  // kuenftige Aenderung an referenzprojekte.ts oder an referenzAusProjekt() hier
-  // sichtbar auffaellt — nicht, weil diese Zahlen die Zielvorgabe waeren (die ist
-  // weiterhin 180/230/270/320 EUR/Tuer aus der Spec, siehe Test oben).
+test('Tueren-Grundbaender treffen wieder 180/230/270/320 EUR/Tuer (Regressionsschutz)', () => {
   const texte = REFERENZEN.tueren.baender.grund.map(b => b.text)
   assert.deepEqual(texte, [
-    'unter 120 €', '120 € – 140 €', '140 € – 170 €', '170 € – 200 €', 'über 200 €',
+    'unter 180 €', '180 € – 230 €', '230 € – 270 €', '270 € – 320 €', 'über 320 €',
   ])
 })
 
