@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 // Derselbe private Bucket wie in /api/upload (docs/sql/2026-09-16-bloecke-storage.sql).
 const BUCKET = 'projektdateien'
@@ -12,11 +13,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
+    const konto = await kontoIdFuer(supabase, user)
+    const sperre = kontoGesperrt(konto)
+    if (sperre) return sperre
+
     const { data, error } = await supabase
       .from('projects')
       .select('*')
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', konto.kontoId)
       .single()
 
     if (error || !data) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 })
@@ -48,7 +53,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
-    const zu = await pruefeZugang(supabase, user.id)
+    const konto = await kontoIdFuer(supabase, user)
+    const sperre = kontoGesperrt(konto)
+    if (sperre) return sperre
+    const zu = await pruefeZugang(supabase, konto.kontoId)
     if (zu) return zu
 
     const body = await req.json()
@@ -63,7 +71,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       .from('projects')
       .update(update)
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', konto.kontoId)
       .select('id, title, status, updated_at')
       .single()
 
@@ -92,13 +100,18 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
-    // Erst pruefen, ob es dem Nutzer gehoert. Ohne diese Pruefung koennte ein
+    const konto = await kontoIdFuer(supabase, user)
+    const sperre = kontoGesperrt(konto)
+    if (sperre) return sperre
+    const kontoId = konto.kontoId
+
+    // Erst pruefen, ob es dem Betrieb gehoert. Ohne diese Pruefung koennte ein
     // Loeschversuch auf eine fremde Kennung stillschweigend "erfolgreich" wirken.
     const { data: vorhanden, error: findeErr } = await supabase
       .from('projects')
       .select('id')
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .maybeSingle()
     if (findeErr) return NextResponse.json({ error: findeErr.message }, { status: 500 })
     if (!vorhanden) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 })
@@ -110,11 +123,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     // des Projekts selbst nicht verhindern, nur geloggt werden.
     const { data: dateien, error: listErr } = await supabase.storage
       .from(BUCKET)
-      .list(`${user.id}/${id}`, { limit: 1000 })
+      .list(`${kontoId}/${id}`, { limit: 1000 })
     if (listErr) {
       console.error('[projects] Storage-Dateien auflisten:', listErr.message)
     } else if (dateien && dateien.length > 0) {
-      const pfade = dateien.map(d => `${user.id}/${id}/${d.name}`)
+      const pfade = dateien.map(d => `${kontoId}/${id}/${d.name}`)
       const { error: removeErr } = await supabase.storage.from(BUCKET).remove(pfade)
       if (removeErr) console.error('[projects] Storage-Dateien löschen:', removeErr.message)
     }
@@ -123,7 +136,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       .from('offer_versions')
       .delete()
       .eq('offer_id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
     if (versionErr) {
       // Supabase wirft nicht — ohne diese Pruefung bliebe ein Fehlschlag unbemerkt
       // und das Projekt waere weg, die Versionen nicht.
@@ -134,7 +147,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       .from('projects')
       .delete()
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     return NextResponse.json({ ok: true })

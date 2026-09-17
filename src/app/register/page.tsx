@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { sicherNext } from '@/lib/team'
 
 const C = { black: '#0D0D0D', dark: '#141414', copper: '#C8885A', white: '#F5F2EE', gray: '#8A8A8A', border: '#2E2E2E', err: '#E05A5A', ok: '#5ABE6A' }
 
@@ -41,6 +42,10 @@ export default function RegisterPage() {
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    // Rücksprungziel aus `?next=` — aus window.location statt mit useSearchParams,
+    // damit die Seite keine Suspense-Grenze braucht (siehe /login), und erst hier
+    // gelesen, damit der Render-Durchlauf rein bleibt.
+    const weiter = sicherNext(new URLSearchParams(window.location.search).get('next'))
     if (!allValid)              { setError('Das Passwort erfüllt nicht alle Anforderungen.'); return }
     if (password !== password2) { setError('Die Passwörter stimmen nicht überein.'); return }
     if (!agb)                   { setError('Bitte akzeptiere die Datenschutzerklärung und AGB.'); return }
@@ -57,7 +62,13 @@ export default function RegisterPage() {
       // app.getcraftflow.de erneut anmelden. Absolut statt window.location.origin,
       // damit auch Registrierungen ueber eine Vorschau-Adresse auf der echten
       // Domain landen (nur die steht in der Erlaubt-Liste von Supabase).
-      options: { emailRedirectTo: 'https://app.getcraftflow.de/auth/callback' },
+      //
+      // `next` haengt an der Bestaetigungsadresse, nicht am Cookie: Zwischen dem
+      // Klick auf „Registrieren" und dem Klick in der Mail liegen Minuten, und die
+      // Mail wird oft in einem anderen Browser geoeffnet. So landet ein
+      // Eingeladener nach der Bestaetigung wieder auf /einladung/<token>
+      // (Teamfunktion, 2026-09-17). `sicherNext` prueft den Wert.
+      options: { emailRedirectTo: `https://app.getcraftflow.de/auth/callback${weiter === '/' ? '' : `?next=${encodeURIComponent(weiter)}`}` },
     })
     if (error) {
       setError(error.message)

@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang, ladeEffektivenPlan } from '@/lib/planpruefung'
 import { erlaubt } from '@/lib/plaene'
 import { istEigenesBriefpapier } from '@/lib/briefpapier'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 /**
  * Schriften in das HTML einbacken, statt sie laden zu lassen.
@@ -89,7 +90,11 @@ export async function POST(req: NextRequest) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperreKonto = kontoGesperrt(konto)
+  if (sperreKonto) return sperreKonto
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   // `letterheadUrl` aus dem Anfragekörper wird BEWUSST ignoriert (Audit 2026-09-17,
@@ -108,7 +113,7 @@ export async function POST(req: NextRequest) {
   // der Browser (pdfTextOptionen mit `effectivePlan`) — der Server nahm fertiges HTML
   // plus Briefpapier entgegen und fragte nicht nach (Audit 2026-09-17, I5). Jetzt
   // kommt der Plan serverseitig, nie aus einem Feld im Anfragekörper.
-  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const plan = await ladeEffektivenPlan(supabase, kontoId)
   const darfGestalten = erlaubt(plan, 'gestaltung')
 
   // Eigenes Briefpapier: aus dem EIGENEN Profil laden, nicht aus der Anfrage.
@@ -117,7 +122,7 @@ export async function POST(req: NextRequest) {
     const { data: profil, error: profilErr } = await supabase
       .from('betriebsprofil')
       .select('pdf_eigenes_briefpapier, pdf_briefpapier_url')
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .single()
     // Supabase wirft nicht — ohne diese Prüfung sähe ein Ausfall aus wie „kein
     // Briefpapier hinterlegt", und das Angebot käme still ohne Briefpapier heraus.
@@ -128,7 +133,7 @@ export async function POST(req: NextRequest) {
     const eigenes = profil?.pdf_eigenes_briefpapier === true
     const adresse = (profil?.pdf_briefpapier_url as string | null) ?? null
     if (eigenes && adresse) {
-      if (!istEigenesBriefpapier(adresse, process.env.NEXT_PUBLIC_SUPABASE_URL, user.id)) {
+      if (!istEigenesBriefpapier(adresse, process.env.NEXT_PUBLIC_SUPABASE_URL, kontoId)) {
         console.error('[pdf] Briefpapier-Adresse abgelehnt:', adresse)
         return NextResponse.json(
           { error: 'Die hinterlegte Briefpapier-Datei liegt nicht in deinem CraftFlow-Speicher. Bitte lade das Briefpapier in den Einstellungen neu hoch.' },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export const maxDuration = 30
 
@@ -8,6 +9,10 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const konto = await kontoIdFuer(supabase, user)
+    const sperre = kontoGesperrt(konto)
+    if (sperre) return sperre
+    const kontoId = konto.kontoId
 
     const body = await req.json() as {
       type: string
@@ -27,7 +32,7 @@ export async function POST(req: NextRequest) {
         .from('angebot_outcomes')
         .select('id')
         .eq('project_id', projectId)
-        .eq('user_id', user.id)
+        .eq('user_id', kontoId)
         .maybeSingle()
 
       if (!existing) {
@@ -35,7 +40,7 @@ export async function POST(req: NextRequest) {
         const { data: bp } = await supabase
           .from('betriebsprofil')
           .select('benchmark_zustimmung')
-          .eq('user_id', user.id)
+          .eq('user_id', kontoId)
           .maybeSingle()
 
         // PLZ auf anonymen 2-stelligen Prefix kürzen (z.B. "63517" → "63xxx")
@@ -44,7 +49,7 @@ export async function POST(req: NextRequest) {
 
         await supabase.from('angebot_outcomes').insert({
           project_id:           projectId,
-          user_id:              user.id,
+          user_id:              kontoId,
           moebel_typ:           data.moebel_typ ?? '',
           material:             data.material ?? '',
           ist_massivholz:       data.ist_massivholz ?? false,
@@ -61,7 +66,7 @@ export async function POST(req: NextRequest) {
     if (type === 'pdf_export' && projectId) {
       await supabase.from('angebot_events').insert({
         project_id: projectId,
-        user_id:    user.id,
+        user_id:    kontoId,
         event_type: 'pdf_export',
         event_data: { preis_netto: data.preis_netto ?? 0 },
       })
@@ -69,7 +74,7 @@ export async function POST(req: NextRequest) {
         .from('angebot_outcomes')
         .update({ pdf_exportiert_at: new Date().toISOString() })
         .eq('project_id', projectId)
-        .eq('user_id', user.id)
+        .eq('user_id', kontoId)
 
       return NextResponse.json({ ok: true })
     }
@@ -86,7 +91,7 @@ export async function POST(req: NextRequest) {
 
       await supabase.from('optim_events').insert({
         project_id:          projectId,
-        user_id:             user.id,
+        user_id:             kontoId,
         msg_nr:              data.msg_nr ?? 1,
         netto_vorher:        nettoVorher,
         netto_nachher:       hadUpdate ? nettoNachher : null,
@@ -107,7 +112,7 @@ export async function POST(req: NextRequest) {
             .from('angebot_outcomes')
             .update({ preis_kalkuliert: nettoNachher })
             .eq('project_id', projectId)
-            .eq('user_id', user.id)
+            .eq('user_id', kontoId)
         }
       }
 
@@ -128,11 +133,11 @@ export async function POST(req: NextRequest) {
           updated_at:       new Date().toISOString(),
         })
         .eq('project_id', projectId)
-        .eq('user_id', user.id)
+        .eq('user_id', kontoId)
 
       await supabase.from('angebot_events').insert({
         project_id: projectId,
-        user_id:    user.id,
+        user_id:    kontoId,
         event_type: 'status_change',
         event_data: { status: newStatus, tage },
       })

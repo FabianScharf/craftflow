@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { pruefeFunktion } from '@/lib/planpruefung'
 
 export async function POST(req: NextRequest) {
@@ -7,9 +8,12 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const konto = await kontoIdFuer(supabase, user)
+    const kontoSperre = kontoGesperrt(konto); if (kontoSperre) return kontoSperre
+    const kontoId = konto.kontoId
 
     // Lieferantenverwaltung ist ab Starter (Audit 2026-09-17, I3).
-    const sperre = await pruefeFunktion(supabase, user.id, 'lieferanten')
+    const sperre = await pruefeFunktion(supabase, kontoId, 'lieferanten')
     if (sperre) return sperre
 
     const { company_name, email, category_name } = await req.json() as {
@@ -25,14 +29,14 @@ export async function POST(req: NextRequest) {
     const { data: cat } = await supabase
       .from('product_categories')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .eq('name', category_name)
       .single()
 
     if (!cat) {
       const { data: newCat, error: newCatErr } = await supabase
         .from('product_categories')
-        .insert({ user_id: user.id, name: category_name })
+        .insert({ user_id: kontoId, name: category_name })
         .select('id')
         .single()
       if (newCatErr || !newCat) return NextResponse.json({ error: 'Kategorie konnte nicht angelegt werden' }, { status: 500 })
@@ -43,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const { data: supplier, error: supplierErr } = await supabase
       .from('suppliers')
-      .insert({ user_id: user.id, company_name, general_email: email || null })
+      .insert({ user_id: kontoId, company_name, general_email: email || null })
       .select('id')
       .single()
 

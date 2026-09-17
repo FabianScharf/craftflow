@@ -121,6 +121,71 @@ export function willkommensMail(opts: { firma?: string | null } = {}): Mail {
   return { subject, html, text }
 }
 
+// ── Einladung in einen Betrieb (Teamfunktion, Fabian 2026-09-17) ────────────
+
+/**
+ * Entschärft Text, der aus einem Eingabefeld kommt, bevor er in HTML landet.
+ * Firmenname und Einlader-Adresse tippt der Inhaber selbst ein — ungeschützt
+ * wäre die Mail ein Träger für fremdes Markup beim Empfänger.
+ */
+function esc(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+/**
+ * Einladung eines Mitarbeiters in einen Betrieb. `link` ist
+ * `https://app.getcraftflow.de/einladung/<token>` — der Token ist das Geheimnis,
+ * deshalb steht diese Mail nie in einem Rundschreiben-Register.
+ *
+ * WICHTIGSTER SATZ DER MAIL: „Melde dich mit genau dieser E-Mail-Adresse an."
+ * `POST /api/team/annehmen` vergleicht die angemeldete Adresse mit der
+ * eingeladenen und lehnt sonst ab — ohne den Hinweis vorher registrieren sich
+ * Empfänger mit ihrer privaten Adresse und stehen vor einer Fehlermeldung.
+ */
+export function einladungsMail(opts: { betriebName?: string | null; einladerEmail: string; link: string }): Mail {
+  const einlader = String(opts.einladerEmail ?? '').trim()
+  // Ein Konto kann arbeiten, ohne je einen Firmennamen eingetragen zu haben —
+  // dann darf im Betreff kein „null lädt dich ein" stehen.
+  const wer = (opts.betriebName ?? '').trim() || einlader
+  const subject = `${wer} lädt dich zu CraftFlow ein`
+  const vorschau = 'Ein Klick, und du arbeitest im Betrieb mit — Angebote, Projekte, Kunden.'
+
+  const html = rahmen(vorschau, [
+    h1(`${esc(wer)} lädt dich ein`),
+    p(`<strong style="color:${SCHWARZ};">${esc(einlader)}</strong> hat dich als Mitarbeiter zu CraftFlow eingeladen. CraftFlow ist das Angebotsprogramm für Schreiner — du arbeitest damit auf den Projekten, Kunden und Einstellungen des Betriebs, als wären es deine eigenen.`),
+    p('Plan und Abrechnung bleiben beim Inhaber. Alles andere — Angebote rechnen, Projekte anlegen, PDFs erzeugen — kannst du wie er.'),
+    knopf('Einladung annehmen →', opts.link),
+    p(`Melde dich mit <strong style="color:${SCHWARZ};">genau dieser E-Mail-Adresse</strong> an, an die diese Mail ging — sonst passt die Einladung nicht. Wenn du noch kein CraftFlow-Konto hast, kannst du dir über den Link direkt eines anlegen.`),
+    p(`Falls der Knopf nicht geht, öffne diese Adresse im Browser:<br><span style="color:${GRAU};font-size:13px;word-break:break-all;">${esc(opts.link)}</span>`),
+    p('Du weißt nicht, warum du diese Mail bekommst? Dann ignoriere sie einfach — ohne deinen Klick passiert nichts.'),
+    p('Viel Erfolg!<br>Fabian'),
+  ].join('\n'))
+
+  const text = [
+    `${wer} lädt dich ein`,
+    '',
+    `${einlader} hat dich als Mitarbeiter zu CraftFlow eingeladen. CraftFlow ist das Angebotsprogramm für Schreiner — du arbeitest damit auf den Projekten, Kunden und Einstellungen des Betriebs, als wären es deine eigenen.`,
+    '',
+    'Plan und Abrechnung bleiben beim Inhaber. Alles andere — Angebote rechnen, Projekte anlegen, PDFs erzeugen — kannst du wie er.',
+    '',
+    'Einladung annehmen:',
+    opts.link,
+    '',
+    'Melde dich mit genau dieser E-Mail-Adresse an, an die diese Mail ging — sonst passt die Einladung nicht. Wenn du noch kein CraftFlow-Konto hast, kannst du dir über den Link direkt eines anlegen.',
+    '',
+    'Du weißt nicht, warum du diese Mail bekommst? Dann ignoriere sie einfach — ohne deinen Klick passiert nichts.',
+    '',
+    'Viel Erfolg!',
+    'Fabian',
+    '',
+    `Fabian Scharf · Schreinermeister · FS Crafted, Fuldaer Straße 15, 63517 Rodenbach · ${KONTAKT_MAIL} · ${KONTAKT_TELEFON}`,
+  ].join('\n')
+
+  return { subject, html, text }
+}
+
 // ── „Was ist neu“ an Bestandsnutzer (September 2026) ────────────────────────
 
 export function neuigkeitenMail(): Mail {

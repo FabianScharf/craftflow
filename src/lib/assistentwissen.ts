@@ -39,21 +39,22 @@ const abPlan = (f: Parameters<typeof mindestPlan>[0]) => `ab dem ${PLAN_LABELS[m
  * passen — ein Test liest die Datei und vergleicht.
  */
 export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
-  { id: 'wuensche', label: 'Wünsche', zweck: 'Funktionswünsche vorschlagen und über die Vorschläge anderer abstimmen. Jeder Plan darf mitmachen; wie viele Stimmen jemand hat, hängt am Plan (Solo 1, Starter 3, Pro 10, Enterprise 30) — alle Stimmen auf einen Wunsch möglich, Stimmen kommen bei fertigen Wünschen zurück, kein monatlicher Nachschub. Was geplant, in Arbeit oder fertig ist, steht auch öffentlich auf www.getcraftflow.de/roadmap' },
+  { id: 'wuensche', label: 'Wünsche', zweck: 'Funktionswünsche vorschlagen und über die Vorschläge anderer abstimmen. Jeder Plan darf mitmachen; wie viele Stimmen jemand hat, hängt am Plan (Solo 1, Starter 3, Pro 10, Enterprise 30) — alle Stimmen auf einen Wunsch möglich (▲ und ▼ stapeln), Stimmen kommen bei fertigen oder ausgeblendeten Wünschen zurück, kein monatlicher Nachschub. JEDER eingereichte Wunsch steht sofort öffentlich auf der Roadmap www.getcraftflow.de/roadmap (Spalten Vorgeschlagen, Geplant, In Arbeit, Fertig) mit seiner Stimmenzahl; abgestimmt wird nur in der App. Ein Link zur Roadmap steht im Bereich Wünsche' },
   { id: 'firma', label: 'Firmendaten', zweck: 'Name, Inhaber, Adresse, Logo, Kontakt' },
   { id: 'buchhaltung', label: 'Buchhaltung', zweck: 'USt-IdNr., Steuernummer, IBAN, Umsatzsteuersatz, Kleinunternehmerregelung nach § 19 UStG, Gültigkeitsdauer der Angebote, Angebotsnummern' },
   { id: 'dokumente', label: 'Dokumente', zweck: 'Anrede-Vorlage, Einleitung, Grußformel, Zahlungskondition, Widerrufsbelehrung' },
   { id: 'textbausteine', label: 'Textbausteine', zweck: 'Eigene Absätze fürs Angebot — Ausführungszeitraum, Materialpreisvorbehalt, bauseitige Leistungen. Mit "immer" stehen sie in jedem Angebot' },
   { id: 'auswertung', label: 'Auswertung', zweck: `Zahlen zu den eigenen Angeboten (${abPlan('auswertung')})` },
-  { id: 'marketing', label: 'Marketing & CI', zweck: 'Akzentfarbe und Logo für Dokumente' },
+  { id: 'marketing', label: 'Marketing & CI', zweck: 'Zwei Betriebsfarben (Primär- und Akzentfarbe) und Logo für App und Dokumente. Die Farbvorschau zeigt Beispielknöpfe und -texte; „Farbe aus dem Logo wählen“ öffnet das Logo groß mit einer Pipette — ein Klick auf einen Bildpunkt übernimmt genau diesen Farbton (Logos haben oft mehrere Farben). Erst „Speichern“ unten macht die Wahl gültig' },
   { id: 'briefpapier', label: 'Briefpapier', zweck: 'Aussehen des PDFs: Layout, Schriftart, Spalten der Positionstabelle, eigenes Briefpapier, Seitenränder — mit lebender Vorschau daneben' },
-  { id: 'betrieb', label: 'Mein Betrieb', zweck: `Betriebskalibrierung (${abPlan('kalibrierung')}): acht bis neun Fragen (je nach Schwerpunkt) zu Maschinen, Schwerpunkt, Montage, Stückzahlen und einem Referenzprojekt. Das Referenzprojekt ist eine vollständige Kalkulation (Positionen, Material, Arbeitszeit mit den Sätzen des Betriebs), die Varianten Lack, Massivholz und Altbau-Montage stehen darin als Alternativpositionen mit Preis; die Fragen hängen direkt an den Positionen, eine Faustregel-Zeile ist nur Kontrolle. „Als Projekt öffnen“ legt eine Kopie unter Meine Projekte an. Daraus rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten. Dort auch: Zeitfaktoren von Hand (0,50 bis 3,00), der Preisfaktor und die Lernschleife aus gewonnenen Angeboten (${abPlan('lernschleife')})` },
+  { id: 'betrieb', label: 'Mein Betrieb', zweck: `Betriebskalibrierung (${abPlan('kalibrierung')}): acht bis neun Fragen (je nach Schwerpunkt) zu Maschinen, Schwerpunkt, Montage, Stückzahlen und einem Referenzprojekt. Das Referenzprojekt (Einbauschrank, Einbauküche, Innentüren, Treppe oder Massivholztisch — folgt sofort dem angekreuzten Schwerpunkt, auch ohne Speichern) ist eine vollständige Kalkulation: oben die sechs Übersichtsfelder (Positionen, Netto, MwSt., Brutto, Materialkosten gesamt, Stunden gesamt), darunter „So rechnet CraftFlow dieses Projekt“ mit jeder Position aufklappbar (Material und Arbeitszeit je Stück, Preise für alle Stück, Serienstaffel). Zeiten liegen im oberen Mittelfeld der Richtwerte, CNC ist eine eigene Kostenstelle (Lochreihen, Bohrungen, Ausschnitte); wer keine CNC oder Kantenanleimmaschine hat, sieht diese Minuten mal 1,6 auf dem Zusammenbau. Die Varianten Lack, Massivholz und Altbau-Montage stehen als Alternativpositionen mit Preis in Klammern; die Fragen hängen direkt an den Positionen, und „CraftFlow rechnet …“ liegt immer im mittleren Antwortband. „Als Projekt öffnen“ legt eine Kopie unter Meine Projekte an. Daraus rechnet CraftFlow mit den Zeiten dieses Betriebs statt mit den CraftFlow-Werten. Dort auch: Zeitfaktoren von Hand (0,50 bis 3,00), der Preisfaktor und die Lernschleife aus gewonnenen Angeboten (${abPlan('lernschleife')})` },
   { id: 'kostenstellen', label: 'Kostenstellen', zweck: 'Stundensatz je Kostenstelle, eigene Kostenstellen anlegen, nicht genutzte abschalten' },
   { id: 'warenaufschlaege', label: 'Warenaufschläge', zweck: 'Materialaufschlag je Warengruppe' },
   { id: 'bauweise', label: 'Meine Bauweise', zweck: `Gelernte Wenn-Dann-Regeln des Betriebs, z.B. "Rückwände immer aus 8 mm Spanplatte". Die KI merkt sie sich aus dem Optimieren-Chat und hält sich daran (${abPlan('bauweise')})` },
   { id: 'materialpreise', label: 'Materialpreise', zweck: `Fest hinterlegte Einkaufspreise. Die KI rechnet damit, statt zu schätzen (${abPlan('materialpreise')})` },
   { id: 'lieferanten', label: 'Lieferanten', zweck: `Firmen und Ansprechpartner für Materialanfragen (${abPlan('lieferanten')})` },
   { id: 'email', label: 'E-Mail & Versand', zweck: `SMTP für den Versand direkt aus CraftFlow (${abPlan('smtp')})` },
+  { id: 'team', label: 'Team', zweck: 'Mitarbeiter per E-Mail einladen, Einladungen erneut senden oder löschen, Mitglieder entfernen; Nutzerplätze je Plan (Solo 1, Starter 1, Pro 3, Enterprise unbegrenzt), die ältesten bleiben aktiv. Mitarbeiter arbeiten auf den Daten des Betriebs, alles außer Plan/Abo und Team' },
   { id: 'plan', label: 'Mein Plan', zweck: 'Gebuchter Tarif und Nutzung' },
   { id: 'hilfe', label: 'Hilfe', zweck: 'Link zur ausführlichen Starthilfe (www.getcraftflow.de/willkommen — erklärt Einrichtung, Beschreiben, KI-Optimierung, Kalkulations-Check und PDF mit Beispielen) und die Programmvorstellung zum Wiederholen' },
 ]
@@ -65,7 +66,7 @@ export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
 export const PFLICHTTHEMEN = [
   'Stückzahl', 'Alternativposition', 'Gruppe', 'Textbaustein', 'Schriftart',
   'Kleinunternehmer', 'Materialpreise', 'Bauweise', 'Mein Betrieb',
-  'Optimieren', 'Vorschau', 'Briefpapier', 'Preisfaktor',
+  'Optimieren', 'Vorschau', 'Briefpapier', 'Preisfaktor', 'Roadmap', 'Pipette', 'je Stück', 'CNC',
 ] as const
 
 export type WissenDaten = {

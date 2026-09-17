@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { wendeDeckelAn, deckel } from '@/lib/plaene'
 import { ladeEffektivenPlan, pruefeFunktion, pruefeDeckel } from '@/lib/planpruefung'
 
@@ -28,11 +29,14 @@ export async function GET() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const { data, error } = await supabase
     .from('materialpreise')
     .select(SPALTEN)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .order('bezeichnung')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -40,7 +44,7 @@ export async function GET() {
 
   // Deckel beim Lesen: die ältesten N aktiven Preise gelten, der Rest zeigt
   // `aktivDurchPlan: false` (Fabian, 15.09.) — nichts wird gelöscht.
-  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const plan = await ladeEffektivenPlan(supabase, kontoId)
   const grenze = deckel(plan, 'materialpreise')
   const gedeckelt = wendeDeckelAn(preise.filter(p => p.aktiv), grenze)
   return NextResponse.json({
@@ -54,6 +58,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const body = await req.json() as { bezeichnung?: string; ek?: unknown; einheit?: string; lieferant?: string }
 
@@ -66,13 +73,13 @@ export async function POST(req: NextRequest) {
   const einheit = pruefeEinheit(body.einheit ?? 'Stk')
   if (!einheit) return NextResponse.json({ error: `Einheit muss eine von: ${EINHEITEN.join(', ')}` }, { status: 400 })
 
-  const funktionsSperre = await pruefeFunktion(supabase, user.id, 'materialpreise')
+  const funktionsSperre = await pruefeFunktion(supabase, kontoId, 'materialpreise')
   if (funktionsSperre) return funktionsSperre
-  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const plan = await ladeEffektivenPlan(supabase, kontoId)
   const { count } = await supabase
     .from('materialpreise')
     .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .eq('aktiv', true)
   const deckelSperre = pruefeDeckel(plan, 'materialpreise', count ?? 0)
   if (deckelSperre) return deckelSperre
@@ -80,7 +87,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('materialpreise')
     .insert({
-      user_id: user.id, bezeichnung, ek, einheit,
+      user_id: kontoId, bezeichnung, ek, einheit,
       lieferant: (body.lieferant ?? '').trim().slice(0, MAX_LIEFERANT),
       stand: new Date().toISOString().slice(0, 10),
     })
@@ -95,6 +102,9 @@ export async function PUT(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const body = await req.json() as {
     id?: string; bezeichnung?: string; ek?: unknown; einheit?: string; lieferant?: string; aktiv?: boolean
@@ -128,7 +138,7 @@ export async function PUT(req: NextRequest) {
     .from('materialpreise')
     .update(patch)
     .eq('id', body.id)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
@@ -138,6 +148,9 @@ export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const body = await req.json() as { id?: string }
   if (!body.id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })
@@ -146,7 +159,7 @@ export async function DELETE(req: NextRequest) {
     .from('materialpreise')
     .delete()
     .eq('id', body.id)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

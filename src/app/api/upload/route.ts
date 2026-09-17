@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang, pruefeFunktion, pruefeDeckel, ladeEffektivenPlan } from '@/lib/planpruefung'
 import { pruefeDatei, zaehltGegenDeckel, bauePfad, istUuid } from '@/lib/upload'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export const maxDuration = 300
 
@@ -24,9 +25,9 @@ const BUCKET = 'projektdateien'
  * Aufrufer lehnt ab, statt weiterzumachen.
  */
 async function zaehleDateien(
-  supabase: Awaited<ReturnType<typeof createClient>>, userId: string, projektId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>, kontoId: string, projektId: string,
 ): Promise<{ ok: true; anzahl: number } | { ok: false }> {
-  const { data, error } = await supabase.storage.from(BUCKET).list(`${userId}/${projektId}`, { limit: 200 })
+  const { data, error } = await supabase.storage.from(BUCKET).list(`${kontoId}/${projektId}`, { limit: 200 })
   if (error) { console.error('[upload] list:', error.message); return { ok: false } }
   return { ok: true, anzahl: (data ?? []).filter(d => zaehltGegenDeckel(d.name)).length }
 }
@@ -35,9 +36,13 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperreKonto = kontoGesperrt(konto)
+  if (sperreKonto) return sperreKonto
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
-  const sperre = await pruefeFunktion(supabase, user.id, 'dateien')
+  const sperre = await pruefeFunktion(supabase, kontoId, 'dateien')
   if (sperre) return sperre
 
   const form = await req.formData()
@@ -62,7 +67,7 @@ export async function POST(req: NextRequest) {
       .from('projects')
       .select('id')
       .eq('id', projektId)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .single()
     if (projErr || !projektRow) {
       if (projErr) console.error('[upload] Projekt-Prüfung:', projErr.message)
@@ -71,7 +76,7 @@ export async function POST(req: NextRequest) {
   } else {
     const { data: row, error: pErr } = await supabase
       .from('projects')
-      .insert({ user_id: user.id, title: 'Entwurf', status: 'offen', data: {} })
+      .insert({ user_id: kontoId, title: 'Entwurf', status: 'offen', data: {} })
       .select('id')
       .single()
     if (pErr || !row) {
@@ -81,15 +86,15 @@ export async function POST(req: NextRequest) {
     projektId = String(row.id)
   }
 
-  const plan = await ladeEffektivenPlan(supabase, user.id)
-  const vorhanden = await zaehleDateien(supabase, user.id, projektId)
+  const plan = await ladeEffektivenPlan(supabase, kontoId)
+  const vorhanden = await zaehleDateien(supabase, kontoId, projektId)
   if (!vorhanden.ok) {
     return NextResponse.json({ error: 'Dateien konnten nicht gezählt werden.' }, { status: 500 })
   }
   const deckelSperre = pruefeDeckel(plan, 'dateien', vorhanden.anzahl)
   if (deckelSperre) return deckelSperre
 
-  const pfad = bauePfad(user.id, projektId, crypto.randomUUID(), file.name)
+  const pfad = bauePfad(kontoId, projektId, crypto.randomUUID(), file.name)
   const { error: upErr } = await supabase.storage
     .from(BUCKET)
     .upload(pfad, await file.arrayBuffer(), {
@@ -108,14 +113,18 @@ export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperreKonto = kontoGesperrt(konto)
+  if (sperreKonto) return sperreKonto
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   const { pfad } = await req.json().catch(() => ({})) as { pfad?: string }
   if (!pfad) return NextResponse.json({ error: 'Kein Pfad' }, { status: 400 })
   // Zweite Mauer neben der Storage-Policy: Wer einen fremden Pfad schickt, bekommt
   // 403 statt eines stillen Fehlschlags.
-  if (!pfad.startsWith(`${user.id}/`)) {
+  if (!pfad.startsWith(`${kontoId}/`)) {
     return NextResponse.json({ error: 'Kein Zugriff auf diese Datei.' }, { status: 403 })
   }
   // Fix-Runde 1: das mittlere Pfadsegment ist die projekt_id — dieselbe Form-Prüfung

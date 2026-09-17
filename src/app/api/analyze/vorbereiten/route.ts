@@ -16,6 +16,7 @@ import { deckel, erlaubt, wendeDeckelAn } from '@/lib/plaene'
 import { deckelAblehnung, bloeckeAblehnung } from '@/lib/plantexte'
 import { zaehltGegenDeckel, istUuid } from '@/lib/upload'
 import { teileInBloecke, blockInfos, zeilenAusTextstuecken, type Block } from '@/lib/bloecke'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export const maxDuration = 300
 
@@ -44,7 +45,11 @@ async function vorbereiten(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto)
+  if (sperre) return sperre
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   const { projekt_id: projektId, text } = await req.json().catch(() => ({})) as
@@ -61,14 +66,14 @@ async function vorbereiten(req: NextRequest) {
     .from('projects')
     .select('id')
     .eq('id', projektId)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .single()
   if (projErr || !projektRow) {
     if (projErr) console.error('[vorbereiten] Projekt-Prüfung:', projErr.message)
     return NextResponse.json({ error: 'Ungültiges Projekt.' }, { status: 400 })
   }
 
-  const ordner = `${user.id}/${projektId}`
+  const ordner = `${kontoId}/${projektId}`
   // Fix-Runde 1 (Review-Critical): list() sortiert standardmäßig nach Namen, und die
   // Namen beginnen mit einer zufälligen UUID (bauePfad) — ohne explizite Sortierung nach
   // created_at käme Text/Bilder in Zufallsreihenfolge, nicht in Upload-Reihenfolge.
@@ -79,7 +84,7 @@ async function vorbereiten(req: NextRequest) {
   // _vorbereitet.json selbst zählt nicht gegen den Deckel (dieselbe Regel wie beim Upload).
   const nutzdateien = (dateien ?? []).filter(d => zaehltGegenDeckel(d.name))
 
-  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const plan = await ladeEffektivenPlan(supabase, kontoId)
   const grenze = deckel(plan, 'dateien')
   // Deckel 0 (Solo) bleibt eine Ablehnung: Dort gibt es keinen Datei-Upload, den man
   // kappen könnte — Funktionsfrage, keine Mengenfrage.

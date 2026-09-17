@@ -15,6 +15,7 @@ import { ladeFaktoren, ladeKalibrierung } from '@/lib/kalibrierungsspeicher'
 import { abzuschaltendeKostenstellen, lackBlockFuer } from '@/lib/kalibrierung'
 import { stempelPreisfaktor, PREISFAKTOR_STANDARD, klemmePreisfaktor } from '@/lib/preisfaktor'
 import { ladeEffektivenPlan, pruefeZugang, pruefeDeckel } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export const maxDuration = 120
 
@@ -361,7 +362,7 @@ export async function POST(req: NextRequest) {
     let preisBlock = ''
     let regelIds: string[] = []
     let supabaseFuerZaehler: Awaited<ReturnType<typeof createClient>> | null = null
-    let nutzerId = ''
+    let kontoIdFuerZaehler = ''
     let faktoren: Faktoren = KEINE_FAKTOREN
     const ausBetrieb: string[] = []
     let lackBlock = ''
@@ -369,16 +370,22 @@ export async function POST(req: NextRequest) {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        // Datenschlüssel ist ab hier konto.kontoId, nicht user.id (Teamfunktion,
+        // Spec §3) — ein Mitarbeiter rechnet auf den Daten/Zählern des Inhabers.
+        const konto = await kontoIdFuer(supabase, user)
+        const sperreKonto = kontoGesperrt(konto)
+        if (sperreKonto) return sperreKonto
+        const kontoId = konto.kontoId
         // Erste Prüfung nach dem Login (Aufgabe 0) — sonst kostet eine gesperrte
         // Anfrage trotzdem den vollen Claude-Aufruf.
-        const zu = await pruefeZugang(supabase, user.id)
+        const zu = await pruefeZugang(supabase, kontoId)
         if (zu) return zu
         // Runden-Deckel je Angebot — VOR dem KI-Aufruf (Aufgabe 5).
-        const plan = await ladeEffektivenPlan(supabase, user.id)
+        const plan = await ladeEffektivenPlan(supabase, kontoId)
         const { data: rundenStand } = await supabase
           .from('optimieren_runden')
           .select('runden')
-          .eq('user_id', user.id)
+          .eq('user_id', kontoId)
           .eq('projekt_id', projektId)
           .maybeSingle()
         rundenBisher = rundenStand?.runden ?? 0
@@ -388,7 +395,7 @@ export async function POST(req: NextRequest) {
         const { data: profil, error: profilErr } = await supabase
           .from('betriebsprofil')
           .select('strasse, plz, ort, preisfaktor')
-          .eq('user_id', user.id)
+          .eq('user_id', kontoId)
           .single()
         if (profilErr) console.error('[optimize] Betriebsprofil:', profilErr.message)
         preisfaktorNutzer = klemmePreisfaktor(profil?.preisfaktor) ?? PREISFAKTOR_STANDARD
@@ -396,26 +403,26 @@ export async function POST(req: NextRequest) {
           const ortLine = [profil.plz, profil.ort].filter(Boolean).join(' ')
           firmenStandort = [profil.strasse, ortLine].filter(Boolean).join(', ')
         }
-        nutzerId = user.id
+        kontoIdFuerZaehler = kontoId
         // Ohne abgeschlossene Kalibrierung bleibt es bei den CraftFlow-Werten.
-        try { faktoren = await ladeFaktoren(supabase, user.id) }
+        try { faktoren = await ladeFaktoren(supabase, kontoId) }
         catch (e) { console.error('[kalibrierung] Faktoren laden (optimize):', e) }
         // Die Betriebsfragen wirken hier: Kein CNC, keine Kantenanleimmaschine oder
         // keine eigene Montage schalten die jeweilige Kostenstelle ab. Die Arbeit
         // verschwindet dabei nicht, sie wandert zur Handarbeit.
         try {
-          const kal = await ladeKalibrierung(supabase, user.id)
+          const kal = await ladeKalibrierung(supabase, kontoId)
           for (const ks of abzuschaltendeKostenstellen(kal)) ausBetrieb.push(ks)
           lackBlock = lackBlockFuer(kal)
         } catch (e) { console.error('[kalibrierung] Kostenstellen (Betrieb):', e) }
         try {
-          const r = await regelBlockFuerNutzer(supabase, user.id)
+          const r = await regelBlockFuerNutzer(supabase, kontoId)
           regelBlock = r.block
           regelIds = r.ids
           supabaseFuerZaehler = supabase
         } catch (e) { console.error('[learn] Regeln laden (optimize):', e) }
         // Getrennter Block: Bauweise-Regeln dürfen nie Preise setzen, Preise nie Bauweise.
-        try { preisBlock = await preisBlockFuerNutzer(supabase, user.id) }
+        try { preisBlock = await preisBlockFuerNutzer(supabase, kontoId) }
         catch (e) { console.error('[preise] Preise laden (optimize):', e) }
       }
     } catch { /* kein Profil → Default */ }
@@ -528,7 +535,7 @@ export async function POST(req: NextRequest) {
       for (const a of aufrufe) {
         const r = supabaseFuerZaehler
           ? await fuehreWerkzeugAus(
-              supabaseFuerZaehler, nutzerId, belegquellen, nutzertexte,
+              supabaseFuerZaehler, kontoIdFuerZaehler, belegquellen, nutzertexte,
               String(a.name ?? ''), (a.input ?? {}) as Record<string, unknown>)
           : { ok: false, text: 'Nicht eingeloggt, nichts gespeichert.', meldung: '' }
         ergebnisse.push({ type: 'tool_result', tool_use_id: a.id, content: r.text, is_error: !r.ok })
@@ -545,11 +552,11 @@ export async function POST(req: NextRequest) {
 
     // Runden-Deckel hochzählen — der Claude-Aufruf ist gelaufen, unabhängig davon,
     // ob die Antwort am Ende verwertbar war (Aufgabe 5).
-    if (supabaseFuerRunden && nutzerId) {
+    if (supabaseFuerRunden && kontoIdFuerZaehler) {
       const { error: rundenError } = await supabaseFuerRunden
         .from('optimieren_runden')
         .upsert(
-          { user_id: nutzerId, projekt_id: projektId, runden: rundenBisher + 1, updated_at: new Date().toISOString() },
+          { user_id: kontoIdFuerZaehler, projekt_id: projektId, runden: rundenBisher + 1, updated_at: new Date().toISOString() },
           { onConflict: 'user_id,projekt_id' },
         )
       if (rundenError) console.error('[optimize] Runden zaehlen:', rundenError.message)

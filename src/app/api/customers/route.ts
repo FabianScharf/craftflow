@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+    const konto = await kontoIdFuer(supabase, user)
+    const sperre = kontoGesperrt(konto)
+    if (sperre) return sperre
+    const kontoId = konto.kontoId
 
     const { name, street, zip, city } = await req.json() as {
       name: string; street: string; zip: string; city: string
@@ -18,7 +23,7 @@ export async function POST(req: NextRequest) {
     const { data: existing, error: dubletteErr } = await supabase
       .from('customers')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .ilike('name', name.trim())
       .eq('zip', zip?.trim() || '')
       .limit(1)
@@ -34,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { error } = await supabase.from('customers').insert({
-      user_id: user.id,
+      user_id: kontoId,
       name: name.trim(),
       street: street || null,
       zip: zip || null,

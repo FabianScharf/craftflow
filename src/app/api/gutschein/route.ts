@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
+import { TEAM_TEXTE } from '@/lib/team'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const kontoSperre = kontoGesperrt(konto); if (kontoSperre) return kontoSperre
+  // Ein Gutschein wirkt auf den Plan des ganzen Betriebs — nur der Inhaber darf ihn einlösen.
+  if (!konto.istInhaber) return NextResponse.json({ error: TEAM_TEXTE.nurInhaber }, { status: 403 })
 
   const { code } = await req.json() as { code?: string }
   if (!code?.trim()) return NextResponse.json({ error: 'Kein Code angegeben' }, { status: 400 })

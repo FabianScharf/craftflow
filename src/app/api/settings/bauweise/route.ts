@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { BEREICHE, normalisiere, type Bereich } from '@/lib/learn'
 import { wendeDeckelAn, deckel } from '@/lib/plaene'
 import { ladeEffektivenPlan, pruefeFunktion, pruefeDeckel } from '@/lib/planpruefung'
@@ -21,11 +22,14 @@ export async function GET() {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const { data, error } = await supabase
     .from('bauweise_regeln')
     .select(SPALTEN)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
     .order('bereich')
     .order('created_at', { ascending: false })
 
@@ -34,7 +38,7 @@ export async function GET() {
 
   // Deckel beim Lesen: die ältesten N aktiven Regeln gelten, der Rest zeigt
   // `aktivDurchPlan: false` (Fabian, 15.09.) — nichts wird gelöscht.
-  const plan = await ladeEffektivenPlan(supabase, user.id)
+  const plan = await ladeEffektivenPlan(supabase, kontoId)
   const grenze = deckel(plan, 'bauweiseRegeln')
   const gedeckelt = wendeDeckelAn(regeln.filter(r => r.aktiv), grenze)
   return NextResponse.json({
@@ -48,6 +52,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const body = await req.json() as {
     bereich?: string; wenn?: string; dann?: string
@@ -65,13 +72,13 @@ export async function POST(req: NextRequest) {
   // Deckel nur bei manueller Neuanlage prüfen — ein Ersetzen (`ersetztRegelId`)
   // ist ein Update, kein Wachstum.
   if (!body.ersetztRegelId) {
-    const funktionsSperre = await pruefeFunktion(supabase, user.id, 'bauweise')
+    const funktionsSperre = await pruefeFunktion(supabase, kontoId, 'bauweise')
     if (funktionsSperre) return funktionsSperre
-    const plan = await ladeEffektivenPlan(supabase, user.id)
+    const plan = await ladeEffektivenPlan(supabase, kontoId)
     const { count } = await supabase
       .from('bauweise_regeln')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .eq('aktiv', true)
     const deckelSperre = pruefeDeckel(plan, 'bauweiseRegeln', count ?? 0)
     if (deckelSperre) return deckelSperre
@@ -87,7 +94,7 @@ export async function POST(req: NextRequest) {
         konflikt_hinweis: false, aktiv: true, updated_at: new Date().toISOString(),
       })
       .eq('id', body.ersetztRegelId)
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .select(SPALTEN)
       .maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -101,7 +108,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('bauweise_regeln')
     .insert({
-      user_id: user.id, bereich, wenn, dann, herkunft,
+      user_id: kontoId, bereich, wenn, dann, herkunft,
       quelle_text: body.quelle_text ?? '', beleg: body.beleg ?? '',
     })
     .select(SPALTEN)
@@ -115,6 +122,9 @@ export async function PUT(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const body = await req.json() as { id?: string; wenn?: string; dann?: string; aktiv?: boolean }
   if (!body.id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })
@@ -134,7 +144,7 @@ export async function PUT(req: NextRequest) {
     .from('bauweise_regeln')
     .update(patch)
     .eq('id', body.id)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
@@ -144,6 +154,9 @@ export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
 
   const body = await req.json() as { id?: string }
   if (!body.id) return NextResponse.json({ error: 'id erforderlich' }, { status: 400 })
@@ -152,7 +165,7 @@ export async function DELETE(req: NextRequest) {
     .from('bauweise_regeln')
     .delete()
     .eq('id', body.id)
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

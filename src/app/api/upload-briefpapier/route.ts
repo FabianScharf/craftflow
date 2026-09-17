@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const zu = await pruefeZugang(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperreKonto = kontoGesperrt(konto)
+  if (sperreKonto) return sperreKonto
+  const kontoId = konto.kontoId
+  const zu = await pruefeZugang(supabase, kontoId)
   if (zu) return zu
 
   const form = await req.formData()
@@ -16,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: 'Datei zu groß (max. 10 MB)' }, { status: 400 })
 
   const bytes = await file.arrayBuffer()
-  const path = `${user.id}/briefpapier.pdf`
+  const path = `${kontoId}/briefpapier.pdf`
 
   const { error: upErr } = await supabase.storage
     .from('briefpapier')
@@ -36,7 +41,7 @@ export async function POST(req: NextRequest) {
   await supabase
     .from('betriebsprofil')
     .update({ pdf_briefpapier_url: publicUrl, updated_at: new Date().toISOString() })
-    .eq('user_id', user.id)
+    .eq('user_id', kontoId)
 
   return NextResponse.json({ url: publicUrl })
 }

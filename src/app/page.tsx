@@ -209,7 +209,14 @@ function parseGaebText(text: string): { positions: import('@/lib/types').Angebot
 /* ── Haupt-Komponente ─────────────────────────────── */
 
 export default function CraftFlow() {
-  const { canUse: planCanUse, loading: planLaedt, usage, refreshUsage, isBlocked, sperrgrund, erlaubt: planErlaubtFn, deckel: planDeckelFn, effectivePlan } = usePlan()
+  const { canUse: planCanUse, loading: planLaedt, usage, refreshUsage, isBlocked, sperrgrund, erlaubt: planErlaubtFn, deckel: planDeckelFn, effectivePlan, zustand: kontoZustand } = usePlan()
+  // Teamfunktion (T5, 2026-09-17): Ein ruhendes oder entferntes Mitglied darf hier
+  // nicht die Paywall mit dem falschen Grund sehen — dieselbe Umleitung wie in
+  // settings/page.tsx und PlanGate. Startwert von `zustand` ist 'inhaber', deshalb
+  // greift das erst nach dem Laden von /api/konto.
+  useEffect(() => {
+    if (kontoZustand === 'ruhend' || kontoZustand === 'entfernt') window.location.href = '/gesperrt'
+  }, [kontoZustand])
   // Solange der Tarif noch geladen wird, steht er auf 'solo'. Wer die Sperren
   // direkt daran haengt, laesst Schloesser aufblitzen, die gar nicht gelten —
   // ein Neukunde in der Testphase liest "AB STARTER" und glaubt, die beworbene

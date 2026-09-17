@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { assistentWissen } from '@/lib/assistentwissen'
 import { pruefeZugang } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 export const maxDuration = 60
 
@@ -50,8 +51,13 @@ export async function POST(req: NextRequest) {
     // Erste Prüfung nach dem Login (Aufgabe 0) — vor allem anderen.
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    let kontoId: string | null = null
     if (user) {
-      const zu = await pruefeZugang(supabase, user.id)
+      const konto = await kontoIdFuer(supabase, user)
+      const sperre = kontoGesperrt(konto)
+      if (sperre) return sperre
+      kontoId = konto.kontoId
+      const zu = await pruefeZugang(supabase, kontoId)
       if (zu) return zu
     }
 
@@ -69,11 +75,11 @@ export async function POST(req: NextRequest) {
     // eingestellt hatte, bekam 65 genannt.
     let saetze: Record<string, number> | undefined
     try {
-      if (user) {
+      if (kontoId) {
         const { data, error } = await supabase
           .from('kostenstellen')
           .select('bezeichnung, stundensatz, aktiv')
-          .eq('user_id', user.id)
+          .eq('user_id', kontoId)
         if (error) console.error('[assistent] Kostenstellen:', error.message)
         else if (data?.length) {
           saetze = {}

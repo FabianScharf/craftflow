@@ -182,6 +182,24 @@ ungefragt auf `main`.
   während PUT mit den eigenen rechnete. Im Kasten steht bei Stückzahl > 1 „je Stück“ an Mengen/Minuten
   (Fabian: „5 Minuten Verpacken — für einen Schrank oder alle fünf?“).
 
+## Teamfunktion (Stand 2026-09-17, auf dev)
+- **Betrieb = Inhaberkonto.** Mitarbeiter sind eigene Logins in `betrieb_mitglieder` (status eingeladen/aktiv/entfernt,
+  token, angenommen_am). Datenschlüssel in JEDER Route ist `kontoId` aus `kontoIdFuer(supabase, user)`
+  (`src/lib/kontoserver.ts`), nie `user.id` — Ausnahmen: consent, mail/willkommen, notify-signup, Auth, Admin-Gates,
+  stripe/webhook, cron/tag3-mail. `kontoGesperrt(konto)` vor jedem Datenzugriff (403 bei ruhend/entfernt).
+- **RLS:** `user_id = any(public.konto_ids())` auf allen Tabellen + Storage (`docs/sql/2026-09-17-teamfunktion.sql`);
+  `konto_id()` für die Zähler-RPCs. Der Nutzer-Deckel (Solo 1/Starter 1/Pro 3/Enterprise ∞) wird in der APP
+  entschieden (`ermittleKonto`, Reihenfolge `angenommen_am`; über dem Deckel = `ruhend` → Sperrseite `/gesperrt`).
+- **Inhaber-Dinge** (Stripe-Checkout/Portal, Gutschein, Team-Schreibrouten) prüfen `konto.istInhaber` → 403
+  „Nur der Inhaber des Betriebs kann das.“ Stimmen, Wünsche, Zähler, Profil, Kalibrierung gehören dem Betrieb.
+- **Einladung:** `POST /api/team/einladen` → Resend-Mail (`einladungsMail`) → `/einladung/[token]` (öffentlich, zeigt
+  nur den passenden Weg: Anmelden oder Konto anlegen) → `POST /api/team/annehmen` (E-Mail muss passen, kein eigener
+  Betrieb mit Projekten/Abo). Link zeigt nur auf Vorschau-Deployments auf die Vorschau. `sicherNext` schützt `?next=`.
+- **Service-Role hatte auf 14 Dashboard-Tabellen kein SELECT** (Fund 17.09.) — `docs/sql/2026-09-17-service-role-rechte.sql`.
+  `count: 'exact', head: true` über die Service-Role liefert Fehler ohne Meldung — stattdessen Zeilen holen.
+- Prüfprotokoll: `docs/pruefprotokolle/2026-09-17-teamfunktion.md`. Offen: Passwort nach Registrierung über den
+  Einladungsweg (Bestätigungslink führt auf die Live-Adresse) mit frischer Adresse nachstellen.
+
 ## Farben / CI (Stand 2026-09-15)
 - Zwei Nutzerfarben (`farbe_primaer`, `farbe_akzent` im Betriebsprofil). Alles andere —
   Schrift, Nebentext, Kästen, Rahmen, Kopfzeile — leitet `leitePaletteAb()` in
