@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { calcAngebotspos, type Angebotsposition } from '@/lib/types'
 import { pruefeFunktion } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 function xe(s: string) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -22,10 +23,13 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
+  const konto = await kontoIdFuer(supabase, user)
+  const kontoSperre = kontoGesperrt(konto)
+  if (kontoSperre) return kontoSperre
 
   // GAEB ist Enterprise (src/lib/plaene.ts). Der Import prueft das seit jeher,
   // der Export nicht — jeder Plan konnte kostenlos exportieren (Audit 2026-09-17, I1).
-  const sperre = await pruefeFunktion(supabase, user.id, 'gaeb')
+  const sperre = await pruefeFunktion(supabase, konto.kontoId, 'gaeb')
   if (sperre) return sperre
 
   const body = await req.json() as { positionen: Pos[]; kunde?: { name?: string; projekt?: string }; docNr?: string }

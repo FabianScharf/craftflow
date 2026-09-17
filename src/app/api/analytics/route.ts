@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { nettoSumme, type Angebotsposition } from '@/lib/types'
 import { pruefeFunktion } from '@/lib/planpruefung'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 // Rechnet NICHT mehr selbst. Die eigene Kopie kannte die Stueckzahl nicht — die
 // Auswertung haette Serienauftraege systematisch zu niedrig ausgewiesen (gefunden im
@@ -17,13 +18,17 @@ export async function GET() {
     const supabase = await createClient()
     const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-    const sperre = await pruefeFunktion(supabase, user.id, 'auswertung')
+    const konto = await kontoIdFuer(supabase, user)
+    const kontoSperre = kontoGesperrt(konto)
+    if (kontoSperre) return kontoSperre
+    const kontoId = konto.kontoId
+    const sperre = await pruefeFunktion(supabase, kontoId, 'auswertung')
     if (sperre) return sperre
 
     const { data: projects, error } = await supabase
       .from('projects')
       .select('id, title, status, created_at, data')
-      .eq('user_id', user.id)
+      .eq('user_id', kontoId)
       .order('created_at', { ascending: false })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
