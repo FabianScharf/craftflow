@@ -471,24 +471,30 @@ const kueche: Referenzprojekt = {
   text: 'Kunde: Familie Muster, Musterstraße 12, 63517 Rodenbach (20 km Anfahrt). Einbauküche in L-Form, 3,60 m × 2,20 m, Neubau, gerade Wände, Anschlüsse liegen. Korpusse Dekorspanplatte 19 mm weiß, Rückwände 8 mm. Fronten Dekorspanplatte 19 mm weiß matt, Kanten ABS 1 mm. Acht Unterschränke (davon drei mit je drei Auszügen Blum Legrabox, fünf mit Drehtür und Einlegeboden), ein Spülenunterschrank 900 mm, vier Oberschränke 900 mm hoch mit Drehtüren, Blum-Topfscharniere gedämpft. Arbeitsplatte Schichtstoff 38 mm mit Ausschnitten für Spüle und Kochfeld, Wandabschlussleiste, Sockelblende 100 mm, Griffe Edelstahl 160 mm. Lieferung und Montage inklusive Ausrichten und Anschluss der Arbeitsplatte, Erdgeschoss. Nicht enthalten: Elektrogeräte, Spüle und Armatur, Elektro- und Wasseranschluss, Fliesenspiegel/Nischenrückwand.',
   positionen: [
     ...kuecheGrund,
-    // LACK: nur die FRONTEN werden lackiert (ca. 6,75 m² gesamt). Traegermaterial
+    // LACK: nur die FRONTEN werden lackiert (ca. 6,75 m² Frontflaeche). Traegermaterial
     // wechselt von Dekor 30 €/m² auf MDF roh 18 €/m², dazu 40 min/m² Oberflaeche
     // (CLAUDE.md 4.4: 35–55 min/m² 3-Schicht seidenmatt) und 4 €/m² Lack
     // (CLAUDE.md 4.6). Korpusse bleiben Dekor — so baut es jeder Betrieb.
+    // BEIDSEITIG (Fabian 2026-09-17, "Ja verdoppeln"): Kuechenfronten werden vorne
+    // und hinten gespritzt — Zeit und Lackmenge auf 2 × Frontflaeche. Vorher
+    // einseitig, der Aufpreis lag bei nur 213 €.
     variante('lack', 'Alternative: Fronten weiß lackiert seidenmatt',
       'Fronten aus MDF roh, von uns grundiert, zwischengeschliffen und zweimal weiß seidenmatt lackiert. Korpusse bleiben Dekor weiß.',
       kuecheGrund, pos => {
         const flaeche = frontflaeche(pos)
         if (flaeche === 0) return pos
+        const beidseitig = flaeche * 2
         return zeitPlus(
           mitMaterialzeile(
             tauscheMaterial(pos, 'Front', 'Front MDF roh 19 mm (Lackträger)', 18.00),  // CLAUDE.md 7.1: MDF 18 mm 30–50 €/Platte à 5,80 m² = 5–9 €/m² roh, mit Verschnitt und Zuschnitt 18 €/m² (Verhaeltnis wie Spanplatte 6–9,50 → 25)
-            m('Lack: Grundierung + 2× Decklack seidenmatt', flaeche, 'm²', 4.00)),
-          { 'Oberfläche': flaeche * 40 })
+            m('Lack: Grundierung + 2× Decklack seidenmatt (beidseitig)', beidseitig, 'm²', 4.00)),
+          { 'Oberfläche': beidseitig * 40 })
       }),
     // MASSIV: Fronten Eiche massiv 110 €/m² (CLAUDE.md 7.1: 80–140 €/m²),
     // Werkstattzeit der Frontpositionen × 1,3 (CLAUDE.md 3.4: +30–60 %, unteres
-    // Ende), dazu 20 min/m² zweimal oelen (CLAUDE.md 4.2: 20–30 min/m²).
+    // Ende), dazu 20 min/m² zweimal oelen (CLAUDE.md 4.2: 20–30 min/m²) —
+    // BEIDSEITIG wie die Lackvariante (CLAUDE.md 4.2: "Beide Seiten behandeln,
+    // Schuesselung vermeiden"), also 2 × Frontflaeche.
     // Bekantung bleibt UNVERAENDERT: Die Korpuskanten werden weiter mit ABS
     // bekantet — nur die Eichenfronten bekommen keine Kante.
     variante('massiv', 'Alternative: Fronten Eiche massiv, geölt',
@@ -499,7 +505,7 @@ const kueche: Referenzprojekt = {
         return zeitPlus(
           zeitMal(tauscheMaterial(pos, 'Front', 'Front Eiche massiv 25 mm', 110.00),
             { Zuschnitt: 1.3, Zusammenbau: 1.3, Warenhandling: 1.3, Verpacken: 1.3 }),
-          { 'Oberfläche': flaeche * 20 })
+          { 'Oberfläche': flaeche * 2 * 20 })
       }),
     // ALTBAU: Montage × 1,6 (CLAUDE.md 5.1 Altbau 2,5–4,0 gegen 1,5–2,5 h/lfm,
     // CLAUDE.md 8.2: +25–30 % plus fehlender Aufzug).

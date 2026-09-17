@@ -217,3 +217,6 @@ aufschlag, deaktiviert)` in beiden Oberflächen, Sätze/Aufschlag kommen aus GET
 
 **Prüfung:** Tests 472/472 (neu: Küche 8.000–9.500 € und ≥ 70 h, Unterschrank ≥ 210 min je Stück und
 2 Griffe, `umgebucht` ohne CNC, Bänder ohne CNC treffen b3), `tsc` sauber, kein neuer Lint-Fehler.
+
+**Nachtrag (Fabian: „Ja verdoppeln“):** Küchenfronten werden beidseitig lackiert bzw. geölt — Lack- und
+Massiv-Alternative rechnen jetzt mit 2 × Frontfläche. Lack-Aufpreis +530 € statt +213 €, Massiv 10.291 €.
