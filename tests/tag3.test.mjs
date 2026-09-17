@@ -16,6 +16,11 @@ test('nicht faellig: zu jung, Bestandskonto, unbestaetigt, schon gesendet, zu al
   assert.equal(tag3Faellig(konto({ meta: { [TAG3_MERKER]: '2026-09-19' } }), jetzt).grund, 'bereits gesendet')
   assert.equal(tag3Faellig(konto({ created_at: '2026-09-15T10:00:00Z' }), new Date('2026-10-05T00:00:00Z')).grund, 'Testphase vorbei')
 })
+test('Am dritten Tag heisst ab 2,5 Tagen (werktags-Lauf), unter 2,5 nicht', () => {
+  assert.equal(tag3Faellig(konto({ created_at: '2026-09-17T18:00:00Z' }), jetzt).faellig, true)   // 2,54 Tage
+  assert.equal(tag3Faellig(konto({ created_at: '2026-09-17T22:00:00Z' }), jetzt).faellig, false)  // 2,38 Tage
+})
+
 test('Sofortversand: mindestTage 0 macht ein zwei Tage altes Konto faellig', () => {
   assert.equal(tag3Faellig(konto({ created_at: '2026-09-18T10:00:00Z' }), jetzt, 0).faellig, true)
 })

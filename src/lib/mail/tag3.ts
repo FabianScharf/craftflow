@@ -13,8 +13,13 @@ export type Mail = { subject: string; html: string; text: string }
 
 /** Konten, die VOR diesem Zeitpunkt entstanden sind, bekommen die Mail nie (Bestand). */
 export const TAG3_AB = '2026-09-14T00:00:00Z'
-/** Frühestens drei Tage nach der Registrierung … */
-export const TAG3_MINDEST_TAGE = 3
+/**
+ * Frühestens „am dritten Tag“ nach der Registrierung. 2,5 statt 3,0, weil der Lauf nur
+ * werktags um 10 Uhr stattfindet (Fabian 2026-09-17: „nur von Montag bis Freitag“):
+ * Wer Dienstagabend registriert, ist Freitag 10 Uhr 2,6 Tage dabei — mit 3,0 käme
+ * die Mail erst Montag und „liegt länger im Postfach und kann untergehen“.
+ */
+export const TAG3_MINDEST_TAGE = 2.5
 /** … und spätestens nach 14 Tagen — danach ist die Testphase vorbei, die Frage passt nicht mehr. */
 export const TAG3_HOECHST_TAGE = 14
 export const TAG3_MERKER = 'tag3_mail_am'
