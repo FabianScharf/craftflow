@@ -20,7 +20,7 @@ import { createClient } from '@/utils/supabase/client'
 
 const C = { black: '#0D0D0D', dark: '#141414', copper: '#C8885A', white: '#F5F2EE', gray: '#8A8A8A', border: '#2E2E2E', err: '#E05A5A', ok: '#5ABE6A' }
 
-type Einladung = { betriebName: string | null; email: string; status: string }
+type Einladung = { betriebName: string | null; email: string; status: string; kontoVorhanden?: boolean }
 
 const knopf = (aktiv: boolean) => ({
   background: aktiv ? C.copper : '#7a5535',
@@ -166,21 +166,34 @@ export default function EinladungPage() {
             )}
 
             {angemeldet === null ? (
-              <>
-                <p style={{ color: C.gray, fontSize: 12, lineHeight: 1.6 }}>
-                  Melde dich mit <strong style={{ color: C.white }}>genau dieser Adresse</strong> an — oder lege dir
-                  damit ein Konto an.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-                  <a href={`/login?next=${encodeURIComponent(zurueck)}`} style={knopf(true)}>Anmelden</a>
-                  <a
-                    href={`/register?next=${encodeURIComponent(zurueck)}`}
-                    style={{ ...knopf(true), background: 'transparent', color: C.copper, border: `1px solid ${C.border}` }}
-                  >
-                    Registrieren
-                  </a>
-                </div>
-              </>
+              // Fabian (17.09.): „Wenn ich jetzt noch neu bin, was klicke ich?“ — nur EIN
+              // Weg als Knopf, der andere als kleiner Textlink. Die Route sagt, ob es zur
+              // eingeladenen Adresse schon ein Konto gibt.
+              einladung.kontoVorhanden ? (
+                <>
+                  <p style={{ color: C.gray, fontSize: 12, lineHeight: 1.6 }}>
+                    Zu dieser Adresse gibt es schon ein CraftFlow-Konto. Melde dich damit an, dann kannst du die Einladung annehmen.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+                    <a href={`/login?next=${encodeURIComponent(zurueck)}`} style={knopf(true)}>Anmelden</a>
+                  </div>
+                  <p style={{ color: C.gray, fontSize: 12, lineHeight: 1.6, marginTop: 12 }}>
+                    Passwort vergessen? <a href={`/auth/forgot-password`} style={{ color: C.copper }}>Neues Passwort anfordern</a>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p style={{ color: C.gray, fontSize: 12, lineHeight: 1.6 }}>
+                    Du brauchst ein CraftFlow-Konto mit <strong style={{ color: C.white }}>genau dieser Adresse</strong>. Das ist in einer Minute erledigt; danach kommst du hierher zurück.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+                    <a href={`/register?next=${encodeURIComponent(zurueck)}`} style={knopf(true)}>Konto anlegen</a>
+                  </div>
+                  <p style={{ color: C.gray, fontSize: 12, lineHeight: 1.6, marginTop: 12 }}>
+                    Schon ein Konto? <a href={`/login?next=${encodeURIComponent(zurueck)}`} style={{ color: C.copper }}>Anmelden</a>
+                  </p>
+                </>
+              )
             ) : (
               <>
                 <p style={{ color: C.gray, fontSize: 12, lineHeight: 1.6 }}>

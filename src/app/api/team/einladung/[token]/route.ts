@@ -50,11 +50,32 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (pErr) console.error('[team/einladung] Firmenname:', pErr.message)
   const name = ((profil?.firma_name ?? '') as string).trim()
 
+  // Fabian im Live-Test (17.09.): „Wenn ich jetzt noch neu bin, was klicke ich?
+  // Wieso steht hier anmelden oder registrieren?“ — Die Seite soll den Weg kennen.
+  // Gibt es zur eingeladenen Adresse schon ein Konto, ist „Anmelden“ der Weg,
+  // sonst „Konto anlegen“. Das verrät nur, ob die Adresse aus der Einladung selbst
+  // ein Konto hat — wer den Token besitzt, kennt die Adresse ohnehin (maskiert)
+  // und ist in der Regel ihr Inhaber. Die Nutzerliste ist klein; sobald sie in die
+  // Hunderte geht, gehört hier eine gezielte Abfrage hin.
+  let kontoVorhanden = false
+  try {
+    const gesucht = (data.email as string).toLowerCase()
+    for (let page = 1; page <= 20; page++) {
+      const { data: liste, error: lErr } = await service.auth.admin.listUsers({ page, perPage: 200 })
+      if (lErr) { console.error('[team/einladung] Konten:', lErr.message); break }
+      if (liste.users.some(u => (u.email ?? '').toLowerCase() === gesucht)) { kontoVorhanden = true; break }
+      if (liste.users.length < 200) break
+    }
+  } catch (e) {
+    console.error('[team/einladung] Konten:', e instanceof Error ? e.message : String(e))
+  }
+
   return NextResponse.json(
     {
       betriebName: name || null,
       email: maskiereEmail(data.email as string),
       status: data.status as string,
+      kontoVorhanden,
     },
     // Niemals zwischenspeichern: Die Antwort hängt am Token und ändert sich in der
     // Sekunde, in der die Einladung angenommen wird.
