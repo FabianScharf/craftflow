@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { kostenstellenSollZustand, abzuschaltendeKostenstellen } from '@/lib/kalibrierung'
 import { normalizeKsId } from '@/lib/types'
 import { berechneFaktoren, deckeleHand, referenzFuer, referenzMitSaetzen, ankerFuer } from '@/lib/kalibrierung'
@@ -11,7 +12,10 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const kalibrierung = await ladeKalibrierung(supabase, user.id)
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
+  const kalibrierung = await ladeKalibrierung(supabase, kontoId)
 
   // GEFUNDEN 2026-09-17 von Fabian: "Bei den Referenzmoebeln ist jetzt immer die
   // Kueche vorhanden. Auch wenn ich die Kuechen abwaehle. Es wechselt nicht mehr."
@@ -36,7 +40,7 @@ export async function GET(req: NextRequest) {
   // dadurch derselbe Preis (2.134 EUR), naemlich der eines ganz anderen Moebels.
   // Zwei Quellen fuer dieselbe Aussage laufen immer irgendwann auseinander; jetzt
   // rechnet die Oberflaeche beides aus demselben ref.
-  const { saetze, aufschlag } = await ladeSaetzeUndAufschlag(supabase, user.id)
+  const { saetze, aufschlag } = await ladeSaetzeUndAufschlag(supabase, kontoId)
 
   // Task R3: das gerechnete Referenzprojekt fuer die Oberflaeche — MIT den Saetzen
   // und dem Materialaufschlag DIESES Betriebs, nicht mit den Standardsaetzen aus
@@ -76,16 +80,16 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ kalibrierung, saetze, aufschlag, referenzprojekt })
 }
 
-// Stundensaetze und Materialaufschlag des Nutzers. Die Referenzkalkulation ist fuer
+// Stundensaetze und Materialaufschlag des Betriebs. Die Referenzkalkulation ist fuer
 // jeden Betrieb eine andere Zahl, obwohl das Moebel dasselbe ist.
 async function ladeSaetzeUndAufschlag(
-  supabase: Awaited<ReturnType<typeof createClient>>, userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>, kontoId: string,
 ): Promise<{ saetze: Record<string, number>; aufschlag: number }> {
   const saetze: Record<string, number> = {}
   const { data: ks, error: ksErr } = await supabase
     .from('kostenstellen')
     .select('bezeichnung, stundensatz, aktiv')
-    .eq('user_id', userId)
+    .eq('user_id', kontoId)
   if (ksErr) console.error('[kalibrierung] Kostenstellen:', ksErr.message)
   for (const k of ks ?? []) {
     if (k.aktiv === false) continue
@@ -95,7 +99,7 @@ async function ladeSaetzeUndAufschlag(
   const { data: mg, error: mgErr } = await supabase
     .from('materialgruppen')
     .select('aufschlag_prozent, aktiv')
-    .eq('user_id', userId)
+    .eq('user_id', kontoId)
     .order('reihenfolge')
   if (mgErr) console.error('[kalibrierung] Materialgruppen:', mgErr.message)
   const erste = (mg ?? []).find(m => m.aktiv !== false)
@@ -108,13 +112,16 @@ export async function PUT(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr || !user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
-  const sperre = await pruefeFunktion(supabase, user.id, 'kalibrierung')
-  if (sperre) return sperre
+  const konto = await kontoIdFuer(supabase, user)
+  const sperre = kontoGesperrt(konto); if (sperre) return sperre
+  const kontoId = konto.kontoId
+  const funktionsSperre = await pruefeFunktion(supabase, kontoId, 'kalibrierung')
+  if (funktionsSperre) return funktionsSperre
 
   const b = await req.json() as Record<string, unknown>
   const text = (k: string) => String(b[k] ?? '')
 
-  const { saetze, aufschlag } = await ladeSaetzeUndAufschlag(supabase, user.id)
+  const { saetze, aufschlag } = await ladeSaetzeUndAufschlag(supabase, kontoId)
 
   const antworten = {
     grund:   text('antwort_grund'),
@@ -147,7 +154,7 @@ export async function PUT(req: NextRequest) {
   const vonHand = (k: string, standard: number) =>
     b[k] === undefined || b[k] === null || b[k] === '' ? standard : deckeleHand(Number(b[k]))
 
-  const r = await speichereKalibrierung(supabase, user.id, {
+  const r = await speichereKalibrierung(supabase, kontoId, {
     mitarbeiter:     text('mitarbeiter'),
     maschinen,
     schwerpunkt,
@@ -169,12 +176,12 @@ export async function PUT(req: NextRequest) {
   // Kostenstellen mitziehen: CNC, Bekantung, Montage folgen den Antworten — sonst zeigt
   // „Kostenstellen“ etwas anderes als die Kalkulation rechnet (Fabian, 15.09.).
   const soll = kostenstellenSollZustand({ maschinen, montage_selbst: text('montage_selbst') })
-  const { data: alleKs } = await supabase.from('kostenstellen').select('id, code, aktiv').eq('user_id', user.id)
+  const { data: alleKs } = await supabase.from('kostenstellen').select('id, code, aktiv').eq('user_id', kontoId)
   const geaendert: string[] = []
   for (const ks of alleKs ?? []) {
     const id = normalizeKsId(ks.code)
     if (!(id in soll) || ks.aktiv === soll[id]) continue
-    const { error } = await supabase.from('kostenstellen').update({ aktiv: soll[id] }).eq('id', ks.id).eq('user_id', user.id)
+    const { error } = await supabase.from('kostenstellen').update({ aktiv: soll[id] }).eq('id', ks.id).eq('user_id', kontoId)
     if (!error) geaendert.push(`${id} ${soll[id] ? 'an' : 'aus'}`)
   }
   return NextResponse.json({ ok: true, faktoren: f, kostenstellen: geaendert })
