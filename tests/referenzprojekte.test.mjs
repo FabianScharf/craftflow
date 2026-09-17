@@ -290,7 +290,7 @@ test('projektDatenAus liefert genau die Form, in der die App ein Projekt speiche
     name: p.kunde.name, zusatz: '', strasse: p.kunde.strasse, ort: p.kunde.ort, projekt: p.kunde.projekt,
   })
   assert.equal(d.docNr, '')
-  assert.equal(d.docTyp, 'angebot')
+  assert.equal(d.docTyp, 'Angebot')
   assert.equal(d.anschr, '')
   assert.equal(d.widerruf, false)
   assert.equal(d.angebotsdatum, '17.9.2026')

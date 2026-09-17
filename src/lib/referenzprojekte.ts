@@ -826,7 +826,7 @@ export type ReferenzprojektDaten = {
   kunde: { name: string; zusatz: string; strasse: string; ort: string; projekt: string }
   pos: Angebotsposition[]
   docNr: string
-  docTyp: 'angebot'
+  docTyp: 'Angebot'
   anschr: string
   widerruf: boolean
   angebotsdatum: string
@@ -864,7 +864,7 @@ export function projektDatenAus(
     },
     pos,
     docNr: '',
-    docTyp: 'angebot',
+    docTyp: 'Angebot',
     anschr: '',
     widerruf: false,
     angebotsdatum: heute,
