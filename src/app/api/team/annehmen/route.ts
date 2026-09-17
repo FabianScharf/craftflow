@@ -132,15 +132,20 @@ export async function POST(req: NextRequest) {
   if (eigenes && LAUFENDES_ABO.includes(String(eigenes.abo_status ?? ''))) {
     return NextResponse.json({ error: TEAM_TEXTE.eigenerBetrieb }, { status: 409 })
   }
-  const { count, error: pjErr } = await service
+  // GEFUNDEN IM LIVE-TEST 2026-09-17 (Fabians iCloud-Konto): `count: 'exact', head: true`
+  // lieferte über die Service-Role einen Fehler OHNE Meldung („[team/annehmen] eigene
+  // Projekte:“ leer im Log) — die Annahme brach mit 500 ab. Eine gewöhnliche Abfrage
+  // mit limit(1) reicht: Es geht nur um „gibt es mindestens eines“.
+  const { data: projekte, error: pjErr } = await service
     .from('projects')
-    .select('id', { count: 'exact', head: true })
+    .select('id')
     .eq('user_id', user.id)
+    .limit(1)
   if (pjErr) {
-    console.error('[team/annehmen] eigene Projekte:', pjErr.message)
+    console.error('[team/annehmen] eigene Projekte:', pjErr.message || JSON.stringify(pjErr))
     return NextResponse.json({ error: 'Die Einladung ist gerade nicht abrufbar.' }, { status: 500 })
   }
-  if ((count ?? 0) > 0) {
+  if ((projekte ?? []).length > 0) {
     return NextResponse.json({ error: TEAM_TEXTE.eigenerBetrieb }, { status: 409 })
   }
 
