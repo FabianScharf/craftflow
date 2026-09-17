@@ -1,50 +1,30 @@
-// Betriebskalibrierung: fest hinterlegte Referenzkalkulation und die daraus
-// abgeleiteten Zeitfaktoren.
+// Betriebskalibrierung: die Referenzkalkulationen (siehe referenzprojekte.ts) und
+// die daraus abgeleiteten Zeitfaktoren.
 //
-// Importiert bewusst NICHTS — wie learn.ts, lernwerkzeuge.ts, laufmeter.ts.
-// Alles, was Supabase braucht, liegt in kalibrierungsspeicher.ts.
+// Importiert referenzprojekte.ts (Daten der fuenf Referenzprojekte) und types.ts
+// (Stueckzahl/Serienstaffel-Formeln — dieselben, mit denen App, PDF und Export
+// rechnen). Beides importfreie oder fast importfreie reine Rechenmodule, kein React,
+// kein Supabase. Alles, was Supabase braucht, liegt in kalibrierungsspeicher.ts.
 //
 // WARUM FEST HINTERLEGT: Ein KI-Aufruf mitten im Onboarding wuerde ein bis zwei
 // Minuten dauern, Geld kosten und bei jedem Nutzer leicht andere Zahlen liefern —
-// der Faktor waere nicht reproduzierbar. Die Zahlen unten stammen aus der gemessenen
-// Kalkulation vom 2026-09-07 (nach dem Laufmeter-Fix), gerundet auf Richtwerte.
+// der Faktor waere nicht reproduzierbar.
+//
+// STAND 2026-09-17 (Task R2): Vorher entstand die Bandbasis aus einer FORMEL
+// (SPECS/baueReferenz) — Faustregelpreis mal Materialanteil, die Minuten rueckwaerts
+// daraus. Jetzt kommt sie aus referenzAusProjekt() direkt aus den Stuecklisten in
+// referenzprojekte.ts (Task R1). Kein Preis mehr aus einer Faustregel.
+
+import { REFERENZPROJEKTE } from './referenzprojekte.ts'
+import type { Referenzprojekt, ReferenzPosition, Variante } from './referenzprojekte.ts'
+import { stueckzahlVon, zeitFaktorFuer, materialRabatt, normalizeKsId } from './types.ts'
 
 export type Saetze = Record<string, number>
 export type Zeitposten = { kostenstelle: string; minuten: number }
 
-// Grundmoebel: Einbauschrank Flur 2,00 x 2,40 x 0,60 m, Egger Dekor weiss,
-// 4 Drehtueren, 2 Schubkaesten auf Systemauszuegen, Kleiderstange, je Fach
-// 2 Einlegeboeden, Sockel, Rueckwand, Montage im Neubau, 20 km.
-export const REFERENZ = {
-  materialEk: 409.5,
-  fixsockel: [
-    { kostenstelle: 'Besprechung', minuten: 20 },
-    { kostenstelle: 'Planung', minuten: 30 },
-    { kostenstelle: 'Konstruktion', minuten: 60 },
-    { kostenstelle: 'Arbeitsvorbereitung', minuten: 45 },
-  ] as Zeitposten[],
-  werkstatt: [
-    { kostenstelle: 'Zuschnitt', minuten: 216 },
-    { kostenstelle: 'Bekantung', minuten: 190 },
-    { kostenstelle: 'Zusammenbau', minuten: 479 },
-    { kostenstelle: 'Warenhandling', minuten: 20 },
-    { kostenstelle: 'Produktion', minuten: 30 },
-    { kostenstelle: 'Verpacken', minuten: 30 },
-  ] as Zeitposten[],
-  montage: [
-    { kostenstelle: 'Montage', minuten: 240 },
-    { kostenstelle: 'Lieferung', minuten: 70 },
-  ] as Zeitposten[],
-  lackMinuten: 600,
-  lackMaterialEk: 60,
-  massivMaterialEk: 1770,
-  massivWerkstattFaktor: 1.3,
-  massivOberflaecheMinuten: 300,
-  altbauFaktor: 1.6,
-} as const
-
 // Welche Kostenstelle von welchem Faktor beruehrt wird. Liegt auf den
-// KOSTENSTELLEN_GRUPPEN aus types.ts, hier absichtlich ohne Import wiederholt.
+// KOSTENSTELLEN_GRUPPEN aus types.ts, hier absichtlich als eigene Liste gefuehrt
+// (referenzAusProjekt unten gruppiert die Zeitposten der Referenzprojekte damit).
 export const WERKSTATT_KS = [
   'Zuschnitt', 'Bekantung', 'CNC', 'Zusammenbau', 'Warenhandling', 'Produktion', 'Verpacken',
 ]
@@ -52,6 +32,127 @@ export const OBERFLAECHE_KS = ['Oberfläche']
 export const MONTAGE_KS = ['Montage', 'Lieferung']
 // Besprechung, Planung, Konstruktion, Arbeitsvorbereitung bleiben unberuehrt: Sie
 // decken einen Sockel ab, der nicht mit der Betriebsgroesse skaliert.
+
+type Kostenstellengruppe = 'fix' | 'werkstatt' | 'montage'
+
+function gruppeVon(kostenstelle: string): Kostenstellengruppe {
+  if (MONTAGE_KS.includes(kostenstelle)) return 'montage'
+  if (WERKSTATT_KS.includes(kostenstelle) || OBERFLAECHE_KS.includes(kostenstelle)) return 'werkstatt'
+  return 'fix'
+}
+
+/**
+ * Effektive Minuten EINER Kostenstelle ueber eine Positionsliste — Stueckzahl UND
+ * Serienstaffel eingerechnet, exakt wie stundenPos in types.ts (zeitFaktorFuer
+ * deckt Fixkosten/Montage/Werkstatt bereits unterschiedlich ab). Bei einer
+ * Alternativposition (stueckzahl 1) ist das einfach ihr eigener Wert.
+ */
+function minutenVon(positionen: readonly ReferenzPosition[], kostenstelle: string): number {
+  return positionen.reduce((summe, pos) => {
+    const n = stueckzahlVon(pos)
+    return summe + pos.arbeitszeit
+      .filter(a => a.kostenstelle === kostenstelle)
+      .reduce((s, a) => s + a.minuten * zeitFaktorFuer(normalizeKsId(a.kostenstelle), n), 0)
+  }, 0)
+}
+
+/** Dieselbe Rechnung wie minutenVon, aber ueber eine ganze Kostenstellengruppe. */
+function minutenGruppe(positionen: readonly ReferenzPosition[], gruppe: Kostenstellengruppe): number {
+  return positionen.reduce((summe, pos) => {
+    const n = stueckzahlVon(pos)
+    return summe + pos.arbeitszeit
+      .filter(a => gruppeVon(a.kostenstelle) === gruppe)
+      .reduce((s, a) => s + a.minuten * zeitFaktorFuer(normalizeKsId(a.kostenstelle), n), 0)
+  }, 0)
+}
+
+/** Zeitposten einer Gruppe, je Kostenstelle summiert — Grundlage von fixsockel/werkstatt/montage. */
+function zeitJeGruppe(positionen: readonly ReferenzPosition[], gruppe: Kostenstellengruppe): Zeitposten[] {
+  const summen = new Map<string, number>()
+  for (const pos of positionen) {
+    const n = stueckzahlVon(pos)
+    for (const a of pos.arbeitszeit) {
+      if (gruppeVon(a.kostenstelle) !== gruppe) continue
+      summen.set(a.kostenstelle, (summen.get(a.kostenstelle) ?? 0) + a.minuten * zeitFaktorFuer(normalizeKsId(a.kostenstelle), n))
+    }
+  }
+  return [...summen.entries()].map(([kostenstelle, minuten]) => ({ kostenstelle, minuten: Math.round(minuten) }))
+}
+
+/** Material-EK (ohne Aufschlag) einer Positionsliste, mit Stueckzahl und Materialrabatt-Staffel. */
+function materialEkVon(positionen: readonly ReferenzPosition[]): number {
+  return positionen.reduce((summe, pos) => {
+    const n = stueckzahlVon(pos)
+    const faktor = n * (1 - materialRabatt(n))
+    return summe + pos.material.reduce((s, x) => s + x.menge * x.ekPreis * faktor, 0)
+  }, 0)
+}
+
+/**
+ * Baut die Bandbasis eines Referenzmoebels direkt aus seinem Referenzprojekt
+ * (referenzprojekte.ts): Grundsumme aus den Grundpositionen, die drei Zusatzfragen
+ * (Lack, Massiv, Montage) aus der jeweiligen Alternativposition. Eine Alternativ-
+ * position beschreibt IMMER das ganze Projekt (fasseZusammen in referenzprojekte.ts),
+ * nicht nur den Unterschied — deshalb wird hier die Differenz zur Grundsumme gebildet.
+ *
+ * WICHTIG bei "massiv": massivMaterialEk ist der GESAMTPREIS mit Massivholz —
+ * Grundmaterial plus die Differenz der Massiv-Alternative, NICHT ein Ersatzwert.
+ * Sonst saehe eine Kueche, bei der nur die Fronten wechseln, so aus, als waere das
+ * ganze Projekt neu bepreist.
+ *
+ * Fehlt eine Alternative (Treppe/Tisch fragen nicht nach Massivholz — sie SIND schon
+ * massiv), bleibt der jeweilige Faktor neutral (1,0 bzw. 0 Minuten Differenz): Die
+ * Frage wird ohnehin nicht gestellt (siehe mitBaendern), der Wert wird nirgends gelesen.
+ */
+export function referenzAusProjekt(p: Referenzprojekt) {
+  const grund = p.positionen.filter(q => !q.alternativ)
+  const alternative = (v: Variante) => p.positionen.find(q => q.alternativ && q.variante === v)
+
+  const materialEk = materialEkVon(grund)
+  const grundOberflaeche = minutenVon(grund, 'Oberfläche')
+  const grundWerkstattReiner = minutenGruppe(grund, 'werkstatt') - grundOberflaeche
+  const grundMontage = minutenVon(grund, 'Montage')
+
+  const lackPos = alternative('lack')
+  const lackOberflaeche = lackPos ? minutenVon([lackPos], 'Oberfläche') : grundOberflaeche
+  const lackMaterial = lackPos ? materialEkVon([lackPos]) : materialEk
+
+  const massivPos = alternative('massiv')
+  const massivWerkstattReiner = massivPos
+    ? minutenGruppe([massivPos], 'werkstatt') - minutenVon([massivPos], 'Oberfläche')
+    : grundWerkstattReiner
+  const massivOberflaeche = massivPos ? minutenVon([massivPos], 'Oberfläche') : grundOberflaeche
+  const massivMaterial = massivPos ? materialEkVon([massivPos]) : materialEk
+
+  const montagePos = alternative('montage')
+  const montageAlt = montagePos ? minutenVon([montagePos], 'Montage') : grundMontage
+
+  return {
+    name: p.name,
+    text: p.text,
+    fragen: p.fragen,
+    fragenHinweis: p.fragenHinweis ?? {},
+    // Referenzprojekt.ohneMaterial ist auf 'grund'|'massiv' eingeschraenkt (nur dort
+    // gibt es ueberhaupt einen Materialwert im Sockel) — hier auf die volle
+    // Fragenschluessel-Union geweitet, die baueBaender/berechneFaktoren erwarten.
+    ohneMaterial: (p.ohneMaterial ?? []) as Fragenschluessel[],
+    teiler: p.teiler ?? {},
+    materialEk: Math.round(materialEk),
+    fixsockel: zeitJeGruppe(grund, 'fix'),
+    werkstatt: zeitJeGruppe(grund, 'werkstatt'),
+    montage: zeitJeGruppe(grund, 'montage'),
+    lackMinuten: Math.round(lackOberflaeche - grundOberflaeche),
+    lackMaterialEk: Math.round(lackMaterial - materialEk),
+    massivMaterialEk: Math.round(materialEk + (massivMaterial - materialEk)),
+    massivWerkstattFaktor: grundWerkstattReiner > 0 ? massivWerkstattReiner / grundWerkstattReiner : 1,
+    massivOberflaecheMinuten: Math.round(massivOberflaeche - grundOberflaeche),
+    altbauFaktor: grundMontage > 0 ? montageAlt / grundMontage : 1,
+  }
+}
+
+// Rueckwaertskompatibler Export: die Bandbasis des Einbauschranks, jetzt aus seinem
+// Referenzprojekt abgeleitet statt hart hinterlegt.
+export const REFERENZ = referenzAusProjekt(REFERENZPROJEKTE.einbauschrank)
 
 export type Band = {
   schluessel: string
@@ -61,204 +162,19 @@ export type Band = {
   hinweis?: string
 }
 
-// ── Weitere Referenzmoebel je Schwerpunkt ────────────────────────────────────
+// ── Referenzmoebel je Schwerpunkt ────────────────────────────────────────────
 //
 // Fabian am 2026-09-07: "Das Referenzprojekt an die Kernarbeit des Betriebes
 // anzupassen finde ich sehr gut." — Zu Recht: Ein Treppenbauer, der sich an einem
 // Flurschrank kalibriert, bekommt geratene Faktoren.
 //
-// WOHER DIE ZAHLEN KOMMEN — nicht erfunden, sondern aus Fabians eigener
-// Wissensbasis abgeleitet:
-//   Preis        aus den Preisfaustregeln (CLAUDE.md, Abschnitt 6.1)
-//   Materialanteil aus den Materialverhaeltnis-Richtwerten (Abschnitt 6.2)
-// Die Minuten entstehen daraus rechnerisch: Lohnsumme = Preis x (1 - Materialanteil),
-// geteilt durch einen Referenzsatz von 70 EUR/h. Bewertet wird spaeter mit den
-// Saetzen des jeweiligen Nutzers — deshalb misst der Faktor die ZEIT, nicht den Satz.
-//
-// ZU PRUEFEN VON FABIAN: Die Aufteilung in Planung, Werkstatt und Montage ist eine
-// fachliche Setzung. Sie ist plausibel, aber nicht gemessen wie beim Einbauschrank.
-
-const REFERENZSATZ = 70
+// Bis Task R2 kamen Kueche/Tueren/Treppe/Tisch aus einer FORMEL (SPECS/baueReferenz,
+// siehe git-Historie): Faustregelpreis mal Materialanteil, die Minuten rueckwaerts
+// daraus. Jetzt liefert referenzAusProjekt() (oben) die Bandbasis aller fuenf direkt
+// aus den Stuecklisten in referenzprojekte.ts (Task R1) — kein Preis mehr aus einer
+// Faustregel, die Faustregel bleibt dort nur noch Kontrolle.
 
 export type Fragenschluessel = 'grund' | 'lack' | 'massiv' | 'montage'
-
-type ReferenzSpec = {
-  name: string
-  text: string
-  preis: number
-  materialAnteil: number
-  anteilFix: number
-  anteilWerkstatt: number
-  /** Anteil Oberflaechenarbeit — bei Massivholzstuecken der groesste Einzelposten. */
-  anteilOberflaeche: number
-  anteilMontage: number
-  /** Zu behandelnde Sichtflaeche in m2 — treibt Lack- und Massivholzfrage. */
-  flaecheM2: number
-  /**
-   * Die Fragetexte. Ein fehlender Schluessel bedeutet: Diese Frage wird bei diesem
-   * Referenzmoebel NICHT gestellt (der zugehoerige Faktor bleibt 1,0). So entfaellt
-   * die Massivholzfrage bei Treppe und Tisch — die sind schon massiv.
-   */
-  fragen: Partial<Record<Fragenschluessel, string>>
-  /** Erlaeuterung unter der Frage, wo sie noetig ist. */
-  fragenHinweis?: Partial<Record<Fragenschluessel, string>>
-  /**
-   * Fragen, die OHNE Materialwert gestellt werden ("der Kunde stellt das Material").
-   *
-   * WARUM: Wo Material ueber die Haelfte des Preises ausmacht, sagt der Gesamtpreis
-   * fast nichts ueber das Tempo des Betriebs aus — zwei gleich schnelle Schreiner
-   * liegen allein durch Einkauf und Aufschlag hunderte Euro auseinander, und die
-   * wuerden wir komplett der Zeit anlasten. Gemessen am 2026-09-07: Bei den
-   * Innentueren bewegen +-40 % Zeit nur +-16 % Preis, die ganze Auswahl umfasste
-   * 2.500-3.200 EUR. Ohne Material fragt sich dieselbe Sache als 160-340 EUR je
-   * Tuer — die echte Marktbreite, und ein Schreiner bietet Tueren ohnehin so an.
-   */
-  ohneMaterial?: Fragenschluessel[]
-  /**
-   * Label je Stueck statt fuer alles zusammen (Innentueren: 5).
-   *
-   * Gilt fuer ALLE Fragen einer Referenz oder fuer keine. Gemischt gefragt — zwei
-   * Fragen je Tuer, zwei fuer fuenf Tueren — laedt zum Verlesen ein, und ein
-   * verlesener Preis ist ein falscher Faktor.
-   */
-  teiler?: Partial<Record<Fragenschluessel, number>>
-}
-
-// Aus der Flaeche entstehen die Zahlen der Lack- und der Massivholzfrage. Die
-// Kennwerte stammen aus CLAUDE.md, Abschnitt 4 und 7:
-//   40 min/m2   3-Schicht-Lackaufbau seidenmatt inkl. Zwischenschliff (Band 35-55)
-//    4 EUR/m2   Grundierung + 2x Decklack, ca. 350 ml/m2
-//  110 EUR/m2   Eiche massiv 25 mm (Band 80-140)
-//   20 min/m2   zweimal oelen inkl. Abziehen (Band 20-30, unteres Ende)
-//
-// GEGENPROBE, die diese Kennwerte stuetzt: Auf den gemessenen Einbauschrank
-// (16,1 m2 Plattenflaeche) angewandt ergeben sie 644 / 64 / 1.771 / 322 gegen die
-// gemessenen 600 / 60 / 1.770 / 300. Der Materialwert trifft auf 1 EUR. Als Test
-// festgeschrieben in tests/kalibrierung.test.mjs.
-const LACK_MIN_JE_M2 = 40
-const LACK_EK_JE_M2 = 4
-const MASSIV_EK_JE_M2 = 110
-const OELEN_MIN_JE_M2 = 20
-
-function baueReferenz(spec: ReferenzSpec) {
-  const lohn = spec.preis * (1 - spec.materialAnteil)
-  const minutenGesamt = (lohn / REFERENZSATZ) * 60
-  const m = (anteil: number) => Math.round(minutenGesamt * anteil)
-  const fix = m(spec.anteilFix)
-  const werk = m(spec.anteilWerkstatt)
-  const ober = m(spec.anteilOberflaeche)
-  const mont = m(spec.anteilMontage)
-  return {
-    name: spec.name,
-    text: spec.text,
-    fragen: spec.fragen,
-    fragenHinweis: spec.fragenHinweis ?? {},
-    ohneMaterial: spec.ohneMaterial ?? [],
-    teiler: spec.teiler ?? {},
-    materialEk: Math.round(spec.preis * spec.materialAnteil / 1.3),
-    // Der Fixsockel verteilt sich wie beim Einbauschrank auf die vier Kostenstellen.
-    fixsockel: [
-      { kostenstelle: 'Besprechung', minuten: Math.round(fix * 0.13) },
-      { kostenstelle: 'Planung', minuten: Math.round(fix * 0.19) },
-      { kostenstelle: 'Konstruktion', minuten: Math.round(fix * 0.39) },
-      { kostenstelle: 'Arbeitsvorbereitung', minuten: Math.round(fix * 0.29) },
-    ] as Zeitposten[],
-    // Enthaelt bewusst auch die Oberflaeche: Das Feld beziffert den WERKSTATTPREIS,
-    // nicht die Faktorgruppe. Ohne diesen Posten fehlte einer geoelten Treppe oder
-    // einem Massivholztisch die Oberflaechenzeit in der Referenz.
-    werkstatt: [
-      { kostenstelle: 'Zuschnitt', minuten: Math.round(werk * 0.25) },
-      { kostenstelle: 'Bekantung', minuten: Math.round(werk * 0.18) },
-      { kostenstelle: 'Zusammenbau', minuten: Math.round(werk * 0.50) },
-      { kostenstelle: 'Warenhandling', minuten: Math.round(werk * 0.04) },
-      { kostenstelle: 'Verpacken', minuten: Math.round(werk * 0.03) },
-      { kostenstelle: 'Oberfläche', minuten: ober },
-    ] as Zeitposten[],
-    montage: [
-      { kostenstelle: 'Montage', minuten: Math.round(mont * 0.78) },
-      { kostenstelle: 'Lieferung', minuten: Math.round(mont * 0.22) },
-    ] as Zeitposten[],
-    lackMinuten: Math.round(spec.flaecheM2 * LACK_MIN_JE_M2),
-    lackMaterialEk: Math.round(spec.flaecheM2 * LACK_EK_JE_M2),
-    massivMaterialEk: Math.round(spec.flaecheM2 * MASSIV_EK_JE_M2),
-    massivWerkstattFaktor: 1.3,
-    massivOberflaecheMinuten: Math.round(spec.flaecheM2 * OELEN_MIN_JE_M2),
-    altbauFaktor: 1.6,
-  }
-}
-
-// Preis und Materialanteil je Referenz — beides aus Fabians Wissensbasis.
-// Die Oberflaeche ist aus dem Werkstattanteil herausgeloest, nicht zusaetzlich:
-// Kueche 0,58 -> 0,54 + 0,04, Tueren 0,20 -> 0,18 + 0,02, Treppe 0,36 -> 0,28 + 0,08,
-// Tisch 0,78 -> 0,58 + 0,20. Beim Tisch ist das Oelen der groesste Einzelposten.
-const SPECS: Record<string, ReferenzSpec> = {
-  kueche: {
-    name: 'Einbauküche',
-    text: 'Einbauküche L-Form, 3,60 m × 2,20 m. Korpusse Dekorspanplatte 19 mm, Fronten weiß matt, 8 Unterschränke davon 3 mit Auszügen, 4 Oberschränke, Spülenschrank, Arbeitsplatte 38 mm. Lieferung und Montage beim Kunden, Neubau.',
-    preis: 10000, materialAnteil: 0.45,
-    anteilFix: 0.12, anteilWerkstatt: 0.54, anteilOberflaeche: 0.04, anteilMontage: 0.30,
-    flaecheM2: 18,
-    fragen: {
-      grund: 'Was nimmst du für so eine Küche, netto?',
-      lack: 'Dieselbe Küche, aber Fronten weiß lackiert seidenmatt statt Dekor. Was kommt dazu?',
-      massiv: 'Dieselbe Küche mit Fronten in Eiche massiv, geölt. Was nimmst du?',
-      montage: 'Dieselbe Küche im Altbau: Wände nicht im Lot, alte Leitungen, kein Aufzug. Wie lange bist du dran?',
-    },
-  },
-  tueren: {
-    name: 'Innentüren',
-    text: '5 Innentüren mit Zargen, weiß beschichtet, Standardmaß, liefern und einpassen. Altbau, Wände nicht überall im Lot, Zargen kürzen.',
-    preis: 2900, materialAnteil: 0.55,
-    anteilFix: 0.10, anteilWerkstatt: 0.18, anteilOberflaeche: 0.02, anteilMontage: 0.70,
-    flaecheM2: 20,
-    // Material macht hier 56 % (Grundfrage) bzw. 61 % (Massivholzfrage) aus.
-    ohneMaterial: ['grund', 'massiv'],
-    teiler: { grund: 5, lack: 5, massiv: 5, montage: 5 },
-    fragen: {
-      grund: 'Was nimmst du fürs Einpassen einer Tür, wenn der Kunde Tür und Zarge selbst stellt?',
-      lack: 'Dieselben Türen, aber von dir weiß lackiert seidenmatt statt beschichtet gekauft. Was kommt je Tür dazu?',
-      massiv: 'Dieselben Türen in Eiche massiv, geölt: Was nimmst du je Tür für deine Arbeit, ohne das Holz?',
-      montage: 'Eine Tür im Altbau: alte Zarge raus, Wand nicht im Lot, Boden schief. Wie lange bist du an der einen Tür?',
-    },
-    fragenHinweis: {
-      grund: 'Nur deine Arbeit — Türblatt und Zarge zahlt der Kunde extra. So misst CraftFlow dein Tempo und nicht deinen Einkauf.',
-      massiv: 'Wieder nur deine Arbeit, das Eichenholz zahlt der Kunde extra.',
-    },
-  },
-  treppen: {
-    name: 'Treppe',
-    text: 'Geradläufige Treppe, Buche massiv, 13 Steigungen, mit Geländer und Handlauf. Rohtreppe zugekauft, Einbau und Anpassung vor Ort.',
-    preis: 5000, materialAnteil: 0.55,
-    anteilFix: 0.14, anteilWerkstatt: 0.28, anteilOberflaeche: 0.08, anteilMontage: 0.50,
-    flaecheM2: 12,
-    // Material macht hier 55 % aus — die Rohtreppe ist zugekauft.
-    ohneMaterial: ['grund'],
-    fragenHinweis: {
-      grund: 'Nur deine Arbeit — die Rohtreppe zahlt der Kunde extra. So misst CraftFlow dein Tempo und nicht deinen Einkauf.',
-    },
-    // Keine Massivholzfrage: Die Treppe IST schon Buche massiv. Die Grundfrage misst
-    // die Massivholzarbeit hier bereits mit — ein zweites Mal danach zu fragen waere
-    // eine Scheinfrage, deren Antwort nichts hergibt.
-    fragen: {
-      grund: 'Was berechnest du für Einbau und Anpassung, wenn der Kunde die Rohtreppe selbst stellt?',
-      lack: 'Dieselbe Treppe, aber weiß lackiert seidenmatt statt geölt. Was kommt dazu?',
-      montage: 'Dieselbe Treppe im Altbau: schiefe Wände, Podest anpassen, enges Treppenhaus. Wie lange bist du dran?',
-    },
-  },
-  solitaer: {
-    name: 'Massivholztisch',
-    text: 'Massivholztisch Eiche, 200 × 90 cm, 4 cm Platte, geölt, mit Wangengestell. Lieferung, keine Montage vor Ort.',
-    preis: 3000, materialAnteil: 0.35,
-    anteilFix: 0.14, anteilWerkstatt: 0.58, anteilOberflaeche: 0.20, anteilMontage: 0.08,
-    flaecheM2: 5,
-    // Ebenfalls keine Massivholzfrage — der Tisch ist Eiche massiv.
-    fragen: {
-      grund: 'Was nimmst du für so einen Tisch, netto?',
-      lack: 'Derselbe Tisch, aber weiß lackiert seidenmatt statt geölt. Was kommt dazu?',
-      montage: 'Derselbe Tisch, geliefert in den zweiten Stock ohne Aufzug, Gestell vor Ort montiert. Wie lange bist du dran?',
-    },
-  },
-}
 
 // ── Die vier Antwortskalen ───────────────────────────────────────────────────
 //
@@ -369,7 +285,7 @@ const inStunden = (min: number) => einheit(min / 60, 'Stunde', 'Stunden')
 const dauerFormen = (grenzeMin: number) =>
   grenzeMin >= 9 * 60 ? [inTagen, inStunden] : [inStunden]
 
-type Bandbasis = ReturnType<typeof baueReferenz>
+type Bandbasis = ReturnType<typeof referenzAusProjekt>
 
 /**
  * Die Antwortskalen eines Referenzmoebels — nur zu den Fragen, die es stellt.
@@ -443,26 +359,14 @@ function mitBaendern(r: Bandbasis): Referenzmoebel {
   return { ...r, baender, fragenliste }
 }
 
-export const REFERENZEN: Record<string, Referenzmoebel> = {
-  einbauschrank: mitBaendern({
-    name: 'Einbauschrank',
-    text: 'Einbauschrank Flur, 2,00 m breit × 2,40 m hoch × 0,60 m tief. Korpus und Fronten Egger Dekorspanplatte 19 mm weiß, Kanten ABS 1 mm. 4 Drehtüren mit Topfscharnieren, 2 Schubkästen auf Systemauszügen, Kleiderstange, je Fach 2 Einlegeböden, Sockel 100 mm, Rückwand. Lieferung und Montage beim Kunden, 20 km entfernt, Neubau, gerade Wände.',
-    fragen: {
-      grund: 'Was nimmst du für so einen Schrank, netto?',
-      lack: 'Derselbe Schrank, aber alles weiß lackiert seidenmatt statt Dekor. Was kommt dazu?',
-      massiv: 'Derselbe Schrank in Eiche massiv, geölt. Was nimmst du?',
-      montage: 'Derselbe Schrank im Altbau: Wände nicht im Lot, Dielenboden, zweiter Stock ohne Aufzug. Wie lange bist du dran?',
-    },
-    // Material macht hier nur 24 % aus (Massivholzfrage 49 %) — der Gesamtpreis ist
-    // die natuerlichere Frage und der Zeithebel gross genug.
-    fragenHinweis: {},
-    ohneMaterial: [],
-    teiler: {},
-    ...REFERENZ,
-  }),
-  ...Object.fromEntries(Object.entries(SPECS).map(([k, spec]) =>
-    [k, mitBaendern(baueReferenz(spec))])),
-}
+// Alle fuenf Referenzmoebel direkt aus ihren Referenzprojekten (referenzprojekte.ts).
+// Vorher stand der Einbauschrank als Sonderfall hier (die gemessene REFERENZ, von
+// Hand mit fragen/fragenHinweis/ohneMaterial/teiler zusammengesteckt), die anderen
+// vier kamen aus SPECS/baueReferenz. Jetzt liefert referenzAusProjekt() beides aus
+// derselben Quelle — der Schrank ist kein Sonderfall mehr.
+export const REFERENZEN: Record<string, Referenzmoebel> = Object.fromEntries(
+  Object.values(REFERENZPROJEKTE).map(p => [p.schluessel, mitBaendern(referenzAusProjekt(p))]),
+)
 
 // Rueckwaertskompatibler Zugriff fuer Aufrufer ohne Referenz: die Skalen des
 // gemessenen Einbauschranks.
