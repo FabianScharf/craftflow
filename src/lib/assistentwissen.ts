@@ -54,6 +54,7 @@ export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
   { id: 'materialpreise', label: 'Materialpreise', zweck: `Fest hinterlegte Einkaufspreise. Die KI rechnet damit, statt zu schätzen (${abPlan('materialpreise')})` },
   { id: 'lieferanten', label: 'Lieferanten', zweck: `Firmen und Ansprechpartner für Materialanfragen (${abPlan('lieferanten')})` },
   { id: 'email', label: 'E-Mail & Versand', zweck: `SMTP für den Versand direkt aus CraftFlow (${abPlan('smtp')})` },
+  { id: 'team', label: 'Team', zweck: 'Mitarbeiter per E-Mail einladen, Einladungen erneut senden oder löschen, Mitglieder entfernen; Nutzerplätze je Plan (Solo 1, Starter 1, Pro 3, Enterprise unbegrenzt), die ältesten bleiben aktiv. Mitarbeiter arbeiten auf den Daten des Betriebs, alles außer Plan/Abo und Team' },
   { id: 'plan', label: 'Mein Plan', zweck: 'Gebuchter Tarif und Nutzung' },
   { id: 'hilfe', label: 'Hilfe', zweck: 'Link zur ausführlichen Starthilfe (www.getcraftflow.de/willkommen — erklärt Einrichtung, Beschreiben, KI-Optimierung, Kalkulations-Check und PDF mit Beispielen) und die Programmvorstellung zum Wiederholen' },
 ]

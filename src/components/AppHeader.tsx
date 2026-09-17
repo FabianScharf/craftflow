@@ -63,7 +63,13 @@ export function AppHeader({
   // Der Testversions-Hinweis gehoert zur Leiste, nicht zu einer einzelnen Seite —
   // sonst fehlt er dort, wo man ihn zuletzt vermutet. Fabian am 2026-09-08:
   // "Es fehlt auch der Banner mit der Testversion."
-  const { isInTrial, trialDaysLeft } = usePlan()
+  const { isInTrial, trialDaysLeft, istInhaber, betriebName } = usePlan()
+
+  // Teamfunktion (2026-09-17): Ein Mitarbeiter arbeitet auf den Daten seines
+  // Betriebs. Die Kopfzeile muss das sagen — sonst weiss er nicht, in wessen
+  // Angeboten er gerade schreibt. Der Name kommt aus GET /api/konto (Profil des
+  // KONTOS), nicht aus der Seite: der Aufrufer kennt oft nur sein eigenes Profil.
+  const anzeigeName = istInhaber ? (firmenName ?? null) : (betriebName ?? firmenName ?? null)
 
   const knopf = (an: boolean): React.CSSProperties => ({
     background: an ? C.copper : 'transparent',
@@ -77,7 +83,10 @@ export function AppHeader({
 
   return (
     <>
-    {isInTrial && (
+    {/* Nur der Inhaber sieht den Testphasen-Balken. Ein Mitarbeiter kann keinen Plan
+        kaufen (die Kauf-Knoepfe sind fuer ihn nicht da) — ein Balken mit "Plan
+        waehlen →" wuerde ihn in eine Sackgasse fuehren. */}
+    {isInTrial && istInhaber && (
       <div
         onClick={() => { window.location.href = '/settings#plan' }}
         style={{ background: `${akzentTon('18')}`, borderBottom: `1px solid ${akzentTon('55')}`,
@@ -107,12 +116,25 @@ export function AppHeader({
           <div style={{ color: C.copper, fontSize: 15, fontWeight: 800, letterSpacing: 3, whiteSpace: 'nowrap' }}>
             {titel}
           </div>
-          {firmenName && !isMobile && (
+          {anzeigeName && !isMobile && (
             <div style={{ color: C.textMid, fontSize: 9, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>
-              {firmenName.toUpperCase()}
+              {anzeigeName.toUpperCase()}
             </div>
           )}
         </div>
+        {/* Das Abzeichen steht auch am Handy, wo der Betriebsname wegfaellt — es ist
+            kurz, und die Rolle ist die wichtigere der beiden Angaben. */}
+        {!istInhaber && (
+          <span
+            title={anzeigeName ? `Mitarbeiter bei ${anzeigeName}` : 'Mitarbeiter im Betrieb'}
+            style={{
+              flexShrink: 0, fontSize: 9, fontWeight: 800, letterSpacing: 1,
+              textTransform: 'uppercase', whiteSpace: 'nowrap',
+              color: C.copper, border: `1px solid ${akzentTon('66')}`,
+              background: akzentTon('1A'), borderRadius: 20, padding: '3px 8px',
+            }}
+          >Mitarbeiter</span>
+        )}
         {zusatz && (
           <div style={{ color: C.white, fontSize: 11, fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 6 }}>
             {zusatz}
