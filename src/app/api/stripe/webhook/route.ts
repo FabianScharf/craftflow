@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe'
 import { getSupabaseClient } from '@/lib/supabase'
 import { planFuerPreisId } from '@/lib/plaene'
 import Stripe from 'stripe'
+import { sendeRechnungsmail } from '@/lib/mail/rechnung'
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -78,6 +79,13 @@ export async function POST(req: NextRequest) {
       // nicht mehr (effektiverPlan() prüft abo_status, s. plaene.ts).
       await db.from('betriebsprofil').update({ abo_status: 'beendet' }).eq('user_id', userId)
     }
+  }
+
+  // Rechnung bezahlt → Mail in CraftFlow-Gestaltung mit dem PDF im Anhang.
+  // Läuft ganz am Ende und wirft nie: Die Datenbank-Arbeit oben ist wichtiger als
+  // die Mail, und ein Fehler hier würde Stripe das Ereignis endlos wiederholen lassen.
+  if (event.type === 'invoice.paid') {
+    await sendeRechnungsmail(event.data.object as Stripe.Invoice)
   }
 
   return NextResponse.json({ received: true })

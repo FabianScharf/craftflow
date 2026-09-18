@@ -13,11 +13,18 @@ export const MAIL_REPLY_TO = 'fabian@fscrafted.de'
 
 export type Versandergebnis = { ok: true; id: string } | { ok: false; error: string }
 
+/**
+ * Datei im Anhang. `inhalt` ist Base64 OHNE den `data:`-Vorsatz — Resend erwartet den
+ * nackten String. Gedacht für das Rechnungs-PDF von Stripe (18.09.2026): Ein Link
+ * allein reicht einem Buchhalter nicht, die Datei muss in der Mail liegen.
+ */
+export type Anhang = { dateiname: string; inhalt: string }
+
 export function mailAbsender(): string {
   return process.env.MAIL_FROM?.trim() || MAIL_FROM_STANDARD
 }
 
-export async function sendeMail(an: string, mail: Mail): Promise<Versandergebnis> {
+export async function sendeMail(an: string, mail: Mail, anhaenge?: Anhang[]): Promise<Versandergebnis> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { ok: false, error: 'RESEND_API_KEY nicht gesetzt' }
 
@@ -32,6 +39,9 @@ export async function sendeMail(an: string, mail: Mail): Promise<Versandergebnis
         subject: mail.subject,
         html: mail.html,
         text: mail.text,
+        ...(anhaenge?.length
+          ? { attachments: anhaenge.map(a => ({ filename: a.dateiname, content: a.inhalt })) }
+          : {}),
       }),
     })
     const json = await res.json().catch(() => ({})) as { id?: string; message?: string; name?: string }

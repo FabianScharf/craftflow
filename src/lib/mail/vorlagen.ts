@@ -236,6 +236,113 @@ export function neuigkeitenMail(): Mail {
   return { subject, html, text }
 }
 
+// ── Rechnung nach der Abbuchung ─────────────────────────────────────────────
+//
+// WARUM SELBST UND NICHT VON STRIPE (Fabian, 18.09.2026): Stripe verschickt seine
+// Rechnungsmail in seinem eigenen Layout — Logo und eine Akzentfarbe, mehr lässt sich
+// dort nicht gestalten. Die Mail hier trägt dieselbe Handschrift wie Willkommens- und
+// Tag-3-Mail, und das Rechnungs-PDF liegt im Anhang statt hinter einem Link: Ein
+// Buchhalter braucht die Datei, keinen Verweis.
+//
+// WICHTIG: Solange diese Mail läuft, müssen die Stripe-eigenen Rechnungsmails im
+// Dashboard AUS bleiben, sonst bekommt jeder Kunde alles doppelt.
+
+/** Cent → „58,31 €“. */
+function eur(cent: number): string {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format((cent ?? 0) / 100)
+}
+
+/** Sekunden (Stripe-Zeitstempel) → „18. September 2026“. Leer, wenn nichts da ist. */
+function tag(sekunden?: number | null): string {
+  if (!sekunden) return ''
+  return new Date(sekunden * 1000).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function betragsZeile(bezeichnung: string, betrag: string, stark = false): string {
+  const farbe = stark ? SCHWARZ : TEXT
+  const gewicht = stark ? '600' : '400'
+  const linie = stark ? `border-top:2px solid ${SCHWARZ};` : 'border-top:1px solid #EEE9E2;'
+  return `<tr>
+  <td style="${linie}padding:9px 0;font-family:${F};font-size:14px;color:${farbe};font-weight:${gewicht};">${bezeichnung}</td>
+  <td style="${linie}padding:9px 0;font-family:${F};font-size:14px;color:${farbe};font-weight:${gewicht};text-align:right;white-space:nowrap;">${betrag}</td>
+</tr>`
+}
+
+export function rechnungsMail(opts: {
+  /** Rechnungsnummer von Stripe, z. B. „A1B2C3-0001“. */
+  nummer: string
+  /** Anzeigename des Plans, z. B. „Pro“. Fehlt er, steht nur „CraftFlow“ da. */
+  planName?: string | null
+  nettoCent: number
+  steuerCent: number
+  gesamtCent: number
+  /** Abrechnungszeitraum als Stripe-Zeitstempel (Sekunden). */
+  vonSek?: number | null
+  bisSek?: number | null
+  /** Die Rechnung bei Stripe, zum Ansehen im Browser. */
+  rechnungUrl?: string | null
+  /** Liegt das PDF in dieser Mail? Sonst steht nur der Link da. */
+  mitAnhang: boolean
+  firma?: string | null
+}): Mail {
+  const plan = (opts.planName ?? '').trim()
+  const bezeichnung = plan ? `CraftFlow ${plan}` : 'CraftFlow'
+  const von = tag(opts.vonSek)
+  const bis = tag(opts.bisSek)
+  const zeitraum = von && bis ? `${von} – ${bis}` : ''
+  const hallo = (opts.firma ?? '').trim() ? `Hallo ${(opts.firma ?? '').trim()},` : 'Hallo,'
+
+  const subject = `Deine CraftFlow-Rechnung ${opts.nummer}`
+  const vorschau = `${bezeichnung}${zeitraum ? `, ${zeitraum}` : ''} · ${eur(opts.gesamtCent)}`
+
+  const tabelle = `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 18px;">
+${betragsZeile(bezeichnung + (zeitraum ? `<br><span style="font-size:12px;color:${GRAU};">${zeitraum}</span>` : ''), eur(opts.nettoCent))}
+${betragsZeile('Umsatzsteuer 19 %', eur(opts.steuerCent))}
+${betragsZeile('Gesamtbetrag', eur(opts.gesamtCent), true)}
+</table>`
+
+  const anhangSatz = opts.mitAnhang
+    ? 'Die Rechnung als PDF liegt dieser Mail bei.'
+    : 'Die Rechnung kannst du über den Knopf unten herunterladen.'
+
+  const html = rahmen(vorschau, [
+    h1('Deine Rechnung'),
+    p(hallo),
+    p(`vielen Dank — deine Zahlung ist angekommen. ${anhangSatz}`),
+    `<p style="margin:0 0 6px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:${GRAU};">Rechnung ${opts.nummer}</p>`,
+    tabelle,
+    opts.rechnungUrl ? knopf('Rechnung ansehen →', opts.rechnungUrl) : '',
+    p(`Alle deine Rechnungen findest du jederzeit in CraftFlow unter <strong style="color:${SCHWARZ};">Einstellungen → Mein Plan → Abonnement verwalten</strong>. Dort kannst du auch dein Zahlungsmittel ändern oder kündigen.`),
+    p('Fragen zur Rechnung? Antworte einfach auf diese Mail.'),
+    p('Viele Grüße<br>Fabian'),
+  ].filter(Boolean).join('\n'))
+
+  const text = [
+    `Deine Rechnung ${opts.nummer}`,
+    '',
+    hallo,
+    '',
+    `vielen Dank — deine Zahlung ist angekommen. ${anhangSatz}`,
+    '',
+    `${bezeichnung}${zeitraum ? ` (${zeitraum})` : ''}: ${eur(opts.nettoCent)}`,
+    `Umsatzsteuer 19 %: ${eur(opts.steuerCent)}`,
+    `Gesamtbetrag: ${eur(opts.gesamtCent)}`,
+    '',
+    opts.rechnungUrl ? `Rechnung ansehen: ${opts.rechnungUrl}` : '',
+    '',
+    'Alle deine Rechnungen findest du jederzeit in CraftFlow unter Einstellungen → Mein Plan → Abonnement verwalten. Dort kannst du auch dein Zahlungsmittel ändern oder kündigen.',
+    '',
+    'Fragen zur Rechnung? Antworte einfach auf diese Mail.',
+    '',
+    'Viele Grüße',
+    'Fabian',
+    '',
+    `Fabian Scharf · Schreinermeister · FS Crafted, Fuldaer Straße 15, 63517 Rodenbach · ${KONTAKT_MAIL} · ${KONTAKT_TELEFON}`,
+  ].filter(z => z !== '').join('\n')
+
+  return { subject, html, text }
+}
+
 // ── Register der Rundschreiben ─────────────────────────────────────────────
 //
 // Ablauf (Fabian, 2026-09-09: „so unkompliziert wie möglich“):
