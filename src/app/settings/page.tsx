@@ -147,6 +147,18 @@ export default function SettingsPage() {
   }, [])
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [loadingPortal, setLoadingPortal] = useState(false)
+  // Admin: Stripe-Einrichtung (18.09.) — prüft das Webhook-Abonnement und meldet,
+  // was nur im Stripe-Dashboard erledigt werden kann.
+  type StripeStand = {
+    endpunkte?: Array<{ url: string; status: string; abonniert: number; fehlend: string[] }>
+    allesAbonniert?: boolean
+    branding?: { logo: boolean; farbe: string | null; steuerId: string | null }
+    offeneAufgaben?: string[]
+    meldung?: string
+    error?: string
+  }
+  const [stripeStand, setStripeStand] = useState<StripeStand | null>(null)
+  const [stripeLaeuft, setStripeLaeuft] = useState(false)
   const [stripeMsg, setStripeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [gutscheinCode, setGutscheinCode] = useState('')
   const [gutscheinLoading, setGutscheinLoading] = useState(false)
@@ -521,6 +533,26 @@ export default function SettingsPage() {
       setGutscheinMsg({ type: 'err', text: 'Serverfehler – bitte erneut versuchen.' })
     } finally {
       setGutscheinLoading(false)
+    }
+  }
+
+  async function stripePruefen(schreiben = false) {
+    setStripeLaeuft(true)
+    try {
+      const res = await fetch('/api/admin/stripe-einrichtung', { method: schreiben ? 'POST' : 'GET' })
+      const j = await res.json() as StripeStand
+      // Nach dem Ergänzen gleich neu lesen, damit die Anzeige den neuen Stand zeigt
+      // und nicht die Meldung von eben.
+      if (schreiben && !j.error) {
+        const frisch = await (await fetch('/api/admin/stripe-einrichtung')).json() as StripeStand
+        setStripeStand({ ...frisch, meldung: j.meldung })
+      } else {
+        setStripeStand(j)
+      }
+    } catch {
+      setStripeStand({ error: 'Die Prüfung ließ sich nicht ausführen.' })
+    } finally {
+      setStripeLaeuft(false)
     }
   }
 
@@ -1922,6 +1954,85 @@ export default function SettingsPage() {
           {/* ── Admin Panel ─────────────────────────────── */}
           {section === 'admin' && istAdmin(userEmail) && (
             <div style={{ padding: '24px 20px', maxWidth: 720 }}>
+              {/* ── Stripe-Einrichtung (18.09.) ────────────────────────────
+                  Der Webhook schickt nur, was er abonniert hat. „Prüfen“ zeigt den
+                  Stand, „Ergänzen“ trägt fehlende Ereignisse nach. Was nur im
+                  Dashboard geht (Logo, Farbe, Steuernummer, Kunden-Mails), wird als
+                  Aufgabe gemeldet statt stillschweigend übergangen. */}
+              <div style={{ marginBottom: 28 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: C.white }}>Admin – Stripe</h2>
+                <p style={{ fontSize: 12, color: C.textMid, marginBottom: 12, lineHeight: 1.6 }}>
+                  Prüft, ob Stripe alle Ereignisse meldet, die CraftFlow braucht — darunter
+                  <strong style={{ color: C.white }}> „Rechnung bezahlt“</strong>, das die Rechnungsmail auslöst.
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => void stripePruefen(false)}
+                    disabled={stripeLaeuft}
+                    style={{
+                      background: 'transparent', border: `1px solid ${C.copper}`, color: C.copper,
+                      borderRadius: 4, padding: '7px 12px', fontSize: 12, fontWeight: 700,
+                      cursor: stripeLaeuft ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue, sans-serif',
+                      opacity: stripeLaeuft ? 0.6 : 1,
+                    }}
+                  >{stripeLaeuft ? '…' : 'Prüfen'}</button>
+                  {stripeStand?.allesAbonniert === false && (
+                    <button
+                      onClick={() => void stripePruefen(true)}
+                      disabled={stripeLaeuft}
+                      style={{
+                        background: C.copper, border: 'none', color: C.onAccent,
+                        borderRadius: 4, padding: '7px 12px', fontSize: 12, fontWeight: 700,
+                        cursor: stripeLaeuft ? 'not-allowed' : 'pointer', fontFamily: 'Helvetica Neue, sans-serif',
+                        opacity: stripeLaeuft ? 0.6 : 1,
+                      }}
+                    >Fehlende Ereignisse ergänzen</button>
+                  )}
+                </div>
+
+                {stripeStand && (
+                  <div style={{
+                    marginTop: 10, padding: '10px 12px', borderRadius: 4, fontSize: 12, lineHeight: 1.6,
+                    background: stripeStand.error ? 'rgba(224,90,90,.1)' : C.gray2,
+                    border: `1px solid ${stripeStand.error ? ton(C.err, '44') : C.border}`,
+                    color: stripeStand.error ? C.err : C.textMid,
+                  }}>
+                    {stripeStand.error && <div>{stripeStand.error}</div>}
+                    {stripeStand.meldung && <div style={{ color: C.ok, marginBottom: 6 }}>{stripeStand.meldung}</div>}
+
+                    {stripeStand.endpunkte?.map(e => (
+                      <div key={e.url} style={{ marginBottom: 6 }}>
+                        <span style={{ color: C.white }}>{e.url}</span>
+                        <span style={{ marginLeft: 8 }}>{e.status} · {e.abonniert} Ereignisse</span>
+                        {e.fehlend.length > 0
+                          ? <div style={{ color: C.err }}>fehlt: {e.fehlend.join(', ')}</div>
+                          : <div style={{ color: C.ok }}>vollständig</div>}
+                      </div>
+                    ))}
+                    {stripeStand.endpunkte?.length === 0 && (
+                      <div style={{ color: C.err }}>Kein Webhook-Endpunkt in Stripe — ohne den erfährt CraftFlow von keinem Kauf.</div>
+                    )}
+
+                    {stripeStand.branding && (
+                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+                        Logo: {stripeStand.branding.logo ? 'hinterlegt' : '—'} ·
+                        {' '}Farbe: {stripeStand.branding.farbe ?? '—'} ·
+                        {' '}Steuernummer: {stripeStand.branding.steuerId ?? '—'}
+                      </div>
+                    )}
+
+                    {stripeStand.offeneAufgaben && stripeStand.offeneAufgaben.length > 0 && (
+                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+                        <div style={{ color: C.white, marginBottom: 4 }}>Nur im Stripe-Dashboard möglich:</div>
+                        {stripeStand.offeneAufgaben.map((a, i) => (
+                          <div key={i} style={{ marginBottom: 3 }}>· {a}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* ── Mails: Willkommens-Mail + Rundschreiben ── */}
               {(() => {
                 const knopf = (aktiv: boolean, voll = false) => ({
