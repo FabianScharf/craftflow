@@ -543,19 +543,26 @@ export default function SettingsPage() {
     window.location.href = '/login'
   }
 
+  // JEDER Bereich, der hinter einem PlanGate liegt, MUSS hier sein minPlan tragen —
+  // sonst sieht der Eintrag aus wie jeder andere und die Sperre kommt erst nach dem
+  // Klick (Fabian, 18.09.2026, nach dem Testkauf auf Solo: "bei den neuen Funktionen
+  // fehlt der Hinweis, in welchem Plan diese verfügbar sind"). Immer aus mindestPlan()
+  // ableiten, nie fest hinschreiben — sonst veraltet der Hinweis beim nächsten
+  // Matrix-Wechsel lautlos. Briefpapier und Team stehen bewusst ohne: Briefpapier ist
+  // in jedem Plan offen, und Team öffnet sich und erklärt die Nutzerplätze selbst.
   const navItems: { id: typeof section; label: string; icon: string; minPlan?: Plan }[] = [
     { id: 'firma',            label: 'Firmendaten',     icon: '🏢' },
     { id: 'buchhaltung',      label: 'Buchhaltung',     icon: '🧾' },
     { id: 'dokumente',        label: 'Dokumente',       icon: '📝' },
-    { id: 'textbausteine',    label: 'Textbausteine',   icon: '🧩' },
+    { id: 'textbausteine',    label: 'Textbausteine',   icon: '🧩', minPlan: mindestPlan('gestaltung') },
     { id: 'auswertung',       label: 'Auswertung',      icon: '📊', minPlan: mindestPlan('auswertung') },
-    { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨' },
+    { id: 'marketing',        label: 'Marketing & CI',  icon: '🎨', minPlan: mindestPlan('gestaltung') },
     { id: 'briefpapier',      label: 'Briefpapier',     icon: '📄' },
-    { id: 'betrieb',          label: 'Mein Betrieb',    icon: '🏗' },
+    { id: 'betrieb',          label: 'Mein Betrieb',    icon: '🏗', minPlan: mindestPlan('kalibrierung') },
     { id: 'kostenstellen',    label: 'Kostenstellen',   icon: '⏱' },
     { id: 'warenaufschlaege', label: 'Warenaufschläge', icon: '📦' },
-    { id: 'bauweise',         label: 'Meine Bauweise',  icon: '🧠' },
-    { id: 'materialpreise',   label: 'Materialpreise',  icon: '🏷' },
+    { id: 'bauweise',         label: 'Meine Bauweise',  icon: '🧠', minPlan: mindestPlan('bauweise') },
+    { id: 'materialpreise',   label: 'Materialpreise',  icon: '🏷', minPlan: mindestPlan('materialpreise') },
     { id: 'lieferanten',      label: 'Lieferanten',     icon: '🏭', minPlan: mindestPlan('lieferanten') },
     // 'starter' laut Matrix: E-Mail-Versand ab Starter, der EIGENE SMTP-Zugang erst
     // ab Pro (Controller, 17.09.). Es gibt keine Funktion 'email' in plaene.ts, an der
