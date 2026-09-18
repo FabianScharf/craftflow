@@ -27,6 +27,8 @@ import {
 import { klemmePreisfaktor, angezeigterPreisfaktor, PREISFAKTOR_STANDARD } from '@/lib/preisfaktor'
 // Ein Zeichen, eine Definition — sonst steht irgendwann ein zweites CF daneben.
 import { AppHeader } from '@/components/AppHeader'
+// „Neu in CraftFlow" — erscheint einmalig beim Einloggen (Fabian, 19.09.).
+import { NeuheitenFenster } from '@/components/NeuheitenFenster'
 
 /* ── Lieferantenanfrage-Typen ─────────────────────── */
 type InquiryCandidate = { supplierId: string; supplierName: string; email: string; phone: string | null; ist_favorit: boolean; subject: string; body: string }
@@ -3538,6 +3540,9 @@ export default function CraftFlow() {
         />
 
         <div style={{ padding: '0 16px 40px', maxWidth: 500, margin: '0 auto', boxSizing: 'border-box' }}>
+          {/* Steht ganz oben im Startbildschirm: als Fenster, wenn etwas Großes neu
+              ist, sonst als schmaler Streifen. Beides genau einmal. */}
+          <NeuheitenFenster />
 
           {/* Großer Mic-Button – dominantes Element */}
           <div style={{ textAlign: 'center', padding: '44px 0 32px' }}>
