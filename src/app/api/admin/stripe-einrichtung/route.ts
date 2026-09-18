@@ -19,6 +19,13 @@ import { ADMIN_EMAIL } from '@/lib/admin'
 import { stripe } from '@/lib/stripe'
 import { WEBHOOK_EREIGNISSE, fehlendeEreignisse, ergaenzeEreignisse } from '@/lib/stripe-ereignisse'
 
+// Diese Route darf NIE statisch ausgewertet werden: Next.js führt beim Bauen den
+// Modulcode aus, um Seitendaten zu sammeln — dabei entsteht der Stripe-Client, und
+// ohne Schlüssel bricht der Build ab („Neither apiKey nor config.authenticator
+// provided"). Die anderen Stripe-Routen entgehen dem nur, weil ihre Handler einen
+// Request-Parameter haben; GET() hier hat keinen. Deshalb ausdrücklich dynamisch.
+export const dynamic = 'force-dynamic'
+
 async function wache() {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
