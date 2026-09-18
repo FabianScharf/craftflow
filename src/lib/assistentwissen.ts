@@ -72,6 +72,12 @@ export const PFLICHTTHEMEN = [
 export type WissenDaten = {
   /** Die ECHTEN Stundensätze des Betriebs. Ohne sie nennt der Assistent keine Zahlen. */
   saetze?: Record<string, number>
+  /**
+   * Fertiger Block mit den Funktionsseiten der Werkstatt (funktionsseitenBlock aus
+   * src/lib/funktionsseiten.ts). Kommt zur Laufzeit von der Website, damit hier keine
+   * zweite Liste entsteht, die lautlos veraltet. Leer = Abschnitt entfällt.
+   */
+  funktionsseiten?: string
 }
 
 const KOSTENSTELLEN_ZWECK: Array<[string, string]> = [
@@ -219,5 +225,6 @@ ${kostenstellenTeil(daten.saetze)}
 → "Kann ich mein eigenes Briefpapier verwenden?" — Ja, Einstellungen → Briefpapier, PDF hochladen. Kopf und Fuß von CraftFlow werden dann ausgeblendet.
 → "Wie biete ich eine Alternative an?" — In der Kalkulation bei der Position "Alternativposition" ankreuzen. Sie steht dann mit Preis in Klammern im Angebot und zählt nicht in die Summe.
 → "Wie rechne ich 20 gleiche Möbel?" — Stückzahl an der Position setzen. Material und Zeiten bleiben für ein Stück, CraftFlow rechnet hoch und berücksichtigt die Mengenstaffel.
-→ "Wie verkaufe ich einfach 20 % teurer?" — Einstellungen → Mein Betrieb → Preisfaktor auf 1,20 stellen und übernehmen. Ab dann rechnet CraftFlow jede neue Position 20 % höher; Stunden und Stundensätze bleiben gleich.`
+→ "Wie verkaufe ich einfach 20 % teurer?" — Einstellungen → Mein Betrieb → Preisfaktor auf 1,20 stellen und übernehmen. Ab dann rechnet CraftFlow jede neue Position 20 % höher; Stunden und Stundensätze bleiben gleich.
+${daten.funktionsseiten ?? ''}`
 }

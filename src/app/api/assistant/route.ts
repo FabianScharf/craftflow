@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { assistentWissen } from '@/lib/assistentwissen'
+import { ladeFunktionsseiten, funktionsseitenBlock } from '@/lib/funktionsseiten'
 import { pruefeZugang } from '@/lib/planpruefung'
 import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
@@ -94,7 +95,11 @@ export async function POST(req: NextRequest) {
       console.error('[assistent] Saetze laden:', e)
     }
 
-    const systemWithContext = assistentWissen({ saetze }) + getContextNote(context ?? {})
+    // Die Funktionsseiten der Werkstatt kommen von der Website — so kann der Assistent
+    // auf eine ausführliche Anleitung verweisen, statt alles selbst zu erklären
+    // (Fabian, 18.09.). Fällt die Website aus, bleibt der Rest des Wissens vollständig.
+    const funktionsseiten = funktionsseitenBlock(await ladeFunktionsseiten())
+    const systemWithContext = assistentWissen({ saetze, funktionsseiten }) + getContextNote(context ?? {})
 
     const messages: ChatMsg[] = [
       // Ohne Absicherung stuerzt die Route bei fehlendem Feld mit
