@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import nodemailer from 'nodemailer'
 import { pruefeFunktion } from '@/lib/planpruefung'
+import { entschluessele } from '@/lib/geheimnis'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -32,7 +33,10 @@ export async function POST(req: NextRequest) {
       .select('smtp_password_encrypted')
       .eq('user_id', kontoId)
       .single()
-    smtpPassword = (data?.smtp_password_encrypted as string | null) ?? ''
+    // Entschlüsselt (19.09.2026) — siehe src/lib/geheimnis.ts. `password` aus dem
+    // Formular bleibt Klartext: Das tippt der Nutzer gerade ein, es ist noch
+    // nicht gespeichert.
+    smtpPassword = entschluessele(data?.smtp_password_encrypted as string | null)
   }
 
   try {

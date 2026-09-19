@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import nodemailer from 'nodemailer'
 import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { pruefeFunktion } from '@/lib/planpruefung'
+import { entschluessele } from '@/lib/geheimnis'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -58,7 +59,9 @@ export async function POST(req: NextRequest) {
       secure: Number(emailCfg.smtp_port) === 465,
       auth: {
         user: emailCfg.smtp_user,
-        pass: emailCfg.smtp_password_encrypted as string,
+        // Entschlüsselt (19.09.2026). Altbestand im Klartext kommt unverändert
+        // zurück, damit der Versand nicht stillsteht — siehe src/lib/geheimnis.ts.
+        pass: entschluessele(emailCfg.smtp_password_encrypted as string | null),
       },
     })
 
