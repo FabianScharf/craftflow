@@ -1,7 +1,0 @@
-const targets = await (await fetch('http://localhost:9222/json')).json()
-const t = targets.find(x => x.type === 'page' && x.url.includes('craftflow-git-dev'))
-const ws = new WebSocket(t.webSocketDebuggerUrl)
-await new Promise(r => ws.onopen = r)
-ws.send(JSON.stringify({ id: 1, method: 'Page.navigate', params: { url: 'https://craftflow-git-dev-fabian-scharf-s-projects.vercel.app/settings' } }))
-await new Promise(r => ws.onmessage = (m) => { console.log(m.data.slice(0, 200)); r() })
-ws.close()

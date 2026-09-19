@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 .livetest.mjs
 .diag.mjs
+
+# Arbeitsordner fuer Screenshots und Pruefskripte — gehoert NIE ins Repo.
+# Das Repository ist oeffentlich; hier liegen Bildschirmfotos der App mit
+# echten Daten (E-Mail-Adressen, Kundennamen, Einstellungen).
+.tmp-cu/
