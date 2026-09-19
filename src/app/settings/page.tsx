@@ -1094,14 +1094,25 @@ export default function SettingsPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: ton(C.ok, '22'), border: `1px solid ${ton(C.ok, '66')}`, borderRadius: 6, marginBottom: 12 }}>
                           <span style={{ fontSize: 18, flexShrink: 0 }}>📄</span>
                           <span style={{ fontSize: 12, color: C.ok, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Briefpapier hochgeladen</span>
-                          <a
-                            href={profil.pdf_briefpapier_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ fontSize: 12, color: C.copper, textDecoration: 'underline', flexShrink: 0 }}
+                          {/* Der Bucket ist seit 19.09. privat (Sicherheitsprüfung):
+                              Die gespeicherte Adresse ist nicht mehr direkt abrufbar.
+                              Die Vorschau holt sich eine Adresse, die 5 Minuten gilt. */}
+                          <button
+                            onClick={async () => {
+                              const res = await fetch('/api/briefpapier-link')
+                              const j = await res.json().catch(() => ({})) as { url?: string; error?: string }
+                              if (!res.ok || !j.url) {
+                                setStripeMsg({ type: 'err', text: j.error ?? 'Vorschau gerade nicht möglich.' })
+                                return
+                              }
+                              window.open(j.url, '_blank', 'noreferrer')
+                            }}
+                            style={{ fontSize: 12, color: C.copper, textDecoration: 'underline', flexShrink: 0,
+                              background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
+                              fontFamily: 'Helvetica Neue,sans-serif' }}
                           >
                             Vorschau
-                          </a>
+                          </button>
                         </div>
                       ) : (
                         <div style={{ fontSize: 11, color: C.textMid, marginBottom: 12, padding: '8px 0' }}>Noch kein Briefpapier hochgeladen.</div>

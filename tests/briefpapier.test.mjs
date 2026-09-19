@@ -43,3 +43,17 @@ test('Fehlende Angaben sind nie gültig', () => {
   assert.equal(istEigenesBriefpapier(null, SB, UID), false)
   assert.equal(istEigenesBriefpapier('kein-url', SB, UID), false)
 })
+
+// ── Signierte Adressen (19.09.2026) ────────────────────────────────────────
+import { pfadAusBriefpapierAdresse } from '../src/lib/briefpapier.ts'
+
+test('Pfad aus einer oeffentlichen Briefpapier-Adresse', () => {
+  const a = 'https://abc.supabase.co/storage/v1/object/public/briefpapier/konto-1/briefpapier.pdf'
+  assert.equal(pfadAusBriefpapierAdresse(a), 'konto-1/briefpapier.pdf')
+})
+
+test('Fremder Pfad oder Unsinn ergibt null', () => {
+  assert.equal(pfadAusBriefpapierAdresse('https://abc.supabase.co/storage/v1/object/public/logos/x.png'), null)
+  assert.equal(pfadAusBriefpapierAdresse('kein-url'), null)
+  assert.equal(pfadAusBriefpapierAdresse(null), null)
+})

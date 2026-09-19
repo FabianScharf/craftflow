@@ -5,7 +5,8 @@ import { PDFDocument } from 'pdf-lib'
 import { createClient } from '@/utils/supabase/server'
 import { pruefeZugang, ladeEffektivenPlan } from '@/lib/planpruefung'
 import { erlaubt } from '@/lib/plaene'
-import { istEigenesBriefpapier } from '@/lib/briefpapier'
+import { istEigenesBriefpapier, pfadAusBriefpapierAdresse, BRIEFPAPIER_BUCKET } from '@/lib/briefpapier'
+import { getSupabaseClient } from '@/lib/supabase'
 import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 
 /**
@@ -140,7 +141,31 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         )
       }
-      letterheadUrl = adresse
+      // SIGNIERTE ADRESSE STATT ÖFFENTLICHER (19.09.2026): Der Bucket
+      // `briefpapier` stand auf öffentlich, jede Datei war ohne Anmeldung
+      // abrufbar — mit Firmenname, Anschrift, oft Steuernummer und
+      // Bankverbindung. Seither ist er privat; der Server holt sich hier eine
+      // Adresse, die nur wenige Minuten gilt und nur für diesen einen PDF-Bau.
+      const pfad = pfadAusBriefpapierAdresse(adresse)
+      if (!pfad) {
+        console.error('[pdf] Briefpapier-Pfad nicht lesbar:', adresse)
+        return NextResponse.json(
+          { error: 'Die hinterlegte Briefpapier-Datei lässt sich nicht lesen. Bitte lade sie in den Einstellungen neu hoch.' },
+          { status: 400 },
+        )
+      }
+      const { data: signiert, error: signErr } = await getSupabaseClient()
+        .storage.from(BRIEFPAPIER_BUCKET).createSignedUrl(pfad, 300)
+      // Supabase wirft nicht — ohne diese Prüfung käme das Angebot still ohne
+      // Briefpapier heraus, und niemand wüsste warum.
+      if (signErr || !signiert?.signedUrl) {
+        console.error('[pdf] Briefpapier signieren:', signErr?.message)
+        return NextResponse.json(
+          { error: 'Dein Briefpapier ist gerade nicht abrufbar. Bitte gleich noch einmal versuchen.' },
+          { status: 503 },
+        )
+      }
+      letterheadUrl = signiert.signedUrl
     }
   }
 

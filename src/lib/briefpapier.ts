@@ -52,3 +52,29 @@ export function istEigenesBriefpapier(
   const erwartet = `/storage/v1/object/public/${BRIEFPAPIER_BUCKET}/${kontoId}/`
   return ziel.pathname.startsWith(erwartet)
 }
+
+/**
+ * Der Speicherpfad hinter einer geprüften Briefpapier-Adresse.
+ *
+ * WOZU (19.09.2026): Der Bucket `briefpapier` stand auf öffentlich, und die
+ * Leseregel galt für die Rolle `public` — jede Datei war **ohne Anmeldung**
+ * abrufbar, wer die Adresse kannte. In einem Briefpapier stehen Firmenname,
+ * Anschrift, oft Steuernummer und Bankverbindung.
+ *
+ * Seither ist der Bucket privat, und der Server erzeugt beim PDF-Bau eine kurz
+ * gültige signierte Adresse. Diese Funktion holt dafür den Pfad
+ * `<kontoId>/briefpapier.pdf` aus der gespeicherten Adresse.
+ *
+ * Gibt null zurück, wenn die Adresse nicht passt — der Aufrufer prüft sie
+ * vorher ohnehin mit `istEigenesBriefpapier`.
+ */
+export function pfadAusBriefpapierAdresse(adresse: string | null | undefined): string | null {
+  if (!adresse) return null
+  let pfad: string
+  try { pfad = new URL(adresse).pathname } catch { return null }
+  const marke = `/storage/v1/object/public/${BRIEFPAPIER_BUCKET}/`
+  const i = pfad.indexOf(marke)
+  if (i === -1) return null
+  const rest = pfad.slice(i + marke.length)
+  return rest || null
+}
