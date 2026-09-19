@@ -107,7 +107,7 @@ export default function WunschKommentare({
   // ── Aufgeklappt: eigener Bereich, abgesetzt vom Wunschtext ──────────────
   return (
     <div style={{
-      marginTop: 10, background: C.black, borderRadius: 8,
+      marginTop: 10, marginBottom: 10, background: C.black, borderRadius: 8,
       border: `1px solid ${C.border}`, padding: '10px 12px' }}>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -131,12 +131,9 @@ export default function WunschKommentare({
 
       {gezeigt.map(k => (
         <div key={k.id} style={{
-          marginBottom: 10,
-          paddingLeft: k.vomEntwickler ? 10 : 0,
-          borderLeft: k.vomEntwickler ? `2px solid ${C.copper}` : 'none',
-          background: k.vomEntwickler ? akzentTon('0D') : 'transparent',
-          borderRadius: k.vomEntwickler ? 4 : 0,
-          padding: k.vomEntwickler ? '6px 10px' : 0 }}>
+          marginBottom: 8, borderRadius: 6, padding: '8px 10px',
+          background: k.vomEntwickler ? akzentTon('12') : C.gray1,
+          borderLeft: k.vomEntwickler ? `2px solid ${C.copper}` : `2px solid ${C.border}` }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: k.vomEntwickler ? C.copper : C.white }}>
               {k.autor}
@@ -150,8 +147,9 @@ export default function WunschKommentare({
             <span style={{ fontSize: 11, color: C.textMid }}>{wannGeschrieben(k.datum)}</span>
             {(k.vonMir || istAdmin) && (
               <button onClick={() => void loeschen(k.id)} title="Kommentar löschen"
-                style={{ background: 'transparent', border: 'none', color: C.textMid,
-                  fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                style={{ marginLeft: 'auto', background: 'transparent', border: 'none',
+                  color: C.textMid, fontSize: 11, cursor: 'pointer', padding: 0,
+                  textDecoration: 'underline' }}>
                 löschen
               </button>
             )}
@@ -167,7 +165,8 @@ export default function WunschKommentare({
         onChange={e => { setFehler(''); setText(e.target.value) }}
         style={{ width: '100%', background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 6,
           color: C.white, padding: '8px 10px', fontSize: 12.5, boxSizing: 'border-box',
-          fontFamily: 'Helvetica Neue,sans-serif', resize: 'vertical', marginTop: 2 }} />
+          fontFamily: 'Helvetica Neue,sans-serif', resize: 'vertical',
+          marginTop: anzahl > 0 ? 12 : 2 }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 7 }}>
         <button onClick={() => void senden()} disabled={!text.trim() || sendet} style={{
