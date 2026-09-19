@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server'
 // (307) — Stripe konnte den Webhook seit dem 16.09. nie zustellen. Die Route
 // prüft ihre eigene Auth selbst über die Stripe-Signatur (constructEvent).
 //
-// '/api/wuensche/oeffentlich' speist die Roadmap auf www.getcraftflow.de. Sie ruft
+// '/api/wuensche/oeffentlich' speist die Werkstatt auf www.getcraftflow.de. Sie ruft
 // die Route ohne Sitzung auf; ohne diesen Eintrag käme eine 307 auf /login zurück
 // (derselbe Fehler wie beim Stripe-Webhook am 16.09.). Die Route gibt ausschließlich
 // Titel, Beschreibung, Status, Stimmenzahl und Änderungszeitpunkt heraus — keine

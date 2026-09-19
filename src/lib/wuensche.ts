@@ -20,7 +20,7 @@ export const STATUS_LABEL: Record<WunschStatus, string> = {
 }
 
 /**
- * Was auf der öffentlichen Roadmap der Website erscheint. Fabian 2026-09-17: „Jeder
+ * Was in der öffentlichen Werkstatt der Website erscheint. Fabian 2026-09-17: „Jeder
  * Wunsch, der von einem Nutzer geäußert wird, soll auf der Roadmap landen, damit
  * darüber abgestimmt werden kann“ — deshalb auch „offen“. Nur „ausgeblendet“ und
  * Zusammengelegtes bleiben draußen.

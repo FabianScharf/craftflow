@@ -118,10 +118,12 @@ export default function WuenscheSettings() {
         Du kannst alle Stimmen auf ein Thema legen. Ist ein Wunsch fertig, bekommst du
         die Stimmen zurück. Es gibt keinen monatlichen Nachschub — dein Konto ist ein
         fester Vorrat je Plan.{' '}
-        {/* Fabian, 16.09.: Von hier direkt zur öffentlichen Roadmap — was geplant, in Arbeit und fertig ist. */}
+        {/* Fabian, 16.09.: Von hier direkt in die öffentliche Werkstatt — was geplant,
+            in Arbeit und fertig ist. Hieß bis 18.09. „Roadmap“ (Fabian, 19.09.: „dort
+            muss auch Werkstatt stehen“); die alte Adresse leitet dauerhaft um. */}
         Was daraus geplant, in Arbeit oder fertig ist, steht auf der{' '}
-        <a href="https://www.getcraftflow.de/roadmap" target="_blank" rel="noreferrer"
-          style={{ color: C.copper, textDecoration: 'underline' }}>Roadmap</a>.
+        <a href="https://www.getcraftflow.de/werkstatt" target="_blank" rel="noreferrer"
+          style={{ color: C.copper, textDecoration: 'underline' }}>Werkstatt</a>.
       </p>
 
       {fehler && <div style={{ color: C.err, fontSize: 13, marginBottom: 14 }}>{fehler}</div>}

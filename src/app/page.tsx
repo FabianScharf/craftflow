@@ -766,10 +766,27 @@ export default function CraftFlow() {
 
   // ── Help-Assistent ──────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false)
+  /* Die Vorstellung des Assistenten (Fabian, 19.09.: „immer mal wieder aufploppt …
+     aber das sollte nicht zu nervig sein"). Wann sie erscheinen darf, entscheidet
+     src/lib/assistenthinweis.ts — nicht vor dem dritten Öffnen, nie für jemanden,
+     der den Assistenten schon benutzt hat, nach zweimal Wegklicken nie wieder. */
+  const [hinweisOffen, setHinweisOffen] = useState(false)
   const [helpMessages, setHelpMessages] = useState<OptimChatMsg[]>([])
   const [helpInput, setHelpInput] = useState('')
   const [helpLoading, setHelpLoading] = useState(false)
   const helpChatRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let weg = false
+    const uhr = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/assistent-hinweis')
+        const j = await res.json() as { zeigen?: boolean }
+        if (!weg && j.zeigen) setHinweisOffen(true)
+      } catch { /* kein Hinweis ist besser als ein Fehler */ }
+    }, 6000)
+    return () => { weg = true; clearTimeout(uhr) }
+  }, [])
 
   // ── Zentrale Materialanfrage + Export ───────────────
   const [allInquiryStatus, setAllInquiryStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
@@ -3158,8 +3175,51 @@ export default function CraftFlow() {
     </div>
   ) : null
 
+  const hinweisWeg = (benutzt: boolean) => {
+    setHinweisOffen(false)
+    void fetch('/api/assistent-hinweis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ was: benutzt ? 'benutzt' : 'weggeklickt' }),
+    })
+  }
+
   const HelpWidget = (
     <>
+      {/* Die Vorstellung: eine Sprechblase am Knopf, kein Fenster über der Arbeit. */}
+      {!helpOpen && hinweisOffen && (
+        <div style={{
+          position: 'fixed', bottom: 88, right: 24, zIndex: 501,
+          maxWidth: 290, background: C.gray2, border: `1px solid ${akzentTon('55')}`,
+          borderRadius: 14, padding: '16px 18px', boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.white, marginBottom: 6 }}>
+            Ich bin der CraftFlow-Assistent
+          </div>
+          <p style={{ fontSize: 13, lineHeight: 1.55, color: C.textMid, margin: '0 0 14px' }}>
+            Ich kenne jede Funktion und jede Einstellung. Frag mich, wenn du etwas
+            suchst oder nicht weiterkommst — auch mitten in der Kalkulation.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => { hinweisWeg(true); openHelp() }}
+              style={{
+                flex: 1, background: C.copper, color: C.onAccent, border: 'none',
+                borderRadius: 8, padding: '9px 0', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >Ausprobieren</button>
+            <button
+              onClick={() => hinweisWeg(false)}
+              style={{
+                background: 'transparent', color: C.textMid, border: `1px solid ${C.border}`,
+                borderRadius: 8, padding: '9px 14px', fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >Später</button>
+          </div>
+        </div>
+      )}
       {!helpOpen && (
         <button onClick={openHelp} title="CraftFlow Assistent" style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 500,

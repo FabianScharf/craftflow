@@ -39,7 +39,7 @@ const abPlan = (f: Parameters<typeof mindestPlan>[0]) => `ab dem ${PLAN_LABELS[m
  * passen — ein Test liest die Datei und vergleicht.
  */
 export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
-  { id: 'wuensche', label: 'Wünsche', zweck: 'Funktionswünsche vorschlagen und über die Vorschläge anderer abstimmen. Jeder Plan darf mitmachen; wie viele Stimmen jemand hat, hängt am Plan (Solo 1, Starter 3, Pro 10, Enterprise 30) — alle Stimmen auf einen Wunsch möglich (▲ und ▼ stapeln), Stimmen kommen bei fertigen oder ausgeblendeten Wünschen zurück, kein monatlicher Nachschub. JEDER eingereichte Wunsch steht sofort öffentlich auf der Roadmap www.getcraftflow.de/roadmap (Spalten Vorgeschlagen, Geplant, In Arbeit, Fertig) mit seiner Stimmenzahl; abgestimmt wird nur in der App. Ein Link zur Roadmap steht im Bereich Wünsche' },
+  { id: 'wuensche', label: 'Wünsche', zweck: 'Funktionswünsche vorschlagen und über die Vorschläge anderer abstimmen. Jeder Plan darf mitmachen; wie viele Stimmen jemand hat, hängt am Plan (Solo 1, Starter 3, Pro 10, Enterprise 30) — alle Stimmen auf einen Wunsch möglich (▲ und ▼ stapeln), Stimmen kommen bei fertigen oder ausgeblendeten Wünschen zurück, kein monatlicher Nachschub. JEDER eingereichte Wunsch steht sofort öffentlich in der Werkstatt www.getcraftflow.de/werkstatt (Spalten Vorgeschlagen, Geplant, In Arbeit, Fertig) mit seiner Stimmenzahl; abgestimmt wird nur in der App. Ein Link zur Werkstatt steht im Bereich Wünsche' },
   { id: 'firma', label: 'Firmendaten', zweck: 'Name, Inhaber, Adresse, Logo, Kontakt' },
   { id: 'buchhaltung', label: 'Buchhaltung', zweck: 'USt-IdNr., Steuernummer, IBAN, Umsatzsteuersatz, Kleinunternehmerregelung nach § 19 UStG, Gültigkeitsdauer der Angebote, Angebotsnummern' },
   { id: 'dokumente', label: 'Dokumente', zweck: 'Anrede-Vorlage, Einleitung, Grußformel, Zahlungskondition, Widerrufsbelehrung' },
@@ -66,7 +66,7 @@ export const EINSTELLUNGSBEREICHE: Einstellungsbereich[] = [
 export const PFLICHTTHEMEN = [
   'Stückzahl', 'Alternativposition', 'Gruppe', 'Textbaustein', 'Schriftart',
   'Kleinunternehmer', 'Materialpreise', 'Bauweise', 'Mein Betrieb',
-  'Optimieren', 'Vorschau', 'Briefpapier', 'Preisfaktor', 'Roadmap', 'Pipette', 'je Stück', 'CNC',
+  'Optimieren', 'Vorschau', 'Briefpapier', 'Preisfaktor', 'Werkstatt', 'Pipette', 'je Stück', 'CNC',
 ] as const
 
 export type WissenDaten = {
