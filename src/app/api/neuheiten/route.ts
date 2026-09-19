@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getSupabaseClient } from '@/lib/supabase'
 import { wasZeigen, type Fensterneuheit } from '@/lib/neuheitenfenster'
@@ -46,16 +46,46 @@ export async function GET() {
   return NextResponse.json(anzeige)
 }
 
-export async function POST() {
+/**
+ * Merker setzen — auf das DATUM DER NEUESTEN GEZEIGTEN NEUERUNG, nicht auf „jetzt".
+ *
+ * WARUM (gefunden 19.09.2026): Vorher stand hier `new Date().toISOString()`, und
+ * `wasZeigen` vergleicht mit `n.datum > schwelle.slice(0, 10)` — einem Datum ohne
+ * Uhrzeit, mit striktem Größer. Wer sich morgens einloggte und nichts sah, bekam
+ * trotzdem den heutigen Tag als Merker. Alles, was am selben Tag noch
+ * veröffentlicht wurde, war für ihn danach **nie mehr neu**.
+ *
+ * An einem Veröffentlichungstag trifft das jeden, der vorher schon einmal drin
+ * war — am 19.09. hätte Fabian selbst die Werkstatt-Neuerungen nie zu sehen
+ * bekommen, weil sein Merker von 07:43 stammte und die Einträge dasselbe Datum
+ * trugen.
+ *
+ * Jetzt: Der Aufrufer schickt das Datum der neuesten Neuerung mit, die er
+ * tatsächlich gesehen hat. Ohne Angabe wird NICHTS geschrieben — lieber ein
+ * Fenster zweimal als eine Neuerung nie.
+ *
+ * Bleibt offen: Zwei Veröffentlichungen am selben Tag. Wer die erste sieht,
+ * verpasst die zweite. Dafür bräuchten die Neuerungen einen Zeitstempel statt
+ * eines Tagesdatums.
+ */
+export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 })
 
+  const body = await req.json().catch(() => ({})) as { bis?: unknown }
+  const bis = typeof body.bis === 'string' && /^\d{4}-\d{2}-\d{2}/.test(body.bis) ? body.bis : null
+  if (!bis) return NextResponse.json({ ok: false, grund: 'kein Datum' })
+
   try {
     const admin = getSupabaseClient()
     const meta = (user.app_metadata ?? {}) as Record<string, unknown>
+    // Nie zurückdrehen: Ein älteres Datum als der bestehende Merker würde alte
+    // Neuerungen wieder aufleben lassen.
+    const bisher = typeof meta[MERKER] === 'string' ? meta[MERKER] as string : ''
+    const neuerWert = bis > bisher.slice(0, 10) ? bis : bisher
     await admin.auth.admin.updateUserById(user.id, {
-      app_metadata: { ...meta, [MERKER]: new Date().toISOString() },
+      app_metadata: { ...meta, [MERKER]: neuerWert },
     })
     return NextResponse.json({ ok: true })
   } catch (e) {
