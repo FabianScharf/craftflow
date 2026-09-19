@@ -129,9 +129,32 @@ function groupKostenstellen(list: Kostenstelle[]): Record<string, Kostenstelle[]
   return map
 }
 
+/** Welche Anker in /settings#… einen Bereich öffnen dürfen. */
+const BEREICHE_AUS_HASH = ['firma', 'marketing', 'briefpapier', 'betrieb', 'textbausteine', 'kostenstellen', 'warenaufschlaege', 'bauweise', 'materialpreise', 'lieferanten', 'email', 'buchhaltung', 'auswertung', 'dokumente', 'wuensche', 'team', 'plan', 'admin', 'hilfe'] as const
+
 export default function SettingsPage() {
   const { isInTrial, trialDaysLeft, canUse, isBlocked, effectivePlan, plan, istInhaber, kontoId, zustand } = usePlan()
   const [section, setSection] = useState<'firma' | 'marketing' | 'briefpapier' | 'betrieb' | 'textbausteine' | 'kostenstellen' | 'warenaufschlaege' | 'bauweise' | 'materialpreise' | 'lieferanten' | 'email' | 'buchhaltung' | 'auswertung' | 'dokumente' | 'wuensche' | 'team' | 'plan' | 'admin' | 'hilfe'>('firma')
+
+  // DIE ADRESSZEILE ENTSCHEIDET MIT (gefunden 19.09.): Acht Stellen verlinken auf
+  // /settings#plan oder /settings#wuensche — die Paywall, jeder gesperrte
+  // Datei-Knopf, und von der Website aus „In CraftFlow abstimmen". Der Anker wurde
+  // nie ausgewertet: Alle landeten auf Firmendaten und mussten den Bereich selbst
+  // suchen.
+  //
+  // Aufgefallen ist es, weil der Plan-Umschalter seit heute neu lädt — danach war
+  // der Umschalter weg, und es sah aus, als hätte der Wechsel nicht funktioniert.
+  useEffect(() => {
+    const ausHash = () => {
+      const h = window.location.hash.replace('#', '')
+      if (h && (BEREICHE_AUS_HASH as readonly string[]).includes(h)) {
+        setSection(h as typeof section)
+      }
+    }
+    ausHash()
+    window.addEventListener('hashchange', ausHash)
+    return () => window.removeEventListener('hashchange', ausHash)
+  }, [])
   const [briefpapierTab, setBriefpapierTab] = useState<'gestaltung' | 'texte'>('gestaltung')
   const [bpUploading, setBpUploading] = useState(false)
   const [bpMsg, setBpMsg] = useState('')
@@ -1907,6 +1930,9 @@ export default function SettingsPage() {
                           // färbte sich nur dieser Knopf um, während der Rest der
                           // Seite den alten Plan weiterzeigte — und der Hinweis
                           // darunter behauptete „kein Reload nötig".
+                          // Anker setzen, sonst kommt die Seite auf Firmendaten
+                          // zurück und der Umschalter ist weg.
+                          window.location.hash = 'plan'
                           window.location.reload()
                         }}
                         style={{
@@ -1932,6 +1958,7 @@ export default function SettingsPage() {
                           setStripeMsg({ type: 'err', text: j.error ?? `Sperren fehlgeschlagen (${res.status})` })
                           return
                         }
+                        window.location.hash = 'plan'
                         window.location.reload()
                       }}
                       style={{
