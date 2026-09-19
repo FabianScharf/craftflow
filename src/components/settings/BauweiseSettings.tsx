@@ -185,10 +185,21 @@ export default function BauweiseSettings() {
         <div style={{ fontSize: 11, color: C.err, marginBottom: 14, lineHeight: 1.5 }}>{listenFehler}</div>
       )}
 
+      {/* HIER STAND EIN VERSPRECHEN, DAS NICHT EINGELÖST WURDE (bis 19.09.2026):
+          „CraftFlow fragt dich nach dem Speichern eines Angebots, wenn ihm etwas
+          auffällt." Die Logik dafür liegt fertig in src/lib/learn.ts (diffOffer,
+          pruefeKandidaten) — aufgerufen wird sie von niemandem. Nach dem Speichern
+          passiert also nichts.
+
+          Jetzt steht hier nur, was wirklich geht: das Signalwort im Chat und das
+          Formular darunter. Sobald der Weg über das Speichern gebaut ist, gehört
+          er hier wieder hinein — vorher nicht. */}
       {regeln.length === 0 && (
-        <div style={{ fontSize: 12, color: C.textMid, marginBottom: 14 }}>
-          Noch keine Regeln. CraftFlow fragt dich nach dem Speichern eines Angebots, wenn ihm etwas
-          auffällt — oder du legst hier selbst eine an.
+        <div style={{ fontSize: 12, color: C.textMid, marginBottom: 14, lineHeight: 1.6 }}>
+          Noch keine Regeln. Zwei Wege: Sag im <b>Optimieren-Chat</b>, wie du baust, und
+          benutze dabei ein Wort wie <b>„immer“</b>, <b>„standardmäßig“</b> oder
+          <b>„grundsätzlich“</b> — CraftFlow schlägt dir dann den Regeltext vor und
+          speichert ihn erst, wenn du zustimmst. Oder du legst hier unten selbst eine an.
         </div>
       )}
 
