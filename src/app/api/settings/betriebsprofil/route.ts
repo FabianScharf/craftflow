@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { kontoIdFuer, kontoGesperrt } from '@/lib/kontoserver'
 import { normalisiereHex } from '@/lib/theme'
 import { klemmePreisfaktor } from '@/lib/preisfaktor'
+import { istNameArt } from '@/lib/kommentare'
 import {
   PROFIL_FELDER, PROFIL_BOOL_FELDER, PROFIL_ZAHL_FELDER, darfGeschriebenWerden,
 } from '@/lib/profilfelder'
@@ -74,6 +75,18 @@ export async function PATCH(req: NextRequest) {
       )
     }
     patch.preisfaktor = wert
+  }
+
+  // Anzeigename für Kommentare: nur die drei bekannten Werte. Ein unbekannter
+  // käme sonst bis an den CHECK der Spalte und ergäbe eine Datenbankmeldung
+  // statt eines verständlichen Satzes.
+  if ('wunsch_name_art' in patch) {
+    if (!istNameArt(patch.wunsch_name_art)) {
+      return NextResponse.json(
+        { error: `„${String(patch.wunsch_name_art)}“ ist keine gültige Namensform.` },
+        { status: 400 },
+      )
+    }
   }
 
   // Farbcodes bereinigen; Unsinn abweisen statt ihn in die Datenbank zu lassen.

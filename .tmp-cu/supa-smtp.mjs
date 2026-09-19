@@ -1,0 +1,12 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null, protocolTimeout: 120000 })
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const page = (await browser.pages()).find(p => p.url().includes('/auth/templates')) || await browser.newPage()
+await page.goto('https://supabase.com/dashboard/project/fepfjvixfxksvduzwsgq/auth/smtp', { waitUntil: 'networkidle2', timeout: 90000 }); await sleep(5000)
+const t = await page.evaluate(() => document.body.innerText)
+const i = t.indexOf('SMTP'); console.log(t.slice(i, i + 1800))
+const felder = await page.evaluate(() => ({ inputs: [...document.querySelectorAll('input')].map(x => ({ id: x.id || x.name, type: x.type, v: x.type === 'password' ? (x.value ? '***' : '') : x.value })).filter(x => x.v), switches: [...document.querySelectorAll('[role=switch]')].map(s => ({ id: s.id, on: s.getAttribute('aria-checked') })) }))
+console.log(JSON.stringify(felder, null, 1))
+await page.screenshot({ path: '/tmp/cfshots/supa-smtp.png', fullPage: true })
+await page.close()
+browser.disconnect()

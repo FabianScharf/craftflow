@@ -34,6 +34,10 @@ export const PROFIL_FELDER: readonly string[] = [
   'kleinunternehmer',
   'benchmark_zustimmung',
   'preisfaktor',
+  // Mit welchem Namen die Kommentare dieses Kontos oeffentlich erscheinen.
+  // Einmal gewaehlt, gilt fuer alle (Fabian, 19.09.). Geprueft wird der Wert in
+  // der Route — ein unbekannter Wert wuerde sonst am CHECK der Spalte scheitern.
+  'wunsch_name_art',
 ]
 
 /**

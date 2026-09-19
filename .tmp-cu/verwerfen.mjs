@@ -1,0 +1,11 @@
+import puppeteer from 'puppeteer-core'
+const b = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const t = (await b.pages()).find(p => p.url().includes('craftflow-git-dev'))
+await t.bringToFront()
+await t.evaluate(() => { const k = [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '📋'); if (k) k.click() })
+await new Promise(r => setTimeout(r, 1500))
+const hat = await t.evaluate(() => /Verwerfen/.test(document.body.innerText))
+if (hat) await t.evaluate(() => { const k = [...document.querySelectorAll('button')].find(e => e.textContent.trim() === 'Verwerfen'); if (k) k.click() })
+await new Promise(r => setTimeout(r, 2000))
+console.log('verworfen:', hat, '| jetzt:', await t.evaluate(() => document.body.innerText.replace(/\s+/g,' ').slice(0, 60)))
+await b.disconnect()

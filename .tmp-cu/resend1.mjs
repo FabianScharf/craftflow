@@ -1,0 +1,11 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null, protocolTimeout: 120000 })
+const page = await browser.newPage()
+await page.setViewport({ width: 1366, height: 1000 })
+await page.goto('https://resend.com/domains', { waitUntil: 'networkidle2', timeout: 90000 })
+await new Promise(r => setTimeout(r, 3000))
+console.log('URL:', page.url())
+const t = await page.evaluate(() => document.body.innerText)
+console.log(t.slice(0, 1500))
+await page.screenshot({ path: '/tmp/cfshots/resend-domains.png' })
+browser.disconnect()

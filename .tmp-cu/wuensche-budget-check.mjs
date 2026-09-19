@@ -1,0 +1,10 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const page = await browser.newPage()
+await page.goto('https://craftflow-git-dev-fabian-scharf-s-projects.vercel.app/', { waitUntil: 'domcontentloaded', timeout: 90000 }); await sleep(3000)
+const app = await page.evaluate(async () => { const r = await fetch('/api/wuensche', { cache: 'no-store' }); const j = await r.json(); return { status: r.status, budget: j.budget, wuensche: (j.wuensche || []).map(w => w.titel + ' [' + w.status + ', ' + w.stimmen + ' Stimmen]') } })
+await page.goto('https://craftflow-web-git-dev-fabian-scharf-s-projects.vercel.app/?nc=' + Date.now() + '#preise', { waitUntil: 'networkidle2', timeout: 90000 }); await sleep(2000)
+const web = await page.evaluate(() => [...document.querySelectorAll('#preise a')].map(a => a.innerText.trim() + ' → ' + a.getAttribute('href')).filter(t => /testen|Anfragen/i.test(t)))
+console.log(JSON.stringify({ app, web }))
+await page.close(); browser.disconnect()

@@ -1,0 +1,15 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null, protocolTimeout: 120000 })
+const page = (await browser.pages()).find(p => p.url().includes('resend.com'))
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const text = () => page.evaluate(() => document.body.innerText)
+if (!page.url().includes('/domains/add')) { await page.goto('https://resend.com/domains/add', { waitUntil: 'networkidle2' }); await sleep(3000) }
+await page.click('input[placeholder="updates.example.com"]')
+await page.type('input[placeholder="updates.example.com"]', 'getcraftflow.de', { delay: 40 })
+// Erweiterte Optionen (Region)
+await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Advanced options'); b && b.click() }); await sleep(1200)
+let t = await text(); let i = t.indexOf('Advanced options'); console.log('--- OPTIONEN ---\n' + t.slice(i, i + 900))
+const opts = await page.evaluate(() => [...document.querySelectorAll('button, [role="radio"], [role="option"], label')].map(e => e.innerText.trim()).filter(x => x && x.length < 60))
+console.log('Elemente:', JSON.stringify(opts))
+await page.screenshot({ path: '/tmp/cfshots/resend-add2.png' })
+browser.disconnect()

@@ -1,0 +1,12 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 1000 })
+await page.goto('https://craftflow-git-dev-fabian-scharf-s-projects.vercel.app/', { waitUntil: 'domcontentloaded', timeout: 90000 }); await sleep(4000)
+await page.click('button[title="Meine Projekte"]'); await sleep(2500)
+const ok = await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === '✕'); if (!b) return false; b.click(); return true }); await sleep(1500)
+const btn = await page.evaluate(() => { const b = [...document.querySelectorAll('button')].filter(b => /löschen/i.test(b.innerText)).pop(); if (!b) return null; const cs = getComputedStyle(b); return { text: b.innerText.trim(), bg: cs.backgroundColor, fg: cs.color } })
+await page.screenshot({ path: '/tmp/cfshots/loeschen-dialog.png' })
+await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Abbrechen'); b && b.click() })
+console.log(JSON.stringify({ geoeffnet: ok, btn }))
+await page.close(); browser.disconnect()

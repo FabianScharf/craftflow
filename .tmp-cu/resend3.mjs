@@ -1,0 +1,11 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null, protocolTimeout: 120000 })
+const page = (await browser.pages()).find(p => p.url().includes('resend.com'))
+await new Promise(r => setTimeout(r, 5000))
+const t = await page.evaluate(() => document.body.innerText)
+const i = t.indexOf('Domains', t.indexOf('Need help?'))
+console.log(t.slice(i, i + 1500))
+const links = await page.evaluate(() => [...document.querySelectorAll('a')].map(a => a.href).filter(h => h.includes('/domains/')))
+console.log('Domain-Links:', links)
+await page.screenshot({ path: '/tmp/cfshots/resend-domains.png' })
+browser.disconnect()

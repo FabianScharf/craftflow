@@ -7,6 +7,9 @@ import { NextResponse } from 'next/server'
 import { getSupabaseClient } from '@/lib/supabase'
 import type { ProfilFuerPlan } from '@/lib/plaene'
 import { OEFFENTLICHE_STATUS, stimmenJeWunsch, type Stimme } from '@/lib/wuensche'
+import {
+  fuerDieWebsite, type KommentarZeile, type NameArt, type OeffentlicherKommentar, type Profil,
+} from '@/lib/kommentare'
 
 export async function GET() {
   const service = getSupabaseClient()
@@ -52,7 +55,53 @@ export async function GET() {
     }))
     .sort((a, b) => b.stimmen - a.stimmen || a.titel.localeCompare(b.titel, 'de'))
 
-  return NextResponse.json({ wuensche: liste }, {
+  // Kommentare zu genau diesen Wünschen. Sie gehen OHNE Freigabeschritt nach
+  // draußen (Fabians Entscheidung 19.09.) — geprüft wird beim Schreiben.
+  //
+  // Was hier herausgeht, ist ausschließlich ein NAME, nie eine user_id: Welcher
+  // Name das ist, entscheidet jeder Betrieb selbst unter Einstellungen →
+  // Wünsche. Die Zuordnung passiert beim Lesen, damit ein späterer Wechsel auf
+  // „nur die Region" auch für alte Kommentare gilt.
+  const sichtbareIds = new Set(liste.map(w => w.id))
+  const kommentare = await ladeKommentare(service, [...sichtbareIds])
+
+  return NextResponse.json({ wuensche: liste, kommentare }, {
     headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
   })
+}
+
+/** Alle Kommentare zu den übergebenen Wünschen, fertig für die Website. */
+async function ladeKommentare(
+  service: ReturnType<typeof getSupabaseClient>,
+  wunschIds: string[],
+): Promise<OeffentlicherKommentar[]> {
+  if (wunschIds.length === 0) return []
+  const { data, error } = await service
+    .from('wunsch_kommentare')
+    .select('id, wunsch_id, user_id, text, vom_entwickler, created_at')
+    .in('wunsch_id', wunschIds)
+    .order('created_at', { ascending: true })
+  if (error) {
+    // Kein Abbruch: Die Wünsche selbst sind wichtiger als die Kommentare
+    // darunter. Lieber eine Seite ohne Gespräch als gar keine Seite.
+    console.error('[wuensche/oeffentlich] Kommentare:', error.message)
+    return []
+  }
+  const zeilen = (data ?? []) as KommentarZeile[]
+  const ids = [...new Set(zeilen.map(z => z.user_id))]
+  const nameArten: Record<string, NameArt | null> = {}
+  const profile: Record<string, Profil> = {}
+  if (ids.length > 0) {
+    const { data: p, error: pErr } = await service
+      .from('betriebsprofil')
+      .select('user_id, wunsch_name_art, firma_name, inhaber, plz, ort')
+      .in('user_id', ids)
+    if (pErr) console.error('[wuensche/oeffentlich] Namen:', pErr.message)
+    for (const row of p ?? []) {
+      const id = String(row.user_id)
+      nameArten[id] = (row.wunsch_name_art ?? null) as NameArt | null
+      profile[id] = row as Profil
+    }
+  }
+  return fuerDieWebsite(zeilen, nameArten, profile)
 }

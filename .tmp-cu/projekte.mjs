@@ -1,0 +1,10 @@
+import puppeteer from 'puppeteer-core'
+const b = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const app = (await b.pages()).find(p => p.url().includes('vercel.app'))
+await app.bringToFront()
+await app.evaluate(() => { const k = [...document.querySelectorAll('button')].find(e => e.textContent.trim() === '📋'); if (k) k.click() })
+await new Promise(r => setTimeout(r, 1200))
+const dialog = await app.evaluate(() => /Nicht gespeicherte Änderungen/.test(document.body.innerText) && /Verwerfen/.test(document.body.innerText))
+console.log('Verlassen-Dialog offen:', dialog)
+await app.screenshot({ path: '.tmp-cu/verlassen-dialog.png', captureBeyondViewport: false })
+await b.disconnect()

@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { akzentTon } from '@/lib/theme'
 import { C } from '@/lib/types'
 import { STATUS_LABEL, WUNSCH_STATUS, TITEL_MAX, BESCHREIBUNG_MAX, type WunschStatus } from '@/lib/wuensche'
+import { NAME_ARTEN, NAME_ART_LABEL, NAME_ART_STANDARD, anzeigeName, type NameArt } from '@/lib/kommentare'
+import WunschKommentare, { type Kommentar } from './WunschKommentare'
 
 // Einstellungen -> Wünsche. Jeder Plan darf vorschlagen und abstimmen; wie viele
 // Stimmen jemand hat, entscheidet sein Plan (1/3/10/30, src/lib/plaene.ts).
@@ -31,8 +33,50 @@ export default function WuenscheSettings() {
   // I-1: nur für den Admin — zeigt auch Ausgeblendetes und Zusammengelegtes, das
   // sonst (RLS + Routenfilter) unwiderruflich verschwunden wirkt.
   const [zeigeAlle, setZeigeAlle] = useState(false)
+  // Kommentare aller Wünsche in EINEM Zug — sonst je Wunsch eine Abfrage.
+  const [kommentare, setKommentare] = useState<Kommentar[]>([])
+  // Der Anzeigename ist eine Einstellung des Kontos, nicht des Kommentars
+  // (Fabian, 19.09.: „Nutzer wählt, aber nur einmal").
+  const [nameArt, setNameArt] = useState<NameArt>(NAME_ART_STANDARD)
+  const [nameVorschau, setNameVorschau] = useState('')
 
   useEffect(() => { void laden(zeigeAlle) }, [zeigeAlle])
+  useEffect(() => { void ladeKommentare(); void ladeName() }, [])
+
+  async function ladeKommentare() {
+    const res = await fetch('/api/wuensche/kommentare')
+    const j = await res.json().catch(() => ({})) as { kommentare?: Kommentar[]; error?: string }
+    if (!res.ok) { setFehler(j.error ?? `Kommentare laden fehlgeschlagen (${res.status})`); return }
+    setKommentare(j.kommentare ?? [])
+  }
+
+  async function ladeName() {
+    const res = await fetch('/api/settings/betriebsprofil')
+    const j = await res.json().catch(() => ({})) as { profil?: Record<string, unknown> }
+    const p = j.profil ?? {}
+    const art = (p.wunsch_name_art as NameArt) ?? NAME_ART_STANDARD
+    setNameArt(art)
+    setNameVorschau(anzeigeName(art, p))
+  }
+
+  async function nameSetzen(art: NameArt) {
+    const vorher = nameArt
+    setNameArt(art)
+    const res = await fetch('/api/settings/betriebsprofil', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wunsch_name_art: art }),
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({})) as { error?: string }
+      setNameArt(vorher)
+      setFehler(j.error ?? 'Namensform konnte nicht gespeichert werden.')
+      return
+    }
+    setFehler('')
+    // Die Wahl wirkt rückwirkend auch auf alte Kommentare — deshalb beides neu holen.
+    await ladeName()
+    await ladeKommentare()
+  }
 
   async function laden(alle = zeigeAlle) {
     const res = await fetch(alle ? '/api/wuensche?alle=1' : '/api/wuensche')
@@ -185,6 +229,31 @@ export default function WuenscheSettings() {
         </div>
       </div>
 
+      {/* Die Namensform gilt für ALLE Kommentare dieses Kontos — einmal gewählt,
+          nicht je Beitrag (Fabian, 19.09.). Sie wirkt auch rückwirkend: Wer auf
+          „nur die Region" umstellt, wird auch unter alten Kommentaren anonym. */}
+      <div style={{ background: C.gray1, borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+        <div style={{ fontSize: 12.5, color: C.white, fontWeight: 700, marginBottom: 4 }}>
+          Unter welchem Namen kommentierst du?
+        </div>
+        <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6, marginBottom: 8 }}>
+          Deine Kommentare stehen öffentlich auf getcraftflow.de. Die Wahl gilt für alle —
+          auch rückwirkend für die, die schon dort stehen.
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <select value={nameArt} onChange={e => void nameSetzen(e.target.value as NameArt)}
+            style={{ background: C.gray2, border: `1px solid ${C.border}`, borderRadius: 6,
+              color: C.white, fontSize: 12.5, padding: '6px 9px' }}>
+            {NAME_ARTEN.map(a => <option key={a} value={a}>{NAME_ART_LABEL[a]}</option>)}
+          </select>
+          {nameVorschau && (
+            <span style={{ fontSize: 12, color: C.textMid }}>
+              erscheint als <b style={{ color: C.copper }}>{nameVorschau}</b>
+            </span>
+          )}
+        </div>
+      </div>
+
       {istAdmin && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
           fontSize: 12.5, color: C.textMid, cursor: 'pointer' }}>
@@ -251,6 +320,17 @@ export default function WuenscheSettings() {
               {new Date(w.created_at).toLocaleDateString('de-DE')}
               {w.zusammengelegt_in && ' · zusammengelegt'}
             </div>
+            {!versteckt && (
+              <WunschKommentare
+                wunschId={w.id}
+                kommentare={kommentare.filter(k => k.wunschId === w.id)}
+                istAdmin={istAdmin}
+                anzeigeName={nameVorschau}
+                onNeu={k => setKommentare(prev => [...prev, k])}
+                onWeg={id => setKommentare(prev => prev.filter(x => x.id !== id))}
+              />
+            )}
+
             {istAdmin && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <select value={w.status} onChange={e => void statusSetzen(w, e.target.value as WunschStatus)}

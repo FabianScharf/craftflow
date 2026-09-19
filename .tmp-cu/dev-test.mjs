@@ -1,0 +1,10 @@
+import puppeteer from 'puppeteer-core'
+const b = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const app = (await b.pages()).find(p => p.url().startsWith('https://app.getcraftflow.de'))
+await app.bringToFront()
+await app.setViewport({ width: 1400, height: 1000, deviceScaleFactor: 2 })
+await app.goto('https://craftflow-git-dev-fabian-scharf-s-projects.vercel.app/', { waitUntil: 'networkidle0' })
+await new Promise(r => setTimeout(r, 3000))
+console.log('URL:', app.url())
+console.log('Inhalt:', (await app.evaluate(() => document.body.innerText.slice(0, 120))).replace(/\n+/g, ' | '))
+await b.disconnect()

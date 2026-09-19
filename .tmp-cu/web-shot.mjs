@@ -1,0 +1,12 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 1000 })
+await page.goto(process.argv[2] + '/#preise', { waitUntil: 'domcontentloaded', timeout: 90000 }); await new Promise(r => setTimeout(r, 5000))
+console.log('URL:', page.url().slice(0, 80))
+const t = await page.evaluate(() => document.body.innerText)
+console.log('Preise:', JSON.stringify({ zzglMwSt: (t.match(/zzgl\. MwSt\./g) || []).length, nettoSatz: t.includes('ausschließlich an Unternehmen'), beliebt: t.includes('Beliebt'), professional: t.includes('Professional'), fairUse: t.includes('Fair Use'), faqGrenze: t.includes('Grenze meines Plans'), mailto: t.includes('Anfragen') }))
+await page.evaluate(() => document.querySelector('#preise')?.scrollIntoView()); await new Promise(r => setTimeout(r, 800))
+await page.screenshot({ path: '/tmp/cfshots/web-preise.png' })
+await page.evaluate(() => document.querySelector('#faq')?.scrollIntoView()); await new Promise(r => setTimeout(r, 800))
+await page.screenshot({ path: '/tmp/cfshots/web-faq.png' })
+await page.close(); browser.disconnect()

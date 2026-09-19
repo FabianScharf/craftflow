@@ -1,0 +1,13 @@
+import puppeteer from 'puppeteer-core'
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 1000 })
+await page.goto('https://craftflow-git-dev-fabian-scharf-s-projects.vercel.app/settings', { waitUntil: 'networkidle2', timeout: 90000 }); await sleep(3000)
+const api = await page.evaluate(async () => { const j = await (await fetch('/api/settings/kalibrierung', { cache: 'no-store' })).json(); const rp = j.referenzprojekt; return { anker: Object.fromEntries(Object.entries(rp.anker).map(([k, v]) => [k, v.text])), faustregel: rp.faustregel, lackPos: rp.positionen.find(p => p.variante === 'lack')?.material.find(m => /Lack/.test(m.bezeichnung)) } })
+console.log('API', JSON.stringify(api, null, 1))
+await page.evaluate(() => { const els = [...document.querySelectorAll('*')].filter(e => e.childElementCount === 0 && e.innerText?.trim() === 'Mein Betrieb'); if (els.length) (els[0].closest('button, a, .nav-item') || els[0]).click() }); await sleep(4000)
+const knopf = await page.evaluateHandle(() => [...document.querySelectorAll('button')].find(b => /So rechnet CraftFlow/.test(b.innerText)))
+await knopf.asElement().click(); await sleep(1500)
+const t = await page.evaluate(() => { const k = [...document.querySelectorAll('div')].find(d => /Das Referenzprojekt:/.test(d.innerText) && d.style.borderRadius === '8px'); return k ? k.innerText : '' })
+console.log('UI', JSON.stringify({ faustregelSichtbar: /Faustregel/.test(t), lackAnker: t.split('\n').find(l => /rechnet \+/.test(l)), alsProjekt: /Als Projekt öffnen/.test(t) }))
+await page.close(); browser.disconnect()

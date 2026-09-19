@@ -1,0 +1,18 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null, protocolTimeout: 60000 })
+const page = (await browser.pages()).find(p => p.url().includes('resend.com'))
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const text = () => page.evaluate(() => document.body.innerText)
+// 1) fscrafted.de anlegen
+await page.goto('https://resend.com/domains/add', { waitUntil: 'networkidle2', timeout: 60000 }); await sleep(3000)
+await page.evaluate(() => { const inp = document.querySelector('input[placeholder="updates.example.com"]'); const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'); d.set.call(inp, 'fscrafted.de'); inp.dispatchEvent(new Event('input', { bubbles: true })) })
+await sleep(500)
+await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Advanced options'); b && b.click() }); await sleep(1000)
+let t = await text(); console.log('Region:', (t.match(/Region\n([^\n]+)/) || [])[1])
+await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Add domain'); b && b.click() }); await sleep(6000)
+console.log('URL:', page.url())
+await page.evaluate(() => { const b = [...document.querySelectorAll('button, a')].find(b => b.innerText.trim() === 'Manual setup'); b && b.click() }); await sleep(3000)
+const rows = await page.evaluate(() => [...document.querySelectorAll('table tr')].map(tr => [...tr.querySelectorAll('th,td')].map(td => { const c = td.querySelector('[aria-label^="Copy "]'); return c ? c.getAttribute('aria-label').slice(5) : td.innerText.trim().replace(/\n/g, ' ') }).join(' | ')))
+console.log('--- DNS fscrafted.de ---\n' + rows.join('\n'))
+await page.screenshot({ path: '/tmp/cfshots/resend-dns-fscrafted.png', fullPage: true })
+browser.disconnect()

@@ -1,0 +1,12 @@
+import puppeteer from 'puppeteer-core'
+const b = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const app = (await b.pages()).find(p => p.url().includes('vercel.app'))
+await app.bringToFront()
+await app.evaluate(() => { const k = [...document.querySelectorAll('button')].find(e => /Preis selbst anlegen/.test(e.textContent)); if (k) k.click() })
+await new Promise(r => setTimeout(r, 1200))
+await app.evaluate(() => { [...document.querySelectorAll('button, div')].filter(e => { const s = getComputedStyle(e); const r = e.getBoundingClientRect(); return s.position === 'fixed' && r.width < 120 && r.height < 120 && r.x > 1200 }).forEach(e => (e.dataset.weg='1', e.style.visibility='hidden')) })
+const ende = await app.evaluate(() => { const k = [...document.querySelectorAll('button')].find(e => /Preis speichern/.test(e.textContent)); const r = k?.getBoundingClientRect(); return r ? Math.round(r.y + r.height) : 500 })
+console.log('Formular endet bei', ende)
+await app.screenshot({ path: '.tmp-cu/materialpreise.png', clip: { x: 440, y: 120, width: 662, height: Math.min(860, ende - 110) }, captureBeyondViewport: false })
+await app.evaluate(() => document.querySelectorAll('[data-weg]').forEach(e => (e.style.visibility='', delete e.dataset.weg)))
+await b.disconnect()

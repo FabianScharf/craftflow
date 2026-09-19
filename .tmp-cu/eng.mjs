@@ -1,0 +1,10 @@
+import puppeteer from 'puppeteer-core'
+const b = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const t = await b.newPage()
+await t.setViewport({ width: 880, height: 1600, deviceScaleFactor: 1 })
+await t.goto('http://localhost:4322/werkstatt', { waitUntil: 'networkidle2', timeout: 60000 })
+await new Promise(r => setTimeout(r, 1200))
+const m = await t.evaluate(() => { const g = document.querySelector('[class*="gross"]'); return Math.round(g.getBoundingClientRect().top + window.pageYOffset) })
+await t.screenshot({ path: '.tmp-cu/eng.png', clip: { x: 30, y: m - 16, width: 820, height: 420 } })
+console.log('ok')
+await b.disconnect()

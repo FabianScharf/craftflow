@@ -1,0 +1,16 @@
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null })
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const page = await browser.newPage()
+await page.setViewport({ width: 1280, height: 1000 })
+const B = 'https://craftflow-git-dev-fabian-scharf-s-projects.vercel.app'
+await page.goto(B + '/settings', { waitUntil: 'networkidle2', timeout: 90000 }); await sleep(2500)
+await page.evaluate(() => { const el = [...document.querySelectorAll('button, div, span, a')].find(e => e.children.length <= 2 && e.innerText && e.innerText.trim() === 'Textbausteine'); el && el.click() }); await sleep(2000)
+await page.screenshot({ path: '/tmp/cfshots/hell2-textbausteine.png', clip: { x: 380, y: 100, width: 700, height: 520 } })
+await page.goto(B + '/', { waitUntil: 'networkidle2', timeout: 90000 }); await sleep(2500)
+await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => b.title && /projekt|liste|ordner/i.test(b.title)); b && b.click() }); await sleep(2000)
+await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(b => b.innerText.trim().startsWith('Öffnen')); b && b.click() }); await sleep(3500)
+await page.evaluate(() => { const el = [...document.querySelectorAll('div, button')].find(e => e.innerText && e.innerText.trim().startsWith('KI-Optimierung') && e.children.length <= 3); el && el.click() }); await sleep(2000)
+await page.screenshot({ path: '/tmp/cfshots/hell2-optimieren.png' })
+console.log('fertig')
+await page.close(); browser.disconnect()
