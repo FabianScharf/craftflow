@@ -1,0 +1,76 @@
+#!/bin/sh
+# Bremse gegen versehentlich mitcommittete Arbeitsdateien.
+#
+# WARUM ES DAS GIBT (19.09.2026): Der Arbeitsordner .tmp-cu lag IM Repository,
+# und ein `git add -A` hat ihn mitgenommen — 102 Bildschirmfotos der App, 23 MB,
+# in einem ÖFFENTLICHEN Repository. Darunter Aufnahmen mit E-Mail-Adressen.
+# Aufgefallen ist es erst beim Blick auf die Dateiliste des Merges nach main.
+#
+# Der Hook ist die letzte Bremse, nicht die erste: Arbeitsdateien gehören gar
+# nicht erst ins Repo-Verzeichnis (siehe CLAUDE.md), und `git add -A` ist zu
+# grob. Aber beide Regeln kann man vergessen — diese hier nicht.
+#
+# Installieren:  ln -sf ../../scripts/pre-commit-schutz.sh .git/hooks/pre-commit
+# Umgehen:       git commit --no-verify   (nur mit gutem Grund)
+
+set -e
+
+fehler=0
+
+# ── 1. Arbeitsordner, die nie ins Repo gehören ───────────────────────────────
+verdaechtig=$(git diff --cached --name-only --diff-filter=A \
+  | grep -E '(^|/)(\.tmp-cu|\.tmp|tmp-cu|scratch|\.scratch)(/|$)' || true)
+if [ -n "$verdaechtig" ]; then
+  echo "✗ ARBEITSORDNER IM COMMIT — das Repository ist öffentlich."
+  echo "$verdaechtig" | sed 's/^/    /'
+  echo ""
+  echo "  Arbeitsdateien gehören in das Scratchpad-Verzeichnis der Sitzung,"
+  echo "  nicht in den Projektordner. Entfernen mit:"
+  echo "    git rm -r --cached <ordner>"
+  fehler=1
+fi
+
+# ── 2. Große neue Dateien außerhalb der Orte, an denen sie hingehören ────────
+# public/ und docs/ dürfen Bilder enthalten — das ist ihr Zweck.
+# Kein `case` hier: In einer Kommandosubstitution stolpert /bin/sh auf macOS
+# ueber die Klammer des Musters (19.09. beim Bau dieses Hooks gelernt).
+gross=$(git diff --cached --name-only --diff-filter=A \
+  | grep -vE '^(public|docs)/' | grep -vE '\.md$' | while IFS= read -r datei; do
+  [ -f "$datei" ] || continue
+  groesse=$(wc -c < "$datei" 2>/dev/null || echo 0)
+  if [ "$groesse" -gt 1048576 ]; then
+    echo "    $datei ($((groesse / 1024)) KB)"
+  fi
+done)
+if [ -n "$gross" ]; then
+  echo "✗ GROSSE DATEI AUSSERHALB VON public/ ODER docs/:"
+  echo "$gross"
+  echo ""
+  echo "  Gehört sie wirklich ins Repo? Sonst entfernen mit:"
+  echo "    git restore --staged <datei>"
+  fehler=1
+fi
+
+# ── 3. Bildschirmfotos außerhalb von public/ ─────────────────────────────────
+# Der eigentliche Fall vom 19.09.: viele kleine PNGs, einzeln unter 1 MB.
+bilder=$(git diff --cached --name-only --diff-filter=A \
+  | grep -iE '\.(png|jpg|jpeg|gif|webp)$' \
+  | grep -vE '^(public|docs)/' || true)
+anzahl=$(printf '%s' "$bilder" | grep -c . || true)
+if [ "$anzahl" -gt 0 ]; then
+  echo "✗ $anzahl BILD(ER) AUSSERHALB VON public/ ODER docs/:"
+  echo "$bilder" | head -10 | sed 's/^/    /'
+  [ "$anzahl" -gt 10 ] && echo "    … und $((anzahl - 10)) weitere"
+  echo ""
+  echo "  Bildschirmfotos der App enthalten oft echte Daten —"
+  echo "  E-Mail-Adressen, Kundennamen, Einstellungen."
+  fehler=1
+fi
+
+if [ "$fehler" -ne 0 ]; then
+  echo ""
+  echo "  Commit abgebrochen. Mit gutem Grund trotzdem: git commit --no-verify"
+  exit 1
+fi
+
+exit 0
