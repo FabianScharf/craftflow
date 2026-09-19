@@ -1900,7 +1900,14 @@ export default function SettingsPage() {
                             setStripeMsg({ type: 'err', text: j.error ?? `Plan-Wechsel fehlgeschlagen (${res.status})` })
                             return
                           }
-                          setProfil(prev => ({ ...prev, plan: p }))
+                          // NEU LADEN statt nur den lokalen Wert zu setzen (Fabian,
+                          // 19.09.: „Es stellt sich aber nicht mehr um"): Die
+                          // Plan-Kacheln, alle Sperren und die Etiketten hängen an
+                          // usePlan(), einem eigenen Haken mit eigener Kopie. Vorher
+                          // färbte sich nur dieser Knopf um, während der Rest der
+                          // Seite den alten Plan weiterzeigte — und der Hinweis
+                          // darunter behauptete „kein Reload nötig".
+                          window.location.reload()
                         }}
                         style={{
                           padding: '8px 16px', borderRadius: 6, fontSize: 12, fontWeight: 700,
@@ -1913,9 +1920,35 @@ export default function SettingsPage() {
                         {p.charAt(0).toUpperCase() + p.slice(1)}
                       </button>
                     ))}
+                    <button
+                      onClick={async () => {
+                        const res = await fetch('/api/admin/plan', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ gesperrt: true }),
+                        })
+                        if (!res.ok) {
+                          const j = await res.json().catch(() => ({})) as { error?: string }
+                          setStripeMsg({ type: 'err', text: j.error ?? `Sperren fehlgeschlagen (${res.status})` })
+                          return
+                        }
+                        window.location.reload()
+                      }}
+                      style={{
+                        padding: '8px 16px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                        cursor: 'pointer', fontFamily: 'Helvetica Neue, sans-serif',
+                        background: C.gray2, color: C.err, border: `1px solid ${C.err}`,
+                      }}
+                    >
+                      Gesperrt
+                    </button>
                   </div>
-                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 8 }}>
-                    Wechselt sofort — kein Stripe, kein Reload nötig.
+                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 8, lineHeight: 1.6 }}>
+                    Simuliert ein bezahltes Abo — ohne Stripe. Die Seite lädt danach neu,
+                    damit Kacheln, Sperren und Etiketten denselben Plan zeigen.
+                    <br />
+                    <b style={{ color: C.err }}>Gesperrt</b> stellt die Paywall her, wie sie
+                    ein Konto nach der Testphase sieht.
                   </div>
                 </div>
               )}
