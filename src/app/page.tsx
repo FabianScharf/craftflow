@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { akzentTon, ton } from '@/lib/theme'
+import { vergleichsstandFehlt, istUngespeichert } from '@/lib/speicherstand'
 import { usePlan, mindestPlan, PLAN_LABELS } from '@/hooks/usePlan'
 import { PLAN_REIHE, PLAENE, PREIS_IDS, merkmaleFuerAnzeige } from '@/lib/plaene'
 import NoSleep from 'nosleep.js'
@@ -641,7 +642,24 @@ export default function CraftFlow() {
   const [gespeicherterStand, setGespeicherterStand] = useState('')
   // Gemerktes Ziel: was passieren soll, wenn der Nutzer die Nachfrage beantwortet.
   const [verlassenZiel, setVerlassenZiel] = useState<null | (() => void)>(null)
-  const ungespeichert = gespeicherterStand !== '' && standJetzt !== gespeicherterStand
+  const ungespeichert = istUngespeichert(gespeicherterStand, standJetzt)
+
+  // Sobald der Nutzer im Angebot steht, MUSS es einen Vergleichsstand geben.
+  //
+  // Das Laden eines Projekts und die fertige Analyse setzen ihn selbst — nur
+  // „Manuell eingeben" tat es nicht. Ohne Vergleichsstand ist `ungespeichert`
+  // immer false: keine Speicherleiste, keine Nachfrage beim Verlassen, keine
+  // Browser-Warnung. Wer ein Angebot von Hand anlegte und wegging, verlor alles
+  // ohne jeden Hinweis (gefunden 19.09.2026).
+  //
+  // Bewusst hier und nicht im Knopf: Derselbe Fehler ist am 06.09. schon beim
+  // Laden passiert. An jedem einzelnen Einstieg wird er vergessen — diese eine
+  // Regel gilt für alle, auch für künftige. Der erste Vergleichsstand ist das
+  // leere Formular; es gilt als gesichert, die erste Änderung daran meldet sich.
+  // Auf dem Startbildschirm bleibt der leere Wert stehen (siehe resetAll).
+  useEffect(() => {
+    if (vergleichsstandFehlt(screen, gespeicherterStand)) setGespeicherterStand(standJetzt)
+  }, [screen, gespeicherterStand, standJetzt])
 
   // Faengt jeden Weg aus dem Angebot ab. Ohne das merkt der Nutzer erst, dass
   // etwas fehlte, wenn er zurueckkommt — und dann ist es zu spaet.
